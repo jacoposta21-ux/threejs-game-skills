@@ -225,6 +225,7 @@ export default {
     locked_hall: 'The town hall is closed. Office hours 8:00-20:00.',
     locked_house: 'Locked. It\'s too late (or too early) to visit.',
     shopClosed: 'The till is closed. Come back between 8:00 and 17:00 (not on Sundays).',
+    exhausted: "You're exhausted! You have one hour to get home before you collapse.",
     lateWarning: 'It\'s getting very late. Head to bed before 2:00!',
     midnight: 'Midnight. Your bed is calling.',
     crafted: 'Crafted: {item}',

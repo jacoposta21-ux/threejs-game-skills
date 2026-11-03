@@ -602,6 +602,21 @@ export class Renderer {
     this.stats.calls = info.calls; this.stats.tris = info.triangles;
   }
 
+  // Building lights: on at dusk while people are up, off once they go to sleep (each house at its
+  // own time, between 21:30 and 22:45); shops close earlier; a gnomed villager's house stays dark.
+  _lightsOn(game, def) {
+    if (!def) return true;
+    if (def.owner) { const n = game.npcs.get(def.owner); if (n && n.gnomed) return false; }
+    const m = game.minutes;
+    if (m < 12 * 60) return true; // daytime: glass only (the glow material is dark by day anyway)
+    let off;
+    if (def.id === 'store') off = 19 * 60;
+    else if (def.id === 'hall') off = 20 * 60 + 30;
+    else if (def.id === 'farmhouse') off = game.playerArea().id === 'farmhouse' ? 99 * 60 : 22 * 60;
+    else off = 21 * 60 + 30 + Math.floor(hash2(def.x, def.y, 21) * 6) * 15;
+    return m < off;
+  }
+
   _syncObjects(game) {
     const objs = this.world.objects;
     const p = game.player, px = p.x / TILE, pz = p.y / TILE;
@@ -616,7 +631,7 @@ export class Renderer {
       const back = o.y + 0.45, top = 4.2;
       const hides = outdoor && px > o.x - 0.4 && px < o.x + o.w + 0.4 && pz < back + 0.3 && (back - pz) * slope + 1.2 < top;
       const n = o.def.owner && game.npcs.get(o.def.owner);
-      const glow = n && n.gnomed ? MAT.glass : MAT.glow;
+      const glow = this._lightsOn(game, o.def) ? MAT.glow : MAT.glass;
       for (const c of m.children) {
         if (c.userData.glow) c.material = hides ? MAT.glowFade : glow;
         else c.material = hides ? MAT.fade : MAT.base;
@@ -859,6 +874,10 @@ export class Renderer {
     const cands = [];
     for (const L of this.world.lights) {
       if (L.indoor ? L.area !== area.id : !out) continue;
+      if (L.indoor) { // room lamp follows the building's lights (only once it is dark outside)
+        const b = this.world.buildings.find((o) => o.def.interior === L.area);
+        if (b && darkness(m) > 0.3 && !this._lightsOn(game, b.def)) continue;
+      }
       if (!L.indoor && night <= 0.02) continue;
       const x = L.x / TILE, z = L.y / TILE;
       cands.push({ x, z, y: L.indoor ? 1.9 : 2.1, d: (x - tx) ** 2 + (z - tz) ** 2, indoor: L.indoor });

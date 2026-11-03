@@ -225,6 +225,7 @@ export default {
     locked_hall: "Il municipio è chiuso. Orari d'ufficio 8:00-20:00.",
     locked_house: "Chiuso a chiave. È troppo tardi (o troppo presto) per una visita.",
     shopClosed: "La cassa è chiusa. Torna tra le 8:00 e le 17:00 (non di domenica).",
+    exhausted: "Sei esausto! Hai un'ora per tornare a casa, o crollerai dove sei.",
     lateWarning: "Si è fatto tardissimo. Vai a letto prima delle 2:00!",
     midnight: "Mezzanotte. Il letto ti chiama.",
     crafted: "Creato: {item}",

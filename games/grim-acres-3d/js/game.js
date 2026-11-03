@@ -14,7 +14,7 @@ import { RECIPES } from './data/recipes.js';
 import { TUTORIAL } from './data/tutorial.js';
 import { FISH, FISHING } from './data/fish.js';
 import { VILLAGERS, FRIENDSHIP } from './data/villagers.js';
-import { MINUTES_PER_SECOND, DAY_START, DAY_END, SEASON_DAYS, storeOpen, doorLocked } from './time.js';
+import { MINUTES_PER_SECOND, DAY_END, WAKE_TIME, GRACE_MINUTES, GRACE_REAL_SECONDS, SEASON_DAYS, storeOpen, doorLocked } from './time.js';
 import { t, tList, fmt } from './i18n.js';
 import { Audio } from './audio.js';
 import { Save } from './save.js';
@@ -61,7 +61,7 @@ export class Game {
     const seed = (Math.random() * 4294967296) >>> 0;
     this._baseState(seed);
     this.day = 1;
-    this.minutes = DAY_START;
+    this.minutes = WAKE_TIME;
     this.weather = 'sunny';
     this.money = START_MONEY;
     this.maxEnergy = MAX_ENERGY;
@@ -78,7 +78,7 @@ export class Game {
     this._baseState(1);
     this.rng.s = d.rng >>> 0;
     this.day = d.day;
-    this.minutes = DAY_START;
+    this.minutes = WAKE_TIME;
     this.weather = d.weather || 'sunny';
     this.money = d.money;
     this.maxEnergy = d.maxEnergy || MAX_ENERGY;
@@ -356,7 +356,8 @@ export class Game {
 
   _tick(dt) {
     const before = this.minutes;
-    this.minutes += dt * MINUTES_PER_SECOND * (this.quietNight ? NIGHT_CLOCK : 1);
+    // after 2:00 the clock slows down: one in-game hour of grace to get home
+    this.minutes += this.minutes >= DAY_END ? dt * (GRACE_MINUTES / GRACE_REAL_SECONDS) : dt * MINUTES_PER_SECOND * (this.quietNight ? NIGHT_CLOCK : 1);
     const p = this.player;
     p.update(dt, this.fishing ? { x: 0, y: 0 } : this.input.move, (x, y) => this._blockedForPlayer(x, y));
     if (p.bumped) this._onBump(p.bumped);
@@ -377,7 +378,19 @@ export class Game {
     if (before < 18 * 60 && this.minutes >= 18 * 60 && this.omenTonight) { this.ui.toast(t('msg.omen'), 'warn'); Audio.play('gnome'); }
     if (before < 24 * 60 && this.minutes >= 24 * 60) this.ui.toast(t('msg.midnight'));
     if (before < 25 * 60 && this.minutes >= 25 * 60) this.ui.toast(t('msg.lateWarning'), 'warn');
-    if (this.minutes >= DAY_END && !this.ui.cinematic) this.ui.eyes(t('cinematic.passOut'), () => this.sleep(true));
+    if (this.minutes >= DAY_END && !this.ui.cinematic) this._exhausted();
+  }
+
+  // Too tired to go on: instead of collapsing on the spot, the farmer gets one hour to reach home.
+  // Back inside the farmhouse they go straight to bed (no penalty); still out at 3:00, they pass out.
+  _exhausted() {
+    if (!this.graceWarned) {
+      this.graceWarned = true;
+      this.ui.toast(t('msg.exhausted'), 'warn');
+      Audio.play('error');
+    }
+    if (this.playerArea().id === 'farmhouse') this.ui.eyes(t('cinematic.sleep'), () => this.sleep(false));
+    else if (this.minutes >= DAY_END + GRACE_MINUTES) this.ui.eyes(t('cinematic.passOut'), () => this.sleep(true));
   }
 
   _blockedForPlayer(x, y) {
@@ -963,6 +976,7 @@ export class Game {
 
   // ------------------------------------------------------------ night
   sleep(passedOut) {
+    this.graceWarned = false;
     this.tut('sleep');
     const report = { day: this.day, shipped: this.bin.map((b) => ({ ...b, value: this.sellValue(b.id) * b.qty })), passedOut, penalty: 0 };
     const income = this.binValue();
@@ -980,7 +994,7 @@ export class Game {
 
     this.farm.nightly();
     this.day++;
-    this.minutes = DAY_START;
+    this.minutes = WAKE_TIME;
     const r = this.rng.next();
     this.weather = r < 0.2 ? 'rain' : r < 0.45 ? 'cloudy' : 'sunny';
     if (this.weather === 'rain') this.farm.rain();

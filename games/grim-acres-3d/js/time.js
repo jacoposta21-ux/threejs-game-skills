@@ -1,8 +1,11 @@
 // Clock helpers. Time is "minutes since midnight of the current day"; the day runs 6:00 -> 26:00 (2am).
 export const DAY_START = 6 * 60;
 export const DAY_END = 26 * 60;              // 2:00 next morning -> pass out
-export const REAL_SECONDS_PER_DAY = 540;     // ~9 real minutes per in-game day
+export const REAL_SECONDS_PER_DAY = 360;     // ~6 real minutes per in-game day (was 9)
 export const MINUTES_PER_SECOND = (DAY_END - DAY_START) / REAL_SECONDS_PER_DAY;
+export const WAKE_TIME = 7 * 60;             // every morning starts at 7:00
+export const GRACE_MINUTES = 60;             // after 2:00 you get one hour to walk home before passing out
+export const GRACE_REAL_SECONDS = 45;        // ...and that hour lasts this long in real time
 export const SEASON_DAYS = 28;
 export const STORE = { open: 8 * 60, close: 17 * 60, closedDow: 6 }; // closed on Sundays
 
