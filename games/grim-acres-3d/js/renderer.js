@@ -725,8 +725,9 @@ export class Renderer {
     // exit arrow
     this.exitArrow.visible = !area.outdoor && !!area.mat && game.mode === 'play';
     if (this.exitArrow.visible) { this.exitArrow.position.set(area.mat.x + 0.5, 1.1 + Math.sin(T0 * 4) * 0.12, area.mat.y + 0.4); }
-    // objective arrow
+    // objective arrow (when it already points at the doormat, the exit arrow is redundant)
     this._objective(game);
+    if (this.goalArrow.visible && this.exitArrow.visible && Math.abs(this.goalArrow.position.x - this.exitArrow.position.x) < 0.1) this.exitArrow.visible = false;
     // emotes
     let i = 0;
     for (const e of game.emotes) {

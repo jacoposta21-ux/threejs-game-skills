@@ -14,6 +14,10 @@ npm run dev      # http://127.0.0.1:5188
 npm run build    # static build in dist/ (relative paths, ready for any static host)
 ```
 
+**No install needed:** open `standalone/grim-acres-3d.html` with a double-click. It is a single
+self-contained file (rebuild it with `npm run standalone`). Opening `index.html` directly does
+not work: it needs `npm run dev` or a built `dist/` served over http.
+
 Controls are unchanged: WASD/arrows move, E/Space interacts, 1–5 or the mouse wheel pick a
 hotbar slot, Tab/N notebook, I/B bag, Esc pause. Touch devices get the virtual joystick and the
 action button; gamepads work too.
