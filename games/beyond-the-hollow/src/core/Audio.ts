@@ -2,7 +2,7 @@
  * Fully synthesized audio: atmospheric generative music + event SFX through a shared reverb.
  * No audio files are downloaded, which keeps the initial load tiny.
  */
-type Theme = 'menu' | 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'boss' | 'ending';
+type Theme = 'menu' | 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'boss' | 'ending' | 'ice' | 'foundry' | 'ruins' | 'boss2';
 
 interface ThemeDef {
   root: number; // midi
@@ -23,6 +23,10 @@ const THEMES: Record<Theme, ThemeDef> = {
   ocean: { root: 43, scale: [0, 2, 5, 7, 9, 12, 14], pad: [0, 5, 9, 14], cutoff: 800, noteEvery: [1.4, 3], wind: 0.08, bellType: 'sine' },
   heart: { root: 40, scale: [0, 1, 4, 5, 7, 8, 11, 12], pad: [0, 1, 7], cutoff: 600, noteEvery: [2, 4], wind: 0.06, bellType: 'triangle' },
   boss: { root: 40, scale: [0, 1, 3, 7, 8, 12], pad: [0, 7, 12], cutoff: 1100, noteEvery: [0.5, 1.0], wind: 0.03, pulse: true, bellType: 'sawtooth' },
+  ice: { root: 52, scale: [0, 2, 3, 7, 10, 12, 14, 19], pad: [0, 7, 14], cutoff: 1500, noteEvery: [1.2, 2.6], wind: 0.09, bellType: 'sine' },
+  foundry: { root: 36, scale: [0, 1, 3, 5, 6, 10, 12], pad: [0, 6, 12], cutoff: 700, noteEvery: [1.8, 3.4], wind: 0.06, pulse: true, bellType: 'triangle' },
+  ruins: { root: 47, scale: [0, 2, 4, 7, 9, 12, 14], pad: [0, 7, 16], cutoff: 1100, noteEvery: [1.1, 2.4], wind: 0.05, bellType: 'triangle' },
+  boss2: { root: 38, scale: [0, 1, 5, 6, 7, 12], pad: [0, 6, 13], cutoff: 1400, noteEvery: [0.4, 0.8], wind: 0.03, pulse: true, bellType: 'square' },
   ending: { root: 48, scale: [0, 2, 4, 7, 9, 11, 12, 16, 19], pad: [0, 4, 7, 11], cutoff: 1600, noteEvery: [0.8, 1.6], wind: 0.02, bellType: 'sine' },
 };
 

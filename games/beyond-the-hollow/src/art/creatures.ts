@@ -107,8 +107,8 @@ function drawCrawler(ctx: Ctx, t: number, pounce: number) {
     const reach = Math.cos(ph) * 6 * (1 - pounce) + pounce * (i < 2 ? -10 : 10);
     const kx = lx + reach * 0.4 - 3, ky = by - 14 - lift;
     const fx = lx + reach - 6 + (i < 2 ? -4 : 4), fy = 60 - lift - pounce * 6;
-    limb(ctx, lx, by - 2, kx, ky, 3.6, '#8f8473', OUT, 1.6);
-    limb(ctx, kx, ky, fx, fy, 2.8, '#a59a87', OUT, 1.5);
+    limb(ctx, lx, by - 2, kx, ky, 3.6, '#2a1f3c', OUT, 1.6);
+    limb(ctx, kx, ky, fx, fy, 2.8, '#3a2c52', OUT, 1.5);
   }
   // body: segmented carapace plates
   for (let i = 0; i < 4; i++) {
@@ -117,7 +117,7 @@ function drawCrawler(ctx: Ctx, t: number, pounce: number) {
     ctx.beginPath();
     ctx.ellipse(sx, sy, 12, 10 - i * 0.5, 0, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = linear(ctx, sx, sy - 10, sx, sy + 8, [[0, '#ece2cc'], [0.45, '#b8ab92'], [1, '#5d5446']]);
+    ctx.fillStyle = linear(ctx, sx, sy - 10, sx, sy + 8, [[0, '#5a4a84'], [0.45, '#2a1f40'], [1, '#120c1e']]);
     ctx.beginPath();
     ctx.ellipse(sx, sy, 10, 8 - i * 0.5, 0, 0, TAU);
     ctx.fill();
@@ -128,7 +128,7 @@ function drawCrawler(ctx: Ctx, t: number, pounce: number) {
     ctx.stroke();
   }
   // spines
-  ctx.fillStyle = '#d8ccb4';
+  ctx.fillStyle = '#3a2c56';
   for (let i = 0; i < 5; i++) {
     const sx = bx - 24 + i * 10;
     ctx.beginPath();
@@ -143,7 +143,7 @@ function drawCrawler(ctx: Ctx, t: number, pounce: number) {
   ctx.beginPath();
   ctx.ellipse(hx, hy, 11, 9, 0.2, 0, TAU);
   ctx.fill();
-  ctx.fillStyle = linear(ctx, hx, hy - 8, hx, hy + 8, [[0, '#d9cdb5'], [1, '#6b5f4f']]);
+  ctx.fillStyle = linear(ctx, hx, hy - 8, hx, hy + 8, [[0, '#4a3c70'], [1, '#160f24']]);
   ctx.beginPath();
   ctx.ellipse(hx, hy, 9, 7, 0.2, 0, TAU);
   ctx.fill();

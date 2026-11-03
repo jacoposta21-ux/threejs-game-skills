@@ -304,9 +304,9 @@ export class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: c, alpha: 0, delay: 2000, duration: 700, onComplete: () => c.destroy() });
   }
 
-  showBossBar(on: boolean) {
+  showBossBar(on: boolean, name = '') {
     this.bossBar = on;
-    this.bossName.setVisible(on).setText(on ? 'THE HOLLOW HEART' : '');
+    this.bossName.setVisible(on).setText(on ? name : '');
   }
 
   toast(msg: string, ms = 2200) {

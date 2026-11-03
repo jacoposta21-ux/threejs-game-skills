@@ -13,13 +13,20 @@
  * Markers sit in the cell directly above the floor they stand on.
  */
 import type { ThemeKey } from '../art/themes';
+import { CHAPTER2 } from './chapter2.ts';
 
 export interface LevelDef {
   id: string;
   name: string;
   subtitle: string;
   theme: ThemeKey;
-  music: 'station' | 'forest' | 'caverns' | 'ocean' | 'heart';
+  music: 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'ice' | 'foundry' | 'ruins';
+  /** which story chapter this part belongs to (1-based) */
+  chapter: number;
+  /** slippery ice floors */
+  ice?: boolean;
+  /** boss presented when the arena is entered */
+  boss?: { name: string; sub: string; music: 'boss' | 'boss2' };
   darkness: number;
   backWall: boolean;
   doubleJump: boolean;
@@ -29,15 +36,49 @@ export interface LevelDef {
   segments: string[][];
 }
 
+export interface ChapterDef {
+  roman: string;
+  title: string;
+  /** closing lines shown on the chapter's ending screen */
+  ending: string[];
+  next?: string;
+}
+
+export const CHAPTERS: ChapterDef[] = [
+  {
+    roman: 'I',
+    title: 'The Descent',
+    ending: [
+      'The Heart opened like a door, and the Hollow let them go.',
+      'Elias climbed out of the ruins of B-deck as the sun found the ridge.',
+      'In his pocket: his mother\'s voice, recorded in the dark. On his shoulder: a small, warm light.',
+      'Some doors close behind you. Some wait for you to come back.',
+    ],
+    next: 'Chapter II · The Iron Echo',
+  },
+  {
+    roman: 'II',
+    title: 'The Iron Echo',
+    ending: [
+      'The Ancient Sentinel sank into the water, and its great eye went dark at last.',
+      'Behind it, a capsule stood open — warm, and empty. Her red scarf was folded on the seat.',
+      'Pip flickered the old signal once more. It came from below. Far below.',
+      'His mother had not been taken. She had gone on ahead.',
+    ],
+    next: 'Chapter III · coming soon',
+  },
+];
+
 const S = (rows: string[]) => rows;
 const full = (w: number, n: number) => Array.from({ length: n }, () => '#'.repeat(w));
 
-export const LEVELS: LevelDef[] = [
+const CHAPTER1: LevelDef[] = [
   // ------------------------------------------------------------------ 1
   {
     id: 'station',
     name: 'The Abandoned Station',
-    subtitle: 'Chapter I',
+    subtitle: 'Chapter I · Part 1',
+    chapter: 1,
     theme: 'station',
     music: 'station',
     darkness: 0.62,
@@ -173,7 +214,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 'forest',
     name: 'The Mushroom Forest',
-    subtitle: 'Chapter II',
+    subtitle: 'Chapter I · Part 2',
+    chapter: 1,
     theme: 'forest',
     music: 'forest',
     darkness: 0.35,
@@ -344,7 +386,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 'caverns',
     name: 'The Forgotten Caverns',
-    subtitle: 'Chapter III',
+    subtitle: 'Chapter I · Part 3',
+    chapter: 1,
     theme: 'caverns',
     music: 'caverns',
     darkness: 0.94,
@@ -472,7 +515,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 'ocean',
     name: 'The Underground Ocean',
-    subtitle: 'Chapter IV',
+    subtitle: 'Chapter I · Part 4',
+    chapter: 1,
     theme: 'ocean',
     music: 'ocean',
     darkness: 0.5,
@@ -607,9 +651,11 @@ export const LEVELS: LevelDef[] = [
   {
     id: 'heart',
     name: 'The Heart of the Hollow',
-    subtitle: 'Chapter V',
+    subtitle: 'Chapter I · Part 5',
+    chapter: 1,
     theme: 'heart',
     music: 'heart',
+    boss: { name: 'THE HOLLOW HEART', sub: 'Guardian of the Lock', music: 'boss' },
     darkness: 0.7,
     backWall: true,
     doubleJump: true,
@@ -701,3 +747,5 @@ export const LEVELS: LevelDef[] = [
     ],
   },
 ];
+
+export const LEVELS: LevelDef[] = [...CHAPTER1, ...CHAPTER2];

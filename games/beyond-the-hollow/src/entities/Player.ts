@@ -233,10 +233,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // horizontal
     const speed = this.crouching ? PHYS.crouchSpeed : PHYS.runSpeed;
     const target = this.landLock > 0 ? dir * speed * 0.5 : dir * speed;
-    const accel = onFloor ? (dir !== 0 ? PHYS.accelGround : PHYS.decelGround) : PHYS.accelAir;
+    const icy = onFloor && !!this.gs.levelDef.ice && body.blocked.down;
+    const accel = onFloor ? (dir !== 0 ? (icy ? 950 : PHYS.accelGround) : icy ? 320 : PHYS.decelGround) : PHYS.accelAir;
     const vx = body.velocity.x;
     body.setVelocityX(Phaser.Math.Linear(vx, target, 1) === target ? approach(vx, target, accel * dt) : approach(vx, target, accel * dt));
     if (dir !== 0 && !(this.charging && this.ctl.usingMouse)) this.facing = dir;
+    // conveyor belts carry Elias
+    if (onFloor) body.x += this.lvl.beltAtWorld(body.center.x, body.bottom + 4) * 85 * dt;
     // pushing (touching a crate horizontally)
     this.pushing = onFloor && dir !== 0 && (body.touching.left || body.touching.right) && this.gs.touchingCrate(this, dir);
     // footsteps
@@ -250,7 +253,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     // ladder grab
     const onLadder = this.lvl.ladderAtWorld(body.center.x, body.center.y) || this.lvl.ladderAtWorld(body.center.x, body.bottom + 2);
-    if (onLadder && (ctl.held.up && !this.ctl.jumpOnlyPressed || (ctl.held.down && !onFloor) || (ctl.held.down && this.lvl.ladderAtWorld(body.center.x, body.bottom + 4)))) {
+    this.ladderCd = Math.max(0, this.ladderCd - dt);
+    if (onLadder && this.ladderCd <= 0 && (ctl.held.up && !this.ctl.jumpOnlyPressed || (ctl.held.down && !onFloor) || (ctl.held.down && this.lvl.ladderAtWorld(body.center.x, body.bottom + 4)))) {
       const tx = Math.floor(body.center.x / TILE);
       if (this.lvl.ch(tx, Math.floor((body.center.y) / TILE)) === 'H' || this.lvl.ch(tx, Math.floor((body.bottom + 4) / TILE)) === 'H') {
         this.setCrouch(false);
@@ -312,6 +316,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private lastHandY = 0;
+  ladderCd = 0;
   private tryLedgeGrab(dir: number) {
     const body = this.body;
     const handY = body.top + 6;
@@ -380,11 +385,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setVelocity(0, vy * PHYS.climbSpeed);
     this.dropThrough = 0.1;
     const onLadder = this.lvl.ladderAtWorld(body.center.x, body.center.y) || this.lvl.ladderAtWorld(body.center.x, body.bottom - 2);
+    const side = (ctl.held.right ? 1 : 0) - (ctl.held.left ? 1 : 0);
+    if (side !== 0 && !this.lvl.solid(Math.floor((body.center.x + side * 20) / TILE), Math.floor(body.center.y / TILE))) {
+      // step sideways off the ladder
+      this.facing = side;
+      this.ladderCd = 0.35;
+      body.setVelocityX(side * PHYS.runSpeed * 0.6);
+      this.setPState('air');
+      this.airTime = 0.1;
+      return;
+    }
     if (!onLadder) {
       // reached the top or bottom
       if (vy < 0) {
         body.setVelocityY(-180);
         this.dropThrough = 0;
+        this.ladderCd = 0.5;
       }
       this.setPState('air');
       this.airTime = 0.1;

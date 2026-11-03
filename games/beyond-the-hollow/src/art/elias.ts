@@ -16,13 +16,13 @@ interface Pose {
 
 const C = {
   outline: '#0a0d12',
-  jacket: '#2c4258', jacketHi: '#5c86a3', jacketLo: '#1b2a3a',
-  pants: '#262c38', pantsFar: '#191d26',
+  jacket: '#c2462a', jacketHi: '#ee7a4c', jacketLo: '#7c2616', shirt: '#eadfc4',
+  pants: '#4a3a2c', pantsFar: '#2e241b',
   shoe: '#6b452c', shoeFar: '#472d1d',
   skin: '#efc9a3', skinShade: '#c99a76',
   hair: '#3b2416', hairHi: '#6a4128',
-  scarf: '#dc6a2c', scarfHi: '#ffa65a', scarfLo: '#9c3f18',
-  pack: '#6d4b31', packHi: '#9b6e48',
+  scarf: '#b23e24', scarfHi: '#e8744a', scarfLo: '#6e2212',
+  pack: '#5a5236', packHi: '#857a4e',
   coil: '#7ff5e0', brass: '#c99a4a',
 };
 
@@ -81,19 +81,27 @@ function drawArm(ctx: Ctx, sx: number, sy: number, s: number, e: number, far: bo
     ctx.translate(hx, hy);
     ctx.rotate(-ang + Math.PI / 2);
     ctx.fillStyle = C.outline;
-    ctx.fillRect(-4, -6, 20, 12);
-    ctx.fillStyle = '#3d4b55';
-    ctx.fillRect(-2, -4.5, 16, 9);
-    ctx.fillStyle = C.brass;
-    ctx.fillRect(1, -4.5, 3, 9);
-    ctx.fillRect(8, -4.5, 2, 9);
-    ctx.fillStyle = radial(ctx, 16, 0, 10 + glow * 10, [[0, 'rgba(220,255,250,1)'], [0.3, 'rgba(127,245,224,0.8)'], [1, 'rgba(127,245,224,0)']]);
     ctx.beginPath();
-    ctx.arc(16, 0, 10 + glow * 10, 0, Math.PI * 2);
+    ctx.roundRect(-6, -8, 30, 15, 4);
     ctx.fill();
-    ctx.fillStyle = '#e8fffb';
+    ctx.fillRect(-2, 4, 7, 9);
+    ctx.fillStyle = linear(ctx, 0, -7, 0, 6, [[0, '#7a8690'], [1, '#2a323a']]);
     ctx.beginPath();
-    ctx.arc(15, 0, 2.8, 0, Math.PI * 2);
+    ctx.roundRect(-4, -6, 26, 11, 3);
+    ctx.fill();
+    ctx.fillStyle = '#4a3a2c';
+    ctx.fillRect(-0.5, 5, 4, 6);
+    ctx.fillStyle = C.brass;
+    ctx.fillRect(2, -6, 3, 11);
+    ctx.fillStyle = '#7ff5e0';
+    ctx.fillRect(8, -2.5, 9, 3);
+    ctx.fillStyle = radial(ctx, 24, -0.5, 12 + glow * 12, [[0, 'rgba(230,255,255,1)'], [0.3, 'rgba(110,220,255,0.85)'], [1, 'rgba(110,220,255,0)']]);
+    ctx.beginPath();
+    ctx.arc(24, -0.5, 12 + glow * 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f0ffff';
+    ctx.beginPath();
+    ctx.arc(23, -0.5, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -206,7 +214,15 @@ function drawElias(ctx: Ctx, p: Pose) {
   ctx.quadraticCurveTo(11.5, -TORSO * 0.5, 9.5, 2);
   ctx.closePath();
   ctx.fill();
-  // jacket details: zipper, pocket, belt
+  // open jacket over a pale shirt, zip line, belt
+  ctx.fillStyle = C.shirt;
+  ctx.beginPath();
+  ctx.moveTo(3, -TORSO);
+  ctx.lineTo(8.5, -TORSO);
+  ctx.quadraticCurveTo(10.5, -TORSO * 0.5, 9, -2);
+  ctx.lineTo(4, -2);
+  ctx.closePath();
+  ctx.fill();
   ctx.strokeStyle = 'rgba(10,13,18,0.6)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -221,6 +237,19 @@ function drawElias(ctx: Ctx, p: Pose) {
   // near leg
   drawLeg(ctx, hipX + 2, hipY, p.hipR, p.kneeR, false);
   // head
+  // hood resting on the shoulders behind the head
+  ctx.save();
+  ctx.translate(hdX, hdY);
+  ctx.rotate(headA * 0.6);
+  ctx.fillStyle = C.outline;
+  ctx.beginPath();
+  ctx.ellipse(-8, 8, 15, 12, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = linear(ctx, -20, 0, 4, 16, [[0, C.jacketLo], [1, C.jacket]]);
+  ctx.beginPath();
+  ctx.ellipse(-8, 8, 12.5, 9.5, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
   ctx.save();
   ctx.translate(hdX, hdY);
   ctx.rotate(headA * 0.6);

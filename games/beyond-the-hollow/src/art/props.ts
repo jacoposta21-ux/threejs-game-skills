@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { Ctx, blob, dabs, limb, linear, paintSheet, paintTexture, radial, rgba, rng } from './paint';
-import { THEMES, ThemeKey } from './themes';
+import { FAMILY, THEMES, ThemeKey } from './themes';
 
 /** Props are painted at 2x and displayed at PROP_SCALE so they stay crisp under camera zoom. */
 export const PROP_SCALE = 0.5;
@@ -523,6 +523,23 @@ export function buildThemeProps(scene: Phaser.Scene, key: ThemeKey) {
       c.fill();
       c.fillStyle = '#c8ffe8';
       c.fillRect(2, 23, 20, 2);
+    } else if (key === 'ice') {
+      crystalProp(c, 12, 40, 32, '#7ff5e0', '#ffffff', r);
+    } else if (key === 'ruins') {
+      // stone brazier with a living flame
+      c.fillStyle = radial(c, 12, 16, 16, [[0, 'rgba(230,255,250,1)'], [0.35, 'rgba(127,245,224,0.8)'], [1, 'rgba(127,245,224,0)']]);
+      c.fillRect(0, 0, 24, 34);
+      c.fillStyle = '#bffff2';
+      c.beginPath(); c.moveTo(7, 22); c.quadraticCurveTo(9, 10, 12, 4); c.quadraticCurveTo(15, 12, 17, 22); c.fill();
+      c.fillStyle = OUT; c.fillRect(4, 22, 16, 5); c.fillRect(9, 26, 6, 14); c.fillRect(6, 37, 12, 3);
+      c.fillStyle = '#76708a'; c.fillRect(5, 23, 14, 3); c.fillRect(10, 27, 4, 10);
+    } else if (key === 'foundry') {
+      c.strokeStyle = OUT; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(12, 0); c.lineTo(12, 16); c.stroke();
+      c.fillStyle = radial(c, 12, 24, 15, [[0, 'rgba(230,255,250,1)'], [0.4, 'rgba(127,245,224,0.75)'], [1, 'rgba(127,245,224,0)']]);
+      c.fillRect(0, 10, 24, 30);
+      c.fillStyle = OUT; c.beginPath(); c.moveTo(3, 18); c.lineTo(21, 18); c.lineTo(17, 13); c.lineTo(7, 13); c.fill();
+      c.fillStyle = '#7ff5e0'; c.fillRect(5, 16, 14, 2);
     } else if (key === 'caverns') {
       crystalProp(c, 12, 40, 30, '#8fb8ff', '#d8e8ff', r);
     } else if (key === 'ocean') {
@@ -557,7 +574,7 @@ export function buildThemeProps(scene: Phaser.Scene, key: ThemeKey) {
   });
   // hide spot
   p2(scene, `hide-${key}`, 48, 64, (c) => {
-    if (key === 'station') {
+    if (key === 'station' || key === 'foundry') {
       c.fillStyle = OUT;
       c.fillRect(8, 2, 32, 62);
       c.fillStyle = linear(c, 8, 0, 40, 0, [[0, '#3f4e56'], [1, '#26323a']]);
@@ -570,7 +587,7 @@ export function buildThemeProps(scene: Phaser.Scene, key: ThemeKey) {
       c.fillRect(12, 4, 3, 58);
     } else {
       // dense foliage: overlapping fronds / kelp / tendrils
-      const cols = key === 'forest' ? ['#1e5e4a', '#2f8f6f', '#155040'] : key === 'caverns' ? ['#27334f', '#3b4c72', '#1a2238'] : key === 'ocean' ? ['#0f4a44', '#1f7a6a', '#0a3330'] : ['#5a1a2a', '#8a2c40', '#3a0e1a'];
+      const cols = key === 'ice' ? ['#3a5a7a', '#6a9ac0', '#24405a'] : key === 'ruins' ? ['#2a6a44', '#4a9a5a', '#1a4a30'] : key === 'forest' ? ['#1e5e4a', '#2f8f6f', '#155040'] : key === 'caverns' ? ['#27334f', '#3b4c72', '#1a2238'] : key === 'ocean' ? ['#0f4a44', '#1f7a6a', '#0a3330'] : ['#5a1a2a', '#8a2c40', '#3a0e1a'];
       for (let i = 0; i < 16; i++) {
         const x = 6 + r() * 36, h = 34 + r() * 30;
         c.strokeStyle = OUT;
@@ -644,6 +661,50 @@ function crystalProp(c: Ctx, x: number, base: number, h: number, col: string, hi
 function decor(c: Ctx, key: ThemeKey, d: number, r: () => number) {
   const th = THEMES[key];
   const B = 24;
+  if (key === 'ice') {
+    if (d < 2) crystalProp(c, 10 + r() * 12, B, 8 + r() * 12, d ? '#d07aff' : '#7ff5e0', '#ffffff', r);
+    else if (d < 4) { // snow drift
+      for (let i = 0; i < 3; i++) { const x = 6 + i * 9 + r() * 3, h = 6 + r() * 10, cw = 6 + r() * 6; c.fillStyle = '#e8dcc8'; c.fillRect(x - 1, B - h, 2.4, h); c.fillStyle = radial(c, x, B - h, cw, [[0, 'rgba(208,122,255,0.6)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(x - cw, B - h - cw, cw * 2, cw * 2); c.fillStyle = d === 2 ? '#2fbf90' : '#a04ad0'; c.beginPath(); c.ellipse(x, B - h, cw / 2, cw / 3.2, 0, Math.PI, Math.PI * 2); c.fill(); }
+    } else if (d === 4) { // abandoned mine cart wheel & rail
+      c.fillStyle = '#3a4048'; c.fillRect(0, B - 3, 32, 3);
+      c.strokeStyle = '#5a646c'; c.lineWidth = 3; c.beginPath(); c.arc(16, B - 8, 6, 0, Math.PI * 2); c.stroke();
+    } else { c.fillStyle = '#4a3a7a'; for (let i = 0; i < 4; i++) { c.beginPath(); c.ellipse(5 + r() * 22, B - 2, 2 + r() * 3, 2, 0, 0, Math.PI * 2); c.fill(); } }
+    return;
+  }
+  if (key === 'foundry') {
+    if (d < 2) { // gear
+      const cx = 16, cy = B - 9, R = 8 + d * 2;
+      c.fillStyle = d ? '#4a5068' : '#5a6078';
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; c.fillRect(cx + Math.cos(a) * R - 2, cy + Math.sin(a) * R - 2, 4, 4); }
+      c.beginPath(); c.arc(cx, cy, R - 1, 0, Math.PI * 2); c.fill();
+      c.fillStyle = OUT; c.beginPath(); c.arc(cx, cy, 3, 0, Math.PI * 2); c.fill();
+    } else if (d === 2) { // ingot stack
+      for (let i = 0; i < 3; i++) { const x = 7 + i * 9, h = 6 + i * 3; c.fillStyle = '#e8dcc8'; c.fillRect(x - 1, B - h, 2.4, h); c.fillStyle = i % 2 ? '#d04aa8' : '#2fbf90'; c.beginPath(); c.ellipse(x, B - h, 5, 3, 0, Math.PI, Math.PI * 2); c.fill(); }
+    } else if (d === 3) { // glowing slag
+      c.fillStyle = radial(c, 16, B - 2, 12, [[0, 'rgba(127,245,224,0.7)'], [1, 'rgba(127,245,224,0)']]); c.fillRect(2, B - 14, 28, 14);
+      c.fillStyle = '#22283a'; c.beginPath(); c.ellipse(16, B, 12, 4, 0, Math.PI, Math.PI * 2); c.fill();
+    } else if (d === 4) { // pipe elbow
+      c.strokeStyle = OUT; c.lineWidth = 7; c.beginPath(); c.moveTo(2, B); c.lineTo(2, 10); c.lineTo(30, 10); c.stroke();
+      c.strokeStyle = '#4a5068'; c.lineWidth = 4; c.stroke();
+    } else { // chain heap
+      c.strokeStyle = '#6a6a70'; c.lineWidth = 2; for (let i = 0; i < 6; i++) { c.beginPath(); c.ellipse(6 + i * 4, B - 3 - (i % 2) * 2, 3, 2, 0, 0, Math.PI * 2); c.stroke(); }
+    }
+    return;
+  }
+  if (key === 'ruins') {
+    if (d === 0) { // fallen column drum
+      c.fillStyle = '#5a5470'; c.fillRect(4, B - 12, 24, 12); c.fillStyle = 'rgba(0,0,0,0.25)'; for (let x = 7; x < 28; x += 5) c.fillRect(x, B - 12, 1.5, 12);
+      c.fillStyle = '#3a8a5a'; c.fillRect(4, B - 13, 24, 2);
+    } else if (d === 1) { // stone head of an idol
+      c.fillStyle = '#6a6480'; c.beginPath(); c.ellipse(16, B - 8, 9, 9, 0, Math.PI, Math.PI * 2); c.fill(); c.fillRect(7, B - 8, 18, 8);
+      c.fillStyle = OUT; c.fillRect(11, B - 9, 3, 2); c.fillRect(18, B - 9, 3, 2);
+      c.fillStyle = th.accent; c.fillRect(12, B - 9, 1, 1); c.fillRect(19, B - 9, 1, 1);
+    } else if (d < 4) grass(c, '#2a6a44', '#7ad08a', r);
+    else if (d === 4) { // gold coins / relics
+      c.fillStyle = '#7ff5e0'; for (let i = 0; i < 4; i++) { c.beginPath(); c.ellipse(8 + i * 5, B - 1.5 - (i % 2), 2.5, 1.5, 0, 0, Math.PI * 2); c.fill(); }
+    } else { c.strokeStyle = '#3a8a5a'; c.lineWidth = 1.6; for (let i = 0; i < 5; i++) { c.beginPath(); c.moveTo(16, B); c.quadraticCurveTo(16 + (i - 2) * 6, B - 16, 16 + (i - 2) * 9, B - 10 - r() * 8); c.stroke(); } }
+    return;
+  }
   if (key === 'station') {
     if (d === 0) { // debris pile
       for (let i = 0; i < 5; i++) {
@@ -734,8 +795,9 @@ function stalag(c: Ctx, x: number, base: number, w: number, h: number) {
   c.fill();
 }
 
-function hanging(c: Ctx, key: ThemeKey, d: number, r: () => number) {
-  const th = THEMES[key];
+function hanging(c: Ctx, theme: ThemeKey, d: number, r: () => number) {
+  const th = THEMES[theme];
+  const key = FAMILY[theme];
   if (key === 'station') {
     c.strokeStyle = '#151a1f';
     c.lineWidth = 2;
@@ -770,8 +832,9 @@ function hanging(c: Ctx, key: ThemeKey, d: number, r: () => number) {
   }
 }
 
-function foreground(c: Ctx, key: ThemeKey, d: number, r: () => number) {
-  const th = THEMES[key];
+function foreground(c: Ctx, theme: ThemeKey, d: number, r: () => number) {
+  const th = THEMES[theme];
+  const key = FAMILY[theme];
   const col = '#030405';
   c.fillStyle = col;
   c.strokeStyle = col;

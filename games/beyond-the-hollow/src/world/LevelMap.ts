@@ -43,7 +43,12 @@ export class LevelMap {
     return this.grid[ty][tx];
   }
   isSolidCh(c: string) {
-    return c === '#';
+    return c === '#' || c === '{' || c === '}';
+  }
+  /** conveyor direction of the floor tile under a world point: -1, 0 or 1 */
+  beltAtWorld(x: number, y: number) {
+    const c = this.ch(Math.floor(x / TILE), Math.floor(y / TILE));
+    return c === '{' ? -1 : c === '}' ? 1 : 0;
   }
   solid(tx: number, ty: number) {
     return this.isSolidCh(this.ch(tx, ty)) || this.blocked.has(ty * this.W + tx);
@@ -110,8 +115,9 @@ export class LevelMap {
     for (let y = 0; y < this.H; y++)
       for (let x = 0; x < this.W; x++) {
         const c = this.grid[y][x];
-        if (c === '#') {
-          const mask = (this.ch(x, y - 1) === '#' ? 1 : 0) | (this.ch(x + 1, y) === '#' ? 2 : 0) | (this.ch(x, y + 1) === '#' ? 4 : 0) | (this.ch(x - 1, y) === '#' ? 8 : 0);
+        if (this.isSolidCh(c)) {
+          const S = (cx: number, cy: number) => this.isSolidCh(this.ch(cx, cy));
+          const mask = (S(x, y - 1) ? 1 : 0) | (S(x + 1, y) ? 2 : 0) | (S(x, y + 1) ? 4 : 0) | (S(x - 1, y) ? 8 : 0);
           const v = (x * 7 + y * 13 + ((x * y) % 5)) % 3 === 0 ? 1 : 0;
           ground.putTileAt(v * 16 + mask, x, y);
         } else if (c === '=') {
@@ -128,7 +134,7 @@ export class LevelMap {
         } else if (c === 'a') {
           liquid.putTileAt(this.ch(x, y - 1) === 'a' ? TILE_ACID : TILE_ACID_TOP, x, y);
         }
-        if ('PCEiBo_MhLG+!rm%csbXWDw'.includes(c)) {
+        if ('PCEiBo_MhLG+!rm%csbXWDwKTYZdpNV'.includes(c)) {
           if (c === 'D' || c === 'w') {
             if (this.ch(x, y - 1) === c) continue; // part of a stack started above
             let h = 1;
@@ -158,6 +164,7 @@ export class LevelMap {
       for (let x = 1; x < this.W - 1; x++) {
         if (this.grid[y][x] !== '#') continue;
         const above = this.ch(x, y - 1);
+        if (above === '-') continue;
         if (above === ' ' && this.ch(x, y - 2) !== '#' && r() < 0.42) {
           const k = Math.floor(r() * 6);
           const front = r() < 0.22;

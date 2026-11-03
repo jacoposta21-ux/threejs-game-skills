@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { Save } from '../core/Save';
 import { Sound } from '../core/Audio';
-import { LEVELS } from '../levels/levels';
+import { CHAPTERS, LEVELS } from '../levels/levels';
 import { COL, FONT_BODY, FONT_TITLE, Menu, MenuItem, isTouchDevice, ornament, toggleFullscreen } from './ui';
 
 /** Title screen: painted vista, Elias on a ledge with Pip, and the main menu. */
@@ -37,18 +37,35 @@ export class MenuScene extends Phaser.Scene {
     });
     this.root = this.add.container(0, 0);
     this.title = this.add.container(0, 0);
-    const sub = this.add.text(0, -54, 'A   T A L E   O F   E L I A S   A N D   P I P', { fontFamily: FONT_BODY, fontSize: '13px', color: COL.accent }).setOrigin(0.5);
-    const t1 = this.add.text(0, 0, 'BEYOND', { fontFamily: FONT_TITLE, fontSize: '30px', color: COL.text, stroke: '#000', strokeThickness: 5 }).setOrigin(0.5).setLetterSpacing(18);
-    const t2 = this.add.text(0, 50, 'THE HOLLOW', { fontFamily: FONT_TITLE, fontSize: '68px', fontStyle: '600', color: '#f7efdc', stroke: '#05070a', strokeThickness: 8 }).setOrigin(0.5).setLetterSpacing(8);
-    const g = this.add.graphics();
-    ornament(g, 0, 100, 420, 0x7ff5e0, 0.8);
-    this.title.add([g, sub, t1, t2]);
-    if (this.game.renderer.type === Phaser.WEBGL) t2.postFX?.addGlow(0x7ff5e0, 2, 0, false, 0.1, 12);
+    this.title.add(this.buildTitle());
     this.prompt = this.add.text(0, 0, isTouchDevice(this) ? 'Tap to begin' : 'Press any key', { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: '20px', color: COL.text }).setOrigin(0.5);
     this.tweens.add({ targets: this.prompt, alpha: 0.35, duration: 1100, yoyo: true, repeat: -1 });
+    // opening splash: the key art, cover-fitted, until the first input
+    const splash = this.add.container(0, 0).setDepth(100);
+    const back = this.add.image(0, 0, 'keyart').setAlpha(0.22).setTint(0x8a90b0);
+    if (this.game.renderer.type === Phaser.WEBGL) back.preFX?.addBlur(1, 2, 2, 2);
+    const art = this.add.image(0, 0, 'keyart');
+    const shade = this.add.graphics();
+    splash.add([this.add.rectangle(0, 0, 4000, 4000, 0x05070a).setOrigin(0), back, art, shade]);
+    const fitSplash = () => {
+      const w = this.scale.width, h = this.scale.height;
+      // the whole artwork stays visible; an enlarged dim copy fills the sides
+      back.setScale(Math.max(w / back.width, h / back.height) * 1.1).setPosition(w / 2, h / 2);
+      const k = Math.min(w / art.width, h / art.height);
+      art.setScale(k).setPosition(w / 2, h / 2);
+      shade.clear();
+      shade.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.75, 0.75);
+      shade.fillRect(0, h * 0.7, w, h * 0.3);
+    };
+    fitSplash();
+    this.scale.on('resize', fitSplash);
+    this.events.once('shutdown', () => this.scale.off('resize', fitSplash));
+    
+    this.prompt.setDepth(101);
     const go = () => {
       if (this.started) return;
       this.started = true;
+      this.tweens.add({ targets: splash, alpha: 0, duration: 900, onComplete: () => splash.destroy() });
       Sound.unlock();
       Sound.playTheme('menu');
       Sound.play('uiSelect');
@@ -68,6 +85,7 @@ export class MenuScene extends Phaser.Scene {
     });
     // If audio was already unlocked (returning from a game), skip the prompt
     if (Sound.ctx) {
+      splash.setVisible(false);
       this.time.delayedCall(10, go);
       this.prompt.setVisible(false);
     }
@@ -78,8 +96,8 @@ export class MenuScene extends Phaser.Scene {
     const portrait = h > w;
     const s = Math.min(1, w / 900, h / 620);
     this.title.setPosition(portrait ? w / 2 : w * 0.66, h * (portrait ? 0.2 : 0.24) + (1 - s) * -20).setScale(s);
-    this.prompt.setPosition(this.title.x, h * 0.62);
-    this.root.setPosition(this.title.x, this.title.y + 150 * s + 24).setScale(Math.max(0.62, s));
+    this.prompt.setPosition(w / 2, h * 0.9);
+    this.root.setPosition(this.title.x, this.title.y + 130 * s + 34).setScale(Math.max(0.62, s));
     const lx = portrait ? w * 0.5 : w * 0.2, ly = h * 0.86;
     this.elias.setPosition(lx, ly);
     this.ledge.clear();
@@ -114,6 +132,61 @@ export class MenuScene extends Phaser.Scene {
     this.tweens.add({ targets: this.root, alpha: 1, duration: 300 });
   }
 
+  /** Title lockup modelled on the key art: silver BEYOND, glowing green THE HOLLOW, vines and a glow-cap. */
+  private buildTitle() {
+    const items: Phaser.GameObjects.GameObject[] = [];
+    const g = this.add.graphics();
+    // glow-cap above the lettering
+    g.fillStyle(0x7ff5e0, 0.18);
+    g.fillCircle(0, -92, 34);
+    g.fillStyle(0xe8dcc8, 1);
+    g.fillRect(-3, -96, 6, 18);
+    g.fillStyle(0x2fbf90, 1);
+    g.slice(0, -95, 23, Math.PI, 0, false);
+    g.fillPath();
+    g.fillStyle(0xc8fff4, 0.7);
+    g.fillRect(-22, -96, 44, 2);
+    g.fillStyle(0xc8fff4, 0.9);
+    for (const [x, y] of [[-10, -103], [6, -107], [14, -100]]) g.fillCircle(x, y, 2.5);
+    // lines either side of BEYOND
+    g.lineStyle(2, 0xd8dce4, 0.85);
+    g.lineBetween(-260, -48, -120, -48);
+    g.lineBetween(120, -48, 260, -48);
+    g.fillStyle(0xd8dce4, 1);
+    g.fillTriangle(-266, -48, -258, -52, -258, -44);
+    g.fillTriangle(266, -48, 258, -52, 258, -44);
+    items.push(g);
+    const t1 = this.add.text(0, -48, 'BEYOND', { fontFamily: FONT_TITLE, fontSize: '38px', fontStyle: '600', color: '#e8eaf0', stroke: '#05070a', strokeThickness: 6 }).setOrigin(0.5).setLetterSpacing(6);
+    const t2 = this.add.text(0, 22, 'THE HOLLOW', { fontFamily: FONT_TITLE, fontSize: '78px', fontStyle: '600', color: '#b8ffd8', stroke: '#05110c', strokeThickness: 10 }).setOrigin(0.5).setLetterSpacing(4);
+    const grad = t2.context.createLinearGradient(0, 0, 0, t2.height);
+    grad.addColorStop(0, '#eafff4');
+    grad.addColorStop(0.5, '#8ff5c0');
+    grad.addColorStop(1, '#3fbf8a');
+    t2.setFill(grad);
+    t2.setShadow(0, 0, '#3fff9a', 22, false, true);
+    items.push(t1, t2);
+    // curling vines under the name
+    const v = this.add.graphics();
+    v.lineStyle(4, 0x2f8f4f, 1);
+    for (const s of [-1, 1]) {
+      v.beginPath();
+      v.moveTo(s * 20, 70);
+      for (let i = 1; i <= 24; i++) v.lineTo(s * (20 + i * 11), 70 + Math.sin(i * 0.7) * 9 - i * 0.6);
+      v.strokePath();
+      v.fillStyle(0x4fc06a, 1);
+      for (let i = 3; i <= 24; i += 4) v.fillEllipse(s * (20 + i * 11), 62 + Math.sin(i * 0.7) * 9 - i * 0.6, 9, 5);
+      v.lineStyle(3, 0x2f8f4f, 1);
+      v.beginPath();
+      v.arc(s * 290, 52, 10, 0, Math.PI * 1.6, s < 0);
+      v.strokePath();
+      v.lineStyle(4, 0x2f8f4f, 1);
+    }
+    v.fillStyle(0x9ff5c8, 0.9);
+    v.fillCircle(0, 72, 4);
+    items.push(v);
+    return items;
+  }
+
   private showMain() {
     this.page = 'main';
     const has = Save.hasProgress() && !Save.data.completed;
@@ -129,12 +202,29 @@ export class MenuScene extends Phaser.Scene {
 
   private showChapters() {
     this.page = 'chapters';
-    const items: MenuItem[] = LEVELS.map((L, i) => ({
-      label: i <= Save.data.unlocked ? `${L.subtitle} · ${L.name}` : `${L.subtitle} · ???`,
-      enabled: () => i <= Save.data.unlocked,
-      action: () => this.startStory(i),
-    }));
+    const items: MenuItem[] = CHAPTERS.map((C, ci) => {
+      const first = LEVELS.findIndex((L) => L.chapter === ci + 1);
+      return {
+        label: first <= Save.data.unlocked ? `Chapter ${C.roman} · ${C.title}` : `Chapter ${C.roman} · ???`,
+        enabled: () => first <= Save.data.unlocked,
+        action: () => this.showParts(ci + 1),
+      };
+    });
     items.push({ label: 'Back', action: () => this.showMain() });
+    this.setMenu(items, 460);
+  }
+
+  private showParts(chapter: number) {
+    const items: MenuItem[] = [];
+    LEVELS.forEach((L, i) => {
+      if (L.chapter !== chapter) return;
+      items.push({
+        label: i <= Save.data.unlocked ? `${L.subtitle.split('· ')[1]} · ${L.name}` : `${L.subtitle.split('· ')[1]} · ???`,
+        enabled: () => i <= Save.data.unlocked,
+        action: () => this.startStory(i),
+      });
+    });
+    items.push({ label: 'Back', action: () => this.showChapters() });
     this.setMenu(items, 460);
   }
 

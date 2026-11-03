@@ -7,14 +7,14 @@ for (const [li, def] of LEVELS.entries()) {
   const { grid, width: W, height: H, warnings } = compileLevel(def);
   for (const w of warnings) { console.log('WARN', w); failed = true; }
   const at = (x: number, y: number) => (x < 0 || y < 0 || x >= W || y >= H ? '#' : grid[y][x]);
-  const solid = (c: string) => c === '#' || c === 'h' || c === '!';
+  const solid = (c: string) => c === '#' || c === 'h' || c === '!' || c === '{' || c === '}';
   const hazard = (c: string) => c === '^' || c === 'v' || c === 'a';
   const pass = (x: number, y: number) => !solid(at(x, y)) && !hazard(at(x, y));
   const water = (x: number, y: number) => '~<>'.includes(at(x, y));
-  const ladder = (x: number, y: number) => at(x, y) === 'H';
+  const ladder = (x: number, y: number) => at(x, y) === 'H' || at(x, y) === '|' || at(x, y) === 'Y';
   const support = (x: number, y: number) => {
     const c = at(x, y);
-    return solid(c) || c === '=' || (c === 'H' && at(x, y - 1) !== 'H');
+    return solid(c) || c === '=' || c === '-' || c === 'T' || (c === 'H' && at(x, y - 1) !== 'H') || ((c === '|' || c === 'Y') && at(x, y - 1) !== '|');
   };
   const isNode = (x: number, y: number) => {
     if (!pass(x, y)) return false;
@@ -116,7 +116,7 @@ for (const [li, def] of LEVELS.entries()) {
   const exitOk = exit && reach(exit[0], exit[1]);
   if (!exitOk) { report.push('EXIT UNREACHABLE'); failed = true; }
   for (const [x, y] of find('C')) if (!reach(x, y)) { report.push(`checkpoint (${x},${y}) unreachable`); failed = true; }
-  for (const [x, y] of find('M')) if (!nearReach(x, y, 9)) { report.push(`mechanism (${x},${y}) out of Pip range`); failed = true; }
+  for (const [x, y] of [...find('M'), ...find('N')]) if (!nearReach(x, y, 9)) { report.push(`mechanism (${x},${y}) out of Pip range`); failed = true; }
   for (const [x, y] of find('o')) if (!reach(x, y)) report.push(`lore (${x},${y}) unreachable (warn)`);
   const hints = find('i').length;
   if (hints > def.hints.length) report.push(`more hint markers (${hints}) than hint texts (${def.hints.length})`);

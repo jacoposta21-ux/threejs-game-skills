@@ -114,9 +114,15 @@ export class Mechanism {
   active = false;
   door: Door | null = null;
   t = Math.random() * 6;
+  timed = 0;
   constructor(public gs: GameScene, public s: Spawn) {
     this.img = gs.add.image(s.x, s.y, 'mech', 0).setOrigin(0.5, 1).setScale(PROP_SCALE).setDepth(DEPTH.interact);
     this.glow = gs.add.image(s.x, s.y - 36, 'glow').setBlendMode(ADD).setTint(0x7ff5e0).setAlpha(0.25).setScale(0.5).setDepth(DEPTH.glow);
+    if (s.ch === 'N') {
+      this.timed = 7;
+      this.img.setTint(0xffc070);
+      this.glow.setTint(0xffb040);
+    }
   }
   get orb() {
     return { x: this.s.x, y: this.s.y - 38 };
@@ -129,6 +135,22 @@ export class Mechanism {
     this.gs.fx.ring(this.orb.x, this.orb.y, 0x7ff5e0);
     this.gs.fx.glowE.explode(24, this.orb.x, this.orb.y);
     this.gs.tweens.add({ targets: this.glow, alpha: 0.9, scale: 1.4, duration: 600, yoyo: true, hold: 200, onComplete: () => this.glow.setAlpha(0.55).setScale(0.9) });
+    if (this.timed) {
+      const d = this.door;
+      if (d) {
+        this.gs.beam(this.orb.x, this.orb.y, d.s.x, d.topY + 40);
+        d.setOpen(true);
+        d.holdOpen = this.timed;
+      }
+      this.gs.toast(`The gate opens — ${this.timed} seconds!`, 1600);
+      for (let k = 1; k < this.timed; k++) this.gs.time.delayedCall(k * 1000, () => Sound.play(k >= this.timed - 2 ? 'chargeReady' : 'ui'));
+      this.gs.time.delayedCall(this.timed * 1000, () => {
+        this.active = false;
+        this.img.setFrame(0);
+        this.glow.setAlpha(0.25).setScale(0.5);
+      });
+      return;
+    }
     if (this.door) {
       const d = this.door;
       this.gs.beam(this.orb.x, this.orb.y, d.s.x, d.topY + 40);
@@ -278,7 +300,9 @@ export class GhostPlatform {
 
 export class Crate {
   img: Phaser.Physics.Arcade.Image;
-  constructor(public gs: GameScene, s: Spawn) {
+  private respawning = false;
+  private doorSide = new Map<Door, number>();
+  constructor(public gs: GameScene, public s: Spawn) {
     this.img = gs.physics.add.image(s.x, s.y - 16, 'crate').setScale(PROP_SCALE).setDepth(DEPTH.crate);
     const b = this.body;
     b.setSize(60, 62).setOffset(2, 1);
@@ -294,12 +318,45 @@ export class Crate {
     const b = this.body;
     const L = this.gs.level;
     if (L.waterAtWorld(b.center.x, b.center.y + 4)) {
-      // buoyancy: float up to the surface
-      b.setVelocityY(b.velocity.y - PHYS.gravity * 1.45 * dt);
-      b.velocity.y *= 0.93;
+      // buoyancy as body gravity, so it is integrated per physics step (frame-rate independent)
+      b.setGravityY(-PHYS.gravity * 1.5);
+      b.setMaxVelocityY(110);
       b.velocity.x += L.currentAtWorld(b.center.x, b.center.y) * 40 * dt;
       b.setDragX(200);
-    } else b.setDragX(b.blocked.down ? 1400 : 100);
+    } else {
+      b.setGravityY(0);
+      b.setMaxVelocityY(700);
+      b.setDragX(b.blocked.down ? 1400 : 100);
+    }
+    if (b.blocked.down) b.x += L.beltAtWorld(b.center.x, b.bottom + 4) * 70 * dt;
+    // doorways are hard walls for crates (open or closed), so a crate can never end up on the far side of a door
+    for (const d of this.gs.doors) {
+      if (b.bottom <= d.topY + 2 || b.top >= d.s.y) continue;
+      const side = this.doorSide.get(d) ?? Math.sign(b.center.x - d.s.x);
+      const edge = d.s.x + side * (TILE / 2 + b.halfWidth + 0.5);
+      if ((side < 0 && b.center.x > edge) || (side > 0 && b.center.x < edge)) {
+        b.x = edge - b.halfWidth;
+        b.updateCenter();
+        this.img.x = edge;
+        if (Math.sign(b.velocity.x) === -side) b.velocity.x = 0;
+      }
+      this.doorSide.set(d, side);
+    }
+    // lost crates (fell in a pit, spikes or acid) come back to where they started
+    if (!this.respawning && (b.top > L.heightPx + 40 || L.hazardAtWorld(b.center.x, b.bottom - 4))) this.respawn();
+  }
+  respawn() {
+    this.respawning = true;
+    this.gs.fx.dust(this.img.x, this.img.y, 8);
+    this.gs.tweens.add({
+      targets: this.img, alpha: 0, duration: 250,
+      onComplete: () => {
+        this.body.reset(this.s.x, this.s.y - 16);
+        this.doorSide.clear();
+        this.body.setVelocity(0, 0);
+        this.gs.tweens.add({ targets: this.img, alpha: 1, duration: 400, onComplete: () => (this.respawning = false) });
+      },
+    });
   }
 }
 
@@ -403,7 +460,7 @@ export class Stalactite {
           this.shatter();
         }
         const boss = this.gs.boss;
-        if (boss && boss.alive && Math.abs(boss.x - b.center.x) < 80 && b.bottom > boss.y - 120 && b.bottom < boss.y) {
+        if (boss && 'crushed' in boss && boss.alive && Math.abs(boss.x - b.center.x) < 80 && b.bottom > boss.y - 120 && b.bottom < boss.y) {
           boss.crushed();
           this.shatter();
           break;
@@ -537,5 +594,196 @@ export class Lamp {
   }
   light(): Light {
     return { x: this.s.x, y: this.ly, r: 210, i: 0.95 };
+  }
+}
+
+// ================================================================== Chapter II objects
+
+/** Cracked wall block: three normal hits or one charged blast breaks it. */
+export class BreakWall {
+  img: Phaser.Physics.Arcade.Image;
+  hp = 3;
+  alive = true;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.img = gs.physics.add.staticImage(s.x, s.y - TILE / 2, `crack-${gs.levelDef.theme}`).setScale(PROP_SCALE).setDepth(DEPTH.interact);
+    this.img.refreshBody();
+    gs.level.blocked.add(s.ty * gs.level.W + s.tx);
+  }
+  hit(big: boolean) {
+    if (!this.alive) return;
+    this.hp -= big ? 3 : 1;
+    Sound.play(this.hp > 0 ? 'crack' : 'crumble');
+    this.gs.tweens.add({ targets: this.img, x: this.s.x + 2, duration: 40, yoyo: true, repeat: 1 });
+    this.img.setAlpha(0.55 + this.hp * 0.15);
+    if (this.hp > 0) return;
+    this.alive = false;
+    const tint = this.gs.levelDef.theme === 'ice' ? 0xcfeeff : Phaser.Display.Color.HexStringToColor(THEMES[this.gs.levelDef.theme].rock[2]).color;
+    this.gs.fx.rockShatter(this.s.x, this.img.y, tint);
+    this.img.destroy();
+    this.gs.level.blocked.delete(this.s.ty * this.gs.level.W + this.s.tx);
+  }
+}
+
+/** Mine lift / rail platform. 'T' rides a horizontal '-' track, 'Y' a vertical '|' track. One-way from below. */
+export class Mover {
+  img: Phaser.Physics.Arcade.Image;
+  a: number;
+  b: number;
+  vertical: boolean;
+  dir = 1;
+  pause = 0;
+  speed = 72;
+  prevX = 0;
+  prevY = 0;
+  constructor(public gs: GameScene, public s: Spawn) {
+    const L = gs.level;
+    this.vertical = s.ch === 'Y';
+    const track = this.vertical ? '|' : '-';
+    let lo = this.vertical ? s.ty : s.tx, hi = lo;
+    const at = (k: number) => (this.vertical ? L.ch(s.tx, k) : L.ch(k, s.ty));
+    while (at(lo - 1) === track) lo--;
+    while (at(hi + 1) === track) hi++;
+    this.a = lo * TILE + TILE / 2;
+    this.b = hi * TILE + TILE / 2;
+    const y0 = s.y - TILE + 8;
+    this.img = gs.physics.add.image(s.x, y0, `mover-${gs.levelDef.theme}`).setScale(PROP_SCALE).setDepth(DEPTH.interact);
+    const body = this.body;
+    body.setAllowGravity(false);
+    body.setImmovable(true);
+    body.pushable = false;
+    body.setFriction(0, 0); // riders are carried explicitly in update(), never twice
+    body.checkCollision.down = false;
+    body.checkCollision.left = false;
+    body.checkCollision.right = false;
+    body.setSize(192, 22).setOffset(0, 0);
+    // rail
+    const g = gs.add.graphics().setDepth(DEPTH.decorBack);
+    g.lineStyle(3, 0x07090c, 0.9);
+    if (this.vertical) g.lineBetween(s.x, this.a - TILE / 2 - 8, s.x, this.b + 8);
+    else g.lineBetween(this.a - 48, y0, this.b + 48, y0);
+    g.lineStyle(1, 0xc9a050, 0.6);
+    if (this.vertical) g.lineBetween(s.x + 2, this.a - TILE / 2 - 8, s.x + 2, this.b + 8);
+    else g.lineBetween(this.a - 48, y0 - 2, this.b + 48, y0 - 2);
+    this.prevX = this.img.x;
+    this.prevY = this.img.y;
+  }
+  get body() {
+    return this.img.body as Phaser.Physics.Arcade.Body;
+  }
+  update(dt: number) {
+    const b = this.body;
+    if (this.pause > 0) {
+      this.pause -= dt;
+      b.setVelocity(0, 0);
+    } else {
+      const pos = this.vertical ? this.img.y + TILE / 2 - 8 : this.img.x;
+      if (this.dir > 0 && pos >= this.b) { this.dir = -1; this.pause = 0.7; }
+      else if (this.dir < 0 && pos <= this.a) { this.dir = 1; this.pause = 0.7; }
+      if (this.vertical) b.setVelocity(0, this.dir * this.speed);
+      else b.setVelocity(this.dir * this.speed, 0);
+    }
+    // carry whoever stands on top (player and crates)
+    const dx = this.img.x - this.prevX, dy = this.img.y - this.prevY;
+    this.prevX = this.img.x;
+    this.prevY = this.img.y;
+    const riders: Phaser.Physics.Arcade.Body[] = [this.gs.player.body, ...this.gs.crates.map((c) => c.body)];
+    for (const r of riders) {
+      if (r.right > b.left + 2 && r.left < b.right - 2 && Math.abs(r.bottom - b.top) < 6 && r.velocity.y >= -20) {
+        r.x += dx;
+        if (dy > 0) r.y += dy;
+      }
+    }
+  }
+}
+
+/** Conveyor belt overlay on a run of '{' or '}' floor tiles. */
+export class Belt {
+  strip: Phaser.GameObjects.TileSprite;
+  constructor(public gs: GameScene, tx0: number, tx1: number, ty: number, public dir: number) {
+    const w = (tx1 - tx0 + 1) * TILE;
+    this.strip = gs.add.tileSprite(tx0 * TILE, ty * TILE - 2, w, 12, 'belt').setOrigin(0, 0).setDepth(DEPTH.tiles + 1);
+    if (dir < 0) this.strip.setFlipX(true);
+  }
+  update(dt: number) {
+    this.strip.tilePositionX -= this.dir * 60 * dt * (this.strip.flipX ? -1 : 1);
+  }
+}
+
+/** Ceiling piston: telegraphs, slams to the floor, retracts. Being caught is a heavy hit. */
+export class Crusher {
+  head: Phaser.GameObjects.Image;
+  shaft: Phaser.GameObjects.TileSprite;
+  top: number;
+  floor: number;
+  t: number;
+  y: number;
+  static CYCLE = 3.4;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.top = s.ty * TILE;
+    let ty = s.ty;
+    while (ty < gs.level.H - 1 && !gs.level.solid(s.tx, ty + 1)) ty++;
+    this.floor = (ty + 1) * TILE;
+    this.shaft = gs.add.tileSprite(s.x, this.top, 16, 4, 'shaft').setOrigin(0.5, 0).setDepth(DEPTH.interact);
+    this.head = gs.add.image(s.x, this.top, 'crusher').setOrigin(0.5, 0).setScale(PROP_SCALE).setDepth(DEPTH.interact);
+    this.t = (s.tx * 0.61) % Crusher.CYCLE;
+    this.y = this.top;
+  }
+  update(dt: number) {
+    this.t = (this.t + dt) % Crusher.CYCLE;
+    const t = this.t;
+    const low = this.floor - 40, up = this.top;
+    let y: number;
+    let lethal = false;
+    if (t < 1.4) y = up;
+    else if (t < 1.9) y = up + Math.sin((t - 1.4) * 60) * 1.5 + (t - 1.4) * 10; // shiver warning
+    else if (t < 2.05) { y = Phaser.Math.Linear(up + 5, low, (t - 1.9) / 0.15); lethal = true; }
+    else if (t < 2.55) { y = low; lethal = true; }
+    else y = Phaser.Math.Linear(low, up, (t - 2.55) / 0.85);
+    if (this.y < low - 1 && y >= low - 1) {
+      Sound.play('slam', Phaser.Math.Clamp((this.s.x - this.gs.cameras.main.midPoint.x) / 400, -1, 1));
+      this.gs.fx.dust(this.s.x, this.floor, 10);
+      const near = Math.abs(this.gs.player.x - this.s.x) < 260;
+      if (near) this.gs.fx.shake(0.006, 160);
+    }
+    this.y = y;
+    this.head.y = y;
+    this.shaft.height = Math.max(1, y - this.top + 2);
+    const p = this.gs.player.body;
+    if (lethal && Math.abs(p.center.x - this.s.x) < 20 && p.top < y + 40 && p.bottom > this.top) this.gs.player.hurt(2, this.s.x, { respawn: true });
+  }
+}
+
+/** Swinging blade on a chain, hung from the ceiling. */
+export class Pendulum {
+  blade: Phaser.GameObjects.Image;
+  g: Phaser.GameObjects.Graphics;
+  len: number;
+  t: number;
+  ax: number;
+  ay: number;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.ax = s.x;
+    this.ay = s.ty * TILE;
+    let ty = s.ty;
+    while (ty < gs.level.H - 1 && !gs.level.solid(s.tx, ty + 1)) ty++;
+    this.len = Phaser.Math.Clamp((ty + 1) * TILE - this.ay - 44, 70, 230);
+    this.g = gs.add.graphics().setDepth(DEPTH.interact);
+    this.blade = gs.add.image(s.x, this.ay + this.len, 'blade').setScale(PROP_SCALE * 1.3).setDepth(DEPTH.interact + 1);
+    this.t = s.tx * 0.9;
+  }
+  update(dt: number) {
+    this.t += dt;
+    const ang = Math.sin(this.t * 2.4) * 1.05;
+    const bx = this.ax + Math.sin(ang) * this.len, by = this.ay + Math.cos(ang) * this.len;
+    this.blade.setPosition(bx, by).setRotation(-ang);
+    this.g.clear();
+    this.g.lineStyle(3, 0x07090c, 1);
+    this.g.lineBetween(this.ax, this.ay, bx, by);
+    this.g.lineStyle(1, 0x9a8a5a, 1);
+    this.g.lineBetween(this.ax, this.ay, bx, by);
+    this.g.fillStyle(0x07090c, 1).fillCircle(this.ax, this.ay + 3, 5);
+    const p = this.gs.player.body;
+    if (Phaser.Math.Distance.Between(p.center.x, p.center.y, bx, by + 6) < 26) this.gs.player.hurt(1, bx);
+    if (Math.abs(Math.cos(this.t * 2.4)) > 0.995 && Math.abs(this.gs.player.x - this.ax) < 500) Sound.play('spark');
   }
 }

@@ -3,7 +3,7 @@ import { DEPTH, TILE } from '../core/constants';
 import { Sound } from '../core/Audio';
 import type { GameScene } from '../scenes/GameScene';
 
-export type EnemyKind = 'crawler' | 'stalker' | 'burrower' | 'guardian' | 'boss';
+export type EnemyKind = 'crawler' | 'stalker' | 'burrower' | 'guardian' | 'boss' | 'drone';
 
 export abstract class Enemy extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
@@ -141,6 +141,13 @@ export class Crawler extends Enemy {
     let { cx, cy, nx, ny, tx, ty } = this;
     const ax = cx + tx, ay = cy + ty;
     const fromRot = this.rotFor(nx, ny);
+    const wet = (x: number, y: number) => L.isWater(x, y) || L.ch(x, y) === 'a';
+    if (wet(ax, ay) || (!this.solid(ax, ay) && !this.solid(ax + nx, ay + ny) && wet(ax + nx, ay + ny))) {
+      // crawlers never walk into water or acid: turn back
+      this.tx = -tx; this.ty = -ty;
+      this.beginMove(cx, cy, fromRot, 0.1);
+      return;
+    }
     if (this.solid(ax, ay) || L.hazardAtWorld(ax * TILE + 16, ay * TILE + 16)) {
       // concave: climb the wall ahead
       if (this.solid(ax, ay)) {
@@ -204,9 +211,16 @@ export class Crawler extends Enemy {
         this.chitter = 0.6;
         Sound.play('crawler', this.pan());
       }
-      if (this.chasing && this.pounceCd <= 0 && this.distToPlayer() < 130 && seen) this.pounce();
+      if (this.chasing && this.pounceCd <= 0 && this.distToPlayer() < 130 && seen && this.player.state !== 'swim' && !this.gs.level.waterAtWorld(this.player.x, this.player.y - 20)) this.pounce();
     } else {
       this.rotation *= 0.85;
+      if (this.gs.level.waterAtWorld(this.x, this.y - 8)) {
+        // fell into water: it can't swim — it drowns
+        this.gs.fx.splash(this.x, this.y);
+        this.gs.fx.bubble(this.x, this.y);
+        this.die();
+        return;
+      }
       if (this.body.blocked.down && this.stateT > 0.1) this.land();
       this.stateT += dt;
       if (this.stateT > 2.5 || this.y > this.gs.level.heightPx + 50) this.die();
@@ -396,7 +410,7 @@ export class Burrower extends Enemy {
   private canMoveTo(x: number) {
     const L = this.gs.level;
     const tx = Math.floor(x / TILE), ty = Math.floor((this.floorY - 4) / TILE);
-    return !L.solid(tx, ty) && L.solid(tx, ty + 1) && !L.hazardAtWorld(x, this.floorY - 4);
+    return !L.solid(tx, ty) && L.solid(tx, ty + 1) && !L.hazardAtWorld(x, this.floorY - 4) && !L.isWater(tx, ty);
   }
   tick(dt: number) {
     if (!this.alive) return;
@@ -720,6 +734,14 @@ export class Guardian extends Enemy {
     }
     return true;
   }
+  beginFight() {
+    this.mode = 'chase';
+    this.aggro = true;
+    this.attackCd = 1.5;
+  }
+  roar() {
+    this.setMode('roar');
+  }
   /** A falling stalactite struck the boss. */
   crushed() {
     if (!this.alive) return;
@@ -739,5 +761,289 @@ export class Guardian extends Enemy {
       return;
     }
     super.die();
+  }
+}
+
+// ---------------------------------------------------------------- SENTRY DRONE
+/** Hovering machine: patrols, locks on with a visible laser sight, then fires a three-shot burst. */
+export class Drone extends Enemy {
+  kind: EnemyKind = 'drone';
+  home: Phaser.Math.Vector2;
+  mode: 'patrol' | 'aim' | 'fire' | 'stun' = 'patrol';
+  t = Math.random() * 10;
+  cd = 1;
+  shots = 0;
+  sight: Phaser.GameObjects.Graphics;
+  aimX = 0;
+  aimY = 0;
+  constructor(gs: GameScene, x: number, y: number) {
+    super(gs, x, y - 48, 'drone');
+    this.hp = this.maxHp = 3;
+    this.setScale(0.5);
+    this.play('drone-fly');
+    this.body.setAllowGravity(false);
+    this.body.setSize(50, 40).setOffset(23, 20);
+    this.home = new Phaser.Math.Vector2(this.x, this.y);
+    this.sight = gs.add.graphics().setDepth(DEPTH.glow).setBlendMode(Phaser.BlendModes.ADD);
+  }
+  tick(dt: number) {
+    if (!this.alive) return;
+    this.t += dt;
+    this.stateT += dt;
+    this.cd -= dt;
+    const p = this.player;
+    const lure = this.lure(460);
+    let tx = this.home.x + Math.sin(this.t * 0.6) * 110, ty = this.home.y + Math.sin(this.t * 1.9) * 10;
+    this.sight.clear();
+    switch (this.mode) {
+      case 'patrol':
+        if (lure) { tx = lure.x; ty = lure.y - 20; }
+        else if (this.cd <= 0 && this.sees(540, this.y)) {
+          this.mode = 'aim';
+          this.stateT = 0;
+          Sound.play('chargeReady', this.pan());
+        }
+        break;
+      case 'aim': {
+        tx = this.x; ty = this.y;
+        this.aimX = Phaser.Math.Linear(this.aimX || p.x, p.x, 0.15);
+        this.aimY = Phaser.Math.Linear(this.aimY || p.y - 30, p.y - 30, 0.15);
+        const a = Math.min(1, this.stateT / 0.75);
+        this.sight.lineStyle(1 + a * 2, 0xd07aff, 0.35 + a * 0.5);
+        this.sight.lineBetween(this.x, this.y + 8, this.aimX, this.aimY);
+        if (this.stateT > 0.8) { this.mode = 'fire'; this.stateT = 0; this.shots = 0; }
+        if (lure) this.mode = 'patrol';
+        break;
+      }
+      case 'fire':
+        tx = this.x; ty = this.y;
+        if (this.stateT > this.shots * 0.16) {
+          const ang = Math.atan2(this.aimY - this.y, this.aimX - this.x) + (this.shots - 1) * 0.06;
+          this.gs.spawnShot(this.x + Math.cos(ang) * 14, this.y + 8 + Math.sin(ang) * 14, Math.cos(ang) * 380, Math.sin(ang) * 380);
+          Sound.play('shoot', this.pan());
+          this.shots++;
+        }
+        if (this.shots >= 3) { this.mode = 'patrol'; this.cd = 2.2; this.aimX = 0; }
+        break;
+      case 'stun':
+        tx = this.x; ty = this.y;
+        if (this.stateT > 0.5) this.mode = 'patrol';
+        break;
+    }
+    const sp = this.mode === 'stun' ? 0 : lure ? 120 : 70;
+    const dx = tx - this.x, dy = ty - this.y, d = Math.max(1, Math.hypot(dx, dy));
+    this.body.setVelocity(d > 4 ? (dx / d) * Math.min(sp, d * 3) : 0, d > 4 ? (dy / d) * Math.min(sp, d * 3) : 0);
+    this.setFlipX(p.x < this.x);
+    this.rotation = Phaser.Math.Clamp(this.body.velocity.x * 0.002, -0.25, 0.25);
+  }
+  hit(dmg: number, srcX: number, big: boolean) {
+    const r = super.hit(dmg, srcX, big);
+    if (this.alive) { this.mode = 'stun'; this.stateT = 0; this.sight.clear(); }
+    return r;
+  }
+  die() {
+    this.sight.destroy();
+    super.die();
+    this.body.setAllowGravity(true);
+  }
+}
+
+// ---------------------------------------------------------------- THE IRON WARDEN (Chapter II boss)
+/**
+ * A hovering war-machine. Drops bombs, sweeps the arena with telegraphed laser columns, and dives
+ * to slam the floor — after a slam it is stuck and overheated, its core exposed.
+ */
+export class Warden extends Enemy {
+  kind: EnemyKind = 'boss';
+  mode: 'intro' | 'hover' | 'bombs' | 'laser' | 'dive' | 'stuck' | 'rise' | 'roar' = 'intro';
+  phase = 1;
+  coreOpen = false;
+  minX: number;
+  maxX: number;
+  floorY: number;
+  hoverY: number;
+  sc = 0.62;
+  cd = 2;
+  count = 0;
+  next: 'bombs' | 'laser' | 'dive' = 'bombs';
+  beam: Phaser.GameObjects.Graphics;
+  laserX = 0;
+  constructor(gs: GameScene, x: number, y: number, bounds: [number, number]) {
+    super(gs, x, y - 230, 'warden');
+    this.hp = this.maxHp = 60;
+    this.minX = bounds[0];
+    this.maxX = bounds[1];
+    this.floorY = y;
+    this.hoverY = y - 250;
+    this.setScale(this.sc).setDepth(DEPTH.enemies + 1);
+    this.play('warden-hover');
+    this.body.setAllowGravity(false);
+    this.body.setSize(240, 170).setOffset(60, 45);
+    this.body.pushable = false;
+    this.contactDamage = 2;
+    this.beam = gs.add.graphics().setDepth(DEPTH.glow).setBlendMode(Phaser.BlendModes.ADD);
+  }
+  corePos() {
+    return { x: this.x, y: this.y + (124 - 150) * this.sc };
+  }
+  beginFight() {
+    this.setMode('hover');
+    this.cd = 1.2;
+  }
+  roar() {
+    this.setMode('roar');
+  }
+  setMode(m: Warden['mode']) {
+    this.mode = m;
+    this.stateT = 0;
+    this.count = 0;
+    this.beam.clear();
+    if (m === 'roar') {
+      Sound.play('roar', this.pan());
+      this.gs.fx.shake(0.01, 600);
+      this.play('warden-charge');
+    }
+    if (m === 'stuck') {
+      this.coreOpen = true;
+      this.play('warden-open');
+      Sound.play('core', this.pan());
+    } else if (m !== 'roar') {
+      this.coreOpen = false;
+      if (m === 'laser') this.play('warden-charge');
+      else this.play('warden-hover', true);
+    }
+  }
+  vulnerable() {
+    return this.alive && this.mode !== 'intro';
+  }
+  tick(dt: number) {
+    if (!this.alive) return;
+    this.stateT += dt;
+    const f = this.hp / this.maxHp;
+    const np = f < 0.33 ? 3 : f < 0.66 ? 2 : 1;
+    if (np !== this.phase) {
+      this.phase = np;
+      this.gs.onBossPhase(np);
+      this.setMode('roar');
+    }
+    const speed = this.phase === 3 ? 1.45 : this.phase === 2 ? 1.2 : 1;
+    const p = this.player;
+    const body = this.body;
+    const bob = Math.sin(this.stateT * 3) * 6;
+    const goX = (x: number, k: number) => body.setVelocityX(Phaser.Math.Clamp((Phaser.Math.Clamp(x, this.minX, this.maxX) - this.x) * k, -260 * speed, 260 * speed));
+    const goY = (y: number, k: number) => body.setVelocityY(Phaser.Math.Clamp((y - this.y) * k, -300, 600));
+    this.beam.clear();
+    switch (this.mode) {
+      case 'intro':
+        body.setVelocity(0, 0);
+        return;
+      case 'roar':
+        body.setVelocity(0, 0);
+        if (this.stateT > 1) this.setMode('hover');
+        break;
+      case 'hover':
+        goX(p.x, 1.2);
+        goY(this.hoverY + bob, 3);
+        this.cd -= dt * speed;
+        if (this.cd <= 0) {
+          this.setMode(this.next);
+          this.next = this.next === 'bombs' ? 'laser' : this.next === 'laser' ? 'dive' : 'bombs';
+        }
+        break;
+      case 'bombs': {
+        // sweep across the arena dropping bombs
+        const target = this.count % 2 === 0 ? this.maxX : this.minX;
+        goX(target, 1.6);
+        goY(this.hoverY + bob, 3);
+        if (this.stateT > 0.35) {
+          this.stateT = 0;
+          this.gs.spawnBomb(this.x + (Math.random() - 0.5) * 60, this.y + 40);
+          this.count++;
+        }
+        if (this.count >= 6 + this.phase * 2) { this.setMode('hover'); this.cd = 1.4; }
+        break;
+      }
+      case 'laser': {
+        goY(this.hoverY - 20 + bob, 3);
+        const shots = this.phase === 3 ? 5 : 3;
+        const tele = 0.85 / speed;
+        if (this.stateT < 0.05) this.laserX = p.x;
+        if (this.stateT < tele) {
+          goX(this.laserX, 0.8);
+          this.laserX = Phaser.Math.Linear(this.laserX, p.x, 0.04);
+          const a = this.stateT / tele;
+          this.beam.lineStyle(2 + a * 4, 0xd07aff, 0.25 + a * 0.4);
+          this.beam.lineBetween(this.laserX, this.y + 20, this.laserX, this.floorY);
+        } else if (this.stateT < tele + 0.35) {
+          body.setVelocityX(0);
+          if (this.stateT - dt < tele) { Sound.play('chargeShot', this.pan()); this.gs.fx.shake(0.008, 200); this.gs.fx.dust(this.laserX, this.floorY, 10); }
+          this.beam.lineStyle(26, 0xb05aff, 0.45);
+          this.beam.lineBetween(this.laserX, this.y + 20, this.laserX, this.floorY);
+          this.beam.lineStyle(8, 0xf4e8ff, 0.95);
+          this.beam.lineBetween(this.laserX, this.y + 20, this.laserX, this.floorY);
+          const pb = p.body;
+          if (Math.abs(pb.center.x - this.laserX) < 18 && pb.bottom > this.y) p.hurt(1, this.laserX);
+        } else {
+          this.count++;
+          this.stateT = 0;
+          if (this.count >= shots) { this.setMode('hover'); this.cd = 1.3; }
+        }
+        break;
+      }
+      case 'dive':
+        if (this.stateT < 0.6) {
+          goX(p.x, 2);
+          goY(this.hoverY - 40, 3);
+        } else {
+          body.setVelocityX(0);
+          body.setVelocityY(700);
+          if (this.y >= this.floorY - 64) {
+            this.y = this.floorY - 64;
+            body.setVelocity(0, 0);
+            this.gs.fx.shake(0.025, 400);
+            Sound.play('slam', this.pan());
+            this.gs.fx.dust(this.x, this.floorY, 22);
+            this.gs.spawnShockwave(this.x + 60, this.floorY, 1);
+            this.gs.spawnShockwave(this.x - 60, this.floorY, -1);
+            this.setMode('stuck');
+          }
+        }
+        break;
+      case 'stuck':
+        body.setVelocity(0, 0);
+        if (Math.random() < 0.3) this.gs.fx.sparkE.explode(1, this.x + (Math.random() - 0.5) * 120, this.y + 20);
+        if (this.stateT > 2.6) this.setMode('rise');
+        break;
+      case 'rise':
+        goY(this.hoverY, 2.5);
+        body.setVelocityX(0);
+        if (Math.abs(this.y - this.hoverY) < 12 || this.stateT > 1.5) { this.setMode('hover'); this.cd = 1.6 / speed; }
+        break;
+    }
+  }
+  hit(dmg: number, srcX: number, big: boolean, bx = 0, by = 0) {
+    if (!this.alive || this.mode === 'intro') return false;
+    const c = this.corePos();
+    if (this.coreOpen) {
+      // grounded and overheated: every hit gets through its open vents
+      super.hit(big ? dmg + 2 : dmg + 1, srcX, big, bx, by);
+      this.gs.fx.coreHit(c.x, c.y);
+      return true;
+    }
+    Sound.play('hit', this.pan());
+    this.gs.fx.armorSparks(bx, by);
+    if (big) {
+      this.hp -= 1;
+      this.flashT = 0.06;
+      this.setTintFill(0xffe0c0);
+      if (this.hp <= 0) this.die();
+    }
+    return true;
+  }
+  die() {
+    this.alive = false;
+    this.beam.destroy();
+    this.body.enable = false;
+    this.gs.onBossDefeated(this);
   }
 }

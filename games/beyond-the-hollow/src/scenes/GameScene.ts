@@ -11,7 +11,9 @@ import { Lighting } from '../world/Lighting';
 import { ArcEmitter, Bouncer, Checkpoint, Cocoon, Crate, Door, Exit, GhostPlatform, HideSpot, Hint, Lamp, Light, Lore, Mechanism, Orb, Plate, SporeVent, Stalactite } from '../world/Objects';
 import { Player } from '../entities/Player';
 import { Pip } from '../entities/Pip';
-import { Burrower, Crawler, Enemy, Guardian, Stalker } from '../entities/Enemies';
+import { Burrower, Crawler, Drone, Enemy, Guardian, Stalker, Warden } from '../entities/Enemies';
+import { BreakWall, Belt, Crusher, Mover, Pendulum } from '../world/Objects';
+import { buildChapter2ThemeProps } from '../art/chapter2';
 import { THEMES } from '../art/themes';
 import { buildTileset } from '../art/tiles';
 import { buildBackgrounds } from '../art/backgrounds';
@@ -37,7 +39,14 @@ export class GameScene extends Phaser.Scene {
   fx!: Fx;
   lighting!: Lighting;
   enemies: Enemy[] = [];
-  boss: Guardian | null = null;
+  boss: Guardian | Warden | null = null;
+  breaks: BreakWall[] = [];
+  movers: Mover[] = [];
+  belts: Belt[] = [];
+  crushers: Crusher[] = [];
+  pendulums: Pendulum[] = [];
+  shots!: Phaser.Physics.Arcade.Group;
+  bombs!: Phaser.Physics.Arcade.Group;
   doors: Door[] = [];
   plates: Plate[] = [];
   mechs: Mechanism[] = [];
@@ -102,6 +111,11 @@ export class GameScene extends Phaser.Scene {
     this.shocks = [];
     this.fogs = [];
     this.boss = null;
+    this.breaks = [];
+    this.movers = [];
+    this.belts = [];
+    this.crushers = [];
+    this.pendulums = [];
     this.bossStarted = false;
     this.bossArena = null;
     this.paused = false;
@@ -120,6 +134,7 @@ export class GameScene extends Phaser.Scene {
     buildTileset(this, def.theme);
     buildBackgrounds(this, def.theme);
     buildThemeProps(this, def.theme);
+    buildChapter2ThemeProps(this, def.theme);
     this.physics.world.TILE_BIAS = 20;
     this.level = new LevelMap(this, def);
     this.level.build();
@@ -151,6 +166,22 @@ export class GameScene extends Phaser.Scene {
     sp('m').forEach((s) => this.bouncers.push(new Bouncer(this, s)));
     sp('%').forEach((s) => this.vents.push(new SporeVent(this, s)));
     sp('L').forEach((s) => this.lamps.push(new Lamp(this, s)));
+    sp('N').forEach((s) => this.mechs.push(new Mechanism(this, s)));
+    sp('K').forEach((s) => this.breaks.push(new BreakWall(this, s)));
+    sp('T').forEach((s) => this.movers.push(new Mover(this, s)));
+    sp('Y').forEach((s) => this.movers.push(new Mover(this, s)));
+    sp('Z').forEach((s) => this.crushers.push(new Crusher(this, s)));
+    sp('p').forEach((s) => this.pendulums.push(new Pendulum(this, s)));
+    // conveyor runs
+    for (let y = 0; y < L.H; y++)
+      for (let x = 0; x < L.W; x++) {
+        const c = L.grid[y][x];
+        if ((c === '{' || c === '}') && L.grid[y][x - 1] !== c) {
+          let e = x;
+          while (L.grid[y][e + 1] === c) e++;
+          this.belts.push(new Belt(this, x, e, y, c === '}' ? 1 : -1));
+        }
+      }
     // link switches to their nearest door
     const nearestDoor = (s: Spawn) => this.doors.reduce<Door | null>((best, d) => (!best || Math.abs(d.s.x - s.x) + Math.abs(d.s.y - s.y) < Math.abs(best.s.x - s.x) + Math.abs(best.s.y - s.y) ? d : best), null);
     this.plates.forEach((p) => (p.door = nearestDoor(p.s)));
@@ -187,13 +218,14 @@ export class GameScene extends Phaser.Scene {
       if (s.ch === 's') this.enemies.push(new Stalker(this, s.x, s.y));
       if (s.ch === 'b') this.enemies.push(new Burrower(this, s.x, s.y));
       if (s.ch === 'X') this.enemies.push(new Guardian(this, s.x, s.y, false, [s.x - 9 * TILE, s.x + 7 * TILE]));
-      if (s.ch === 'W') {
+      if (s.ch === 'd') this.enemies.push(new Drone(this, s.x, s.y));
+      if (s.ch === 'W' || s.ch === 'V') {
         // arena = open floor span around the boss
         let a = s.tx, b = s.tx;
-        while (a > 0 && !L.solid(a - 1, s.ty)) a--;
-        while (b < L.W - 1 && !L.solid(b + 1, s.ty) && !this.doors.some((d) => d.s.tx === b + 1)) b++;
+        while (a > 0 && !L.solid(a - 1, s.ty) && s.tx - a < 24) a--;
+        while (b < L.W - 1 && !L.solid(b + 1, s.ty) && !this.doors.some((d) => d.s.tx === b + 1) && b - s.tx < 24) b++;
         this.bossArena = [a * TILE, (b + 1) * TILE];
-        const g = new Guardian(this, s.x, s.y, true, [a * TILE + 90, (b + 1) * TILE - 90]);
+        const g = s.ch === 'W' ? new Guardian(this, s.x, s.y, true, [a * TILE + 90, (b + 1) * TILE - 90]) : new Warden(this, s.x, s.y, [a * TILE + 120, (b + 1) * TILE - 120]);
         this.boss = g;
         this.enemies.push(g);
       }
@@ -207,6 +239,19 @@ export class GameScene extends Phaser.Scene {
     const cocoonImgs = this.cocoons.map((c) => c.img);
     const ghostImgs = this.ghosts.map((g) => g.img);
     const crateImgs = this.crates.map((c) => c.img);
+    const breakImgs = this.breaks.map((b) => b.img);
+    const moverImgs = this.movers.map((m) => m.img);
+    const moverOneWay = (a: any, b: any) => {
+      const rider = (moverImgs.includes(a) ? b : a) as any;
+      const rb = rider.body as Phaser.Physics.Arcade.Body;
+      if (rider === this.player && (this.player.dropThrough > 0 || this.player.state === 'climb')) return false;
+      const mb = ((moverImgs.includes(a) ? a : b) as any).body as Phaser.Physics.Arcade.Body;
+      return rb.velocity.y >= -5 && rb.bottom - rb.velocity.y / 60 - 16 <= mb.top;
+    };
+    this.physics.add.collider(this.player, moverImgs, undefined, moverOneWay);
+    this.physics.add.collider(crateImgs, moverImgs, undefined, moverOneWay);
+    this.physics.add.collider(this.player, breakImgs);
+    this.physics.add.collider(crateImgs, breakImgs);
     const oneWay = (obj: any, tile: Phaser.Tilemaps.Tile) => {
       if (tile.index === 32 || tile.index === 33) {
         if (obj === this.player && (this.player.dropThrough > 0 || this.player.state === 'climb')) return false;
@@ -256,6 +301,25 @@ export class GameScene extends Phaser.Scene {
     });
     const isSpit = (o: any) => !!o && o.texture?.key === 'spit';
     this.physics.add.collider(this.spits, L.ground, (a, b) => this.spitSplat(pick<Phaser.Physics.Arcade.Image>(a, b, isSpit)[0]));
+    this.physics.add.overlap(this.bolts, breakImgs, (a, b) => {
+      const [bolt, w] = pick<Bolt>(a, b, isBolt);
+      const bw = this.breaks.find((x) => x.img === w);
+      if (bw && bw.alive) bw.hit(bolt.big);
+      this.boltImpact(bolt);
+    });
+    this.shots = this.physics.add.group({ allowGravity: false });
+    this.bombs = this.physics.add.group({ allowGravity: true });
+    const isShot = (o: any) => !!o && o.getData?.('shot');
+    const isBomb = (o: any) => !!o && o.getData?.('bomb');
+    this.physics.add.collider(this.shots, L.ground, (a, b) => this.spitSplat(pick<Phaser.Physics.Arcade.Image>(a, b, isShot)[0]));
+    this.physics.add.collider(this.shots, doorZones, (a, b) => this.spitSplat(pick<Phaser.Physics.Arcade.Image>(a, b, isShot)[0]));
+    this.physics.add.overlap(this.shots, this.player, (a, b) => {
+      const [sh] = pick<Phaser.Physics.Arcade.Image>(a, b, isShot);
+      this.player.hurt(1, sh.x);
+      this.spitSplat(sh);
+    });
+    this.physics.add.collider(this.bombs, L.ground, (a, b) => this.explodeBomb(pick<Phaser.Physics.Arcade.Image>(a, b, isBomb)[0]));
+    this.physics.add.overlap(this.bombs, this.player, (a, b) => this.explodeBomb(pick<Phaser.Physics.Arcade.Image>(a, b, isBomb)[0]));
     this.physics.add.overlap(this.spits, this.player, (a, b) => {
       const [sp] = pick<Phaser.Physics.Arcade.Image>(a, b, isSpit);
       this.player.hurt(1, sp.x);
@@ -441,6 +505,10 @@ export class GameScene extends Phaser.Scene {
     for (const b of this.bouncers) b.update(dt);
     for (const v of this.vents) v.update(dt);
     for (const l of this.lamps) l.update(dt);
+    for (const m of this.movers) m.update(dt);
+    for (const b of this.belts) b.update(dt);
+    for (const c of this.crushers) c.update(dt);
+    for (const pd of this.pendulums) pd.update(dt);
     this.updateBolts(dt);
     this.updateShocks(dt);
     this.updateTriggers();
@@ -652,6 +720,34 @@ export class GameScene extends Phaser.Scene {
     s.destroy();
   }
 
+  spawnShot(x: number, y: number, vx: number, vy: number) {
+    const s = this.shots.create(x, y, 'spit') as Phaser.Physics.Arcade.Image;
+    s.setData('shot', true).setScale(0.45).setTint(0xd07aff).setBlendMode(ADD).setDepth(DEPTH.glow);
+    (s.body as Phaser.Physics.Arcade.Body).setVelocity(vx, vy).setSize(12, 12);
+    this.shotLights.push({ x, y, r: 90, i: 0.8 });
+    this.time.delayedCall(2500, () => s.active && s.destroy());
+  }
+
+  spawnBomb(x: number, y: number) {
+    const b = this.bombs.create(x, y, 'bomb') as Phaser.Physics.Arcade.Image;
+    b.setData('bomb', true).setScale(0.7).setDepth(DEPTH.enemies + 2);
+    (b.body as Phaser.Physics.Arcade.Body).setVelocity((Math.random() - 0.5) * 60, 60).setSize(18, 18).setAngularVelocity(200);
+    this.time.delayedCall(4000, () => b.active && this.explodeBomb(b));
+  }
+
+  explodeBomb(b: Phaser.Physics.Arcade.Image) {
+    if (!b.active) return;
+    const x = b.x, y = b.y;
+    b.destroy();
+    Sound.play('rock', Phaser.Math.Clamp((x - this.cameras.main.midPoint.x) / 400, -1, 1));
+    this.fx.impact(x, y, true);
+    this.fx.dust(x, y, 10);
+    this.fx.ring(x, y, 0xd07aff);
+    this.shotLights.push({ x, y, r: 220, i: 1 });
+    const p = this.player.body;
+    if (Phaser.Math.Distance.Between(p.center.x, p.center.y, x, y) < 58) this.player.hurt(1, x);
+  }
+
   spawnShockwave(x: number, y: number, dir: number) {
     const w = this.add.image(x, y + 2, 'shock').setOrigin(0.5, 1).setScale(0.8, 0.9).setBlendMode(ADD).setDepth(DEPTH.glow).setTint(this.boss ? 0xff9a7a : 0xbff4ff);
     w.setData('dir', dir);
@@ -776,8 +872,9 @@ export class GameScene extends Phaser.Scene {
     cam.stopFollow();
     cam.pan(boss.x, boss.y - 120, 1400, 'Sine.easeInOut');
     this.time.delayedCall(1500, () => {
-      boss.setMode('roar');
-      this.ui.bossTitle('THE HOLLOW HEART', 'Guardian of the Lock');
+      boss.roar();
+      const info = this.levelDef.boss!;
+      this.ui.bossTitle(info.name, info.sub);
     });
     this.time.delayedCall(3600, () => {
       cam.setBounds(a - 40, 0, b - a + 80, this.level.heightPx);
@@ -785,15 +882,29 @@ export class GameScene extends Phaser.Scene {
       this.cutscene = false;
       this.player.setPState('air');
       this.ui.letterbox(false);
-      boss.mode = 'chase';
-      boss.aggro = true;
-      boss.attackCd = 1.5;
-      Sound.playTheme('boss');
-      this.ui.showBossBar(true);
+      boss.beginFight();
+      Sound.playTheme(this.levelDef.boss!.music);
+      this.ui.showBossBar(true, this.levelDef.boss!.name);
     });
   }
 
   onBossPhase(n: number) {
+    if (this.boss instanceof Warden) {
+      if (n === 2) {
+        this.toast('The Warden launches its sentries!', 1800);
+        const [a, b] = this.bossArena!;
+        for (const fx of [a + 160, b - 160]) {
+          const d = new Drone(this, fx, this.level.heightPx - 7 * TILE);
+          this.enemies.push(d);
+          this.addEnemyToGroup(d);
+        }
+      }
+      if (n === 3) {
+        this.toast('Overheating! It strikes faster', 1800);
+        this.crushers.forEach((c) => (c.t = 0));
+      }
+      return;
+    }
     if (n === 2) {
       this.toast('The Guardian calls its brood!', 1800);
       const L = this.level;
@@ -817,7 +928,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  onBossDefeated(g: Guardian) {
+  onBossDefeated(g: Enemy) {
     this.ui.showBossBar(false);
     Crazy.happytime();
     this.time.timeScale = 0.3;
@@ -835,7 +946,7 @@ export class GameScene extends Phaser.Scene {
       for (const d of this.doors) d.openPermanent();
       this.lighting.extra = -0.3;
       this.cameras.main.setBounds(0, 0, this.level.widthPx, this.level.heightPx);
-      this.toast('The lock is open', 2500);
+      this.toast(g instanceof Warden ? 'The Iron Warden falls silent' : 'The lock is open', 2500);
       Sound.playTheme('ending');
     });
   }
@@ -870,10 +981,13 @@ export class GameScene extends Phaser.Scene {
       this.scene.stop('BG');
       this.scene.stop('UI');
       const next = this.levelIndex + 1;
+      const chapterDone = next >= LEVELS.length || LEVELS[next].chapter !== this.levelDef.chapter;
       if (next >= LEVELS.length) {
         Save.data.completed = true;
         Save.write();
-        this.scene.start('Ending');
+      }
+      if (chapterDone) {
+        Crazy.midgameAd().then(() => this.scene.start('Ending', { chapter: this.levelDef.chapter, next: next < LEVELS.length ? next : -1 }));
       } else {
         Crazy.midgameAd().then(() => this.scene.start('Story', { level: next }));
       }

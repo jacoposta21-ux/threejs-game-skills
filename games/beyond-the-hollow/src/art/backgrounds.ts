@@ -379,12 +379,168 @@ function heartLayer(ctx: Ctx, th: ThemeDef, depth: number, r: () => number) {
   glows(ctx, th.accent2, r, 8, 12, 0.5, 150, base);
 }
 
+function iceLayer(ctx: Ctx, th: ThemeDef, depth: number, r: () => number) {
+  const col = [th.far, th.mid, th.near][depth];
+  const base = [460, 520, 600][depth];
+  if (depth === 0) {
+    // aurora ribbons across the cavern sky
+    ctx.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < 3; k++) {
+      const y0 = 90 + k * 50;
+      for (let x = 0; x < BG_W; x += 4) {
+        const y = y0 + Math.sin(x * 0.006 + k) * 40 + Math.sin(x * 0.017) * 12;
+        ctx.fillStyle = linear(ctx, 0, y - 60, 0, y + 20, [[0, rgba(k === 1 ? th.accent2 : th.accent, 0)], [0.7, rgba(k === 1 ? th.accent2 : th.accent, 0.12)], [1, rgba(th.accent, 0)]]);
+        ctx.fillRect(x, y - 60, 4, 80);
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ceilingFringe(ctx, col, [130, 100, 80][depth], r, 34);
+  // glacier spires & frozen columns
+  for (let i = 0; i < [9, 7, 5][depth]; i++) {
+    const x = r() * BG_W, w = 30 + r() * 70, h = 120 + r() * 240;
+    wrap(x, w, (xx) => {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(xx - w / 2, base + 40);
+      ctx.lineTo(xx - w * 0.3, base - h * 0.7);
+      ctx.lineTo(xx + (r() - 0.5) * 10, base - h);
+      ctx.lineTo(xx + w * 0.35, base - h * 0.6);
+      ctx.lineTo(xx + w / 2, base + 40);
+      ctx.fill();
+      ctx.fillStyle = rgba('#ffffff', 0.06 + depth * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(xx - w * 0.3, base - h * 0.7);
+      ctx.lineTo(xx, base - h);
+      ctx.lineTo(xx, base + 40);
+      ctx.lineTo(xx - w * 0.4, base + 40);
+      ctx.fill();
+    });
+  }
+  if (depth === 2) {
+    // old mine scaffolding
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 8;
+    for (let i = 0; i < 3; i++) {
+      const x = r() * BG_W;
+      wrap(x, 120, (xx) => {
+        ctx.beginPath();
+        ctx.moveTo(xx, base + 20); ctx.lineTo(xx, base - 200);
+        ctx.moveTo(xx + 100, base + 20); ctx.lineTo(xx + 100, base - 200);
+        ctx.moveTo(xx, base - 200); ctx.lineTo(xx + 100, base - 200);
+        ctx.moveTo(xx, base - 100); ctx.lineTo(xx + 100, base - 200);
+        ctx.stroke();
+      });
+    }
+  }
+  if (depth > 0) for (let i = 0; i < 3; i++) { const x = r() * BG_W, cw = [0, 120, 170][depth] * (0.6 + r() * 0.5); const glow = r() < 0.5 ? th.accent : th.accent2; wrap(x, cw, (xx) => mushroom(ctx, xx, base + 20, cw * 1.2, cw, col, mix(col, glow, 0.15), glow, r)); }
+  groundFringe(ctx, col, base, 30, r);
+  glows(ctx, th.accent, r, 10 - depth * 3, 10, 0.5, 120, base);
+}
+
+function foundryLayer(ctx: Ctx, th: ThemeDef, depth: number, r: () => number) {
+  const col = [th.far, th.mid, th.near][depth];
+  const base = [470, 530, 600][depth];
+  if (depth === 0) {
+    // molten river glow far below
+    ctx.fillStyle = linear(ctx, 0, 380, 0, BG_H, [[0, rgba(th.accent2, 0)], [0.7, rgba(th.accent, 0.35)], [1, rgba('#ffe0a0', 0.6)]]);
+    ctx.fillRect(0, 380, BG_W, BG_H - 380);
+  }
+  ceilingFringe(ctx, col, [90, 70, 60][depth], r, 14);
+  const gear = (x: number, y: number, R: number) => {
+    ctx.fillStyle = col;
+    const teeth = Math.round(R / 6);
+    ctx.beginPath();
+    for (let i = 0; i < teeth * 2; i++) {
+      const a = (i / (teeth * 2)) * Math.PI * 2, rr = i % 2 ? R : R * 0.86;
+      ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    ctx.fill();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath(); ctx.arc(x, y, R * 0.25, 0, Math.PI * 2); ctx.fill();
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; ctx.beginPath(); ctx.arc(x + Math.cos(a) * R * 0.55, y + Math.sin(a) * R * 0.55, R * 0.14, 0, Math.PI * 2); ctx.fill(); }
+    ctx.globalCompositeOperation = 'source-over';
+  };
+  for (let i = 0; i < [6, 4, 3][depth]; i++) {
+    const x = r() * BG_W, R = [70, 100, 130][depth] * (0.6 + r() * 0.6);
+    wrap(x, R, (xx) => gear(xx, 120 + r() * 300, R));
+  }
+  // chimneys / pistons
+  for (let i = 0; i < [7, 4, 3][depth]; i++) {
+    const x = r() * BG_W, w = 30 + r() * 40, h = 150 + r() * 220;
+    wrap(x, w, (xx) => {
+      ctx.fillStyle = col;
+      ctx.fillRect(xx - w / 2, base - h, w, h + 100);
+      ctx.fillRect(xx - w / 2 - 6, base - h, w + 12, 12);
+      if (depth === 0) {
+        ctx.fillStyle = rgba(th.accent, 0.5);
+        ctx.fillRect(xx - 3, base - h + 30, 6, 6);
+      }
+    });
+  }
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 3 + depth * 2;
+  for (let i = 0; i < 6; i++) {
+    const x = r() * BG_W, len = 80 + r() * 200;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, len); ctx.stroke();
+  }
+  if (depth > 0) for (let i = 0; i < 2; i++) { const x = r() * BG_W, cw = [0, 110, 160][depth] * (0.6 + r() * 0.5); const glow = r() < 0.5 ? th.accent : '#d07aff'; wrap(x, cw, (xx) => mushroom(ctx, xx, base + 20, cw * 1.1, cw, col, mix(col, glow, 0.15), glow, r)); }
+  groundFringe(ctx, col, base, 20, r);
+  glows(ctx, th.accent, r, 12 - depth * 3, 8, 0.6, 200, base);
+}
+
+function ruinsLayer(ctx: Ctx, th: ThemeDef, depth: number, r: () => number) {
+  const col = [th.far, th.mid, th.near][depth];
+  const base = [470, 530, 600][depth];
+  if (depth === 0) {
+    // stepped temple silhouette with a glowing doorway
+    const cx = BG_W * 0.55;
+    ctx.fillStyle = mix(col, th.accent, 0.08);
+    for (let k = 0; k < 6; k++) ctx.fillRect(cx - 260 + k * 40, base - 40 - k * 45, 520 - k * 80, 50);
+    ctx.fillStyle = radial(ctx, cx, base - 120, 120, [[0, rgba(th.accent, 0.6)], [1, rgba(th.accent, 0)]]);
+    ctx.fillRect(cx - 120, base - 240, 240, 240);
+    ctx.fillStyle = rgba('#d8fff6', 0.7);
+    ctx.fillRect(cx - 14, base - 150, 28, 44);
+  }
+  ceilingFringe(ctx, col, [90, 70, 60][depth], r, 20);
+  // columns, some broken
+  for (let i = 0; i < [8, 6, 4][depth]; i++) {
+    const x = r() * BG_W, w = [26, 38, 52][depth], h = 160 + r() * 220, broken = r() < 0.45;
+    wrap(x, w, (xx) => {
+      ctx.fillStyle = col;
+      ctx.fillRect(xx - w / 2, base - h, w, h + 100);
+      ctx.fillRect(xx - w / 2 - 8, base - 14, w + 16, 14);
+      if (!broken) ctx.fillRect(xx - w / 2 - 8, base - h - 12, w + 16, 14);
+      else {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath(); ctx.moveTo(xx - w, base - h - 2); ctx.lineTo(xx + w, base - h + 24); ctx.lineTo(xx + w, base - h - 40); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.fillStyle = rgba('#000000', 0.18);
+      for (let k = -1; k <= 1; k++) ctx.fillRect(xx + k * w * 0.28 - 1.5, base - h + 10, 3, h - 20);
+    });
+  }
+  // hanging vines
+  ctx.strokeStyle = mix(col, '#3a8a5a', 0.35 - depth * 0.08);
+  ctx.lineWidth = 2 + depth;
+  for (let i = 0; i < 16; i++) {
+    const x = r() * BG_W, len = 60 + r() * 220;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.quadraticCurveTo(x + 15, len / 2, x + (r() - 0.5) * 20, len); ctx.stroke();
+  }
+  if (depth > 0) for (let i = 0; i < 3; i++) { const x = r() * BG_W, cw = [0, 120, 180][depth] * (0.6 + r() * 0.5); const glow = r() < 0.5 ? th.accent : th.accent2; wrap(x, cw, (xx) => mushroom(ctx, xx, base + 20, cw * 1.2, cw, col, mix(col, glow, 0.15), glow, r)); }
+  groundFringe(ctx, col, base, 24, r);
+  glows(ctx, th.accent2, r, 10 - depth * 3, 10, 0.5, 150, base);
+}
+
 const LAYERS: Record<ThemeKey, (ctx: Ctx, th: ThemeDef, d: number, r: () => number) => void> = {
   station: stationLayer,
   forest: forestLayer,
   caverns: cavernLayer,
   ocean: oceanLayer,
   heart: heartLayer,
+  ice: iceLayer,
+  foundry: foundryLayer,
+  ruins: ruinsLayer,
 };
 
 /** Builds 4 parallax layer textures: bg-<theme>-0 (sky) .. bg-<theme>-3 (nearest). */

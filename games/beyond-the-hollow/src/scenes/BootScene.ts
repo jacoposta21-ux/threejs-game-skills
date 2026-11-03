@@ -3,14 +3,19 @@ import { buildElias } from '../art/elias';
 import { buildCreatures } from '../art/creatures';
 import { buildCommonProps, buildFx, buildThemeProps } from '../art/props';
 import { buildBackgrounds } from '../art/backgrounds';
+import { buildChapter2Common } from '../art/chapter2';
 import { Save } from '../core/Save';
 import { Sound } from '../core/Audio';
 import { Crazy } from '../core/CrazySDK';
+import keyartUrl from '../assets/keyart.jpg';
 
 /** Paints every shared texture procedurally (no image downloads), then opens the title screen. */
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('Boot');
+  }
+  preload() {
+    this.load.image('keyart', keyartUrl);
   }
   create() {
     Crazy.loadingStart();
@@ -21,6 +26,7 @@ export class BootScene extends Phaser.Scene {
       () => buildElias(this),
       () => buildCreatures(this),
       () => buildCommonProps(this),
+      () => buildChapter2Common(this),
       () => buildBackgrounds(this, 'forest'),
       () => buildThemeProps(this, 'forest'),
     ];
