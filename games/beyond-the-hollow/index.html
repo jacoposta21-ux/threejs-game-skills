@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Beyond the Hollow</title>
+  <meta name="description" content="A cinematic 2D adventure. Elias and Pip, a mechanical firefly, must find a way out of the Hollow." />
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #05070a; overflow: hidden; touch-action: none; overscroll-behavior: none; }
+    #game { position: fixed; inset: 0; }
+    canvas { display: block; -webkit-tap-highlight-color: transparent; outline: none; }
+    #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #9fd6c9; font: 14px Georgia, serif; letter-spacing: 6px; gap: 18px; pointer-events: none; transition: opacity .6s; }
+    #boot .dot { width: 10px; height: 10px; border-radius: 50%; background: #ffd27a; box-shadow: 0 0 18px 6px #ffb84a88; animation: f 1.6s ease-in-out infinite; }
+    @keyframes f { 0%,100% { transform: translate(-18px, 4px); } 50% { transform: translate(18px, -6px); } }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="boot"><div class="dot"></div><div>BEYOND THE HOLLOW</div></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

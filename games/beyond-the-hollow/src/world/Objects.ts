@@ -1,0 +1,541 @@
+import Phaser from 'phaser';
+import { DEPTH, PHYS, TILE } from '../core/constants';
+import { Sound } from '../core/Audio';
+import { PROP_SCALE } from '../art/props';
+import { THEMES } from '../art/themes';
+import type { GameScene } from '../scenes/GameScene';
+import type { Spawn } from './LevelMap';
+
+const ADD = Phaser.BlendModes.ADD;
+
+export interface Light {
+  x: number;
+  y: number;
+  r: number;
+  i: number;
+}
+
+// ------------------------------------------------------------------ doors & switches
+export class Door {
+  img: Phaser.GameObjects.Image;
+  zone: Phaser.GameObjects.Zone;
+  open = false;
+  progress = 0; // 0 closed .. 1 open
+  holdOpen = 0;
+  permanent = false;
+  cells: number[] = [];
+  topY: number;
+  h: number;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.h = (s.h || 3) * TILE;
+    const tex = gs.levelDef.theme === 'station' ? 'door-metal' : 'door-ancient';
+    this.topY = s.y - this.h;
+    this.img = gs.add.image(s.x, this.topY, tex).setOrigin(0.5, 0).setDisplaySize(TILE, this.h).setDepth(DEPTH.interact);
+    this.zone = gs.add.zone(s.x, this.topY + this.h / 2, TILE, this.h);
+    gs.physics.add.existing(this.zone);
+    const b = this.zone.body as Phaser.Physics.Arcade.Body;
+    b.setAllowGravity(false);
+    b.setImmovable(true);
+    b.pushable = false;
+    for (let k = 0; k < (s.h || 3); k++) this.cells.push((s.ty + k) * gs.level.W + s.tx);
+    this.block(true);
+  }
+  private block(b: boolean) {
+    for (const c of this.cells) b ? this.gs.level.blocked.add(c) : this.gs.level.blocked.delete(c);
+  }
+  openPermanent() {
+    if (this.permanent) return;
+    this.permanent = true;
+    this.setOpen(true);
+  }
+  setOpen(o: boolean) {
+    if (o === this.open) return;
+    this.open = o;
+    Sound.play('door');
+    this.gs.fx.shake(0.003, 300);
+    this.gs.fx.dust(this.s.x, this.s.y, 6);
+  }
+  update(dt: number) {
+    if (!this.permanent && this.holdOpen > 0) {
+      this.holdOpen -= dt;
+      if (this.holdOpen <= 0) {
+        // never crush whoever stands in the doorway
+        const p = this.gs.player.body;
+        const inside = Math.abs(p.center.x - this.s.x) < 26 && p.bottom > this.topY && p.top < this.s.y;
+        if (inside) this.holdOpen = 0.2;
+        else this.setOpen(false);
+      }
+    }
+    const target = this.open ? 1 : 0;
+    this.progress = Phaser.Math.Clamp(this.progress + Math.sign(target - this.progress) * dt * 1.8, 0, 1);
+    const vis = Math.max(0.001, this.h * (1 - this.progress));
+    const fh = this.img.frame.height;
+    this.img.setCrop(0, fh * this.progress, this.img.frame.width, fh * (1 - this.progress));
+    this.img.y = this.topY - this.h * this.progress;
+    const solid = this.progress < 0.75;
+    const b = this.zone.body as Phaser.Physics.Arcade.Body;
+    b.enable = solid;
+    if (solid) {
+      this.zone.setSize(TILE, vis);
+      b.setSize(TILE, vis);
+      this.zone.setPosition(this.s.x, this.topY + vis / 2);
+    }
+    this.block(solid);
+  }
+}
+
+export class Plate {
+  img: Phaser.GameObjects.Image;
+  pressed = false;
+  door: Door | null = null;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.img = gs.add.image(s.x, s.y, 'plate', 0).setOrigin(0.5, 1).setScale(PROP_SCALE).setDepth(DEPTH.interact);
+  }
+  update() {
+    const zx = this.s.x, zy = this.s.y - 6;
+    const on = (b: Phaser.Physics.Arcade.Body) => b.right > zx - 20 && b.left < zx + 20 && b.bottom > zy - 6 && b.bottom < zy + 10;
+    let p = on(this.gs.player.body);
+    for (const c of this.gs.crates) if (on(c.body)) p = true;
+    if (p !== this.pressed) {
+      this.pressed = p;
+      this.img.setFrame(p ? 1 : 0);
+      Sound.play('plate');
+    }
+    if (p && this.door) {
+      this.door.setOpen(true);
+      this.door.holdOpen = 0.5;
+    }
+  }
+}
+
+export class Mechanism {
+  img: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Image;
+  active = false;
+  door: Door | null = null;
+  t = Math.random() * 6;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.img = gs.add.image(s.x, s.y, 'mech', 0).setOrigin(0.5, 1).setScale(PROP_SCALE).setDepth(DEPTH.interact);
+    this.glow = gs.add.image(s.x, s.y - 36, 'glow').setBlendMode(ADD).setTint(0x7ff5e0).setAlpha(0.25).setScale(0.5).setDepth(DEPTH.glow);
+  }
+  get orb() {
+    return { x: this.s.x, y: this.s.y - 38 };
+  }
+  activate() {
+    if (this.active) return;
+    this.active = true;
+    this.img.setFrame(1);
+    Sound.play('mechanism');
+    this.gs.fx.ring(this.orb.x, this.orb.y, 0x7ff5e0);
+    this.gs.fx.glowE.explode(24, this.orb.x, this.orb.y);
+    this.gs.tweens.add({ targets: this.glow, alpha: 0.9, scale: 1.4, duration: 600, yoyo: true, hold: 200, onComplete: () => this.glow.setAlpha(0.55).setScale(0.9) });
+    if (this.door) {
+      const d = this.door;
+      this.gs.beam(this.orb.x, this.orb.y, d.s.x, d.topY + 40);
+      this.gs.time.delayedCall(700, () => d.openPermanent());
+      this.gs.cinematicFocus(d.s.x, d.topY + 40, 1300);
+    }
+    this.gs.toast('Ancient mechanism awakened');
+  }
+  update(dt: number) {
+    this.t += dt;
+    if (!this.active) this.glow.setAlpha(0.18 + Math.sin(this.t * 2) * 0.08);
+  }
+}
+
+// ------------------------------------------------------------------ pickups & markers
+export class Checkpoint {
+  img: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Image;
+  lit = false;
+  constructor(public gs: GameScene, public s: Spawn, public index: number) {
+    this.img = gs.add.image(s.x, s.y, 'beacon', 0).setOrigin(0.5, 1).setScale(PROP_SCALE).setDepth(DEPTH.interact);
+    this.glow = gs.add.image(s.x, s.y - 50, 'glow').setBlendMode(ADD).setTint(0xffc060).setAlpha(0).setDepth(DEPTH.glow);
+  }
+  light(silent = false) {
+    if (this.lit) return;
+    this.lit = true;
+    this.img.setFrame(1);
+    this.glow.setAlpha(0.8);
+    if (!silent) {
+      Sound.play('checkpoint');
+      this.gs.fx.glowE.explode(20, this.s.x, this.s.y - 50);
+      this.gs.toast('Checkpoint — your progress is saved');
+    }
+  }
+}
+
+export class Lore {
+  img: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Image;
+  taken = false;
+  constructor(public gs: GameScene, public s: Spawn, public index: number) {
+    this.img = gs.add.image(s.x, s.y - 14, 'lore').setOrigin(0.5, 1).setScale(PROP_SCALE).setDepth(DEPTH.interact);
+    this.glow = gs.add.image(s.x, s.y - 20, 'glow').setBlendMode(ADD).setTint(0x9fe9ff).setAlpha(0.45).setScale(0.45).setDepth(DEPTH.glow);
+    gs.tweens.add({ targets: [this.img], y: s.y - 20, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+  }
+}
+
+export class Hint {
+  text: Phaser.GameObjects.Text;
+  shown = false;
+  constructor(public gs: GameScene, public s: Spawn, msg: string) {
+    this.text = gs.add.text(s.x, s.y - 92, msg, {
+      fontFamily: 'Spectral, Georgia, serif', fontSize: '15px', color: '#f2ead8', align: 'center', stroke: '#05070a', strokeThickness: 4,
+      wordWrap: { width: 300 },
+    }).setOrigin(0.5, 1).setAlpha(0).setDepth(DEPTH.hint);
+  }
+  update(px: number, py: number) {
+    const near = !this.gs.cutscene && Math.abs(px - this.s.x) < 150 && Math.abs(py - this.s.y) < 200;
+    const a = this.text.alpha;
+    this.text.setAlpha(Phaser.Math.Linear(a, near ? 1 : 0, 0.08));
+  }
+}
+
+export class Orb {
+  img: Phaser.GameObjects.Image;
+  taken = false;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.img = gs.add.image(s.x, s.y - 16, 'orb').setScale(PROP_SCALE).setBlendMode(ADD).setDepth(DEPTH.glow);
+    gs.tweens.add({ targets: this.img, y: s.y - 24, scale: PROP_SCALE * 1.2, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+  }
+}
+
+export class Exit {
+  img: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Image;
+  beam: Phaser.GameObjects.Image;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.beam = gs.add.image(s.x, s.y + 10, 'beam').setOrigin(0.5, 1).setScale(1.2, 0.5).setBlendMode(ADD).setTint(0xbffff4).setAlpha(0.5).setDepth(DEPTH.glow).setFlipY(true);
+    this.img = gs.add.image(s.x, s.y - 2, 'rift').setOrigin(0.5, 1).setScale(PROP_SCALE * 1.2).setBlendMode(ADD).setDepth(DEPTH.glow);
+    this.glow = gs.add.image(s.x, s.y - 36, 'glow').setBlendMode(ADD).setTint(0x7ff5e0).setScale(2).setAlpha(0.6).setDepth(DEPTH.glow);
+    gs.tweens.add({ targets: this.img, scaleX: PROP_SCALE * 1.35, alpha: 0.75, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    gs.tweens.add({ targets: this.glow, alpha: 0.35, duration: 1500, yoyo: true, repeat: -1 });
+  }
+}
+
+export class HideSpot {
+  img: Phaser.GameObjects.Image;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.img = gs.add.image(s.x, s.y + 2, `hide-${gs.levelDef.theme}`).setOrigin(0.5, 1).setScale(PROP_SCALE * 1.1).setDepth(gs.levelDef.theme === 'station' ? DEPTH.decorBack : DEPTH.decorFront);
+  }
+  contains(x: number, y: number) {
+    return Math.abs(x - this.s.x) < 20 && y > this.s.y - 70 && y <= this.s.y + 4;
+  }
+}
+
+export class Cocoon {
+  img: Phaser.Physics.Arcade.Image;
+  alive = true;
+  constructor(public gs: GameScene, public s: Spawn) {
+    const h = (s.h || 3) * TILE;
+    this.img = gs.physics.add.staticImage(s.x, s.y - h / 2, 'cocoon').setDisplaySize(TILE * 1.1, h).setDepth(DEPTH.interact);
+    this.img.refreshBody();
+    for (let k = 0; k < (s.h || 3); k++) gs.level.blocked.add((s.ty + k) * gs.level.W + s.tx);
+    gs.tweens.add({ targets: this.img, scaleX: this.img.scaleX * 1.05, duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+  }
+  hit(big: boolean) {
+    if (!this.alive) return;
+    if (!big) {
+      Sound.play('hit');
+      this.gs.fx.armorSparks(this.s.x, this.img.y);
+      this.gs.toast('The web holds — charge your shot (hold FIRE)');
+      return;
+    }
+    this.alive = false;
+    Sound.play('crumble');
+    this.gs.fx.rockShatter(this.s.x, this.img.y, 0xe0d8ff);
+    this.img.destroy();
+    for (let k = 0; k < (this.s.h || 3); k++) this.gs.level.blocked.delete((this.s.ty + k) * this.gs.level.W + this.s.tx);
+  }
+}
+
+/** Light-glass: invisible and intangible until Pip's light touches it. */
+export class GhostPlatform {
+  img: Phaser.Physics.Arcade.Image;
+  revealed = false;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.img = gs.physics.add.staticImage(s.x, s.y - TILE + 6, 'ghostplat').setScale(PROP_SCALE).setAlpha(0.04).setBlendMode(ADD).setDepth(DEPTH.interact);
+    this.img.refreshBody();
+    (this.img.body as Phaser.Physics.Arcade.StaticBody).enable = false;
+  }
+  update(t: number) {
+    if (this.revealed) {
+      this.img.setAlpha(0.75 + Math.sin(t * 2 + this.s.tx) * 0.2);
+      return;
+    }
+    this.img.setAlpha(0.03 + Math.max(0, Math.sin(t * 1.3 + this.s.tx * 0.7)) * 0.06);
+    const pip = this.gs.pip;
+    if (Phaser.Math.Distance.Between(pip.x, pip.y, this.s.x, this.img.y) < pip.lightRadius * 1.35) this.reveal();
+  }
+  reveal() {
+    this.revealed = true;
+    (this.img.body as Phaser.Physics.Arcade.StaticBody).enable = true;
+    Sound.play('reveal');
+    this.gs.fx.glowE.explode(6, this.s.x, this.img.y);
+  }
+}
+
+export class Crate {
+  img: Phaser.Physics.Arcade.Image;
+  constructor(public gs: GameScene, s: Spawn) {
+    this.img = gs.physics.add.image(s.x, s.y - 16, 'crate').setScale(PROP_SCALE).setDepth(DEPTH.crate);
+    const b = this.body;
+    b.setSize(60, 62).setOffset(2, 1);
+    b.setDragX(1400);
+    b.setMaxVelocity(140, 700);
+    b.setBounce(0, 0);
+    b.setMass(3);
+  }
+  get body() {
+    return this.img.body as Phaser.Physics.Arcade.Body;
+  }
+  update(dt: number) {
+    const b = this.body;
+    const L = this.gs.level;
+    if (L.waterAtWorld(b.center.x, b.center.y + 4)) {
+      // buoyancy: float up to the surface
+      b.setVelocityY(b.velocity.y - PHYS.gravity * 1.45 * dt);
+      b.velocity.y *= 0.93;
+      b.velocity.x += L.currentAtWorld(b.center.x, b.center.y) * 40 * dt;
+      b.setDragX(200);
+    } else b.setDragX(b.blocked.down ? 1400 : 100);
+  }
+}
+
+// ------------------------------------------------------------------ hazards
+export class ArcEmitter {
+  img: Phaser.GameObjects.Image;
+  g: Phaser.GameObjects.Graphics;
+  glow: Phaser.GameObjects.Image;
+  t: number;
+  active = false;
+  bottom: number;
+  static ON = 1.0;
+  static OFF = 1.7;
+  constructor(public gs: GameScene, public s: Spawn) {
+    const top = s.ty * TILE;
+    this.img = gs.add.image(s.x, top, 'emitter').setOrigin(0.5, 0).setScale(PROP_SCALE).setDepth(DEPTH.interact);
+    let ty = s.ty + 1;
+    while (ty < gs.level.H && !gs.level.solid(s.tx, ty)) ty++;
+    this.bottom = ty * TILE;
+    this.g = gs.add.graphics().setDepth(DEPTH.glow).setBlendMode(ADD);
+    this.glow = gs.add.image(s.x, (top + this.bottom) / 2, 'beam').setDisplaySize(70, this.bottom - top).setTint(0x7fe0ff).setBlendMode(ADD).setAlpha(0).setDepth(DEPTH.glow);
+    this.t = (s.tx * 0.37) % (ArcEmitter.ON + ArcEmitter.OFF);
+  }
+  update(dt: number) {
+    const cycle = ArcEmitter.ON + ArcEmitter.OFF;
+    this.t = (this.t + dt) % cycle;
+    const wasActive = this.active;
+    this.active = this.t < ArcEmitter.ON;
+    const warn = !this.active && this.t > cycle - 0.45;
+    this.g.clear();
+    const top = this.s.ty * TILE + 14;
+    if (this.active) {
+      if (!wasActive) Sound.play('spark', Phaser.Math.Clamp((this.s.x - this.gs.cameras.main.midPoint.x) / 400, -1, 1));
+      for (let k = 0; k < 2; k++) {
+        this.g.lineStyle(k ? 1.5 : 4, k ? 0xffffff : 0x6fd8ff, k ? 1 : 0.6);
+        this.g.beginPath();
+        this.g.moveTo(this.s.x, top);
+        const n = 9;
+        for (let i = 1; i <= n; i++) {
+          const y = top + ((this.bottom - top) * i) / n;
+          this.g.lineTo(this.s.x + (i === n ? 0 : (Math.random() - 0.5) * 18), y);
+        }
+        this.g.strokePath();
+      }
+      this.glow.setAlpha(0.35 + Math.random() * 0.2);
+      if (Math.random() < 0.3) this.gs.fx.sparkE.explode(2, this.s.x, this.bottom - 2);
+    } else {
+      this.glow.setAlpha(warn ? 0.08 : 0);
+      if (warn && Math.random() < 0.4) this.gs.fx.sparkE.explode(1, this.s.x, top);
+    }
+    const p = this.gs.player.body;
+    if (this.active && Math.abs(p.center.x - this.s.x) < 14 && p.bottom > top && p.top < this.bottom) this.gs.player.hurt(1, this.s.x);
+  }
+  light(): Light | null {
+    return this.active ? { x: this.s.x, y: (this.s.ty * TILE + this.bottom) / 2, r: 130, i: 0.8 } : null;
+  }
+}
+
+export class Stalactite {
+  img: Phaser.Physics.Arcade.Image;
+  mode: 'hang' | 'shake' | 'fall' | 'gone' = 'hang';
+  t = 0;
+  homeY: number;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.homeY = s.ty * TILE;
+    this.img = gs.physics.add.image(s.x, this.homeY, 'stalactite').setOrigin(0.5, 0).setScale(PROP_SCALE * 1.1).setDepth(DEPTH.interact);
+    const b = this.img.body as Phaser.Physics.Arcade.Body;
+    b.setAllowGravity(false);
+    b.setSize(24, 80).setOffset(10, 8);
+    b.moves = false;
+  }
+  get body() {
+    return this.img.body as Phaser.Physics.Arcade.Body;
+  }
+  trigger() {
+    if (this.mode !== 'hang') return;
+    this.mode = 'shake';
+    this.t = 0;
+    Sound.play('crack');
+  }
+  update(dt: number) {
+    this.t += dt;
+    const p = this.gs.player;
+    switch (this.mode) {
+      case 'hang':
+        if (Math.abs(p.x - this.s.x) < 44 && p.y > this.homeY && p.y - this.homeY < 420 && !this.gs.levelDef.id.startsWith('heart')) this.trigger();
+        break;
+      case 'shake':
+        this.img.x = this.s.x + Math.sin(this.t * 60) * 1.5;
+        if (this.t > 0.45) {
+          this.mode = 'fall';
+          this.body.moves = true;
+          this.body.setAllowGravity(true);
+          this.img.x = this.s.x;
+        }
+        break;
+      case 'fall': {
+        const b = this.body;
+        if (Math.abs(p.body.center.x - b.center.x) < 18 && p.body.top < b.bottom && p.body.bottom > b.top) {
+          p.hurt(1, this.s.x);
+          this.shatter();
+        }
+        const boss = this.gs.boss;
+        if (boss && boss.alive && Math.abs(boss.x - b.center.x) < 80 && b.bottom > boss.y - 120 && b.bottom < boss.y) {
+          boss.crushed();
+          this.shatter();
+          break;
+        }
+        if (b.blocked.down || this.gs.level.solidAtWorld(b.center.x, b.bottom + 2)) this.shatter();
+        break;
+      }
+      case 'gone':
+        if (this.t > 7) {
+          this.mode = 'hang';
+          this.body.moves = false;
+          this.body.setAllowGravity(false);
+          this.body.setVelocity(0, 0);
+          this.img.setPosition(this.s.x, this.homeY).setVisible(true).setAlpha(0);
+          this.body.reset(this.s.x, this.homeY);
+          this.body.enable = true;
+          this.gs.tweens.add({ targets: this.img, alpha: 1, duration: 800 });
+        }
+        break;
+    }
+  }
+  shatter() {
+    this.mode = 'gone';
+    this.t = 0;
+    this.gs.fx.rockShatter(this.img.x, this.body.bottom - 6, Phaser.Display.Color.HexStringToColor(THEMES[this.gs.levelDef.theme].rock[2]).color);
+    Sound.play('rock', Phaser.Math.Clamp((this.s.x - this.gs.cameras.main.midPoint.x) / 400, -1, 1));
+    this.gs.fx.shake(0.005, 150);
+    this.img.setVisible(false);
+    this.body.enable = false;
+  }
+}
+
+export class Bouncer {
+  img: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Image;
+  t = 0;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.img = gs.add.image(s.x, s.y + 1, 'bouncer', 0).setOrigin(0.5, 1).setScale(PROP_SCALE * 1.3).setDepth(DEPTH.interact);
+    this.glow = gs.add.image(s.x, s.y - 10, 'glow').setTint(0xff7ad9).setBlendMode(ADD).setAlpha(0.5).setScale(0.8).setDepth(DEPTH.glow);
+  }
+  cd = 0;
+  update(dt: number) {
+    this.t += dt;
+    this.cd -= dt;
+    const p = this.gs.player;
+    const b = p.body;
+    if (this.cd <= 0 && b.velocity.y >= -10 && Math.abs(b.center.x - this.s.x) < 28 && b.bottom > this.s.y - 30 && b.bottom <= this.s.y + 2 && p.state !== 'climb' && p.state !== 'dead') {
+      this.cd = 0.3;
+      b.setVelocityY(-PHYS.bounceVel);
+      p.usedDouble = false;
+      p.setPState('air');
+      p.airTime = 0.05;
+      Sound.play('bounce');
+      this.gs.fx.ring(this.s.x, this.s.y - 20, 0xff7ad9);
+      this.gs.fx.glowE.explode(10, this.s.x, this.s.y - 20);
+      this.img.setFrame(1);
+      this.gs.tweens.add({ targets: this.img, scaleY: PROP_SCALE * 1.0, duration: 80, yoyo: true, onComplete: () => this.img.setFrame(0) });
+    }
+    this.glow.setAlpha(0.4 + Math.sin(this.t * 2.2) * 0.12);
+  }
+}
+
+export class SporeVent {
+  img: Phaser.GameObjects.Image;
+  emitter: Phaser.GameObjects.Particles.ParticleEmitter;
+  t: number;
+  erupting = false;
+  dmgT = 0;
+  static CYCLE = 4.0;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.img = gs.add.image(s.x, s.y + 1, 'vent').setOrigin(0.5, 1).setScale(PROP_SCALE * 1.2).setDepth(DEPTH.interact);
+    const tint = gs.levelDef.theme === 'heart' ? [0xffa060, 0xff6a5a] : [0xc8ff7a, 0x9affc8];
+    this.emitter = gs.add.particles(s.x, s.y - 6, 'smoke', {
+      emitting: false, lifespan: { min: 700, max: 1200 }, speedY: { min: -150, max: -80 }, speedX: { min: -25, max: 25 },
+      scale: { start: 0.35, end: 1.1 }, alpha: { start: 0.55, end: 0 }, tint, blendMode: 'ADD', frequency: 40,
+    }).setDepth(DEPTH.fx);
+    this.t = (s.tx * 0.53) % SporeVent.CYCLE;
+  }
+  update(dt: number) {
+    this.t = (this.t + dt) % SporeVent.CYCLE;
+    const erupt = this.t > 2.4;
+    const warn = this.t > 1.9 && !erupt;
+    if (erupt !== this.erupting) {
+      this.erupting = erupt;
+      erupt ? this.emitter.start() : this.emitter.stop();
+      if (erupt) Sound.play('spore', Phaser.Math.Clamp((this.s.x - this.gs.cameras.main.midPoint.x) / 400, -1, 1));
+    }
+    if (warn && Math.random() < 0.25) this.emitter.explode(1, this.s.x, this.s.y - 6);
+    this.dmgT -= dt;
+    const p = this.gs.player.body;
+    if (this.erupting && this.t > 2.6 && Math.abs(p.center.x - this.s.x) < 22 && p.bottom > this.s.y - 120 && this.dmgT <= 0) {
+      this.dmgT = 0.8;
+      this.gs.player.hurt(1, this.s.x);
+    }
+  }
+}
+
+export class Lamp {
+  img: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Image;
+  t = Math.random() * 10;
+  ly: number;
+  constructor(public gs: GameScene, public s: Spawn) {
+    const th = gs.levelDef.theme;
+    const hangs = th === 'station' || th === 'heart';
+    let y = s.y - 16;
+    if (hangs) {
+      // hang from the nearest ceiling above with a cable
+      let ty = s.ty;
+      while (ty > 0 && !gs.level.solid(s.tx, ty - 1)) ty--;
+      const g = gs.add.graphics().setDepth(DEPTH.decorBack);
+      g.lineStyle(1.5, 0x07090c, 1);
+      g.lineBetween(s.x, ty * TILE, s.x, s.y - 30);
+      y = s.y - 30;
+      this.img = gs.add.image(s.x, y, `lamp-${th}`).setOrigin(0.5, 0).setScale(PROP_SCALE).setDepth(DEPTH.interact);
+      this.ly = y + 14;
+    } else {
+      // grows from the nearest floor below
+      let ty = s.ty;
+      while (ty < gs.level.H - 1 && !gs.level.solid(s.tx, ty + 1)) ty++;
+      y = (ty + 1) * TILE + 2;
+      this.img = gs.add.image(s.x, y, `lamp-${th}`).setOrigin(0.5, 1).setScale(PROP_SCALE * 1.3).setDepth(DEPTH.decorBack);
+      this.ly = y - 22;
+    }
+    this.glow = gs.add.image(s.x, this.ly, 'glow').setTint(THEMES[th].lamp).setBlendMode(ADD).setAlpha(0.6).setScale(1.6).setDepth(DEPTH.glow);
+  }
+  update(dt: number) {
+    this.t += dt;
+    const flick = this.gs.levelDef.theme === 'station' ? (Math.sin(this.t * 31) > 0.97 ? 0.4 : 1) : 1;
+    this.glow.setAlpha((0.5 + Math.sin(this.t * 1.7) * 0.06) * flick);
+  }
+  light(): Light {
+    return { x: this.s.x, y: this.ly, r: 210, i: 0.95 };
+  }
+}
