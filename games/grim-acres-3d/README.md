@@ -22,6 +22,18 @@ Controls are unchanged: WASD/arrows move, E/Space interacts, 1–5 or the mouse 
 hotbar slot, Tab/N notebook, I/B bag, Esc pause. Touch devices get the virtual joystick and the
 action button; gamepads work too.
 
+## Publishing builds
+
+```bash
+npm run build:crazygames   # dist-crazygames/  CrazyGames SDK v3 (loading, gameplay, happytime, cloud data)
+npm run build:playgama     # dist-playgama/    Playgama Bridge 2.4 bundled locally (game_ready, gameplay
+                           #                   start/stop, cloud saves, platform language, pause/audio events)
+```
+
+Zip the *contents* of the folder (so `index.html` is at the root of the archive) and upload it.
+The Playgama build swaps `js/platform.js` for `js/platform-playgama.js` at build time; the game code
+is otherwise identical.
+
 ## What changed for 3D
 
 | File | Role |

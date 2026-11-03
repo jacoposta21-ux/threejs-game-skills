@@ -1,5 +1,6 @@
 // Generated WebAudio sound effects (no files). The context is created on the first user gesture.
 let ctx = null, master = null, muted = false, noiseBuf = null;
+let platformMuted = false; // set by the host platform (pause, ads, its own mute)
 let musicGain = null, musicOn = true, musicMode = null, musicTimer = null, nextBeat = 0, beat = 0;
 
 function ensure() {
@@ -9,7 +10,7 @@ function ensure() {
     if (!AC) return false;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = muted ? 0 : 0.5;
+    master.gain.value = muted || platformMuted ? 0 : 0.5;
     master.connect(ctx.destination);
     musicGain = ctx.createGain();
     musicGain.gain.value = musicOn ? 1 : 0;
@@ -102,14 +103,20 @@ function scheduleMusic() {
 export const Audio = {
   unlock() { if (ensure()) this.resumeMusic(); },
   play(name, arg) {
-    if (muted || !SFX[name]) return;
+    if (muted || platformMuted || !SFX[name]) return;
     if (!ensure()) return;
     try { SFX[name](arg); } catch { /* audio must never break the game */ }
   },
   get muted() { return muted; },
   setMuted(m) {
     muted = !!m;
-    if (master) master.gain.value = muted ? 0 : 0.5;
+    if (master) master.gain.value = muted || platformMuted ? 0 : 0.5;
+  },
+  // the host platform can silence the game (ads, its own mute button, pause) without touching
+  // the player's own mute setting
+  setPlatformMuted(m) {
+    platformMuted = !!m;
+    if (master) master.gain.value = muted || platformMuted ? 0 : 0.5;
   },
   get musicOn() { return musicOn; },
   setMusic(on) {

@@ -30,6 +30,13 @@ async function boot() {
   Audio.setMuted(!!Save.settings().muted);
   Audio.setMusic(Save.settings().music !== false);
   ui.init(game);
+  // platform hooks (Playgama Bridge: pause/audio events; no-ops on CrazyGames and local)
+  Platform.onAudio = (on) => Audio.setPlatformMuted(!on);
+  if (Platform.audioEnabled === false) Audio.setPlatformMuted(true);
+  Platform.onPause = (paused) => {
+    Audio.setPlatformMuted(paused || Platform.audioEnabled === false);
+    if (paused && game.mode === 'play' && !ui.modal) ui.openPause(game);
+  };
   window.addEventListener('resize', () => { renderer.resize(); if (game.mode === 'play') renderer.snap(game); });
 
   const start = (fresh) => {
@@ -71,7 +78,7 @@ async function boot() {
   ui.onQuit = goTitle;
   // after catching the Gnomer: a fresh game with a (most likely) different culprit
   ui.onNewGame = () => { const caught = game.mystery.gnomerId; Save.clear(); game.newGame(Save.settings().difficulty || 'normal', caught); start(true); };
-  if (/[?&]debug\b/.test(location.search)) window.__grim = { game, ui, renderer }; // test hook
+  if (/[?&]debug\b/.test(location.search)) window.__grim = { game, ui, renderer, Platform }; // test hook
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && game.mode === 'play' && !ui.modal) ui.openPause(game);
