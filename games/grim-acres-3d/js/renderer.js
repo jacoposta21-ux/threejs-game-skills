@@ -570,6 +570,18 @@ export class Renderer {
     this.cam.x = this.target.x * TILE; this.cam.y = this.target.z * TILE;
   }
 
+  // Title backdrop: a slow cinematic orbit around the plaza fountain at dusk. The frame is shifted
+  // so the scene sits beside the title card (right of it on wide screens, above it on phones).
+  _titleCamera() {
+    const cx = 47.8, cz = 21.6, az = 0.25 + Math.sin(this.time * 0.07) * 0.55;
+    const el = THREE.MathUtils.degToRad(27), r = this.camera.aspect < 0.8 ? 15.5 : 12;
+    this.camera.position.set(cx + Math.sin(az) * Math.cos(el) * r, Math.sin(el) * r + 0.6, cz + Math.cos(az) * Math.cos(el) * r);
+    this.camera.lookAt(cx, 0.9, cz);
+    const W = this.vw, H = this.vh, wide = W / H > 1.1;
+    this.camera.setViewOffset(W, H, wide ? -W * 0.17 : 0, wide ? 0 : H * 0.2, W, H);
+    this.target.set(cx, 0, cz);
+  }
+
   // World px (+ height in tiles) -> CSS px on screen.
   toScreen(px, py, h = 0) {
     const v = new THREE.Vector3(px / TILE, h, py / TILE).project(this.camera);
@@ -582,7 +594,8 @@ export class Renderer {
     if (game.world !== this.world) this.snap(game);
     const area = game.playerArea();
     if (area.id !== this.areaId) this.snap(game);
-    this._placeCamera(game.mode === 'title' ? Math.sin(this.time * 0.15) * 0.35 : 0);
+    if (game.mode === 'title') this._titleCamera();
+    else { if (this.camera.view && this.camera.view.enabled) this.camera.clearViewOffset(); this._placeCamera(0); }
 
     this._syncObjects(game);
     this._syncFarm(game);
@@ -676,7 +689,7 @@ export class Renderer {
 
   _syncCharacters(game, area, dt) {
     const pr = this._rig('player', PLAYER_LOOK);
-    this._animateRig(pr, game.player, dt, game.mode !== 'title');
+    this._animateRig(pr, game.player, dt, true);
     // fishing pose: rod arm forward
     if (game.fishing && pr.root.visible) { pr.armR.rotation.x = -1.2; pr.armL.rotation.x = -0.9; }
     for (const n of game.npcs.values()) {

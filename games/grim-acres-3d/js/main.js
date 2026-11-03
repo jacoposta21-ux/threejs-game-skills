@@ -45,7 +45,10 @@ async function boot() {
     ui.showHud(false);
     // A fresh village (not saved) makes a nice backdrop behind the title.
     game.newGame();
-    game.player.placeAt(47, 23, 'down');
+    // dusk on the plaza: lamps and windows coming on, villagers gathered by the fountain
+    game.minutes = 18 * 60 + 40;
+    for (const n of game.npcs.values()) { n.snapToSchedule(game.world, game.minutes, game.weather); n.dir = 'down'; }
+    game.player.placeAt(46, 22, 'down');
     renderer.snap(game);
     const s = Save.load();
     const diff = () => Save.settings().difficulty || 'normal';

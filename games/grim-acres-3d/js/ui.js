@@ -875,8 +875,19 @@ export class UI {
       this.confirm(t('ui.newGameConfirm'), t('ui.newGame'), t('ui.cancel'), () => onNew(), { danger: true });
     };
     this._titleArt();
+    this._leaves();
   }
   hideTitle() { $('#title').classList.add('hidden'); }
+
+  _leaves() {
+    const box = $('#leaves');
+    if (!box || box.childElementCount) return;
+    const cols = ['#cf7a32', '#a9452f', '#d9a63e', '#8a5a2e', '#b5683a'];
+    for (let i = 0; i < 16; i++) {
+      const s = 0.7 + Math.random() * 0.8;
+      box.append(h('i', { style: `left:${Math.random() * 100}%;background:${cols[i % cols.length]};animation-duration:${9 + Math.random() * 9}s;animation-delay:${-Math.random() * 18}s;transform:scale(${s});width:${0.7 * s}rem;height:${0.45 * s}rem` }));
+    }
+  }
 
   _titleArt() {
     const c = $('#title-art'), g = c.getContext('2d');
