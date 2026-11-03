@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Grim Acres</title>
+  <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+
+    <div id="touch">
+      <div id="touch-zone"></div>
+      <div id="joy-base"></div>
+      <div id="joy-knob"></div>
+      <button id="touch-action" aria-label="Use">E</button>
+    </div>
+
+    <div id="hud" class="hidden">
+      <div id="hud-left">
+      <div id="hud-card">
+        <div id="hud-day"></div>
+        <div id="hud-time"></div>
+        <div id="hud-money"></div>
+        <div id="hud-omen"></div>
+        <div id="hud-energy"><div id="hud-energy-fill"></div></div>
+      </div>
+      </div>
+      <div id="hud-buttons">
+        <button id="btn-mute" class="icon-btn" aria-label="Sound"><img alt=""></button>
+        <button id="btn-bag" class="icon-btn" aria-label="Bag"><img alt=""></button>
+        <button id="btn-notebook" class="icon-btn" aria-label="Notebook"><img alt=""></button>
+        <button id="btn-pause" class="icon-btn" aria-label="Pause"><img alt=""></button>
+      </div>
+      <div id="toasts"></div>
+      <div id="door-label"></div>
+      <div id="prompt"></div>
+      <div id="hotbar"></div>
+    </div>
+
+    <div id="modal-root"></div>
+    <div id="fade"></div>
+    <div id="eyes"><div class="lid top"></div><div class="lid bottom"></div><div class="eyes-text"></div></div>
+
+    <div id="title" class="screen hidden">
+      <div class="title-inner">
+        <canvas id="title-art" width="96" height="48"></canvas>
+        <h1 id="title-name"></h1>
+        <p id="title-tag"></p>
+        <div class="title-buttons">
+          <button id="btn-play" class="btn primary big"></button>
+          <button id="btn-new" class="btn"></button>
+        </div>
+        <p id="title-info"></p>
+        <div id="title-diff"></div>
+        <div id="title-extra"></div>
+      </div>
+    </div>
+
+    <div id="loading" class="screen"><div class="loading-text">Grim Acres</div><div class="loading-bar"><div></div></div></div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
