@@ -3,7 +3,7 @@ import { PHYS, TILE, DEPTH } from '../core/constants';
 import { Sound } from '../core/Audio';
 import type { GameScene } from '../scenes/GameScene';
 
-export type PState = 'ground' | 'air' | 'climb' | 'ledge' | 'ledgeup' | 'swim' | 'hurt' | 'dead' | 'cutscene';
+export type PState = 'ground' | 'air' | 'climb' | 'ledge' | 'ledgeup' | 'swim' | 'hurt' | 'dead' | 'cutscene' | 'swing';
 
 const BODY_W = 36, BODY_H = 88, CROUCH_H = 52, FEET = 152; // frame pixels (sprite is drawn at 2x)
 
@@ -71,7 +71,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const prev = this.state;
     this.state = s;
     this.stateTime = 0;
-    this.body.setAllowGravity(!(s === 'climb' || s === 'ledge' || s === 'ledgeup' || s === 'swim' || s === 'cutscene'));
+    this.body.setAllowGravity(!(s === 'climb' || s === 'ledge' || s === 'ledgeup' || s === 'swim' || s === 'cutscene' || s === 'swing'));
+    if (s !== 'swing' && prev === 'swing') this.anchor = null;
     if (s === 'ground' && prev === 'air' && this.airTime > 0.32) {
       this.landLock = 0.09;
       this.gs.fx.dust(this.x, this.body.bottom, 8);
@@ -111,9 +112,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       return;
     }
     if (opts.respawn) {
+      if (this.state === 'swing') this.releaseSwing(false);
       this.gs.respawnAtSafe();
       return;
     }
+    // holding on to the Light Thread: take the hit but don't let go
+    if (this.state === 'swing') return;
     this.setCrouch(false);
     this.setPState('hurt');
     const dir = Math.sign(this.x - fromX) || -this.facing;
@@ -174,7 +178,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (ctl.pressed.jump) this.jumpBuffer = PHYS.jumpBuffer;
     else this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
 
+    // Pip's Light Thread
+    if (ctl.pressed.hook && this.gs.levelDef.hook) {
+      if (this.state === 'swing') this.releaseSwing(false);
+      else if (this.state === 'ground' || this.state === 'air' || this.state === 'climb' || this.state === 'swim') {
+        const n = this.gs.findHookNode(this.x, this.y - 30);
+        if (n) this.attach(n);
+        else Sound.play('ui');
+      }
+    }
     switch (this.state) {
+      case 'swing':
+        this.updateSwing(dt);
+        break;
       case 'ground':
       case 'air':
         this.updateMove(dt, onFloor);
@@ -317,6 +333,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private lastHandY = 0;
+  anchor: { x: number; y: number } | null = null;
+  lastAnchor: { x: number; y: number } | null = null;
+  lastRelease = 0;
+  rope = 0;
   ladderCd = 0;
   private tryLedgeGrab(dir: number) {
     const body = this.body;
@@ -377,6 +397,65 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.airTime = 0.2;
       this.body.y += 6;
     }
+  }
+
+  attach(n: { x: number; y: number }) {
+    this.anchor = { x: n.x, y: n.y };
+    const d = Phaser.Math.Distance.Between(this.x, this.body.center.y, n.x, n.y);
+    this.rope = Phaser.Math.Clamp(d, 60, 260);
+    this.setCrouch(false);
+    this.setPState('swing');
+    this.usedDouble = false;
+    Sound.play('pipCommand');
+    this.gs.pip.tether(n.x, n.y);
+    this.gs.fx.ring(n.x, n.y, 0xffd27a);
+  }
+
+  releaseSwing(jump: boolean) {
+    const b = this.body;
+    this.lastAnchor = this.anchor;
+    this.lastRelease = this.gs.time.now;
+    this.setPState('air');
+    this.airTime = 0.15;
+    this.usedDouble = false;
+    if (jump) {
+      b.setVelocityY(Math.min(b.velocity.y, 0) - 360);
+      Sound.play('jump');
+    }
+    b.setVelocityX(Phaser.Math.Clamp(b.velocity.x * 1.1, -520, 520));
+    this.gs.pip.untether();
+  }
+
+  /** Pendulum on a light thread: gravity + input push, rope length kept by projection. */
+  private updateSwing(dt: number) {
+    const ctl = this.ctl;
+    const b = this.body;
+    const a = this.anchor!;
+    const dir = (ctl.held.right ? 1 : 0) - (ctl.held.left ? 1 : 0);
+    if (dir) this.facing = dir;
+    let vx = b.velocity.x, vy = b.velocity.y + PHYS.gravity * 0.85 * dt;
+    const cx = b.center.x, cy = b.center.y;
+    let dx = cx - a.x, dy = cy - a.y;
+    let d = Math.hypot(dx, dy) || 1;
+    // climb / lower the thread
+    if (ctl.held.up) this.rope = Math.max(50, this.rope - 160 * dt);
+    if (ctl.held.down) this.rope = Math.min(280, this.rope + 160 * dt);
+    // pump the swing: horizontal push, strongest while below the anchor
+    if (dir) vx += dir * (dy > 0 ? 620 : 260) * dt;
+    // constraint
+    if (d > this.rope) {
+      const k = (d - this.rope) / d;
+      b.x -= dx * k;
+      b.y -= dy * k;
+      dx *= 1 - k;
+      dy *= 1 - k;
+      d = this.rope;
+      const rv = (vx * dx + vy * dy) / d;
+      if (rv > 0) { vx -= (rv * dx) / d; vy -= (rv * dy) / d; }
+    }
+    b.setVelocity(Phaser.Math.Clamp(vx * 0.999, -620, 620), Phaser.Math.Clamp(vy, -720, 720));
+    if (this.jumpBuffer > 0 || ctl.pressed.jump) { this.jumpBuffer = 0; this.releaseSwing(true); return; }
+    if (b.blocked.down && dy < 0) this.releaseSwing(false);
   }
 
   private updateClimb(dt: number) {
@@ -574,6 +653,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         break;
       case 'swim':
         anim = 'swim';
+        break;
+      case 'swing':
+        anim = 'fall';
         break;
       case 'hurt':
         anim = 'hurt';

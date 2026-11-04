@@ -574,6 +574,9 @@ const LAYERS: Record<ThemeKey, (ctx: Ctx, th: ThemeDef, d: number, r: () => numb
   ruins: ruinsLayer,
   keepers: keepersLayer,
   abyss: cavernLayer,
+  seed: heartLayer,
+  sap: oceanLayer,
+  memory: stationLayer,
 };
 
 /** Builds 4 parallax layer textures: bg-<theme>-0 (sky) .. bg-<theme>-3 (nearest). */

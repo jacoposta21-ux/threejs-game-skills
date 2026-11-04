@@ -3,7 +3,7 @@ import { DEPTH } from '../core/constants';
 import { Sound } from '../core/Audio';
 import type { GameScene } from '../scenes/GameScene';
 
-export type PipMode = 'follow' | 'command' | 'activate' | 'lure' | 'return' | 'boost';
+export type PipMode = 'follow' | 'command' | 'activate' | 'lure' | 'return' | 'boost' | 'tether' | 'player';
 
 /**
  * Pip, the mechanical firefly. Spring-follows Elias, lights the dark, reveals light-glass,
@@ -60,6 +60,19 @@ export class Pip extends Phaser.GameObjects.Sprite {
     this.setMode('lure');
     this.cooldown = 1.2;
     return 'lure';
+  }
+
+  /** Pip becomes the anchor of the Light Thread. */
+  tether(x: number, y: number) {
+    this.target.set(x, y);
+    this.setMode('tether');
+  }
+  untether() {
+    if (this.mode === 'tether') this.setMode('return');
+  }
+  /** Final battle: the player steers Pip directly. */
+  takeControl(on: boolean) {
+    this.setMode(on ? 'player' : 'return');
   }
 
   boost(x: number, y: number) {
@@ -120,6 +133,22 @@ export class Pip extends Phaser.GameObjects.Sprite {
         }
         if (this.modeTime > 4.5 || (this.modeTime > 1.5 && Phaser.Math.Distance.Between(this.x, this.y, p.x, p.y) > 620)) this.setMode('return');
         break;
+      case 'tether':
+        k = 60;
+        damp = 12;
+        break;
+      case 'player': {
+        const c = this.gs.controls.held;
+        const dx = (c.right ? 1 : 0) - (c.left ? 1 : 0), dy = (c.down ? 1 : 0) - (c.up || c.jump ? 1 : 0);
+        const L = Math.hypot(dx, dy) || 1;
+        this.target.set(this.x + (dx / L) * 60 * (dx || dy ? 1 : 0), this.y + (dy / L) * 60 * (dx || dy ? 1 : 0));
+        const W = this.gs.bossArena;
+        if (W) this.target.x = Phaser.Math.Clamp(this.target.x, W[0] + 20, W[1] - 20);
+        this.target.y = Phaser.Math.Clamp(this.target.y, 5 * 32, this.gs.level.heightPx - 5 * 32);
+        k = 30;
+        damp = 8;
+        break;
+      }
       case 'return':
         this.target.set(p.x - p.facing * 30, p.y - 66);
         k = 34;

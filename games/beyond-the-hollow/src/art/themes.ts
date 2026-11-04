@@ -1,7 +1,7 @@
-export type ThemeKey = 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'ice' | 'foundry' | 'ruins' | 'keepers' | 'abyss';
+export type ThemeKey = 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'ice' | 'foundry' | 'ruins' | 'keepers' | 'abyss' | 'seed' | 'sap' | 'memory';
 
 /** New themes reuse the prop shapes of an existing family, recoloured by their own palette. */
-export const FAMILY: Record<ThemeKey, 'station' | 'forest' | 'caverns' | 'ocean' | 'heart'> = { station: 'station', forest: 'forest', caverns: 'caverns', ocean: 'ocean', heart: 'heart', ice: 'caverns', foundry: 'station', ruins: 'forest', keepers: 'forest', abyss: 'caverns' };
+export const FAMILY: Record<ThemeKey, 'station' | 'forest' | 'caverns' | 'ocean' | 'heart'> = { station: 'station', forest: 'forest', caverns: 'caverns', ocean: 'ocean', heart: 'heart', ice: 'caverns', foundry: 'station', ruins: 'forest', keepers: 'forest', abyss: 'caverns', seed: 'heart', sap: 'ocean', memory: 'station' };
 
 export interface ThemeDef {
   key: ThemeKey;
@@ -78,5 +78,23 @@ export const THEMES: Record<ThemeKey, ThemeDef> = {
     key: 'abyss', rock: ['#0c0814', '#2a1e40', '#5a4880'], top: ['#7a4ad0', '#c8a0ff', '#f0e0ff'], topStyle: 'crystal',
     sky: ['#020106', '#0e0620', '#1e0e3a'], far: '#1e1236', mid: '#140c26', near: '#070410', fog: '#9f6aff', accent: '#7ff5e0', accent2: '#c87aff',
     lamp: 0x9ffff0, darkColor: 0x020104, spike: ['#e0d0ff', '#4a2a7a'], platform: ['#7a6aa8', '#2a2048'], ladder: 'vine', water: ['#2a1a5a', '#c8b0ff'],
+  },
+  seed: {
+    // inside the living Hollow: pearl and teal tissue, golden sap-light
+    key: 'seed', rock: ['#1a1622', '#4a4458', '#a49cb8'], top: ['#7ff5e0', '#d8fff6', '#ffffff'], topStyle: 'flesh',
+    sky: ['#06050c', '#1c1630', '#2c4a52'], far: '#3a3450', mid: '#262036', near: '#0e0c16', fog: '#ffe0a8', accent: '#ffd27a', accent2: '#7ff5e0',
+    lamp: 0xffe0a8, darkColor: 0x040308, spike: ['#f4ecff', '#6a5a8a'], platform: ['#c8b8d8', '#4a3c5a'], ladder: 'vine', water: ['#c8902a', '#fff0b0'],
+  },
+  sap: {
+    // the inner sea of glowing sap
+    key: 'sap', rock: ['#14121a', '#3a3848', '#8a88a0'], top: ['#ffd27a', '#fff0c0', '#ffffff'], topStyle: 'barnacle',
+    sky: ['#05040a', '#1a1428', '#3a3020'], far: '#3a3048', mid: '#241e30', near: '#0c0a12', fog: '#ffd27a', accent: '#ffd27a', accent2: '#7ff5e0',
+    lamp: 0xffd27a, darkColor: 0x030206, spike: ['#e8e0f0', '#4a3a5a'], platform: ['#d8b880', '#5a4428'], ladder: 'vine', water: ['#b07a20', '#ffe9a0'],
+  },
+  memory: {
+    // the Hollow dreaming of where Elias has been: the station, stained by the Shadow
+    key: 'memory', rock: ['#120e1c', '#34284a', '#6e5a90'], top: ['#5a4a7a', '#a07ad0', '#e0c8ff'], topStyle: 'grate',
+    sky: ['#05030a', '#1a0e2c', '#2a1a3a'], far: '#2a1e40', mid: '#1c142c', near: '#0a0612', fog: '#b08aff', accent: '#d07aff', accent2: '#7ff5e0',
+    lamp: 0xd8a0ff, darkColor: 0x040208, spike: ['#e0d0ff', '#4a2a6a'], platform: ['#7a6a98', '#2a2040'], ladder: 'metal', water: ['#3a2a6a', '#d0b0ff'],
   },
 };

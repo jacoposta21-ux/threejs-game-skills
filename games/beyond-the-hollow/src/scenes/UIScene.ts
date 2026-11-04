@@ -13,6 +13,7 @@ export class UIScene extends Phaser.Scene {
   private vignette!: Phaser.GameObjects.Image;
   private warm!: Phaser.GameObjects.Rectangle;
   private pastOn = false;
+  private ilseLabel: Phaser.GameObjects.Text | null = null;
   private pipIcon!: Phaser.GameObjects.Image;
   private barTop!: Phaser.GameObjects.Rectangle;
   private barBot!: Phaser.GameObjects.Rectangle;
@@ -193,6 +194,7 @@ export class UIScene extends Phaser.Scene {
     pad(w - r * 3.3, by - r * 2.2, 'PIP', 'pip', r * 0.85);
     pad(w - r * 1.4, by - r * 2.5, 'USE', 'interact', r * 0.7);
     if (this.gs?.levelDef.eco) pad(w - r * 5.4, by - r * 2.0, 'ECO', 'eco', r * 0.8);
+    if (this.gs?.levelDef.hook) pad(w - r * 6.5, by + r * 0.2, 'HOOK', 'hook', r * 0.8);
   }
 
   // ---------------------------------------------------------------- HUD
@@ -250,6 +252,19 @@ export class UIScene extends Phaser.Scene {
       g.fillTriangle(ex - 7, ey - 9, ex + 7, ey - 9, ex, ey);
       g.fillTriangle(ex - 7, ey + 9, ex + 7, ey + 9, ex, ey);
     }
+    // Ilse's vitality (Chapter IV)
+    if (gs.ilse) {
+      const il = gs.ilse;
+      const bx = x0 + 38, by = y0 + 36;
+      g.fillStyle(0x05070a, 0.55 * hide);
+      g.fillRoundedRect(bx - 6, by - 6, 140, 16, 8);
+      g.fillStyle(0x3a1810, hide);
+      g.fillRoundedRect(bx, by - 1, 110, 6, 3);
+      g.fillStyle(0xff7a5a, hide);
+      g.fillRoundedRect(bx, by - 1, Math.max(1, 110 * Math.max(0, il.hp) / il.maxHp), 6, 3);
+      if (!this.ilseLabel) this.ilseLabel = this.add.text(0, 0, 'ILSE', { fontFamily: FONT_TITLE, fontSize: '11px', color: '#ffc8b8' }).setOrigin(0, 0.5);
+      this.ilseLabel.setPosition(bx + 114, by + 2).setVisible(true).setAlpha(hide);
+    } else this.ilseLabel?.setVisible(false);
     // charge ring under the vitality
     if (p.charging && p.charge > 0.15) {
       const k = Math.min(1, p.charge / 0.6);

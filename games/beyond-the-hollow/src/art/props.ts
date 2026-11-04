@@ -574,7 +574,7 @@ export function buildThemeProps(scene: Phaser.Scene, key: ThemeKey) {
   });
   // hide spot
   p2(scene, `hide-${key}`, 48, 64, (c) => {
-    if (key === 'station' || key === 'foundry') {
+    if (key === 'station' || key === 'foundry' || key === 'memory') {
       c.fillStyle = OUT;
       c.fillRect(8, 2, 32, 62);
       c.fillStyle = linear(c, 8, 0, 40, 0, [[0, '#3f4e56'], [1, '#26323a']]);

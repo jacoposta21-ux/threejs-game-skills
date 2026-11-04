@@ -26,11 +26,15 @@ export class Door {
   cells: number[] = [];
   topY: number;
   h: number;
+  /** Keeper ritual door: only Ilse can open it */
+  ritual = false;
   constructor(public gs: GameScene, public s: Spawn) {
     this.h = (s.h || 3) * TILE;
+    this.ritual = s.ch === 'R';
     const tex = gs.levelDef.theme === 'station' ? 'door-metal' : 'door-ancient';
     this.topY = s.y - this.h;
     this.img = gs.add.image(s.x, this.topY, tex).setOrigin(0.5, 0).setDisplaySize(TILE, this.h).setDepth(DEPTH.interact);
+    if (this.ritual) this.img.setTint(0xffd27a);
     this.zone = gs.add.zone(s.x, this.topY + this.h / 2, TILE, this.h);
     gs.physics.add.existing(this.zone);
     const b = this.zone.body as Phaser.Physics.Arcade.Body;
@@ -922,5 +926,29 @@ export class Lantern {
   }
   light(): Light | null {
     return this.lit ? { x: this.s.x, y: this.ly, r: 300, i: 1 } : null;
+  }
+}
+
+// ================================================================== Chapter IV objects
+
+/** Anchor for Pip's Light Thread. The Shadow can infect it; purifying it hurts the Shadow. */
+export class HookNode {
+  img: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Image;
+  dark = false;
+  purify = 0;
+  constructor(public gs: GameScene, public x: number, public y: number) {
+    this.glow = gs.add.image(x, y, 'glow').setTint(0xffd27a).setBlendMode(ADD).setAlpha(0.5).setScale(0.9).setDepth(DEPTH.glow);
+    this.img = gs.add.image(x, y, 'node').setScale(PROP_SCALE * 1.1).setDepth(DEPTH.interact);
+    gs.tweens.add({ targets: this.img, angle: 360, duration: 6000, repeat: -1 });
+  }
+  setDark(d: boolean) {
+    this.dark = d;
+    this.purify = 0;
+    this.img.setTexture(d ? 'node-dark' : 'node');
+    this.glow.setTint(d ? 0xb06aff : 0xffd27a);
+  }
+  light(): Light {
+    return { x: this.x, y: this.y, r: 130, i: 0.8 };
   }
 }

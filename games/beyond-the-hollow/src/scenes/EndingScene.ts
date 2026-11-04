@@ -44,7 +44,43 @@ export class EndingScene extends Phaser.Scene {
     const glow = this.add.image(pip.x, pip.y, 'glow').setBlendMode(Phaser.BlendModes.ADD).setTint(0xffd27a).setScale(1.3);
     this.tweens.add({ targets: [pip, glow], y: '-=14', duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     this.cameras.main.fadeIn(2500, 255, 255, 255);
-    const lines = ch.ending;
+    let lines = ch.ending;
+    const totalLore = LEVELS.reduce((n, L) => n + L.lore.length, 0);
+    const lightEnding = Save.data.lore.length / totalLore >= 0.8;
+    if (chapter === 4) {
+      Sound.playTheme('finale');
+      // the family on the ridge at dawn
+      const ilse = this.add.sprite(el.x - 46, el.y, 'ilse', 0).setScale(0.86).setOrigin(0.5, 0.95).play('ilse-idle').setTint(0x2a1a22);
+      void ilse;
+      lines = lightEnding
+        ? [
+            'Pip sang. Every verse Elias had gathered — his mother’s voice, the Keepers’ voices — became one song.',
+            'The Seed woke whole. The Shadow had nothing left to hold, and it let go.',
+            'At dawn, two people and one small light climbed out onto Hollow Ridge.',
+            'Far below, for the first time in a thousand years, the Hollow dreamed of gardens.',
+          ]
+        : [
+            'There were not enough verses. Pip knew it before they did.',
+            'She flew into the Seed, and the Seed woke — golden, whole and alive.',
+            'At dawn, Elias and his mother climbed out onto Hollow Ridge. Neither of them spoke.',
+            'In a crack in the rock, a tiny golden light blinked. Three short. Three long.',
+          ];
+      if (!lightEnding) {
+        pip.setVisible(false);
+        glow.setVisible(false);
+        const spark = this.add.image(w * 0.78, h * 0.93, 'glow').setTint(0xffd27a).setBlendMode(Phaser.BlendModes.ADD).setScale(0.35).setAlpha(0);
+        this.time.delayedCall(11000, () => {
+          let n = 0;
+          const seq = [0.15, 0.15, 0.15, 0.5, 0.5, 0.5];
+          const blink = () => {
+            if (n >= seq.length) { n = 0; this.time.delayedCall(1200, blink); return; }
+            spark.setAlpha(1);
+            this.time.delayedCall(seq[n] * 1000, () => { spark.setAlpha(0); n++; this.time.delayedCall(220, blink); });
+          };
+          blink();
+        });
+      }
+    }
     if (chapter === 3) {
       // the Seed chamber: Ilse behind a wall of living crystal
       buildBackgrounds(this, 'abyss');
@@ -75,12 +111,12 @@ export class EndingScene extends Phaser.Scene {
       this.tweens.add({ targets: t, alpha: 0, delay: 15000, duration: 1500 });
     });
     const c = this.add.container(w / 2, h * 0.36).setAlpha(0);
-    const t = this.add.text(0, 0, `CHAPTER ${ch.roman} · ${ch.title.toUpperCase()}`, { fontFamily: FONT_TITLE, fontSize: `${Math.min(48, w / 16)}px`, color: '#fff6e8', stroke: '#2a1420', strokeThickness: 6 }).setOrigin(0.5).setLetterSpacing(6);
+    const t = this.add.text(0, 0, chapter === 4 ? 'BEYOND THE HOLLOW' : `CHAPTER ${ch.roman} · ${ch.title.toUpperCase()}`, { fontFamily: FONT_TITLE, fontSize: `${Math.min(48, w / 16)}px`, color: '#fff6e8', stroke: '#2a1420', strokeThickness: 6 }).setOrigin(0.5).setLetterSpacing(6);
     const g = this.add.graphics();
     ornament(g, 0, 40, 380, 0xfff0d0, 0.9);
     const found = Save.data.lore.length;
     const total = LEVELS.reduce((n, L) => n + L.lore.length, 0);
-    const credits = this.add.text(0, 70, `${next >= 0 ? 'Chapter complete' : 'Thank you for playing'}\n\nRecordings found  ${found} / ${total}      Falls  ${Save.data.deaths}\n\n${ch.next ? 'Next — ' + ch.next : ''}`, { fontFamily: FONT_BODY, fontSize: '17px', color: '#fff6e8', align: 'center', stroke: '#2a1420', strokeThickness: 3 }).setOrigin(0.5, 0);
+    const credits = this.add.text(0, 70, `${next >= 0 ? 'Chapter complete' : chapter === 4 ? (lightEnding ? 'Ending · Light' : 'Ending · Seed') + '\n\nThank you for playing' : 'Thank you for playing'}\n\nRecordings found  ${found} / ${total}      Falls  ${Save.data.deaths}\n\n${chapter === 4 && !lightEnding ? 'Find more recordings — the Canto can still change Pip’s fate.' : ch.next ? 'Next — ' + ch.next : ''}`, { fontFamily: FONT_BODY, fontSize: '17px', color: '#fff6e8', align: 'center', stroke: '#2a1420', strokeThickness: 3 }).setOrigin(0.5, 0);
     c.add([g, t, credits]);
     this.tweens.add({ targets: c, alpha: 1, delay: 16500, duration: 2000 });
     const back = this.add.text(w / 2, h - 36, next >= 0 ? 'Press any key to begin the next chapter' : 'Press any key to return to the title', { fontFamily: FONT_BODY, fontSize: '15px', color: COL.text }).setOrigin(0.5).setAlpha(0);

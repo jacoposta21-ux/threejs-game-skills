@@ -104,6 +104,28 @@ for (const [li, def] of LEVELS.entries()) {
       }
     }
   }
+  const hooks = find('n');
+  const hooked = new Set<number>();
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const [hx, hy] of hooks) {
+      if (hooked.has(key(hx, hy))) continue;
+      let near = false;
+      for (const k of seen) { const nx = k % W, ny = Math.floor(k / W); if (Math.hypot(nx - hx, ny - hy) <= 10) { near = true; break; } }
+      if (!near) continue;
+      hooked.add(key(hx, hy));
+      seen.add(key(hx, hy)); // swinging node to node: other nodes in reach count as reachable
+      for (let y = hy - 10; y <= hy + 10; y++) for (let x = hx - 10; x <= hx + 10; x++) if (Math.hypot(x - hx, y - hy) <= 9.5 && isNode(x, y) && tall(x, y)) push(x, y);
+      // continue the BFS from the new spots
+      while (q.length) {
+        const [x, y] = q.shift()!;
+        for (const d of [-1, 1]) if (pass(x + d, y) && isNode(x + d, y)) push(x + d, y);
+        if (support(x, y + 1) || water(x, y)) for (let dy = -14; dy <= 5; dy++) for (let dx = -6; dx <= 6; dx++) { const tx = x + dx, ty = y - dy; if (isNode(tx, ty) && tall(tx, ty) && Math.abs(dx) + Math.max(0, dy) <= 9) { let ok = true; for (let yy = Math.min(y, ty) - 1; yy <= Math.max(y, ty); yy++) if (!pass(tx, yy) && yy !== ty + 1) { ok = false; break; } if (ok) push(tx, ty); } }
+      }
+      grew = true;
+    }
+  }
   const reach = (x: number, y: number) => seen.has(key(x, y));
   const nearReach = (x: number, y: number, r: number) => {
     for (const k of seen) {

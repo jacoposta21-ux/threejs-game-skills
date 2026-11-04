@@ -3,7 +3,7 @@ import { DEPTH, TILE } from '../core/constants';
 import { Sound } from '../core/Audio';
 import type { GameScene } from '../scenes/GameScene';
 
-export type EnemyKind = 'crawler' | 'stalker' | 'burrower' | 'guardian' | 'boss' | 'drone' | 'mimic';
+export type EnemyKind = 'crawler' | 'stalker' | 'burrower' | 'guardian' | 'boss' | 'drone' | 'mimic' | 'jelly';
 
 export abstract class Enemy extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
@@ -266,6 +266,8 @@ export class Stalker extends Enemy {
   /** Ombra Velata: splits into two smaller shades the first time it is destroyed */
   veiled = false;
   small = false;
+  /** optional prey other than Elias (Ilse during a ritual) */
+  prey: { x: number; y: number; hurt: (n: number) => void; mode?: string } | null = null;
   vx = 0;
   vy = 0;
   mode: 'drift' | 'hunt' | 'flee' | 'attack' | 'stunned' = 'drift';
@@ -314,6 +316,16 @@ export class Stalker extends Enemy {
         }
         break;
       case 'hunt':
+        if (this.prey && this.prey.mode !== 'down') {
+          tx = this.prey.x;
+          ty = this.prey.y - 40;
+          if (Phaser.Math.Distance.Between(this.x, this.y, this.prey.x, this.prey.y - 40) < 40) {
+            this.prey.hurt(1);
+            this.mode = 'flee';
+            this.stateT = 0;
+          }
+          break;
+        }
         tx = p.x;
         ty = p.y - 40;
         sp = 70 + Math.min(90, this.stateT * 25);
@@ -1265,6 +1277,193 @@ export class ShadowBoss extends Enemy {
     this.alive = false;
     this.body.enable = false;
     this.gs.tweens.add({ targets: this.eyes, alpha: 0, duration: 800, onComplete: () => this.eyes.destroy() });
+    this.gs.onBossDefeated(this);
+  }
+}
+
+// ---------------------------------------------------------------- Chapter IV
+/** Lucimante: a jelly of sap-light that drifts toward Pip and stings on contact. */
+export class Jelly extends Enemy {
+  kind: EnemyKind = 'jelly';
+  home: Phaser.Math.Vector2;
+  t = Math.random() * 10;
+  constructor(gs: GameScene, x: number, y: number) {
+    super(gs, x, y - 40, 'jelly');
+    this.hp = this.maxHp = 2;
+    this.setScale(0.5).setAlpha(0.92);
+    this.play('jelly-swim');
+    this.body.setAllowGravity(false);
+    this.body.setSize(60, 60).setOffset(18, 10);
+    this.home = new Phaser.Math.Vector2(this.x, this.y);
+    this.setBlendMode(Phaser.BlendModes.SCREEN);
+  }
+  tick(dt: number) {
+    if (!this.alive) return;
+    this.t += dt;
+    const pip = this.gs.pip;
+    const dPip = Phaser.Math.Distance.Between(this.x, this.y, pip.x, pip.y);
+    let tx = this.home.x + Math.sin(this.t * 0.5) * 50, ty = this.home.y + Math.sin(this.t * 1.1) * 30;
+    let sp = 35;
+    if (dPip < 300) { tx = pip.x; ty = pip.y + 20; sp = 70; }
+    // pulsing swim
+    sp *= 0.6 + Math.max(0, Math.sin(this.t * 4)) * 0.9;
+    const dx = tx - this.x, dy = ty - this.y, d = Math.max(1, Math.hypot(dx, dy));
+    this.body.setVelocity((dx / d) * sp, (dy / d) * sp);
+  }
+}
+
+/**
+ * Il Cuore d'Ombra — the First Shadow fused with the Seed.
+ * Phase 1: purify the infected thread-nodes by hanging from them.
+ * Phase 2: waves that exist in only one time (dodge with the Echo); after each volley the core tears open.
+ * Phase 3: Elias is struck down — Pip gathers Seed motes to wake him, Ilse holds the core open for the last shot.
+ */
+export class ShadowHeart extends Enemy {
+  kind: EnemyKind = 'boss';
+  mode: 'intro' | 'p1' | 'p2' | 'open' | 'p3pip' | 'p3final' | 'roar' = 'intro';
+  phase = 1;
+  coreOpen = false;
+  orbT = 2;
+  waveT = 2;
+  waves = 0;
+  slamT = 4;
+  beam: Phaser.GameObjects.Graphics;
+  laserX = 0;
+  laserT = -1;
+  constructor(gs: GameScene, x: number, y: number) {
+    super(gs, x, y - 260, 'heartshadow');
+    this.hp = this.maxHp = 90;
+    this.setScale(0.6).setDepth(DEPTH.enemies - 1);
+    this.play('heart-pulse');
+    this.body.setAllowGravity(false);
+    this.body.moves = false;
+    this.body.setSize(200, 230).setOffset(90, 75);
+    this.contactDamage = 1;
+    this.beam = gs.add.graphics().setDepth(DEPTH.glow).setBlendMode(Phaser.BlendModes.ADD);
+  }
+  corePos() {
+    return { x: this.x, y: this.y + 6 };
+  }
+  beginFight() {
+    this.mode = 'p1';
+    this.gs.infectNodes(3);
+    this.gs.toast('Hang from the infected nodes with the Light Thread (F) to purify them', 3200);
+  }
+  roar() {
+    Sound.play('roar', this.pan());
+    this.gs.fx.shake(0.012, 700);
+  }
+  vulnerable() {
+    return this.alive && this.mode !== 'intro';
+  }
+  /** called by the scene when an infected node is purified */
+  nodePurified() {
+    this.hp -= 10;
+    this.flashT = 0.15;
+    this.setTintFill(0xffffff);
+    this.gs.fx.coreHit(this.x, this.y);
+    Sound.play('mechanism');
+    if (this.mode === 'p1' && this.gs.darkNodes() === 0) {
+      this.phase = 2;
+      this.mode = 'p2';
+      this.waves = 0;
+      this.waveT = 2.5;
+      this.roar();
+      this.gs.onBossPhase(2);
+    }
+  }
+  tick(dt: number) {
+    if (!this.alive) return;
+    this.stateT += dt;
+    this.beam.clear();
+    const p = this.player;
+    this.y += Math.sin(this.stateT * 1.5) * 0.15;
+    this.body.reset(this.x, this.y);
+    if (this.mode === 'intro' || this.mode === 'p3pip') return;
+    // common attacks while the core is shut
+    if (this.mode === 'p1' || this.mode === 'p2') {
+      this.orbT -= dt;
+      if (this.orbT <= 0) {
+        this.orbT = this.mode === 'p1' ? 2.8 : 3.6;
+        for (let i = -2; i <= 2; i++) {
+          const a = Math.atan2(p.y - 30 - this.y, p.x - this.x) + i * 0.22;
+          this.gs.spawnShot(this.x + Math.cos(a) * 60, this.y + Math.sin(a) * 60, Math.cos(a) * 240, Math.sin(a) * 240);
+        }
+        Sound.play('stalker', this.pan());
+      }
+      // shadow column: telegraphed strike under Elias
+      this.slamT -= dt;
+      if (this.slamT <= 0 && this.laserT < 0) { this.laserT = 0; this.laserX = p.x; this.slamT = this.mode === 'p1' ? 4.5 : 6; }
+      if (this.laserT >= 0) {
+        this.laserT += dt;
+        const floorY = this.gs.level.heightPx - 5 * 32;
+        if (this.laserT < 0.9) {
+          this.beam.lineStyle(2 + this.laserT * 6, 0xb06aff, 0.3 + this.laserT * 0.4);
+          this.beam.lineBetween(this.laserX, 0, this.laserX, floorY);
+        } else if (this.laserT < 1.25) {
+          if (this.laserT - dt < 0.9) { Sound.play('slam', this.pan()); this.gs.fx.shake(0.01, 200); }
+          this.beam.lineStyle(30, 0x6a2ad0, 0.5); this.beam.lineBetween(this.laserX, 0, this.laserX, floorY);
+          this.beam.lineStyle(9, 0xf0e0ff, 0.9); this.beam.lineBetween(this.laserX, 0, this.laserX, floorY);
+          if (Math.abs(p.body.center.x - this.laserX) < 20 && p.state !== 'cutscene') p.hurt(1, this.laserX);
+        } else this.laserT = -1;
+      }
+    }
+    if (this.mode === 'p2') {
+      this.waveT -= dt;
+      if (this.waveT <= 0) {
+        this.waveT = 2.3;
+        const past = Math.random() < 0.5;
+        this.gs.spawnTimeWave(this.x, past);
+        this.waves++;
+        if (this.waves >= 5) {
+          this.mode = 'open';
+          this.stateT = 0;
+          this.coreOpen = true;
+          this.play('heart-open');
+          Sound.play('core', this.pan());
+          this.gs.toast('Its core is torn open — strike!', 1600);
+        }
+      }
+    }
+    if (this.mode === 'open') {
+      if (this.stateT > 4) {
+        this.coreOpen = false;
+        this.play('heart-pulse');
+        this.mode = 'p2';
+        this.waves = 0;
+        this.waveT = 2;
+      }
+    }
+    if (this.mode === 'p2' || this.mode === 'open') {
+      if (this.hp <= this.maxHp * 0.3) {
+        this.phase = 3;
+        this.coreOpen = false;
+        this.mode = 'p3pip';
+        this.play('heart-pulse');
+        this.gs.onBossPhase(3);
+      }
+    }
+  }
+  /** Ilse tears the core open for good. */
+  holdOpen() {
+    this.mode = 'p3final';
+    this.coreOpen = true;
+    this.play('heart-open');
+  }
+  hit(dmg: number, srcX: number, big: boolean, bx = 0, by = 0) {
+    if (!this.alive || this.mode === 'intro') return false;
+    if (!this.coreOpen) {
+      this.gs.fx.smokeWisp(bx, by);
+      return true;
+    }
+    super.hit(big ? dmg + 2 : dmg + 1, srcX, big, bx, by);
+    this.gs.fx.coreHit(this.x, this.y);
+    return true;
+  }
+  die() {
+    this.alive = false;
+    this.body.enable = false;
+    this.beam.destroy();
     this.gs.onBossDefeated(this);
   }
 }

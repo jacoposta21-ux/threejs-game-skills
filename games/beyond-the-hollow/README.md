@@ -25,7 +25,8 @@ npm run validate:levels  # reachability proof for all five levels
 | Climb ladders / ledges | W, ↑ | | ▲ |
 | Lumen Coil (hold to charge) | X, J | Left-click (aims at cursor) | FIRE |
 | Pip: wake mechanisms or sing a lure | Q, K | Right-click | PIP |
-| Pip's Echo: present ↔ past (Chapter III) | R, U | RB | ECO |
+| Pip's Echo: present ↔ past (Chapter III+) | R, U | RB | ECO |
+| Pip's Light Thread: grapple & swing (Chapter IV) | F, O | LB | HOOK |
 | Pause | Esc, P | Start | ❚❚ |
 
 ## Chapters
@@ -63,11 +64,25 @@ Pip learns the **Echo** (R / U, gamepad RB, touch ECO): the world switches betwe
 | 4 | The Archive of Voices | Keeper lanterns (lit by Pip or a charged blast) keep shades away | Veiled Shades in the dark |
 | 5 | The Shadow Well | lantern-lit arena | **Boss: The First Shadow**: untouchable in darkness; light the lanterns. From phase 2 it snuffs them, and the light of the past wounds it. In phase 3 it eats the light |
 
+### Chapter IV · The Seed
+
+Pip learns the **Light Thread** (F / O, gamepad LB, touch HOOK): catch a glowing node and swing. ← → pump the swing, ↑ ↓ climb or lower the thread, and JUMP lets go with momentum. You can chain from node to node.
+
+| Part | Area | New mechanics | New threats |
+| --- | --- | --- | --- |
+| 1 | The Roots of the World | Light Thread, living root platforms | Crawlers |
+| 2 | The Sea of Sap | swimming in sap, node chains over the sea | Lucimanti (jellies drawn to Pip's light) |
+| 3 | The Memory of the Hollow | a corrupted remix of the station: ladders, arcs, crates across time, threads | shadow versions of earlier creatures |
+| 4 | The Sanctuary of the Seed | **Ilse** follows you; at Keeper doors she kneels and channels while shades hunt her (if she falls, it's game over) | Veiled Shades |
+| 5 | The Heart of Shadow | **Final boss**, three phases: hang from infected nodes to purify them; dodge waves that exist in only one time (Echo); Elias is struck down and you fly **Pip** to gather the Seed's light, then Ilse holds the core open for the last shot | — |
+
+**Two endings.** With at least 80% of the game's 49 recordings found you get *Light* (the Canto is complete and Pip stays with Elias). Otherwise you get *Seed* (Pip becomes the Hollow's new heart).
+
 Story and level structure for Chapters III–IV live in `docs/capitoli-3-4.md`.
 
 The title screen opens on the key art (`src/assets/keyart.jpg`), and `public/cover-512.jpg` is a cover thumbnail for the portal listing.
 
-Checkpoints save to `localStorage`, and Continue resumes from the last one. Chapter select is grouped by chapter. A death offers retry from checkpoint or restart chapter. The game also has lore recordings (39), settings (music/sfx volume, quality, screen shake), fullscreen, and gamepad support.
+Checkpoints save to `localStorage`, and Continue resumes from the last one. Chapter select is grouped by chapter. A death offers retry from checkpoint or restart chapter. The game also has lore recordings (49), settings (music/sfx volume, quality, screen shake), fullscreen, and gamepad support.
 
 ## Architecture
 
@@ -78,7 +93,7 @@ src/levels   ASCII segment level data + compiler (→ Phaser Tilemap)
 src/world    LevelMap (tilemap layers, decor scatter), Objects (doors, plates, mechanisms, hazards…), Lighting (darkness RT), Fx
 src/entities Player (explicit animation/physics state machine), Pip, Enemies (Crawler, Stalker, Burrower, Guardian/boss)
 src/scenes   Boot, Menu, Story, BG (parallax), Game, UI (HUD/menus/touch), Ending
-tools        validate-levels.ts, gen-chapter2.py / gen-chapter3.py (map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs, playtest-ch3.mjs
+tools        validate-levels.ts, gen-chapter2/3/4.py (map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs, playtest-ch3.mjs, playtest-ch4.mjs
 ```
 
 ## CrazyGames

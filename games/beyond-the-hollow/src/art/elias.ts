@@ -14,7 +14,9 @@ interface Pose {
   grounded?: boolean; aim?: number; glow?: number; squash?: number; rot?: number; yOff?: number; xOff?: number; hairWind?: number;
 }
 
-const C = {
+const ELIAS_PAL = {
+  longHair: false,
+  hood: true,
   outline: '#0a0d12',
   jacket: '#c2462a', jacketHi: '#ee7a4c', jacketLo: '#7c2616', shirt: '#eadfc4',
   pants: '#4a3a2c', pantsFar: '#2e241b',
@@ -25,6 +27,19 @@ const C = {
   pack: '#5a5236', packHi: '#857a4e',
   coil: '#7ff5e0', brass: '#c99a4a',
 };
+type Pal = typeof ELIAS_PAL;
+/** Ilse Varga: teal field coat, long auburn hair, her red scarf. */
+const ILSE_PAL: Pal = {
+  ...ELIAS_PAL,
+  longHair: true,
+  hood: false,
+  jacket: '#2f6a6a', jacketHi: '#5aa8a0', jacketLo: '#173a3c', shirt: '#e8e0d0',
+  pants: '#2c2a34', pantsFar: '#1c1a22',
+  hair: '#7a3420', hairHi: '#b0583a',
+  scarf: '#d8402a', scarfHi: '#ff7a5a', scarfLo: '#8a2010',
+  pack: '#4a4038', packHi: '#6a5e50',
+};
+let C: Pal = ELIAS_PAL;
 
 const LEG1 = 23, LEG2 = 22, ARM1 = 17, ARM2 = 16, TORSO = 34;
 
@@ -237,8 +252,26 @@ function drawElias(ctx: Ctx, p: Pose) {
   // near leg
   drawLeg(ctx, hipX + 2, hipY, p.hipR, p.kneeR, false);
   // head
-  // hood resting on the shoulders behind the head
+  // hood resting on the shoulders behind the head (or Ilse's long hair)
+  if (C.longHair) {
+    ctx.save();
+    ctx.translate(hdX, hdY);
+    ctx.fillStyle = C.outline;
+    ctx.beginPath();
+    ctx.moveTo(-8, -10);
+    ctx.quadraticCurveTo(-22, 8, -16 - (p.hairWind || 0) * 6, 34);
+    ctx.quadraticCurveTo(-6, 26, 2, 4);
+    ctx.fill();
+    ctx.fillStyle = C.hair;
+    ctx.beginPath();
+    ctx.moveTo(-7, -8);
+    ctx.quadraticCurveTo(-19, 8, -14 - (p.hairWind || 0) * 6, 31);
+    ctx.quadraticCurveTo(-6, 22, 0, 4);
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.save();
+  if (!C.hood) ctx.globalAlpha = 0;
   ctx.translate(hdX, hdY);
   ctx.rotate(headA * 0.6);
   ctx.fillStyle = C.outline;
@@ -250,6 +283,7 @@ function drawElias(ctx: Ctx, p: Pose) {
   ctx.ellipse(-8, 8, 12.5, 9.5, -0.4, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+  ctx.globalAlpha = 1;
   ctx.save();
   ctx.translate(hdX, hdY);
   ctx.rotate(headA * 0.6);
@@ -392,6 +426,24 @@ const ANIMS: [string, number, number, number, Gen][] = [
   }],
   ['wake', 6, 6, 0, (t) => ({ ...base(), hipR: 1.25 - t * 1.2, kneeR: 2.3 - t * 2.2, hipL: 1.0 - t * 0.95, kneeL: 2.2 - t * 2.1, lean: 0.6 - t * 0.55, head: -0.4 + t * 0.4, shR: 0.9 - t * 0.8, elR: 0.9 - t * 0.5, shL: 0.6 - t * 0.7, elL: 0.8, scarf: t * 4 })],
 ];
+
+export function buildIlse(scene: Phaser.Scene) {
+  if (scene.textures.exists('ilse')) return;
+  const keep = ['idle', 'run', 'jump', 'fall', 'hurt', 'crouch', 'death', 'wake'];
+  const frames: Pose[] = [];
+  const meta: Record<string, { start: number; count: number; fps: number; repeat: number }> = {};
+  for (const [name, n, fps, rep, gen] of ANIMS) {
+    if (!keep.includes(name)) continue;
+    meta[name] = { start: frames.length, count: n, fps, repeat: rep };
+    for (let i = 0; i < n; i++) frames.push(gen(n === 1 ? 0 : i / (rep === -1 ? n : n - 1), i));
+  }
+  C = ILSE_PAL;
+  paintSheet(scene, 'ilse', ELIAS_FW, ELIAS_FH, frames.length, 12, (ctx, i) => drawElias(ctx, { ...frames[i], scarfLift: Math.max(0.2, frames[i].scarfLift) }));
+  C = ELIAS_PAL;
+  for (const [name, m] of Object.entries(meta)) {
+    scene.anims.create({ key: 'ilse-' + name, frames: Array.from({ length: m.count }, (_, k) => ({ key: 'ilse', frame: m.start + k })), frameRate: m.fps, repeat: m.repeat });
+  }
+}
 
 export function buildElias(scene: Phaser.Scene) {
   const frames: Pose[] = [];

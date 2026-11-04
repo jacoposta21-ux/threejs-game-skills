@@ -15,13 +15,16 @@
 import type { ThemeKey } from '../art/themes';
 import { CHAPTER2 } from './chapter2.ts';
 import { CHAPTER3 } from './chapter3.ts';
+import { CHAPTER4 } from './chapter4.ts';
 
 export interface LevelDef {
   id: string;
   name: string;
   subtitle: string;
   theme: ThemeKey;
-  music: 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'ice' | 'foundry' | 'ruins' | 'keepers' | 'abyss';
+  music: 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'ice' | 'foundry' | 'ruins' | 'keepers' | 'abyss' | 'seed';
+  /** Pip's Light Thread (grapple) is available */
+  hook?: boolean;
   /** Pip's Echo (present/past switching) is available */
   eco?: boolean;
   /** which story chapter this part belongs to (1-based) */
@@ -29,7 +32,7 @@ export interface LevelDef {
   /** slippery ice floors */
   ice?: boolean;
   /** boss presented when the arena is entered */
-  boss?: { name: string; sub: string; music: 'boss' | 'boss2' | 'boss3' };
+  boss?: { name: string; sub: string; music: 'boss' | 'boss2' | 'boss3' | 'boss4' };
   darkness: number;
   backWall: boolean;
   doubleJump: boolean;
@@ -79,7 +82,12 @@ export const CHAPTERS: ChapterDef[] = [
       'His mother pressed her hand against the glass. She was smiling, and she was crying.',
       '“Don’t bring Pip here,” she said. Pip, on his shoulder, had already begun to sing.',
     ],
-    next: 'Chapter IV · The Seed — coming soon',
+    next: 'Chapter IV · The Seed',
+  },
+  {
+    roman: 'IV',
+    title: 'The Seed',
+    ending: [],
   },
 ];
 
@@ -762,4 +770,4 @@ const CHAPTER1: LevelDef[] = [
   },
 ];
 
-export const LEVELS: LevelDef[] = [...CHAPTER1, ...CHAPTER2, ...CHAPTER3];
+export const LEVELS: LevelDef[] = [...CHAPTER1, ...CHAPTER2, ...CHAPTER3, ...CHAPTER4];
