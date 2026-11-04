@@ -101,6 +101,10 @@ export const pt: LangPack = {
     'She flew into the Seed, and the Seed woke — golden, whole and alive.': 'Ela voou para dentro da Semente, e a Semente despertou — dourada, inteira e viva.',
     'At dawn, Elias and his mother climbed out onto Hollow Ridge. Neither of them spoke.': 'Ao amanhecer, Elias e sua mãe subiram até Hollow Ridge. Nenhum dos dois falou.',
     'In a crack in the rock, a tiny golden light blinked. Three short. Three long.': 'Numa fenda da rocha, uma minúscula luz dourada piscou. Três curtos. Três longos.',
+    'The game was running slowly: visual quality set to Performance (you can change it in Settings)': 'O jogo estava lento: qualidade visual alterada para Desempenho (você pode mudar nas Opções)',
+    'The fight resumes where you fell': 'A luta recomeça de onde você caiu',
+    'Skip this fight': 'Pular a luta',
+    'Too hard? You can skip this fight and carry on with the story.': 'Difícil demais? Você pode pular esta luta e seguir com a história.',
   },
   data: {
     'station.name': 'A Estação Abandonada',

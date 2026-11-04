@@ -101,6 +101,10 @@ export const de: LangPack = {
     'She flew into the Seed, and the Seed woke — golden, whole and alive.': 'Sie flog in den Samen, und der Samen erwachte — golden, heil und lebendig.',
     'At dawn, Elias and his mother climbed out onto Hollow Ridge. Neither of them spoke.': 'Im Morgengrauen stiegen Elias und seine Mutter hinauf auf den Hollow Ridge. Keiner von beiden sprach.',
     'In a crack in the rock, a tiny golden light blinked. Three short. Three long.': 'In einem Felsspalt blinkte ein winziges goldenes Licht. Dreimal kurz. Dreimal lang.',
+    'The game was running slowly: visual quality set to Performance (you can change it in Settings)': 'Das Spiel lief langsam: Grafik auf Leistung gestellt (änderbar in den Einstellungen)',
+    'The fight resumes where you fell': 'Der Kampf geht dort weiter, wo du gefallen bist',
+    'Skip this fight': 'Kampf überspringen',
+    'Too hard? You can skip this fight and carry on with the story.': 'Zu schwer? Du kannst diesen Kampf überspringen und mit der Geschichte weitermachen.',
   },
   data: {
     'station.name': 'Die Verlassene Station',

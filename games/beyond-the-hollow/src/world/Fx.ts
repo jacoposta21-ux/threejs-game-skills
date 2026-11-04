@@ -35,7 +35,7 @@ export class Fx {
       x: { min: 0, max: 1 }, y: { min: 0, max: 1 },
       lifespan: 6000, speedX: { min: -12, max: 12 }, speedY: { min: -14, max: 6 },
       scale: { start: 0.05, end: 0.28 }, alpha: { start: 0, end: 0.9, ease: 'Sine.inOut' },
-      tint: motes[gs.levelDef.theme], blendMode: 'ADD', frequency: Save.data.settings.quality === 'high' ? 70 : 160,
+      tint: motes[gs.levelDef.theme], blendMode: 'ADD', frequency: 70,
       emitCallback: (p: Phaser.GameObjects.Particles.Particle) => {
         const v = gs.cameras.main.worldView;
         p.x = v.x + Math.random() * v.width;
@@ -43,6 +43,11 @@ export class Fx {
       },
     }).setDepth(DEPTH.glow);
     this.flash = gs.add.rectangle(0, 0, 10, 10, 0xffffff, 0).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH.letterbox - 1);
+  }
+
+  /** Performance mode: no ambient motes */
+  applyQuality(low: boolean) {
+    if (this.ambientE.emitting === low) low ? this.ambientE.stop() : this.ambientE.start();
   }
 
   dust(x: number, y: number, n: number) {

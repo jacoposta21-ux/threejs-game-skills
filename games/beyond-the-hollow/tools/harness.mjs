@@ -12,7 +12,7 @@ export async function boot({ w = 1280, h = 720, gl = false, url = 'http://127.0.
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message + '\n' + (e.stack || '').split('\n').slice(0, 4).join('\n')));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
   await page.addInitScript(() => localStorage.removeItem('beyond-the-hollow-save-v1'));
-  await page.goto(url + (gl ? '' : '?canvas'));
+  await page.goto(url + (gl ? '?noauto' : '?canvas'));
   await page.waitForFunction(() => window.__game && window.__game.scene.isActive('Menu'), null, { timeout: 30000 });
   // headless pages never receive window focus; Phaser would otherwise clamp game time to 1/60 s per frame
   await page.evaluate(() => { const l = window.__game.loop; setInterval(() => { l.inFocus = true; l._coolDown = 0; }, 50); });

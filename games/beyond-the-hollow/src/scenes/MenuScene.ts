@@ -17,7 +17,7 @@ export class MenuScene extends Phaser.Scene {
   private prompt!: Phaser.GameObjects.Text;
   private title!: Phaser.GameObjects.Container;
   private ledge!: Phaser.GameObjects.Graphics;
-  private page: 'main' | 'chapters' | 'settings' | 'controls' = 'main';
+  private page: 'main' | 'chapters' | 'settings' | 'controls' | 'languages' = 'main';
 
   constructor() {
     super('Menu');
@@ -41,32 +41,10 @@ export class MenuScene extends Phaser.Scene {
     this.title.add(this.buildTitle());
     this.prompt = this.add.text(0, 0, isTouchDevice(this) ? t('Tap to begin') : t('Press any key'), { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: '20px', color: COL.text }).setOrigin(0.5);
     this.tweens.add({ targets: this.prompt, alpha: 0.35, duration: 1100, yoyo: true, repeat: -1 });
-    // opening splash: the key art, cover-fitted, until the first input
-    const splash = this.add.container(0, 0).setDepth(100);
-    const back = this.add.image(0, 0, 'keyart').setAlpha(0.22).setTint(0x8a90b0);
-    if (this.game.renderer.type === Phaser.WEBGL) back.preFX?.addBlur(1, 2, 2, 2);
-    const art = this.add.image(0, 0, 'keyart');
-    const shade = this.add.graphics();
-    splash.add([this.add.rectangle(0, 0, 4000, 4000, 0x05070a).setOrigin(0), back, art, shade]);
-    const fitSplash = () => {
-      const w = this.scale.width, h = this.scale.height;
-      // the whole artwork stays visible; an enlarged dim copy fills the sides
-      back.setScale(Math.max(w / back.width, h / back.height) * 1.1).setPosition(w / 2, h / 2);
-      const k = Math.min(w / art.width, h / art.height);
-      art.setScale(k).setPosition(w / 2, h / 2);
-      shade.clear();
-      shade.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.75, 0.75);
-      shade.fillRect(0, h * 0.7, w, h * 0.3);
-    };
-    fitSplash();
-    this.scale.on('resize', fitSplash);
-    this.events.once('shutdown', () => this.scale.off('resize', fitSplash));
-    
     this.prompt.setDepth(101);
     const go = () => {
       if (this.started) return;
       this.started = true;
-      this.tweens.add({ targets: splash, alpha: 0, duration: 900, onComplete: () => splash.destroy() });
       Sound.unlock();
       Sound.playTheme('menu');
       Sound.play('uiSelect');
@@ -86,7 +64,6 @@ export class MenuScene extends Phaser.Scene {
     });
     // If audio was already unlocked (returning from a game), skip the prompt
     if (Sound.ctx) {
-      splash.setVisible(false);
       this.time.delayedCall(10, go);
       this.prompt.setVisible(false);
     }
@@ -126,7 +103,10 @@ export class MenuScene extends Phaser.Scene {
 
   private setMenu(items: MenuItem[], width = 320) {
     this.menu?.destroy();
-    this.menu = new Menu(this, 0, 0, items, { width, gap: Math.max(40, Math.min(54, this.scale.height / 11)) });
+    // fit the rows between the title and the bottom edge (7 rows on the title page, 7 languages + Back)
+    const room = (this.scale.height - 24 - this.root.y) / Math.max(0.62, this.root.scaleY);
+    const gap = Phaser.Math.Clamp(room / Math.max(1, items.length - 0.4), 36, 54);
+    this.menu = new Menu(this, 0, 0, items, { width, gap });
     this.root.removeAll(true);
     this.root.add(this.menu.container);
     this.root.setAlpha(0);
@@ -197,6 +177,7 @@ export class MenuScene extends Phaser.Scene {
     items.push({ label: t('Chapters'), action: () => this.showChapters() });
     items.push({ label: t('Settings'), action: () => this.showSettings() });
     items.push({ label: t('How to Play'), action: () => this.showControls() });
+    items.push({ label: () => `${t('Language')}  ·  ${LANGS.find((l) => l.code === lang())!.name}`, action: () => this.showLanguages('main') });
     items.push({ label: () => (this.scale.isFullscreen ? t('Exit Fullscreen') : t('Fullscreen')), action: () => toggleFullscreen(this) });
     this.setMenu(items, 360);
   }
@@ -242,26 +223,34 @@ export class MenuScene extends Phaser.Scene {
       { label: () => `${t('Music')}  ${pct(st.music)}`, action: () => { st.music = cyc(st.music); apply(); } },
       { label: () => `${t('Effects')}  ${pct(st.sfx)}`, action: () => { st.sfx = cyc(st.sfx); apply(); Sound.play('pip'); } },
       { label: () => `${t('Visual quality')}  ${st.quality === 'high' ? t('High') : t('Performance')}`, action: () => { st.quality = st.quality === 'high' ? 'low' : 'high'; apply(); } },
-      {
-        label: () => `${t('Language')}  ${LANGS.find((l) => l.code === lang())!.name}`,
-        action: () => {
-          const i = LANGS.findIndex((l) => l.code === lang());
-          st.lang = LANGS[(i + 1) % LANGS.length].code;
-          applyLanguage(st.lang as never);
-          Save.write();
-          this.relabel();
-        },
-      },
+      { label: () => `${t('Language')}  ·  ${LANGS.find((l) => l.code === lang())!.name}`, action: () => this.showLanguages('settings') },
       { label: () => `${t('Screen shake')}  ${st.shake ? t('On') : t('Off')}`, action: () => { st.shake = !st.shake; apply(); } },
       { label: t('Back'), action: () => this.showMain() },
     ], 380);
   }
 
-  /** language changed: rebuild the visible texts, keeping the cursor on the Language row */
-  private relabel() {
-    this.prompt.setText(isTouchDevice(this) ? t('Tap to begin') : t('Press any key'));
-    this.showSettings();
-    this.menu?.select(2, false);
+  /** The list of languages; picking one switches the whole game at once. */
+  private showLanguages(from: 'main' | 'settings') {
+    this.page = 'languages';
+    const back = () => {
+      this.prompt.setText(isTouchDevice(this) ? t('Tap to begin') : t('Press any key'));
+      if (from === 'settings') {
+        this.showSettings();
+        this.menu?.select(3, false);
+      } else this.showMain();
+    };
+    const items: MenuItem[] = LANGS.map((L) => ({
+      label: () => (L.code === lang() ? `◆  ${L.name}  ◆` : L.name),
+      action: () => {
+        Save.data.settings.lang = L.code;
+        applyLanguage(L.code);
+        Save.write();
+        back();
+      },
+    }));
+    items.push({ label: () => t('Back'), action: back });
+    this.setMenu(items, 320);
+    this.menu?.select(Math.max(0, LANGS.findIndex((L) => L.code === lang())), false);
   }
 
   private showControls() {

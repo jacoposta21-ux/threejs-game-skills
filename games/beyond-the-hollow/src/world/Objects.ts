@@ -766,12 +766,17 @@ export class Pendulum {
   t: number;
   ax: number;
   ay: number;
+  top: number;
   constructor(public gs: GameScene, public s: Spawn) {
     this.ax = s.x;
-    this.ay = s.ty * TILE;
+    this.top = s.ty * TILE;
     let ty = s.ty;
     while (ty < gs.level.H - 1 && !gs.level.solid(s.tx, ty + 1)) ty++;
-    this.len = Phaser.Math.Clamp((ty + 1) * TILE - this.ay - 44, 70, 230);
+    // the blade's lowest point always sweeps through Elias' chest (44 px above the floor);
+    // under a high ceiling a fixed chain hangs down from the marker to the pivot
+    const floor = (ty + 1) * TILE;
+    this.len = Phaser.Math.Clamp(floor - this.top - 44, 70, 190);
+    this.ay = floor - 44 - this.len;
     this.g = gs.add.graphics().setDepth(DEPTH.interact);
     this.blade = gs.add.image(s.x, this.ay + this.len, 'blade').setScale(PROP_SCALE * 1.3).setDepth(DEPTH.interact + 1);
     this.t = s.tx * 0.9;
@@ -786,7 +791,15 @@ export class Pendulum {
     this.g.lineBetween(this.ax, this.ay, bx, by);
     this.g.lineStyle(1, 0x9a8a5a, 1);
     this.g.lineBetween(this.ax, this.ay, bx, by);
+    if (this.ay - this.top > 4) {
+      // fixed chain from the ceiling to the pivot
+      this.g.lineStyle(4, 0x07090c, 1);
+      this.g.lineBetween(this.ax, this.top, this.ax, this.ay);
+      this.g.lineStyle(1.5, 0x9a8a5a, 1);
+      this.g.lineBetween(this.ax, this.top, this.ax, this.ay);
+    }
     this.g.fillStyle(0x07090c, 1).fillCircle(this.ax, this.ay + 3, 5);
+    this.g.fillStyle(0x9a8a5a, 1).fillCircle(this.ax, this.ay + 3, 2.5);
     const p = this.gs.player.body;
     if (Phaser.Math.Distance.Between(p.center.x, p.center.y, bx, by + 6) < 26) this.gs.player.hurt(1, bx);
     if (Math.abs(Math.cos(this.t * 2.4)) > 0.995 && Math.abs(this.gs.player.x - this.ax) < 500) Sound.play('spark');

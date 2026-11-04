@@ -17,6 +17,8 @@ interface Pose {
 const ELIAS_PAL = {
   longHair: false,
   hood: true,
+  /** Ilse: a grown woman — long coat, waist, long braided hair, no blaster */
+  woman: false,
   outline: '#0a0d12',
   jacket: '#c2462a', jacketHi: '#ee7a4c', jacketLo: '#7c2616', shirt: '#eadfc4',
   pants: '#4a3a2c', pantsFar: '#2e241b',
@@ -33,9 +35,11 @@ const ILSE_PAL: Pal = {
   ...ELIAS_PAL,
   longHair: true,
   hood: false,
-  jacket: '#2f6a6a', jacketHi: '#5aa8a0', jacketLo: '#173a3c', shirt: '#e8e0d0',
+  woman: true,
+  jacket: '#2f6a6a', jacketHi: '#5aa8a0', jacketLo: '#173a3c', shirt: '#efe6d6',
+  skin: '#f2cdb0', skinShade: '#cf9f80',
   pants: '#2c2a34', pantsFar: '#1c1a22',
-  hair: '#7a3420', hairHi: '#b0583a',
+  hair: '#8a3a22', hairHi: '#c8683f',
   scarf: '#d8402a', scarfHi: '#ff7a5a', scarfLo: '#8a2010',
   pack: '#4a4038', packHi: '#6a5e50',
 };
@@ -153,6 +157,118 @@ function drawScarf(ctx: Ctx, nx: number, ny: number, phase: number, lift: number
   }
 }
 
+
+/** Ilse's hair, back mass: falls past the shoulders and ends in a loose braid that swings with her. */
+function drawLongHair(ctx: Ctx, hx: number, hy: number, p: Pose) {
+  const w = p.hairWind || 0;
+  const sw = Math.sin((p.scarf || 0) * 1.3) * 2.5;
+  ctx.save();
+  ctx.translate(hx, hy);
+  const mass = (grow: number, col: string) => {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-12 - grow, -6);
+    ctx.quadraticCurveTo(-20 - grow - w * 5, 14, -17 - w * 9 + sw, 30 + grow);
+    ctx.quadraticCurveTo(-8 - w * 6 + sw, 36 + grow, 0 - w * 3, 28 + grow * 0.5);
+    ctx.quadraticCurveTo(4, 14, 6 + grow, -4);
+    ctx.closePath();
+    ctx.fill();
+  };
+  mass(2.2, C.outline);
+  mass(0, C.hair);
+  // braid hanging from the nape
+  const bx0 = -14 - w * 9 + sw, by0 = 30;
+  for (let i = 0; i < 4; i++) {
+    const bx = bx0 - w * i * 3 + Math.sin(i + sw) * 1.5, by = by0 + i * 6.5;
+    ctx.fillStyle = C.outline;
+    ctx.beginPath(); ctx.ellipse(bx, by, 5.2 - i * 0.6, 4.4, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = i % 2 ? C.hair : C.hairHi;
+    ctx.beginPath(); ctx.ellipse(bx, by, 3.8 - i * 0.6, 3, 0.3, 0, Math.PI * 2); ctx.fill();
+  }
+  // a red ribbon ties the braid (same red as her scarf)
+  ctx.fillStyle = C.scarf;
+  ctx.fillRect(bx0 - w * 9 - 3, by0 + 24, 6, 3);
+  // light streak
+  ctx.strokeStyle = C.hairHi;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-6, 0);
+  ctx.quadraticCurveTo(-13 - w * 4, 14, -11 - w * 7 + sw, 26);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Smooth hair over the crown, parted, with a fringe swept toward the face. */
+function drawWomanHairCap(ctx: Ctx, hw: number) {
+  ctx.fillStyle = C.hair;
+  ctx.beginPath();
+  ctx.moveTo(-14, 8);
+  ctx.quadraticCurveTo(-17 - hw * 3, -8, -8, -15);
+  ctx.quadraticCurveTo(2, -19, 10, -14);
+  ctx.quadraticCurveTo(16, -9, 15, -1);
+  ctx.quadraticCurveTo(11, -8, 4, -9);
+  ctx.quadraticCurveTo(-1, -6, -5, 2);
+  ctx.quadraticCurveTo(-8, 4, -9, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = C.outline;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.strokeStyle = C.hairHi;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-9, -11);
+  ctx.quadraticCurveTo(0, -16, 9, -12);
+  ctx.stroke();
+}
+
+/** Coat skirts from the waist to just below the knees, open at the front, swinging with the stride. */
+function drawCoatSkirt(ctx: Ctx, hipX: number, hipY: number, p: Pose) {
+  const lean = p.lean;
+  const swing = (p.hipR - p.hipL) * 6; // stride opens the coat
+  const flare = 15 + Math.abs(swing) * 0.4 + (p.grounded === false ? 4 : 0);
+  ctx.save();
+  ctx.translate(hipX, hipY);
+  ctx.rotate(lean * 0.6);
+  const top = -14, bot = 32;
+  const shape = (o: number) => {
+    ctx.beginPath();
+    ctx.moveTo(-10 - o, top);
+    ctx.lineTo(10 + o, top);
+    ctx.quadraticCurveTo(12 + o + swing * 0.3, 10, flare * 0.55 + o + swing * 0.5, bot + o);
+    ctx.lineTo(-flare - o - swing * 0.2, bot + o - 3);
+    ctx.quadraticCurveTo(-13 - o, 10, -10 - o, top);
+    ctx.closePath();
+  };
+  ctx.fillStyle = C.outline;
+  shape(2);
+  ctx.fill();
+  ctx.fillStyle = linear(ctx, -flare, 0, flare, 0, [[0, C.jacketLo], [0.6, C.jacket], [1, C.jacketHi]]);
+  shape(0);
+  ctx.fill();
+  // front opening and hem stitching
+  ctx.strokeStyle = 'rgba(10,13,18,0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(4, top + 2);
+  ctx.quadraticCurveTo(5 + swing * 0.3, 12, 6 + swing * 0.5, bot - 1);
+  ctx.stroke();
+  ctx.strokeStyle = C.jacketHi;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-flare + 2 - swing * 0.2, bot - 4);
+  ctx.lineTo(flare * 0.55 - 1 + swing * 0.5, bot - 1);
+  ctx.stroke();
+  // satchel at the hip on its strap
+  ctx.fillStyle = C.outline;
+  ctx.beginPath(); ctx.roundRect(-16, -4, 13, 12, 3); ctx.fill();
+  ctx.fillStyle = C.pack;
+  ctx.beginPath(); ctx.roundRect(-14.5, -2.5, 10, 9, 2.5); ctx.fill();
+  ctx.fillStyle = C.brass;
+  ctx.fillRect(-10.5, 0, 2.5, 2.5);
+  ctx.restore();
+}
+
 function drawElias(ctx: Ctx, p: Pose) {
   // compute grounded offset so lowest foot touches the ground
   let hipX = 62, hipY = 100 + p.bob;
@@ -189,7 +305,8 @@ function drawElias(ctx: Ctx, p: Pose) {
   // far arm + far leg
   drawArm(ctx, shX - 2, shY + 3, p.shL, p.elL, true, false, 0);
   drawLeg(ctx, hipX - 2, hipY, p.hipL, p.kneeL, true);
-  // backpack
+  // backpack (Ilse: none — a satchel hangs at her hip, drawn with the coat)
+  if (!C.woman) {
   ctx.save();
   ctx.translate((hipX + shX) / 2, (hipY + shY) / 2);
   ctx.rotate(p.lean);
@@ -209,24 +326,28 @@ function drawElias(ctx: Ctx, p: Pose) {
   ctx.fillStyle = '#d9fff8';
   ctx.fillRect(-15.5, -8, 3, 12);
   ctx.restore();
+  }
+  // long hair falls behind the shoulders, under the coat collar
+  if (C.woman) drawLongHair(ctx, hdX, hdY, p);
   // torso
   ctx.save();
   ctx.translate(hipX, hipY);
   ctx.rotate(p.lean);
+  const wst = C.woman ? 3.5 : 0; // waist pinch
   ctx.fillStyle = C.outline;
   ctx.beginPath();
   ctx.moveTo(-12, 4);
-  ctx.quadraticCurveTo(-14, -TORSO * 0.6, -11, -TORSO - 3);
-  ctx.lineTo(11, -TORSO - 3);
-  ctx.quadraticCurveTo(14, -TORSO * 0.5, 12, 4);
+  ctx.quadraticCurveTo(-14 + wst * 1.6, -TORSO * 0.6, -11 + wst * 0.4, -TORSO - 3);
+  ctx.lineTo(11 - wst * 0.4, -TORSO - 3);
+  ctx.quadraticCurveTo(14 - wst * 1.6, -TORSO * 0.5, 12, 4);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = linear(ctx, -10, 0, 10, 0, [[0, C.jacketLo], [0.55, C.jacket], [1, C.jacketHi]]);
   ctx.beginPath();
   ctx.moveTo(-9.5, 2);
-  ctx.quadraticCurveTo(-11.5, -TORSO * 0.6, -8.5, -TORSO - 0.5);
-  ctx.lineTo(8.5, -TORSO - 0.5);
-  ctx.quadraticCurveTo(11.5, -TORSO * 0.5, 9.5, 2);
+  ctx.quadraticCurveTo(-11.5 + wst * 1.6, -TORSO * 0.6, -8.5 + wst * 0.4, -TORSO - 0.5);
+  ctx.lineTo(8.5 - wst * 0.4, -TORSO - 0.5);
+  ctx.quadraticCurveTo(11.5 - wst * 1.6, -TORSO * 0.5, 9.5, 2);
   ctx.closePath();
   ctx.fill();
   // open jacket over a pale shirt, zip line, belt
@@ -244,16 +365,25 @@ function drawElias(ctx: Ctx, p: Pose) {
   ctx.moveTo(3, -TORSO + 2);
   ctx.lineTo(4, 0);
   ctx.stroke();
-  ctx.fillStyle = '#1a222c';
-  ctx.fillRect(-10, -3, 20, 5);
-  ctx.fillStyle = C.brass;
-  ctx.fillRect(2, -2.5, 4, 4);
+  if (C.woman) {
+    ctx.fillStyle = '#2a1a14';
+    ctx.fillRect(-8.5, -TORSO * 0.42, 17, 3.5);
+    ctx.fillStyle = C.brass;
+    ctx.fillRect(2.5, -TORSO * 0.42 - 0.5, 3.5, 4.5);
+  } else {
+    ctx.fillStyle = '#1a222c';
+    ctx.fillRect(-10, -3, 20, 5);
+    ctx.fillStyle = C.brass;
+    ctx.fillRect(2, -2.5, 4, 4);
+  }
   ctx.restore();
   // near leg
   drawLeg(ctx, hipX + 2, hipY, p.hipR, p.kneeR, false);
+  // Ilse's long field coat: skirts flare from the waist to below the knees and swing with her stride
+  if (C.woman) drawCoatSkirt(ctx, hipX, hipY, p);
   // head
   // hood resting on the shoulders behind the head (or Ilse's long hair)
-  if (C.longHair) {
+  if (C.longHair && !C.woman) {
     ctx.save();
     ctx.translate(hdX, hdY);
     ctx.fillStyle = C.outline;
@@ -308,14 +438,25 @@ function drawElias(ctx: Ctx, p: Pose) {
   ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.fillRect(8.3, -1.6, 1, 1);
+  if (C.woman) {
+    // lashes and a softer mouth
+    ctx.strokeStyle = '#16100c';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(6.5, -2.6);
+    ctx.lineTo(11.5, -3.4);
+    ctx.moveTo(10.6, -3.2);
+    ctx.lineTo(12.6, -4.6);
+    ctx.stroke();
+  }
   ctx.strokeStyle = C.hair;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(5, -5);
   ctx.lineTo(11, -5.5);
   ctx.stroke();
-  ctx.strokeStyle = '#8a5a44';
-  ctx.lineWidth = 1.4;
+  ctx.strokeStyle = C.woman ? '#b4544a' : '#8a5a44';
+  ctx.lineWidth = C.woman ? 1.8 : 1.4;
   ctx.beginPath();
   ctx.moveTo(8, 7.5);
   ctx.lineTo(11, 7);
@@ -324,8 +465,12 @@ function drawElias(ctx: Ctx, p: Pose) {
   ctx.beginPath();
   ctx.ellipse(6.5, 4.5, 3, 2, 0, 0, Math.PI * 2);
   ctx.fill();
-  // hair: messy tufts swept back
+  // hair: messy tufts swept back (Ilse: smooth hair with a side-swept fringe)
   const hw = p.hairWind || 0;
+  if (C.woman) {
+    drawWomanHairCap(ctx, hw);
+    ctx.restore();
+  } else {
   ctx.fillStyle = C.hair;
   ctx.beginPath();
   ctx.moveTo(-13, 6);
@@ -355,6 +500,7 @@ function drawElias(ctx: Ctx, p: Pose) {
     ctx.fill();
   }
   ctx.restore();
+  }
   // scarf
   drawScarf(ctx, neckX, neckY + 2, p.scarf, p.scarfLift, p.scarfUp || 0);
   ctx.fillStyle = C.outline;
@@ -368,7 +514,7 @@ function drawElias(ctx: Ctx, p: Pose) {
   ctx.fillStyle = C.scarfHi;
   ctx.fillRect(neckX - 3, neckY - 1, 8, 1.6);
   // near arm with the tool
-  drawArm(ctx, shX + 2, shY + 3, p.shR, p.elR, false, true, p.glow || 0);
+  drawArm(ctx, shX + 2, shY + 3, p.shR, p.elR, false, !C.woman, p.glow || 0);
   ctx.restore();
 }
 

@@ -10,7 +10,6 @@ import { buildChapter4 } from '../art/chapter4';
 import { Save } from '../core/Save';
 import { Sound } from '../core/Audio';
 import { Crazy } from '../core/CrazySDK';
-import keyartUrl from '../assets/keyart.jpg';
 
 /** Paints every shared texture procedurally (no image downloads), then opens the title screen. */
 export class BootScene extends Phaser.Scene {
@@ -18,7 +17,6 @@ export class BootScene extends Phaser.Scene {
     super('Boot');
   }
   preload() {
-    this.load.image('keyart', keyartUrl);
   }
   create() {
     Crazy.loadingStart();

@@ -44,7 +44,7 @@ export class UIScene extends Phaser.Scene {
     this.ready = true;
     this.events.once('shutdown', () => (this.ready = false));
     this.vignette = this.add.image(0, 0, 'vignette').setOrigin(0).setDepth(-1);
-    this.warm = this.add.rectangle(0, 0, 10, 10, 0xffc070, 0).setOrigin(0).setDepth(-2).setBlendMode(Phaser.BlendModes.ADD);
+    this.warm = this.add.rectangle(0, 0, 10, 10, 0xffc070, 0).setOrigin(0).setDepth(-2).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
     this.hud = this.add.graphics();
     this.pipIcon = this.add.image(0, 0, 'pip', 0).setScale(0.55);
     const w = this.scale.width, h = this.scale.height;
@@ -70,13 +70,15 @@ export class UIScene extends Phaser.Scene {
 
   setPast(on: boolean) {
     this.pastOn = on;
-    this.tweens.add({ targets: this.warm, fillAlpha: on ? 0.13 : 0, duration: 350 });
+    // an invisible full-screen additive rectangle still costs a full-screen pass: hide it when unused
+    if (on) this.warm.setVisible(true);
+    this.tweens.add({ targets: this.warm, fillAlpha: on ? 0.13 : 0, duration: 350, onComplete: () => this.warm.setVisible(on) });
   }
 
   attach(gs: GameScene) {
     this.gs = gs;
     this.pastOn = false;
-    this.warm?.setFillStyle(0xffc070, 0);
+    this.warm?.setFillStyle(0xffc070, 0).setVisible(false);
     if (this.touchUI) { this.touchUI.destroy(); this.touchUI = null; this.buildTouch(); }
     this.shownHp = gs.player.hp;
     this.closeOverlay();
@@ -431,11 +433,22 @@ export class UIScene extends Phaser.Scene {
     const h = this.scale.height;
     this.menu = new Menu(this, this.scale.width / 2, h * 0.24 + 130, [
       { label: t('Retry from checkpoint'), action: () => this.restart(true) },
+      ...(gs.canSkipBoss() ? [{ label: t('Skip this fight'), action: () => this.skipBoss() }] : []),
       { label: t('Restart chapter'), action: () => this.restart(false) },
       { label: t('Quit to title'), action: () => this.quit() },
     ], { width: 340 });
+    if (gs.canSkipBoss()) c.add(this.add.text(this.scale.width / 2, h - 70, t('Too hard? You can skip this fight and carry on with the story.'), { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: '15px', color: COL.dim, align: 'center', wordWrap: { width: this.scale.width - 60 } }).setOrigin(0.5, 1));
     c.add(this.menu.container);
     gs.scene.pause();
+  }
+
+  private skipBoss() {
+    const gs = this.gs;
+    if (!gs) return;
+    this.closeOverlay();
+    gs.scene.resume();
+    this.letterbox(false, true);
+    gs.skipBoss();
   }
 
   private restart(fromCp: boolean) {

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { Quality } from '../core/Quality';
 import { t } from '../core/i18n';
 import { DEPTH, TILE, VIEW_H, VIEW_W_MIN } from '../core/constants';
 import { Controls } from '../core/Controls';
@@ -48,6 +49,7 @@ export class GameScene extends Phaser.Scene {
   hooks: HookNode[] = [];
   ilse: Ilse | null = null;
   pipControl = false;
+  private pipZoom = 0;
   motes: Phaser.GameObjects.Image[] = [];
   timeWaves: { img: Phaser.GameObjects.Rectangle; dir: number; past: boolean; life: number }[] = [];
   private rope!: Phaser.GameObjects.Graphics;
@@ -328,7 +330,12 @@ export class GameScene extends Phaser.Scene {
     // NB: Arcade may hand group-vs-array overlap pairs over in either order, so every callback sorts its pair.
     const isBolt = (o: any): o is Bolt => !!o && o.hitSet instanceof Set;
     const pick = <T,>(a: any, b: any, test: (o: any) => boolean): [T, any] => (test(a) ? [a, b] : [b, a]);
-    this.physics.add.collider(this.bolts, L.ground, (a, b) => this.boltImpact(pick<Bolt>(a, b, isBolt)[0]));
+    this.physics.add.collider(this.bolts, L.ground, (a, b) => {
+      const bolt = pick<Bolt>(a, b, isBolt)[0];
+      // a creature pressed against the wall the bolt just struck still takes the hit
+      this.boltHitsNearby(bolt);
+      this.boltImpact(bolt);
+    });
     this.physics.add.collider(this.bolts, doorZones, (a, b) => this.boltImpact(pick<Bolt>(a, b, isBolt)[0]));
     this.physics.add.overlap(this.bolts, cocoonImgs, (a, b) => {
       const [bolt, c] = pick<Bolt>(a, b, isBolt);
@@ -536,12 +543,18 @@ export class GameScene extends Phaser.Scene {
       this.cutscene = false;
       this.player.setPState('air');
       this.ui.letterbox(false);
+      // the player chose to skip this boss: it is already beaten and the way on is open
+      if (this.boss && this.boss.alive && this.bossRecord().skip) {
+        this.bossStarted = true;
+        this.boss.die();
+      }
     });
   }
 
   // ------------------------------------------------------------------ main loop
   update(_t: number, dms: number) {
     const dt = Math.min(dms, 50) / 1000;
+    this.watchFrameRate(dms);
     if (this.screenshotFreeze) {
       this.lighting.render();
       return;
@@ -562,7 +575,8 @@ export class GameScene extends Phaser.Scene {
     this.ecoCd = Math.max(0, this.ecoCd - dt);
     if (this.controls.pressed.eco && this.levelDef.eco && !this.cutscene && p.state !== 'dead') this.toggleEco();
     // Pip command
-    if (this.controls.pressed.pip && !this.cutscene && p.state !== 'dead') {
+    // (while the player is steering Pip herself, the Pip command does nothing)
+    if (this.controls.pressed.pip && !this.cutscene && !this.pipControl && p.state !== 'dead') {
       const r = this.pip.command();
       if (r === 'lure') this.toast(t('Pip sings — creatures will follow her'), 1400);
     }
@@ -587,6 +601,7 @@ export class GameScene extends Phaser.Scene {
     for (const b of this.belts) b.update(dt);
     for (const c of this.crushers) c.update(dt);
     for (const pd of this.pendulums) pd.update(dt);
+    this.unstick(dt);
     for (const u of this.updrafts) u.update(dt);
     this.updateBolts(dt);
     this.updateShocks(dt);
@@ -831,6 +846,9 @@ export class GameScene extends Phaser.Scene {
     this.pipControl = false;
     this.pip.takeControl(false);
     const p = this.player;
+    const cam = this.cameras.main;
+    cam.startFollow(p, true, 0.08, 0.1, 0, 30);
+    if (this.pipZoom) cam.zoomTo(this.pipZoom, 900, 'Sine.easeInOut');
     p.heal(p.maxHp);
     p.invuln = 2;
     p.setPState('air');
@@ -938,7 +956,9 @@ export class GameScene extends Phaser.Scene {
       if (d > 560 || d < 8) continue;
       const a = Math.atan2(ty - y, tx - x);
       const diff = Math.abs(Phaser.Math.Angle.Wrap(a - base));
-      if (diff > 0.5) continue;
+      // crawlers clinging to walls and ceilings are hard to line up with the keyboard: bend further for them
+      const cone = e instanceof Crawler && e.mode === 'crawl' && e.ny !== 1 ? 1.0 : 0.5;
+      if (diff > cone) continue;
       let blocked = false;
       const steps = Math.ceil(d / 16);
       for (let i = 1; i < steps && !blocked; i++) blocked = this.level.solidAtWorld(x + ((tx - x) * i) / steps, y + ((ty - y) * i) / steps);
@@ -983,6 +1003,19 @@ export class GameScene extends Phaser.Scene {
       this.shotLights.push({ x: b.x, y: b.y, r: b.big ? 200 : 110, i: 0.8 });
     }
     b.destroy();
+  }
+
+  private boltHitsNearby(b: Bolt) {
+    if (!b.active) return;
+    const bc = (b.body as Phaser.Physics.Arcade.Body).center;
+    const r = b.big ? 34 : 24;
+    for (const e of this.enemies) {
+      if (!b.active) return;
+      if (!e.alive || !e.body) continue;
+      const eb = e.body as Phaser.Physics.Arcade.Body;
+      const dx = Math.max(eb.left - bc.x, 0, bc.x - eb.right), dy = Math.max(eb.top - bc.y, 0, bc.y - eb.bottom);
+      if (dx * dx + dy * dy < r * r) this.boltHitsEnemy(b, e);
+    }
   }
 
   private boltHitsEnemy(b: Bolt, e: Enemy) {
@@ -1112,7 +1145,45 @@ export class GameScene extends Phaser.Scene {
     this.registry.set(k, v);
   }
 
+  // ------------------------------------------------------------------ performance
+  private fpsWin = { t: 0, n: 0, sum: 0, slow: 0 };
+  /** If the frame rate stays under ~48 fps for two 4-second windows, switch to Performance once. */
+  private watchFrameRate(dms: number) {
+    this.fx.applyQuality(Quality.low);
+    Quality.applyLoop(this.game);
+    if (Quality.low || !Quality.autoAllowed() || this.cutscene || this.elapsed < 3 || dms > 250) return;
+    const w = this.fpsWin;
+    w.t += dms; w.n++; w.sum += dms;
+    if (w.t < 4000) return;
+    const avg = w.sum / w.n;
+    w.slow = avg > 21 ? w.slow + 1 : 0;
+    w.t = w.n = w.sum = 0;
+    if (w.slow >= 2) {
+      Save.data.settings.quality = 'low';
+      Save.write();
+      this.toast(t('The game was running slowly: visual quality set to Performance (you can change it in Settings)'), 3600);
+    }
+  }
+
   // ------------------------------------------------------------------ death / respawn
+  private stuckT = 0;
+  /** Safety net: if Elias ends up inside solid ground (a block of the other time, a crate, a lift…), put him back on safe ground. */
+  private unstick(dt: number) {
+    const p = this.player;
+    if (!p || p.state === 'dead' || p.state === 'cutscene' || p.state === 'swing' || this.cutscene) {
+      this.stuckT = 0;
+      return;
+    }
+    const b = p.body, L = this.level;
+    const y = b.center.y;
+    const inside = [b.center.x, b.left + 5, b.right - 5].filter((x) => L.solidAtWorld(x, y) && L.solidAtWorld(x, y - 14)).length;
+    this.stuckT = inside >= 2 ? this.stuckT + dt : 0;
+    if (this.stuckT > 0.5) {
+      this.stuckT = 0;
+      this.respawnAtSafe();
+    }
+  }
+
   respawnAtSafe() {
     const p = this.player;
     this.cameras.main.flash(250, 0, 0, 0);
@@ -1127,6 +1198,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   onPlayerDeath() {
+    if (this.boss && this.boss.alive && this.bossStarted) this.bossRecord().defeats++;
     Save.data.deaths++;
     Save.write();
     Crazy.gameplayStop();
@@ -1181,12 +1253,47 @@ export class GameScene extends Phaser.Scene {
       this.player.setPState('air');
       this.ui.letterbox(false);
       boss.beginFight();
+      this.resumeBoss(boss);
       Sound.playTheme(this.levelDef.boss!.music);
       this.ui.showBossBar(true, this.levelDef.boss!.name);
     });
   }
 
+  /** Per-level record of the boss fight: furthest phase reached, defeats, and whether the player chose to skip it. */
+  bossRecord(): { phase: number; defeats: number; skip: boolean } {
+    const k = 'boss-' + this.levelIndex;
+    let r = this.registry.get(k);
+    if (!r) this.registry.set(k, (r = { phase: 1, defeats: 0, skip: false }));
+    return r;
+  }
+  /** after 3 defeats the game-over panel offers to skip the fight */
+  canSkipBoss() {
+    return !!this.boss && this.boss.alive && this.bossStarted && this.bossRecord().defeats >= 3;
+  }
+  skipBoss() {
+    this.bossRecord().skip = true;
+    this.retry(true);
+  }
+  private resumeBoss(boss: Enemy) {
+    const r = this.bossRecord();
+    if (r.phase < 2) return;
+    this.time.delayedCall(400, () => {
+      if (!boss.alive) return;
+      if (boss instanceof ShadowHeart) boss.resumeAt(r.phase);
+      // the others derive their phase from their health: their next tick announces it
+      else boss.hp = Math.floor(boss.maxHp * (r.phase >= 3 ? 0.32 : 0.65));
+      this.toast(t('The fight resumes where you fell'), 2000);
+    });
+  }
+
   onBossPhase(n: number) {
+    // every new phase is a fresh start: Elias' health is restored
+    if (n >= 2) {
+      this.player.heal(99);
+      this.bossRecord().phase = Math.max(this.bossRecord().phase, n);
+      this.fx.glowE.explode(16, this.player.x, this.player.y - 40);
+      Sound.play('pickup');
+    }
     if (this.boss instanceof ShadowHeart) {
       if (n === 2) this.toast(t('Its waves live in one time only — switch with the Echo (R)'), 2600);
       if (n === 3) {
@@ -1199,6 +1306,11 @@ export class GameScene extends Phaser.Scene {
         Sound.play('death');
         this.pipControl = true;
         this.pip.takeControl(true);
+        // the camera goes with Pip and opens up a little so all three lights stay in view
+        const cam = this.cameras.main;
+        this.pipZoom = cam.zoom;
+        cam.startFollow(this.pip, true, 0.08, 0.08);
+        cam.zoomTo(cam.zoom * 0.82, 900, 'Sine.easeInOut');
         this.toast(t('Elias is struck down! Fly Pip (arrows) to gather the light of the Seed'), 3200);
         const [a, b] = this.bossArena!;
         for (const fx of [0.18, 0.5, 0.82]) {
@@ -1276,6 +1388,9 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.setBounds(0, 0, this.level.widthPx, this.level.heightPx);
       this.physics.world.setBounds(0, 0, this.level.widthPx, this.level.heightPx + 400);
       if (g instanceof ShadowHeart) this.hooks.forEach((h) => h.setDark(false));
+      // Ilse lets go of the Seed and walks with Elias to the way out
+      if (this.ilse && this.ilse.mode !== 'down') this.ilse.follow();
+      if (this.pipControl) this.endPipControl();
       this.toast(g instanceof ShadowHeart ? t('The Seed is free') : g instanceof Warden ? t('The Ancient Sentinel falls silent') : g instanceof ShadowBoss ? t('The Shadow flees into the Seed') : t('The lock is open'), 2500);
       Sound.playTheme('ending');
     });
@@ -1292,6 +1407,7 @@ export class GameScene extends Phaser.Scene {
 
   // ------------------------------------------------------------------ level end
   private completeLevel(e: Exit) {
+    this.registry.remove('boss-' + this.levelIndex);
     this.finished = true;
     this.cutscene = true;
     const p = this.player;
@@ -1303,6 +1419,13 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: p, x: e.s.x, duration: 600, ease: 'Sine.inOut' });
     this.tweens.add({ targets: [p], alpha: 0, scale: 0.35, delay: 700, duration: 900 });
     this.tweens.add({ targets: this.pip, alpha: 0, delay: 900, duration: 700 });
+    if (this.ilse && this.ilse.mode !== 'down') {
+      // she steps into the rift right behind him
+      const il = this.ilse;
+      if (Math.abs(il.x - e.s.x) > 300) il.body.reset(e.s.x - 90, p.y - 4);
+      il.leave(e.s.x - 26);
+      this.tweens.add({ targets: il, alpha: 0, scale: il.scale * 0.35, delay: 850, duration: 900 });
+    }
     this.cameras.main.zoomTo(this.cameras.main.zoom * 1.25, 1800, 'Sine.easeInOut');
     this.time.delayedCall(1200, () => this.cameras.main.fade(900, 235, 255, 250));
     this.time.delayedCall(2200, () => {

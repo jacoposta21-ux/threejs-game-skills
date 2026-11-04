@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { Quality } from '../core/Quality';
 import { BG_H, BG_W } from '../art/backgrounds';
 import { THEMES, ThemeKey } from '../art/themes';
 
@@ -52,7 +53,10 @@ export class BGScene extends Phaser.Scene {
     this.ax += (this.auto * dms) / 1000;
     sx += this.ax;
     const s = this.layers[0]?.scaleX || 1;
+    // Performance mode: keep the far sky and the nearest silhouettes, drop the two middle layers
+    const low = Quality.low;
     this.layers.forEach((l, i) => {
+      l.setVisible(!low || i === 0 || i === 3);
       const f = this.factors[i];
       l.tilePositionX = (sx * f) / s;
       const base = h - BG_H * s;

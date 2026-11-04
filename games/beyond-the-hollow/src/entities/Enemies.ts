@@ -202,6 +202,7 @@ export class Crawler extends Enemy {
       this.y = Phaser.Math.Linear(this.fromY, this.toY, k);
       this.rotation = Phaser.Math.Linear(this.fromRot, this.toRot, Math.min(1, k * 1.5));
       if (this.prog >= 1) this.nextStep();
+      this.fitBody();
       this.body.reset(this.x, this.y);
       // local facing
       const lx = Math.cos(this.rotation), ly = Math.sin(this.rotation);
@@ -227,8 +228,17 @@ export class Crawler extends Enemy {
       if (this.stateT > 2.5 || this.y > this.gs.level.heightPx + 50) this.die();
     }
   }
+  /** While crawling the sprite is rotated onto walls and ceilings, but an arcade body never rotates:
+   *  keep a square hitbox centred on what the player actually sees. */
+  private fitBody() {
+    const half = 15;
+    const cx = this.x - this.nx * 10, cy = this.y - this.ny * 10;
+    this.body.setSize((half * 2) / this.scaleX, (half * 2) / this.scaleY, false);
+    this.body.setOffset((cx - half - this.x) / this.scaleX + this.displayOriginX, (cy - half - this.y) / this.scaleY + this.displayOriginY);
+  }
   private pounce() {
     this.mode = 'leap';
+    this.body.setSize(60, 40).setOffset(18, 20);
     this.stateT = 0;
     this.pounceCd = 2.2;
     this.play('crawler-pounce');
@@ -539,7 +549,7 @@ export class Guardian extends Enemy {
     this.isBoss = boss;
     this.kind = boss ? 'boss' : 'guardian';
     this.key = tex ?? (boss ? 'heartguard' : 'guardian');
-    this.hp = this.maxHp = boss ? 46 : tex === 'keeper' ? 22 : 16;
+    this.hp = this.maxHp = boss ? 36 : tex === 'keeper' ? 22 : 16;
     this.sc = boss ? 0.62 : tex === 'keeper' ? 0.56 : 0.5;
     this.setScale(this.sc).setOrigin(0.5, 236 / 240);
     this.setDepth(DEPTH.enemies + 1);
@@ -886,7 +896,7 @@ export class Warden extends Enemy {
   laserX = 0;
   constructor(gs: GameScene, x: number, y: number, bounds: [number, number]) {
     super(gs, x, y - 230, 'warden');
-    this.hp = this.maxHp = 60;
+    this.hp = this.maxHp = 46;
     this.minX = bounds[0];
     this.maxX = bounds[1];
     this.floorY = y;
@@ -1156,7 +1166,7 @@ export class ShadowBoss extends Enemy {
   maxX: number;
   constructor(gs: GameScene, x: number, y: number, bounds: [number, number]) {
     super(gs, x, y - 200, 'ombra');
-    this.hp = this.maxHp = 54;
+    this.hp = this.maxHp = 40;
     this.minX = bounds[0];
     this.maxX = bounds[1];
     this.setScale(0.62).setDepth(DEPTH.enemies + 1);
@@ -1385,7 +1395,7 @@ export class ShadowHeart extends Enemy {
     if (this.mode === 'p1' || this.mode === 'p2') {
       this.orbT -= dt;
       if (this.orbT <= 0) {
-        this.orbT = this.mode === 'p1' ? 2.8 : 3.6;
+        this.orbT = this.mode === 'p1' ? 3.4 : 4.2;
         for (let i = -2; i <= 2; i++) {
           const a = Math.atan2(p.y - 30 - this.y, p.x - this.x) + i * 0.22;
           this.gs.spawnShot(this.x + Math.cos(a) * 60, this.y + Math.sin(a) * 60, Math.cos(a) * 240, Math.sin(a) * 240);
@@ -1416,7 +1426,7 @@ export class ShadowHeart extends Enemy {
         const past = Math.random() < 0.5;
         this.gs.spawnTimeWave(this.x, past);
         this.waves++;
-        if (this.waves >= 5) {
+        if (this.waves >= 4) {
           this.mode = 'open';
           this.stateT = 0;
           this.coreOpen = true;
@@ -1427,7 +1437,7 @@ export class ShadowHeart extends Enemy {
       }
     }
     if (this.mode === 'open') {
-      if (this.stateT > 4) {
+      if (this.stateT > 6) {
         this.coreOpen = false;
         this.play('heart-pulse');
         this.mode = 'p2';
@@ -1444,6 +1454,16 @@ export class ShadowHeart extends Enemy {
         this.gs.onBossPhase(3);
       }
     }
+  }
+  /** Retry after a fall: pick the fight up again at the phase Elias had reached. */
+  resumeAt(phase: number) {
+    this.gs.hooks.forEach((h) => h.setDark(false));
+    this.phase = 2;
+    this.mode = 'p2';
+    this.waves = 0;
+    this.waveT = 2.5;
+    this.hp = phase >= 3 ? Math.floor(this.maxHp * 0.3) : this.maxHp - 30;
+    this.gs.onBossPhase(2);
   }
   /** Ilse tears the core open for good. */
   holdOpen() {

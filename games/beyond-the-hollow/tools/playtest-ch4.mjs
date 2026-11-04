@@ -97,6 +97,13 @@ await ev(() => { const b = window.__BTH.scene.boss; b.hp = b.maxHp * 0.25; });
 await wait(page, 600);
 const pc = await ev(() => ({ pc: window.__BTH.scene.pipControl, motes: window.__BTH.scene.motes.length, st: window.__BTH.scene.player.state }));
 check('IV-5: phase 3 — Elias is struck down and you fly Pip', pc.pc && pc.motes === 3 && pc.st === 'cutscene', JSON.stringify(pc));
+await wait(page, 1200);
+const camPip = await ev(() => { const s = window.__BTH.scene, c = s.cameras.main; return { follows: c._follow === s.pip, view: c.worldView.contains(s.pip.x, s.pip.y) }; });
+check('IV-5: the camera follows Pip while you fly her', camPip.follows && camPip.view, JSON.stringify(camPip));
+await tap(page, 'KeyQ', 60);
+await wait(page, 300);
+const pipMode = await ev(() => window.__BTH.scene.pip.mode);
+check('IV-5: pressing Q while flying Pip does not freeze her', pipMode === 'player', pipMode);
 // fly Pip to each mote with the arrows
 for (let m = 0; m < 3; m++) {
   for (let i = 0; i < 120; i++) {
@@ -122,7 +129,12 @@ for (let k = 0; k < 10; k++) { await page.keyboard.down('ArrowUp'); await tap(pa
 await wait(page, 2500);
 s = await state(page);
 check('IV-5: the Heart of Shadow falls', s.boss && !s.boss.alive, JSON.stringify(s.boss));
+await wait(page, 1500);
+const ilAfter = await ev(() => { const s = window.__BTH.scene; return { mode: s.ilse?.mode, cam: s.cameras.main._follow === s.player }; });
+check('IV-5: after the Heart falls Ilse follows Elias again', ilAfter.mode === "follow" && ilAfter.cam, JSON.stringify(ilAfter));
 await walk(page, ['ArrowRight'], 15000);
+const leaving = await ev(() => { const s = window.__BTH.scene; return { fin: s.finished, ilse: s.ilse?.mode, d: s.ilse ? Math.round(Math.abs(s.ilse.x - s.player.x)) : -1 }; });
+check('IV-5: Ilse walks into the rift with Elias', leaving.fin && leaving.ilse === 'leave' && leaving.d < 200, JSON.stringify(leaving));
 await wait(page, 4000);
 const sc = await ev(() => window.__game.scene.getScenes(true).map((x) => x.scene.key));
 check('IV-5: the final ending plays', sc.includes('Ending'), sc.join(','));

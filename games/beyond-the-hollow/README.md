@@ -80,13 +80,23 @@ Pip learns the **Light Thread** (F / O, gamepad LB, touch HOOK): catch a glowing
 
 Story and level structure for Chapters III–IV live in `docs/capitoli-3-4.md`.
 
-The title screen opens on the key art (`src/assets/keyart.jpg`), and `public/cover-512.jpg` is a cover thumbnail for the portal listing.
+The title screen is the painted mushroom-forest vista with Elias and Pip; `public/cover-512.jpg` is a cover thumbnail for the portal listing.
 
 Checkpoints save to `localStorage`, and Continue resumes from the last one. Chapter select is grouped by chapter. A death offers retry from checkpoint or restart chapter. The game also has lore recordings (50), settings (music/sfx volume, quality, language, screen shake), fullscreen, and gamepad support.
 
+**Boss fights are meant to be beaten.** Each new phase restores Elias' health. After a fall, Retry picks the fight up again at the phase he had reached. After three defeats against the same boss, the game-over panel also offers **Skip this fight**, so nobody gets stuck on the story.
+
+**Performance.** Settings → Visual quality → *Performance* has these effects:
+- two of the four parallax layers are hidden;
+- the ambient motes are turned off;
+- the darkness overlay is drawn at a third of the resolution;
+- rendering is capped at 60 fps on high-refresh screens.
+
+The darkness overlay always erases all lights in a single pass. If the frame rate stays under ~48 fps for about eight seconds, the game switches to Performance by itself and says so. Add `?noauto` to the URL to disable that. If Elias ever ends up inside solid ground, he is put back on the last safe spot.
+
 ## Languages
 
-The game is fully translated into English, Italiano, Español, Français, Deutsch and Português: menus, HUD messages, hints, story, recordings, boss titles and endings. On first launch the language follows the browser (on CrazyGames that is the player's locale); Settings → Language switches it at any time, and the choice is saved.
+The game is fully translated into English, Italiano, Español, Français, Deutsch and Português: menus, HUD messages, hints, story, recordings, boss titles and endings. On first launch the language follows the browser (on CrazyGames that is the player's locale); The *Language* entry on the title menu (and in Settings) opens the list of languages; the choice is saved.
 
 - `src/core/i18n.ts` — `t('English text', …args)` for UI strings; `applyLanguage()` rewrites the level/chapter data in place from stable ids (`<level>.intro.0`, `<level>.lore.2`, `ch3.end.1`…).
 - `src/i18n/<lang>.ts` — one pack per language (`ui` keyed by the English text, `data` keyed by id). Key and button names (JUMP, FIRE, SPACE, Q…) stay as on the controls.
@@ -95,14 +105,14 @@ The game is fully translated into English, Italiano, Español, Français, Deutsc
 ## Architecture
 
 ```
-src/core     constants, Save (localStorage), i18n, Audio (generative music + SFX), Controls (kbd/mouse/pad/touch), CrazySDK wrapper
+src/core     constants, Save (localStorage), i18n, Quality, cheats, Audio (generative music + SFX), Controls (kbd/mouse/pad/touch), CrazySDK wrapper
 src/art      procedural painters: elias (FK pose → sprite sheet), creatures, tiles (autotiled, extruded atlas), backgrounds, props/FX
 src/levels   ASCII segment level data + compiler (→ Phaser Tilemap)
 src/world    LevelMap (tilemap layers, decor scatter), Objects (doors, plates, mechanisms, hazards…), Lighting (darkness RT), Fx
 src/entities Player (explicit animation/physics state machine), Pip, Enemies (Crawler, Stalker, Burrower, Guardian/boss)
 src/scenes   Boot, Menu, Story, BG (parallax), Game, UI (HUD/menus/touch), Ending
 src/i18n     translation packs (it, es, fr, de, pt)
-tools        validate-levels.ts, i18n-check.ts, gen-chapter2/3/4.py (map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs, playtest-ch3.mjs, playtest-ch4.mjs
+tools        validate-levels.ts (--traps finds soft-locks), i18n-check.ts, gen-chapter2/3/4.py (map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs, playtest-ch3.mjs, playtest-ch4.mjs, playtest-bosses.mjs (LV=4|8|13|18)
 ```
 
 ## CrazyGames

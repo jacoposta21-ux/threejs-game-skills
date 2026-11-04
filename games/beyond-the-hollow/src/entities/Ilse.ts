@@ -15,7 +15,7 @@ export class Ilse extends Phaser.Physics.Arcade.Sprite {
   hp = 8;
   maxHp = 8;
   invuln = 0;
-  mode: 'follow' | 'channel' | 'hold' | 'down' = 'follow';
+  mode: 'follow' | 'channel' | 'hold' | 'leave' | 'down' = 'follow';
   channelT = 0;
   door: Door | null = null;
   glow: Phaser.GameObjects.Image;
@@ -47,6 +47,17 @@ export class Ilse extends Phaser.Physics.Arcade.Sprite {
   heal() {
     this.hp = this.maxHp;
   }
+  /** Back to walking with Elias (after the boss, or once a ritual is done). */
+  follow() {
+    this.mode = 'follow';
+    this.door = null;
+    this.glow.setAlpha(0);
+  }
+  /** Walk into the exit rift with Elias. */
+  leave(x: number) {
+    this.mode = 'leave';
+    (this as any).holdX = x;
+  }
   /** Boss finale: she walks to the Seed and holds its core open. */
   holdAt(x: number) {
     this.mode = 'hold';
@@ -56,7 +67,7 @@ export class Ilse extends Phaser.Physics.Arcade.Sprite {
   }
   update(dt: number) {
     this.invuln = Math.max(0, this.invuln - dt);
-    this.setAlpha(this.invuln > 0 ? (Math.floor(this.invuln * 14) % 2 ? 0.5 : 1) : 1);
+    if (this.mode !== 'leave') this.setAlpha(this.invuln > 0 ? (Math.floor(this.invuln * 14) % 2 ? 0.5 : 1) : 1);
     const p = this.gs.player;
     const b = this.body;
     const onFloor = b.blocked.down || b.touching.down;
@@ -102,6 +113,13 @@ export class Ilse extends Phaser.Physics.Arcade.Sprite {
           this.door = null;
         }
         break;
+      case 'leave': {
+        const lx = (this as any).holdX as number;
+        if (Math.abs(lx - this.x) > 12) this.walkTo(lx, dt, onFloor);
+        else b.setVelocityX(0);
+        anim = Math.abs(b.velocity.x) > 20 ? 'run' : 'idle';
+        break;
+      }
       case 'hold': {
         const hx = (this as any).holdX as number;
         if (Math.abs(hx - this.x) > 16) this.walkTo(hx, dt, onFloor);

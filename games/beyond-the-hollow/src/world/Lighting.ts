@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { Quality } from '../core/Quality';
 import { DEPTH } from '../core/constants';
 import type { Light } from './Objects';
 
@@ -9,6 +10,9 @@ import type { Light } from './Objects';
 export class Lighting {
   rt: Phaser.GameObjects.RenderTexture | null = null;
   brush: Phaser.GameObjects.Image;
+  /** a pool of light brushes: all lights are erased in a single pass (one framebuffer bind per frame) */
+  private pool: Phaser.GameObjects.Image[] = [];
+  private div = 2;
   lights: Light[] = [];
   darkness: number;
   extra = 0; // added darkness (boss phase)
@@ -22,7 +26,8 @@ export class Lighting {
     const w = Math.ceil(cam.width / cam.zoom) + 64, h = Math.ceil(cam.height / cam.zoom) + 64;
     if (this.rt) this.rt.destroy();
     // render at reduced resolution — light falloff is soft, so this is visually identical and much cheaper
-    this.rt = this.scene.add.renderTexture(0, 0, Math.ceil(w / 2), Math.ceil(h / 2)).setOrigin(0).setScale(2).setDepth(DEPTH.darkness);
+    this.div = Quality.low ? 3 : 2;
+    this.rt = this.scene.add.renderTexture(0, 0, Math.ceil(w / this.div), Math.ceil(h / this.div)).setOrigin(0).setScale(this.div).setDepth(DEPTH.darkness);
   }
   render() {
     const rt = this.rt;
@@ -32,16 +37,22 @@ export class Lighting {
     const d = Math.min(0.97, this.darkness + this.extra);
     rt.setVisible(d > 0.02);
     if (d <= 0.02) return;
+    if ((Quality.low ? 3 : 2) !== this.div) this.resize();
+    const k = this.div;
     rt.setPosition(v.x - 32, v.y - 32);
     rt.clear();
     rt.fill(this.color, d);
+    let n = 0;
     for (const L of this.lights) {
-      const lx = (L.x - rt.x) / 2, ly = (L.y - rt.y) / 2;
-      const r = L.r / 2;
+      const lx = (L.x - rt.x) / k, ly = (L.y - rt.y) / k;
+      const r = L.r / k;
       if (lx < -r || ly < -r || lx > rt.width + r || ly > rt.height + r) continue;
-      this.brush.setScale((r * 2) / 256).setAlpha(Math.min(1, L.i));
-      rt.erase(this.brush, lx, ly);
+      let b = this.pool[n];
+      if (!b) b = this.pool[n] = this.scene.make.image({ x: 0, y: 0, key: 'light', add: false });
+      b.setPosition(lx, ly).setScale((r * 2) / 256).setAlpha(Math.min(1, L.i));
+      n++;
     }
+    if (n) rt.erase(n === this.pool.length ? this.pool : this.pool.slice(0, n));
   }
   /** Light intensity 0..1 at a world point (used by stalkers). */
   at(x: number, y: number) {
