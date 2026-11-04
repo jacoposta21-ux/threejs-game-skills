@@ -544,6 +544,7 @@ export class Guardian extends Enemy {
   private stepT = 0;
   private chargeHit = false;
   private spitT = 0;
+  private spitTargets: { x: number; y: number }[] | null = null;
   constructor(gs: GameScene, x: number, y: number, boss: boolean, bounds: [number, number], tex?: string) {
     super(gs, x, y, tex ?? (boss ? 'heartguard' : 'guardian'));
     this.isBoss = boss;
@@ -627,9 +628,17 @@ export class Guardian extends Enemy {
         }
         if (this.isBoss && this.phase >= 2) {
           this.spitT -= dt;
+          // telegraph: glow at the mouth and red rings where the spores will land
+          if (this.spitT < 0.7 && !this.spitTargets) {
+            this.spitTargets = [-1, 0, 1].map((i) => ({ x: p.x + i * 70, y: p.y }));
+            this.gs.fx.chargeFlash(this.x + this.facing * 60, this.y - 100, 0xb0ff6a, this.gs.bossMs(0.7));
+            for (const tg of this.spitTargets) this.gs.fx.warnCircle(tg.x, tg.y, 26, this.gs.bossMs(0.7) + 600, 0xb0ff6a);
+            Sound.play('warn', this.pan());
+          }
           if (this.spitT < 0) {
-            this.spitT = this.phase === 3 ? 2.2 : 3.4;
-            for (let i = -1; i <= 1; i++) this.gs.spawnSpit(this.x + this.facing * 60, this.y - 100, p.x + i * 70, p.y - 30);
+            this.spitT = this.phase === 3 ? 2.6 : 3.6;
+            for (const tg of this.spitTargets ?? []) this.gs.spawnSpit(this.x + this.facing * 60, this.y - 100, tg.x, tg.y - 30);
+            this.spitTargets = null;
             Sound.play('spore', this.pan());
           }
         }
@@ -654,7 +663,7 @@ export class Guardian extends Enemy {
       }
       case 'windup':
         body.setVelocityX(0);
-        if (this.stateT > 0.55 / speedMul) {
+        if (this.stateT > (this.isBoss ? 0.8 : 0.55) / speedMul) {
           this.setMode('slam');
         }
         break;
@@ -681,7 +690,7 @@ export class Guardian extends Enemy {
         break;
       case 'roar':
         body.setVelocityX(0);
-        if (this.stateT > 0.75) this.setMode('charge');
+        if (this.stateT > (this.isBoss ? 1.0 : 0.75)) this.setMode('charge');
         break;
       case 'charge': {
         body.setVelocityX(this.facing * 360 * speedMul);
@@ -715,9 +724,22 @@ export class Guardian extends Enemy {
   setMode(m: Guardian['mode']) {
     this.mode = m;
     this.stateT = 0;
+    // the core is only open while it is stunned after a slam or a crash
+    if (m !== 'open') this.coreOpen = false;
     this.anims.timeScale = 1;
     if (m === 'windup' || m === 'slam') {
-      if (m === 'windup') this.play(this.key + '-slam');
+      if (m === 'windup') {
+        this.play(this.key + '-slam');
+        if (this.isBoss) {
+          // the slam sends shockwaves both ways along the floor: jump them
+          const sp = this.phase === 3 ? 1.5 : this.phase === 2 ? 1.25 : 1;
+          const ms = this.gs.bossMs(0.8 / sp) + 300;
+          this.gs.fx.warnFloor(this.x + 40, this.x + 470, this.y, ms);
+          this.gs.fx.warnFloor(this.x - 40, this.x - 470, this.y, ms);
+          this.gs.fx.alert(this.x, this.y - 170);
+          Sound.play('warn', this.pan());
+        }
+      }
     }
     if (m === 'open') {
       this.coreOpen = true;
@@ -728,11 +750,18 @@ export class Guardian extends Enemy {
       this.play(this.key + '-roar');
       Sound.play('roar', this.pan());
       this.gs.fx.shake(0.008, 500);
+      if (this.isBoss) {
+        // a charge follows the roar: mark its lane toward Elias
+        this.facing = Math.sign(this.player.x - this.x) || this.facing;
+        const end = this.facing > 0 ? this.maxX + 60 : this.minX - 60;
+        this.gs.fx.warnLane(this.x + this.facing * 60, end, this.y, 120, this.gs.bossMs(this.isBoss ? 1.0 : 0.75));
+      }
     }
     if (m === 'charge') {
       this.play(this.key + '-walk');
       this.chargeHit = false;
-      this.facing = Math.sign(this.player.x - this.x) || this.facing;
+      // the boss keeps the direction it announced; ordinary guardians aim at Elias
+      if (!this.isBoss) this.facing = Math.sign(this.player.x - this.x) || this.facing;
     }
   }
   vulnerable() {
@@ -892,6 +921,7 @@ export class Warden extends Enemy {
   cd = 2;
   count = 0;
   next: 'bombs' | 'laser' | 'dive' = 'bombs';
+  private diveX: number | null = null;
   beam: Phaser.GameObjects.Graphics;
   laserX = 0;
   constructor(gs: GameScene, x: number, y: number, bounds: [number, number]) {
@@ -920,6 +950,7 @@ export class Warden extends Enemy {
     this.setMode('roar');
   }
   setMode(m: Warden['mode']) {
+    if (m === 'dive') this.diveX = null;
     this.mode = m;
     this.stateT = 0;
     this.count = 0;
@@ -1017,8 +1048,16 @@ export class Warden extends Enemy {
         break;
       }
       case 'dive':
-        if (this.stateT < 0.6) {
-          goX(p.x, 2);
+        if (this.diveX === null) {
+          this.diveX = Phaser.Math.Clamp(p.x, this.minX, this.maxX);
+          const ms = this.gs.bossMs(0.95) + 250;
+          this.gs.fx.warnFloor(this.diveX - 90, this.diveX + 90, this.floorY, ms);
+          this.gs.fx.warnFloor(this.diveX + 90, this.diveX + 420, this.floorY, ms, 0xff8a3a);
+          this.gs.fx.warnFloor(this.diveX - 90, this.diveX - 420, this.floorY, ms, 0xff8a3a);
+          Sound.play('warn', this.pan());
+        }
+        if (this.stateT < 0.95) {
+          goX(this.diveX ?? p.x, 2);
           goY(this.hoverY - 40, 3);
         } else {
           body.setVelocityX(0);
@@ -1031,6 +1070,7 @@ export class Warden extends Enemy {
             this.gs.fx.dust(this.x, this.floorY, 22);
             this.gs.spawnShockwave(this.x + 60, this.floorY, 1);
             this.gs.spawnShockwave(this.x - 60, this.floorY, -1);
+            this.diveX = null;
             this.setMode('stuck');
           }
         }
@@ -1153,7 +1193,9 @@ export class Mimic extends Enemy {
  */
 export class ShadowBoss extends Enemy {
   kind: EnemyKind = 'boss';
-  mode: 'intro' | 'drift' | 'lunge' | 'roar' = 'intro';
+  mode: 'intro' | 'drift' | 'windup' | 'lunge' | 'roar' = 'intro';
+  private orbWarned = false;
+  private lungeTo: { x: number; y: number } | null = null;
   phase = 1;
   coreOpen = false;
   vx = 0;
@@ -1180,7 +1222,8 @@ export class ShadowBoss extends Enemy {
   eyes: Phaser.GameObjects.Image;
   preUpdate(t: number, d: number) {
     super.preUpdate(t, d);
-    this.eyes?.setPosition(this.x, this.y - 30).setAlpha(this.alive ? (this.coreOpen ? 0.95 : 0.6) : 0).setTint(this.coreOpen ? 0xffd27a : 0xc87aff);
+    this.eyes?.setPosition(this.x, this.y - 30).setAlpha(this.alive ? (this.coreOpen ? 0.95 : 0.6) : 0);
+    if (this.mode !== 'windup') this.eyes?.setTint(this.coreOpen ? 0xffd27a : 0xc87aff);
   }
   corePos() {
     return { x: this.x, y: this.y - 20 };
@@ -1229,8 +1272,14 @@ export class ShadowBoss extends Enemy {
         this.lungeCd -= dt;
         this.orbT -= dt;
         this.snuffT -= dt;
+        if (this.orbT < 0.6 && !this.orbWarned) {
+          this.orbWarned = true;
+          this.gs.fx.chargeFlash(this.x, this.y - 10, 0xc87aff, this.gs.bossMs(0.6));
+          Sound.play('warn', this.pan());
+        }
         if (this.orbT <= 0) {
-          this.orbT = this.phase === 3 ? 2.2 : 3;
+          this.orbT = this.phase === 3 ? 2.6 : 3.4;
+          this.orbWarned = false;
           for (let i = -1; i <= 1; i++) {
             const a = Math.atan2(p.y - 30 - this.y, p.x - this.x) + i * 0.25;
             this.gs.spawnShot(this.x + Math.cos(a) * 40, this.y + Math.sin(a) * 40, Math.cos(a) * 260, Math.sin(a) * 260);
@@ -1243,15 +1292,29 @@ export class ShadowBoss extends Enemy {
           this.gs.spawnShadesAround(this.x, this.y);
         }
         if (this.lungeCd <= 0 && this.distToPlayer() < 230) {
-          this.mode = 'lunge';
+          // wind-up: it stops, its eyes flare red and a line shows where it will strike
+          this.mode = 'windup';
           this.stateT = 0;
           this.play('ombra-lunge');
-          Sound.play('stalker', this.pan());
-          const d = Math.max(1, this.distToPlayer());
-          this.vx = ((p.x - this.x) / d) * 430;
-          this.vy = ((p.y - 30 - this.y) / d) * 430;
+          Sound.play('warn', this.pan());
+          this.lungeTo = { x: p.x, y: p.y - 30 };
+          this.gs.fx.warnLine(this.x, this.y, this.x + (p.x - this.x) * 1.4, this.y + (p.y - 30 - this.y) * 1.4, this.gs.bossMs(0.55));
         }
         break;
+      }
+      case 'windup': {
+        this.body.setVelocity(0, 0);
+        this.eyes.setTint(0xff4a3a);
+        if (this.stateT > 0.55) {
+          this.mode = 'lunge';
+          this.stateT = 0;
+          Sound.play('stalker', this.pan());
+          const t = this.lungeTo ?? { x: p.x, y: p.y - 30 };
+          const d = Math.max(1, Math.hypot(t.x - this.x, t.y - this.y));
+          this.vx = ((t.x - this.x) / d) * 430;
+          this.vy = ((t.y - this.y) / d) * 430;
+        }
+        return;
       }
       case 'lunge':
         this.body.setVelocity(this.vx, this.vy);
@@ -1341,6 +1404,7 @@ export class ShadowHeart extends Enemy {
   beam: Phaser.GameObjects.Graphics;
   laserX = 0;
   laserT = -1;
+  private orbWarned = false;
   constructor(gs: GameScene, x: number, y: number) {
     super(gs, x, y - 260, 'heartshadow');
     this.hp = this.maxHp = 90;
@@ -1394,7 +1458,13 @@ export class ShadowHeart extends Enemy {
     // common attacks while the core is shut
     if (this.mode === 'p1' || this.mode === 'p2') {
       this.orbT -= dt;
+      if (this.orbT < 0.6 && !this.orbWarned) {
+        this.orbWarned = true;
+        this.gs.fx.chargeFlash(this.x, this.y, 0xb06aff, this.gs.bossMs(0.6));
+        Sound.play('warn', this.pan());
+      }
       if (this.orbT <= 0) {
+        this.orbWarned = false;
         this.orbT = this.mode === 'p1' ? 3.4 : 4.2;
         for (let i = -2; i <= 2; i++) {
           const a = Math.atan2(p.y - 30 - this.y, p.x - this.x) + i * 0.22;

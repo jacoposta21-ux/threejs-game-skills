@@ -115,6 +115,101 @@ export class Fx {
     this.smokeE.setParticleTint(0x150a20);
     this.smokeE.explode(1, x + (Math.random() - 0.5) * 20, y + (Math.random() - 0.5) * 30);
   }
+  // ------------------------------------------------------------ boss telegraphs (C)
+  /** A pulsing warning band on the floor between x0 and x1 (where a shockwave or a landing will hit). */
+  warnFloor(x0: number, x1: number, floorY: number, ms: number, color = 0xff4a3a) {
+    const g = this.gs.add.graphics().setDepth(DEPTH.glow).setBlendMode(Phaser.BlendModes.ADD);
+    const a = Math.min(x0, x1), b = Math.max(x0, x1);
+    const draw = (k: number) => {
+      g.clear();
+      const pulse = 0.35 + Math.abs(Math.sin(k * Math.PI * 4)) * 0.45;
+      g.fillStyle(color, pulse * 0.55);
+      g.fillRect(a, floorY - 6, b - a, 8);
+      g.fillStyle(color, pulse * 0.18);
+      g.fillRect(a, floorY - 34, b - a, 28);
+      // chevrons pointing along the band
+      g.lineStyle(2, 0xffe0d0, pulse);
+      for (let x = a + 14; x < b - 6; x += 36) {
+        const dir = x0 <= x1 ? 1 : -1;
+        g.lineBetween(x - 5 * dir, floorY - 18, x + 3 * dir, floorY - 12);
+        g.lineBetween(x + 3 * dir, floorY - 12, x - 5 * dir, floorY - 6);
+      }
+    };
+    this.telegraph(g, ms, draw);
+  }
+  /** A pulsing ring where something will land. */
+  warnCircle(x: number, y: number, r: number, ms: number, color = 0xff4a3a) {
+    const g = this.gs.add.graphics().setDepth(DEPTH.glow).setBlendMode(Phaser.BlendModes.ADD);
+    this.telegraph(g, ms, (k) => {
+      g.clear();
+      const pulse = 0.4 + Math.abs(Math.sin(k * Math.PI * 4)) * 0.5;
+      g.lineStyle(3, color, pulse);
+      g.strokeEllipse(x, y - 2, r * 2 * (1.2 - k * 0.2), r * 0.7 * (1.2 - k * 0.2));
+      g.fillStyle(color, pulse * 0.25);
+      g.fillEllipse(x, y - 2, r * 2 * k, r * 0.7 * k);
+    });
+    return g;
+  }
+  /** A horizontal lane (a charge) from x0 toward x1 at height y. */
+  warnLane(x0: number, x1: number, y: number, h: number, ms: number) {
+    const g = this.gs.add.graphics().setDepth(DEPTH.glow).setBlendMode(Phaser.BlendModes.ADD);
+    const a = Math.min(x0, x1), b = Math.max(x0, x1), dir = x1 >= x0 ? 1 : -1;
+    this.telegraph(g, ms, (k) => {
+      g.clear();
+      const pulse = 0.3 + Math.abs(Math.sin(k * Math.PI * 5)) * 0.4;
+      g.fillStyle(0xff4a3a, pulse * 0.22);
+      g.fillRect(a, y - h, (b - a) * Math.min(1, k * 2.5), h);
+      g.lineStyle(3, 0xffd0c0, pulse);
+      for (let x = x0 + dir * 40; dir > 0 ? x < b : x > a; x += dir * 70) {
+        g.lineBetween(x, y - h * 0.75, x + dir * 18, y - h * 0.5);
+        g.lineBetween(x + dir * 18, y - h * 0.5, x, y - h * 0.25);
+      }
+    });
+  }
+  /** A vertical column (something falls here). */
+  warnColumn(x: number, y0: number, y1: number, ms: number) {
+    const g = this.gs.add.graphics().setDepth(DEPTH.glow).setBlendMode(Phaser.BlendModes.ADD);
+    this.telegraph(g, ms, (k) => {
+      g.clear();
+      const pulse = 0.25 + Math.abs(Math.sin(k * Math.PI * 4)) * 0.4;
+      g.fillStyle(0xff4a3a, pulse * 0.3);
+      g.fillRect(x - 16, y0, 32, y1 - y0);
+      g.fillStyle(0xff4a3a, pulse);
+      g.fillRect(x - 20, y1 - 5, 40, 5);
+    });
+  }
+  /** A dashed line showing a lunge's path. */
+  warnLine(x0: number, y0: number, x1: number, y1: number, ms: number) {
+    const g = this.gs.add.graphics().setDepth(DEPTH.glow).setBlendMode(Phaser.BlendModes.ADD);
+    const d = Math.hypot(x1 - x0, y1 - y0), ux = (x1 - x0) / d, uy = (y1 - y0) / d;
+    this.telegraph(g, ms, (k) => {
+      g.clear();
+      const pulse = 0.4 + Math.abs(Math.sin(k * Math.PI * 5)) * 0.5;
+      g.lineStyle(5, 0xff4a3a, pulse);
+      for (let s = 0; s < d * Math.min(1, k * 2); s += 26) g.lineBetween(x0 + ux * s, y0 + uy * s, x0 + ux * Math.min(d, s + 14), y0 + uy * Math.min(d, s + 14));
+    });
+  }
+  /** Glow gathering at a point just before a volley. */
+  chargeFlash(x: number, y: number, color: number, ms: number) {
+    const img = this.gs.add.image(x, y, 'glow').setTint(color).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.glow).setScale(0.3).setAlpha(0.2);
+    this.gs.tweens.add({ targets: img, scale: 1.6, alpha: 1, duration: ms, ease: 'Quad.in', onComplete: () => img.destroy() });
+  }
+  private telegraph(g: Phaser.GameObjects.Graphics, ms: number, draw: (k: number) => void) {
+    let t = 0;
+    draw(0);
+    const ev = this.gs.time.addEvent({
+      delay: 16, loop: true, callback: () => {
+        t += 16;
+        if (t >= ms || !g.active) {
+          ev.remove();
+          g.destroy();
+          return;
+        }
+        draw(t / ms);
+      },
+    });
+  }
+
   alert(x: number, y: number) {
     const t = this.gs.add.text(x, y, '!', { fontFamily: 'Cinzel, Georgia, serif', fontSize: '22px', color: '#ff6aa8', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setDepth(DEPTH.hint);
     this.gs.tweens.add({ targets: t, y: y - 18, alpha: 0, duration: 700, ease: 'Quad.out', onComplete: () => t.destroy() });

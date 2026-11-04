@@ -84,7 +84,39 @@ The title screen is the painted mushroom-forest vista with Elias and Pip; `publi
 
 Checkpoints save to `localStorage`, and Continue resumes from the last one. Chapter select is grouped by chapter. A death offers retry from checkpoint or restart chapter. The game also has lore recordings (50), settings (music/sfx volume, quality, language, screen shake), fullscreen, and gamepad support.
 
-**Boss fights are meant to be beaten.** Each new phase restores Elias' health. After a fall, Retry picks the fight up again at the phase he had reached. After three defeats against the same boss, the game-over panel also offers **Skip this fight**, so nobody gets stuck on the story.
+**Boss fights are meant to be beaten.**
+
+*Boss difficulty* (Settings, or offered on the game-over screen) changes **only** the boss fights:
+
+| | Story | Normal | Hard |
+|---|---|---|---|
+| Boss speed (movement, cooldowns, wind-ups) | 72% | 100% | 120% |
+| Boss health | 65% | 100% | 130% |
+| Elias' hearts during the fight | +3 | — | — |
+| Damage per boss hit | 1 | as designed | as designed |
+| New phase restores Elias | yes | yes | no |
+| "Skip this fight" offered after | 1 defeat | 3 defeats | 3 defeats |
+
+In every difficulty:
+- after a fall, Retry resumes at the phase reached;
+- in Normal or Hard, after two defeats the game-over panel offers to switch boss fights to Story.
+
+Every boss attack is announced before it lands, and a golden ring marks the weak spot whenever the boss can be hurt.
+
+| Boss | Attack | Warning |
+|---|---|---|
+| Hollow Heart | slam | red chevrons show where the slam's shockwaves will run |
+| Hollow Heart | charge | its lane is marked during the roar |
+| Hollow Heart | spores | rings show where they will land |
+| Ancient Sentinel | bombs | each bomb's landing ring stays until it bursts |
+| Ancient Sentinel | dive | the landing zone and the shockwaves are marked |
+| Ancient Sentinel | laser | its column builds up first |
+| First Shadow | orb volley | the boss glows first |
+| First Shadow | lunge | it stops, its eyes turn red, and a dashed line shows its path |
+| Heart of Shadow | orb fan | the boss glows first |
+| Heart of Shadow | shadow column | the column builds up first |
+
+Falling stalactites flash a column on the floor. A short two-note alarm accompanies each warning.
 
 **Performance.** Settings → Visual quality → *Performance* has these effects:
 - two of the four parallax layers are hidden;
@@ -105,14 +137,14 @@ The game is fully translated into English, Italiano, Español, Français, Deutsc
 ## Architecture
 
 ```
-src/core     constants, Save (localStorage), i18n, Quality, cheats, Audio (generative music + SFX), Controls (kbd/mouse/pad/touch), CrazySDK wrapper
+src/core     constants, Save (localStorage), i18n, Quality, BossTuning, cheats, Audio (generative music + SFX), Controls (kbd/mouse/pad/touch), CrazySDK wrapper
 src/art      procedural painters: elias (FK pose → sprite sheet), creatures, tiles (autotiled, extruded atlas), backgrounds, props/FX
 src/levels   ASCII segment level data + compiler (→ Phaser Tilemap)
 src/world    LevelMap (tilemap layers, decor scatter), Objects (doors, plates, mechanisms, hazards…), Lighting (darkness RT), Fx
 src/entities Player (explicit animation/physics state machine), Pip, Enemies (Crawler, Stalker, Burrower, Guardian/boss)
 src/scenes   Boot, Menu, Story, BG (parallax), Game, UI (HUD/menus/touch), Ending
 src/i18n     translation packs (it, es, fr, de, pt)
-tools        validate-levels.ts (--traps finds soft-locks), i18n-check.ts, gen-chapter2/3/4.py (map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs, playtest-ch3.mjs, playtest-ch4.mjs, playtest-bosses.mjs (LV=4|8|13|18)
+tools        validate-levels.ts (--traps finds soft-locks), i18n-check.ts, gen-chapter2/3/4.py (map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs, playtest-ch3.mjs, playtest-ch4.mjs, playtest-bosses.mjs and playtest-boss-difficulty.mjs (LV=4|8|13|18)
 ```
 
 ## CrazyGames

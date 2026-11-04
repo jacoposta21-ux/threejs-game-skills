@@ -498,6 +498,11 @@ class AudioEngine {
         this.tone({ f0: 80, f1: 28, dur: 0.7, vol: 0.3, reverb: 0.6 });
         this.burst({ dur: 0.8, vol: 0.22, type: 'lowpass', f0: 1200, f1: 60, reverb: 0.6 });
         break;
+      case 'warn':
+        // short rising two-note alarm: an attack is coming
+        this.tone({ type: 'triangle', f0: 520, f1: 780, dur: 0.12, vol: 0.09, reverb: 0.3, pan });
+        this.tone({ type: 'triangle', f0: 780, f1: 1040, dur: 0.12, vol: 0.08, delay: 0.13, reverb: 0.3, pan });
+        break;
       case 'core':
         this.tone({ type: 'sine', f0: 1600, f1: 400, dur: 0.3, vol: 0.12, reverb: 0.6 });
         break;

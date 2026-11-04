@@ -6,7 +6,7 @@ export interface SaveData {
   lore: string[]; // collected lore ids
   deaths: number;
   completed: boolean;
-  settings: { music: number; sfx: number; quality: 'high' | 'low'; shake: boolean; lang?: string };
+  settings: { music: number; sfx: number; quality: 'high' | 'low'; shake: boolean; lang?: string; bossDiff?: 'story' | 'normal' | 'hard' };
 }
 
 const KEY = 'beyond-the-hollow-save-v1';

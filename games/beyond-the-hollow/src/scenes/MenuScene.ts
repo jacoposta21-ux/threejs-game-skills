@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { BOSS_DIFFS, bossDiff } from '../core/BossTuning';
 import { LANGS, applyLanguage, lang, t } from '../core/i18n';
 import { Save } from '../core/Save';
 import { Sound } from '../core/Audio';
@@ -224,9 +225,30 @@ export class MenuScene extends Phaser.Scene {
       { label: () => `${t('Effects')}  ${pct(st.sfx)}`, action: () => { st.sfx = cyc(st.sfx); apply(); Sound.play('pip'); } },
       { label: () => `${t('Visual quality')}  ${st.quality === 'high' ? t('High') : t('Performance')}`, action: () => { st.quality = st.quality === 'high' ? 'low' : 'high'; apply(); } },
       { label: () => `${t('Language')}  ·  ${LANGS.find((l) => l.code === lang())!.name}`, action: () => this.showLanguages('settings') },
+      {
+        // only the boss fights change; the rest of the game stays the same
+        label: () => `${t('Boss difficulty')}  ${{ story: t('Story'), normal: t('Normal'), hard: t('Hard') }[bossDiff()]}`,
+        action: () => { st.bossDiff = BOSS_DIFFS[(BOSS_DIFFS.indexOf(bossDiff()) + 1) % BOSS_DIFFS.length]; Save.write(); this.showBossNote(); },
+      },
       { label: () => `${t('Screen shake')}  ${st.shake ? t('On') : t('Off')}`, action: () => { st.shake = !st.shake; apply(); } },
       { label: t('Back'), action: () => this.showMain() },
     ], 380);
+    this.bossNote = null;
+    this.showBossNote();
+  }
+
+  private bossNote: Phaser.GameObjects.Text | null = null;
+  /** one line under the settings explaining what the boss difficulty does */
+  private showBossNote() {
+    const notes = { story: t('Story: slower bosses, more hearts, every hit costs one heart.'), normal: t('Normal: the fights as designed.'), hard: t('Hard: faster, tougher bosses, no healing between phases.') };
+    const txt = notes[bossDiff()];
+    if (!this.bossNote || !this.bossNote.active) {
+      this.bossNote = this.add.text(0, 0, txt, { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: '15px', color: COL.dim, align: 'center', wordWrap: { width: 420 } }).setOrigin(0.5, 0);
+      this.root.add(this.bossNote);
+    } else this.bossNote.setText(txt);
+    const rows = this.menu ? (this.menu as any).rows.length : 7;
+    const gap = this.menu ? ((this.menu as any).rows[1]?.text.y ?? 54) : 54;
+    this.bossNote.setPosition(0, rows * gap - gap * 0.35);
   }
 
   /** The list of languages; picking one switches the whole game at once. */

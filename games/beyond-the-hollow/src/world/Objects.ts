@@ -441,6 +441,11 @@ export class Stalactite {
     this.mode = 'shake';
     this.t = 0;
     Sound.play('crack');
+    // show where it will fall
+    const L = this.gs.level, tx = Math.floor(this.s.x / TILE);
+    let fy = this.s.ty + 1;
+    while (fy < L.H - 1 && !L.solid(tx, fy)) fy++;
+    this.gs.fx.warnColumn(this.s.x, this.homeY + 30, fy * TILE, 700);
   }
   update(dt: number) {
     this.t += dt;

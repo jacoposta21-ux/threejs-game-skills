@@ -101,6 +101,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   hurt(dmg: number, fromX: number, opts: { respawn?: boolean; force?: boolean } = {}) {
     if (this.state === 'dead' || this.state === 'cutscene') return;
     if (this.invuln > 0 && !opts.force) return;
+    dmg = this.gs.capBossDamage(dmg);
     if (!CHEATS.infiniteLives) this.hp -= dmg;
     this.invuln = 1.3;
     Sound.play('hurt');

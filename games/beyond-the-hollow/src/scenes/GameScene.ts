@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { bossDiff, bossTune } from '../core/BossTuning';
 import { Quality } from '../core/Quality';
 import { t } from '../core/i18n';
 import { DEPTH, TILE, VIEW_H, VIEW_W_MIN } from '../core/constants';
@@ -585,7 +586,10 @@ export class GameScene extends Phaser.Scene {
     this.ilse?.update(dt);
     this.updateHooks(dt);
     this.pip.update(dt);
-    for (const e of this.enemies) if (e.active) e.tick(dt);
+    // the boss runs on its own clock: the boss difficulty slows it down or speeds it up
+    const bossDt = dt * this.bossTimeScale();
+    for (const e of this.enemies) if (e.active) e.tick(e === this.boss ? bossDt : dt);
+    this.drawWeakSpot();
     this.enemies = this.enemies.filter((e) => e.active);
     for (const d of this.doors) d.update(dt);
     for (const pl of this.plates) pl.update();
@@ -1060,12 +1064,17 @@ export class GameScene extends Phaser.Scene {
     const b = this.bombs.create(x, y, 'bomb') as Phaser.Physics.Arcade.Image;
     b.setData('bomb', true).setScale(0.7).setDepth(DEPTH.enemies + 2);
     (b.body as Phaser.Physics.Arcade.Body).setVelocity((Math.random() - 0.5) * 60, 60).setSize(18, 18).setAngularVelocity(200);
+    // mark the spot it will hit
+    let fy = Math.floor(y / TILE);
+    while (fy < this.level.H - 1 && !this.level.solid(Math.floor(x / TILE), fy + 1)) fy++;
+    b.setData('mark', this.fx.warnCircle(x, (fy + 1) * TILE, 44, 4000, 0xd07aff));
     this.time.delayedCall(4000, () => b.active && this.explodeBomb(b));
   }
 
   explodeBomb(b: Phaser.Physics.Arcade.Image) {
     if (!b.active) return;
     const x = b.x, y = b.y;
+    (b.getData('mark') as Phaser.GameObjects.Graphics | undefined)?.destroy();
     b.destroy();
     Sound.play('rock', Phaser.Math.Clamp((x - this.cameras.main.midPoint.x) / 400, -1, 1));
     this.fx.impact(x, y, true);
@@ -1263,6 +1272,7 @@ export class GameScene extends Phaser.Scene {
       this.player.setPState('air');
       this.ui.letterbox(false);
       boss.beginFight();
+      this.tuneBoss(boss);
       this.resumeBoss(boss);
       Sound.playTheme(this.levelDef.boss!.music);
       this.ui.showBossBar(true, this.levelDef.boss!.name);
@@ -1276,13 +1286,75 @@ export class GameScene extends Phaser.Scene {
     if (!r) this.registry.set(k, (r = { phase: 1, defeats: 0, skip: false }));
     return r;
   }
-  /** after 3 defeats the game-over panel offers to skip the fight */
+  /** the game-over panel offers to skip the fight after a few defeats (one in Story) */
   canSkipBoss() {
-    return !!this.boss && this.boss.alive && this.bossStarted && this.bossRecord().defeats >= 3;
+    return !!this.boss && this.boss.alive && this.bossStarted && this.bossRecord().defeats >= bossTune().skipAfter;
+  }
+  /** after two defeats (not already in Story) offer to make boss fights easier */
+  canEaseBoss() {
+    return !!this.boss && this.boss.alive && this.bossStarted && bossDiff() !== 'story' && this.bossRecord().defeats >= 2;
+  }
+  easeBoss() {
+    Save.data.settings.bossDiff = 'story';
+    Save.write();
+    this.retry(true);
+  }
+  inBossFight() {
+    return !!this.boss && this.boss.alive && this.bossStarted;
+  }
+  bossTimeScale() {
+    return this.inBossFight() ? bossTune().speed : 1;
+  }
+  /** real milliseconds for a span of boss-clock seconds (telegraphs must match what the boss will do) */
+  bossMs(sec: number) {
+    return (sec * 1000) / this.bossTimeScale();
+  }
+  /** a single boss attack never takes more than the difficulty allows */
+  capBossDamage(dmg: number) {
+    return this.inBossFight() ? Math.min(dmg, bossTune().dmgCap) : dmg;
+  }
+  private weakRing: Phaser.GameObjects.Graphics | null = null;
+  /** A golden pulsing ring marks the boss' weak spot whenever it can be hurt. */
+  private drawWeakSpot() {
+    const b = this.boss as any;
+    const on = !!b && b.alive && this.bossStarted && b.coreOpen && typeof b.corePos === 'function';
+    if (!on) {
+      this.weakRing?.setVisible(false);
+      return;
+    }
+    if (!this.weakRing) this.weakRing = this.add.graphics().setDepth(DEPTH.glow + 1).setBlendMode(ADD);
+    const c = b.corePos();
+    const k = 0.5 + Math.abs(Math.sin(this.elapsed * 6)) * 0.5;
+    const r = 30 + k * 8;
+    const g = this.weakRing.setVisible(true);
+    g.clear();
+    g.lineStyle(3, 0xffd27a, 0.5 + k * 0.5);
+    g.strokeCircle(c.x, c.y, r);
+    g.lineStyle(1.5, 0xffffff, 0.4 + k * 0.4);
+    g.strokeCircle(c.x, c.y, r - 7);
+    // four little arrows pointing in
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2 + Math.PI / 4;
+      const x1 = c.x + Math.cos(a) * (r + 18), y1 = c.y + Math.sin(a) * (r + 18);
+      const x2 = c.x + Math.cos(a) * (r + 6), y2 = c.y + Math.sin(a) * (r + 6);
+      g.lineStyle(3, 0xffd27a, 0.6 + k * 0.4);
+      g.lineBetween(x1, y1, x2, y2);
+    }
   }
   skipBoss() {
     this.bossRecord().skip = true;
     this.retry(true);
+  }
+  private baseMaxHp = 0;
+  /** apply the boss difficulty to this fight: boss health, Elias' extra hearts */
+  private tuneBoss(boss: Enemy) {
+    const tune = bossTune();
+    boss.maxHp = Math.max(1, Math.round(boss.maxHp * tune.hp));
+    boss.hp = boss.maxHp;
+    const p = this.player;
+    this.baseMaxHp = this.baseMaxHp || p.maxHp;
+    p.maxHp = this.baseMaxHp + tune.extraHp;
+    p.hp = p.maxHp;
   }
   private resumeBoss(boss: Enemy) {
     const r = this.bossRecord();
@@ -1297,9 +1369,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   onBossPhase(n: number) {
-    // every new phase is a fresh start: Elias' health is restored
+    // every new phase is a fresh start: Elias' health is restored (not in Hard)
     if (n >= 2) {
-      this.player.heal(99);
+      if (bossTune().heal) this.player.heal(99);
       this.bossRecord().phase = Math.max(this.bossRecord().phase, n);
       this.fx.glowE.explode(16, this.player.x, this.player.y - 40);
       Sound.play('pickup');
@@ -1379,6 +1451,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   onBossDefeated(g: Enemy) {
+    // the fight's extra hearts go away with it
+    if (this.baseMaxHp) {
+      this.player.maxHp = this.baseMaxHp;
+      this.player.hp = Math.min(this.player.hp, this.player.maxHp);
+    }
     this.ui.showBossBar(false);
     Crazy.happytime();
     this.time.timeScale = 0.3;

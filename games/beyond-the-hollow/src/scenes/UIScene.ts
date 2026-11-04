@@ -433,6 +433,7 @@ export class UIScene extends Phaser.Scene {
     const h = this.scale.height;
     this.menu = new Menu(this, this.scale.width / 2, h * 0.24 + 130, [
       { label: t('Retry from checkpoint'), action: () => this.restart(true) },
+      ...(gs.canEaseBoss() ? [{ label: t('Make boss fights easier (Story)'), action: () => this.easeBoss() }] : []),
       ...(gs.canSkipBoss() ? [{ label: t('Skip this fight'), action: () => this.skipBoss() }] : []),
       { label: t('Restart chapter'), action: () => this.restart(false) },
       { label: t('Quit to title'), action: () => this.quit() },
@@ -440,6 +441,15 @@ export class UIScene extends Phaser.Scene {
     if (gs.canSkipBoss()) c.add(this.add.text(this.scale.width / 2, h - 70, t('Too hard? You can skip this fight and carry on with the story.'), { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: '15px', color: COL.dim, align: 'center', wordWrap: { width: this.scale.width - 60 } }).setOrigin(0.5, 1));
     c.add(this.menu.container);
     gs.scene.pause();
+  }
+
+  private easeBoss() {
+    const gs = this.gs;
+    if (!gs) return;
+    this.closeOverlay();
+    gs.scene.resume();
+    this.letterbox(false, true);
+    gs.easeBoss();
   }
 
   private skipBoss() {
