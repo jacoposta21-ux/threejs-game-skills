@@ -1,3 +1,5 @@
+import { Portal } from './Portal';
+
 export interface SaveData {
   version: 1;
   unlocked: number; // highest level index unlocked (0-based)
@@ -42,7 +44,9 @@ export const Save = {
   },
   write() {
     try {
-      localStorage.setItem(KEY, JSON.stringify(data));
+      const json = JSON.stringify(data);
+      localStorage.setItem(KEY, json);
+      Portal.persist(json);
     } catch {
       /* storage unavailable (private mode / sandboxed iframe) — play continues */
     }

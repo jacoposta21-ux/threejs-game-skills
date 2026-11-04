@@ -6,7 +6,7 @@ import { DEPTH, TILE, VIEW_H, VIEW_W_MIN } from '../core/constants';
 import { Controls } from '../core/Controls';
 import { Sound } from '../core/Audio';
 import { Save } from '../core/Save';
-import { Crazy } from '../core/CrazySDK';
+import { Portal } from '../core/Portal';
 import { LEVELS, LevelDef } from '../levels/levels';
 import { LevelMap, Spawn } from '../world/LevelMap';
 import { Fx } from '../world/Fx';
@@ -442,7 +442,12 @@ export class GameScene extends Phaser.Scene {
       if (!this.scene.isActive('UI')) this.scene.launch('UI');
     }
     Sound.playTheme(def.music);
-    Crazy.gameplayStart();
+    Portal.gameplayStart();
+    Portal.levelStarted(this.levelIndex);
+    // the portal can pause the game (its own overlays): open our pause menu
+    Portal.setPauseHandler((paused) => {
+      if (paused && this.scene.isActive() && !this.finished && this.player.state !== 'dead') this.ui.openPause();
+    });
     this.installHooks();
   }
 
@@ -1217,10 +1222,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   onPlayerDeath() {
+    Portal.levelFailed(this.levelIndex);
     if (this.boss && this.boss.alive && this.bossStarted) this.bossRecord().defeats++;
     Save.data.deaths++;
     Save.write();
-    Crazy.gameplayStop();
+    Portal.gameplayStop();
     this.time.timeScale = 0.45;
     this.tweens.timeScale = 0.45;
     this.cameras.main.zoomTo(this.cameras.main.zoom * 1.15, 1200, 'Sine.easeOut');
@@ -1457,7 +1463,7 @@ export class GameScene extends Phaser.Scene {
       this.player.hp = Math.min(this.player.hp, this.player.maxHp);
     }
     this.ui.showBossBar(false);
-    Crazy.happytime();
+    Portal.happytime();
     this.time.timeScale = 0.3;
     this.tweens.timeScale = 0.3;
     this.fx.shake(0.03, 1500);
@@ -1500,7 +1506,7 @@ export class GameScene extends Phaser.Scene {
     const p = this.player;
     p.setPState('cutscene');
     p.body.setVelocity(0, 0);
-    Crazy.gameplayStop();
+    Portal.gameplayStop();
     Sound.play('mechanism');
     this.ui.letterbox(true);
     this.tweens.add({ targets: p, x: e.s.x, duration: 600, ease: 'Sine.inOut' });
@@ -1517,6 +1523,7 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(1200, () => this.cameras.main.fade(900, 235, 255, 250));
     this.time.delayedCall(2200, () => {
       Save.completeLevel(this.levelIndex);
+      Portal.levelCompleted(this.levelIndex);
       this.registry.remove('persist-' + this.levelIndex);
       this.scene.stop('BG');
       this.scene.stop('UI');
@@ -1527,9 +1534,9 @@ export class GameScene extends Phaser.Scene {
         Save.write();
       }
       if (chapterDone) {
-        Crazy.midgameAd().then(() => this.scene.start('Ending', { chapter: this.levelDef.chapter, next: next < LEVELS.length ? next : -1 }));
+        Portal.breakAd(true).then(() => this.scene.start('Ending', { chapter: this.levelDef.chapter, next: next < LEVELS.length ? next : -1 }));
       } else {
-        Crazy.midgameAd().then(() => this.scene.start('Story', { level: next }));
+        Portal.breakAd(false).then(() => this.scene.start('Story', { level: next }));
       }
     });
   }

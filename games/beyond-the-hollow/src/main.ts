@@ -4,7 +4,7 @@ import '@fontsource/cinzel/latin-600.css';
 import '@fontsource/spectral/latin-400.css';
 import '@fontsource/spectral/latin-400-italic.css';
 import { PHYS } from './core/constants';
-import { Crazy } from './core/CrazySDK';
+import { Portal } from './core/Portal';
 import { Sound } from './core/Audio';
 import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
@@ -19,7 +19,7 @@ async function start() {
     Promise.all([document.fonts.load('48px Cinzel'), document.fonts.load('600 48px Cinzel'), document.fonts.load('20px Spectral'), document.fonts.load('italic 20px Spectral')]),
     new Promise((r) => setTimeout(r, 2500)),
   ]);
-  await Crazy.init();
+  await Portal.init();
   const game = new Phaser.Game({
     type: /[?&]canvas/.test(location.search) ? Phaser.CANVAS : Phaser.AUTO,
     parent: 'game',

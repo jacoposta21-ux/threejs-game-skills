@@ -42,7 +42,10 @@ export function lang(): LangCode {
 }
 
 /** Best guess from the browser (CrazyGames passes the player's locale through the browser language). */
-export function detectLanguage(): LangCode {
+export function detectLanguage(platformLang: string | null = null): LangCode {
+  // the portal knows the player's language best (Playgama Bridge)
+  const pl = platformLang?.toLowerCase().slice(0, 2);
+  if (pl && LANGS.some((x) => x.code === pl)) return pl as LangCode;
   const list = (navigator.languages?.length ? navigator.languages : [navigator.language || 'en']).map((l) => l.toLowerCase().slice(0, 2));
   for (const l of list) if (LANGS.some((x) => x.code === l)) return l as LangCode;
   return 'en';

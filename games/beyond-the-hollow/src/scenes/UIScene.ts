@@ -4,7 +4,7 @@ import { t } from '../core/i18n';
 import { Sound } from '../core/Audio';
 import { Save } from '../core/Save';
 import { TouchState } from '../core/Controls';
-import { Crazy } from '../core/CrazySDK';
+import { Portal } from '../core/Portal';
 import { COL, FONT_BODY, FONT_TITLE, Menu, isTouchDevice, ornament, toggleFullscreen } from './ui';
 import type { GameScene } from './GameScene';
 
@@ -393,7 +393,7 @@ export class UIScene extends Phaser.Scene {
     const gs = this.gs;
     if (!gs || this.overlay) return;
     gs.scene.pause();
-    Crazy.gameplayStop();
+    Portal.gameplayStop();
     Sound.stopCharge();
     const c = this.panel('pause', t('Paused'), gs.levelDef.subtitle + ' · ' + gs.levelDef.name);
     const h = this.scale.height;
@@ -422,7 +422,7 @@ export class UIScene extends Phaser.Scene {
     if (!this.gs) return;
     this.closeOverlay();
     this.gs.scene.resume();
-    Crazy.gameplayStart();
+    Portal.gameplayStart();
   }
 
   showGameOver() {
@@ -472,7 +472,7 @@ export class UIScene extends Phaser.Scene {
 
   private quit() {
     this.closeOverlay();
-    Crazy.gameplayStop();
+    Portal.gameplayStop();
     this.scene.stop('BG');
     this.scene.stop('Game');
     this.scene.start('Menu');

@@ -147,6 +147,35 @@ src/i18n     translation packs (it, es, fr, de, pt)
 tools        validate-levels.ts (--traps finds soft-locks), i18n-check.ts, gen-chapter2/3/4.py (map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs, playtest-ch3.mjs, playtest-ch4.mjs, playtest-bosses.mjs and playtest-boss-difficulty.mjs (LV=4|8|13|18)
 ```
 
+## Portals and builds
+
+The game talks to portals only through `src/core/Portal.ts`. There are two builds:
+
+| Build | Command | Output | Upload |
+|---|---|---|---|
+| CrazyGames (and generic web) | `npm run build` | `dist/` | `release/beyond-the-hollow-html5.zip` |
+| Playgama (+ its partner portals) | `npm run build:playgama` | `dist-playgama/` | `release/beyond-the-hollow-playgama.zip` |
+
+Each zip has `index.html` at the root and relative paths.
+
+### Playgama
+
+Playgama uses the [Bridge SDK](https://www.npmjs.com/package/@playgama/bridge), `@playgama/bridge` 2.3.1, pinned. The official Vite plugin injects it from `bridge.playgama.com`, and falls back to the bundled `playgama-bridge.js` if that fails. `playgama-bridge-config.json` (source: `portal/playgama/`) sits next to `index.html`.
+
+| Bridge feature | How the game uses it |
+|---|---|
+| `bridge.initialize()` | runs before the game is created |
+| loading progress | `setGameLoadingProgress` reports progress while assets are painted |
+| `game_ready` | sent when the title menu appears |
+| `gameplay_started` / `gameplay_stopped` | sent on play, pause, death and level end |
+| `level_started` / `level_completed` / `level_failed` | sent at those moments |
+| `player_got_achievement` | sent when a boss is defeated |
+| interstitials | shown between parts and chapters; the platform enforces the minimum delay (60 s in the config) and game audio is muted while the ad is open |
+| audio / pause / visibility | the platform's audio switch mutes the game; a pause request opens the in-game pause menu; a hidden page suspends audio |
+| `bridge.platform.language` | picks the language on first launch |
+| `bridge.storage` | mirrors the save (cloud saves where the platform has them); at boot the stored save is loaded |
+| CrazyGames SDK | never loaded in this build |
+
 ## CrazyGames
 
 No account, no payments. The SDK v3 is loaded only on CrazyGames domains (or with `?crazygames`). It handles `loadingStart/Stop`, `gameplayStart/Stop` on play, pause, and death, `happytime` on the boss kill, and a midgame ad between chapters, with audio muted during ads. Fullscreen, pause, game-over/restart screens, a responsive canvas (RESIZE + adaptive camera zoom) and touch controls are all built in.

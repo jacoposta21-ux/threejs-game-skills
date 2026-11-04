@@ -73,7 +73,7 @@ class AudioEngine {
     comp.threshold.value = -16;
     comp.ratio.value = 4;
     this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 1;
+    this.master.gain.value = this.muted || this.externalMute ? 0 : 1;
     this.master.connect(comp).connect(ctx.destination);
     this.music = ctx.createGain();
     this.music.gain.value = this.musicVol * 0.55;
@@ -119,7 +119,16 @@ class AudioEngine {
 
   setMuted(m: boolean) {
     this.muted = m;
-    if (this.ctx) this.master.gain.setTargetAtTime(m ? 0 : 1, this.ctx.currentTime, 0.05);
+    this.applyGain();
+  }
+  /** the portal muted the game (its own sound switch, or an ad is playing) */
+  externalMute = false;
+  setExternalMute(m: boolean) {
+    this.externalMute = m;
+    this.applyGain();
+  }
+  private applyGain() {
+    if (this.ctx) this.master.gain.setTargetAtTime(this.muted || this.externalMute ? 0 : 1, this.ctx.currentTime, 0.05);
   }
 
   /** Called when the tab is hidden or an ad plays. */

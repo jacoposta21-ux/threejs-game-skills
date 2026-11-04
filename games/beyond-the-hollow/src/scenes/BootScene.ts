@@ -9,7 +9,7 @@ import { buildChapter3 } from '../art/chapter3';
 import { buildChapter4 } from '../art/chapter4';
 import { Save } from '../core/Save';
 import { Sound } from '../core/Audio';
-import { Crazy } from '../core/CrazySDK';
+import { Portal } from '../core/Portal';
 
 /** Paints every shared texture procedurally (no image downloads), then opens the title screen. */
 export class BootScene extends Phaser.Scene {
@@ -19,9 +19,9 @@ export class BootScene extends Phaser.Scene {
   preload() {
   }
   create() {
-    Crazy.loadingStart();
+    Portal.loadingStart();
     const s = Save.load();
-    applyLanguage((s.settings.lang as LangCode) || detectLanguage());
+    applyLanguage((s.settings.lang as LangCode) || detectLanguage(Portal.language()));
     Sound.setVolumes(s.settings.music, s.settings.sfx);
     const steps: (() => void)[] = [
       () => buildFx(this),
@@ -40,6 +40,7 @@ export class BootScene extends Phaser.Scene {
     const next = () => {
       if (i < steps.length) {
         steps[i++]();
+        Portal.loadingProgress((100 * i) / steps.length);
         bar.clear();
         bar.fillStyle(0x7ff5e0, 0.8);
         bar.fillRect(w / 2 - 120, h / 2 + 40, (240 * i) / steps.length, 2);
@@ -50,7 +51,7 @@ export class BootScene extends Phaser.Scene {
           el.style.opacity = '0';
           setTimeout(() => el.remove(), 700);
         }
-        Crazy.loadingStop();
+        Portal.loadingStop();
         this.scene.start('Menu');
       }
     };
