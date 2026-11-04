@@ -594,7 +594,12 @@ export class Renderer {
     if (game.world !== this.world) this.snap(game);
     const area = game.playerArea();
     if (area.id !== this.areaId) this.snap(game);
-    if (game.mode === 'title') this._titleCamera();
+    if (this.cine) { // scripted camera (trailer / debug only): { pos: [x,y,z], look: [x,y,z] }
+      if (this.camera.view && this.camera.view.enabled) this.camera.clearViewOffset();
+      this.camera.position.set(...this.cine.pos);
+      this.camera.lookAt(...this.cine.look);
+      this.target.set(this.cine.look[0], 0, this.cine.look[2]);
+    } else if (game.mode === 'title') this._titleCamera();
     else { if (this.camera.view && this.camera.view.enabled) this.camera.clearViewOffset(); this._placeCamera(0); }
 
     this._syncObjects(game);
