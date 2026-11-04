@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { CHEATS } from '../core/cheats';
 import { t } from '../core/i18n';
 import { Sound } from '../core/Audio';
 import { Save } from '../core/Save';
@@ -19,6 +20,7 @@ export class UIScene extends Phaser.Scene {
   private barTop!: Phaser.GameObjects.Rectangle;
   private barBot!: Phaser.GameObjects.Rectangle;
   private toastText!: Phaser.GameObjects.Text;
+  private cheatTag: Phaser.GameObjects.Text | null = null;
   private toastTimer: Phaser.Time.TimerEvent | null = null;
   private overlay: Phaser.GameObjects.Container | null = null;
   private menu: Menu | null = null;
@@ -49,6 +51,7 @@ export class UIScene extends Phaser.Scene {
     this.barTop = this.add.rectangle(0, 0, w, 0, 0x000000).setOrigin(0, 0).setDepth(50);
     this.barBot = this.add.rectangle(0, h, w, 0, 0x000000).setOrigin(0, 1).setDepth(50);
     this.toastText = this.add.text(w / 2, h - 90, '', { fontFamily: FONT_BODY, fontSize: '18px', color: COL.text, stroke: '#000', strokeThickness: 4, align: 'center' }).setOrigin(0.5).setAlpha(0).setDepth(60);
+    this.cheatTag = CHEATS.infiniteLives ? this.add.text(w / 2, 20, '∞', { fontFamily: FONT_TITLE, fontSize: '22px', color: '#ffd27a', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setAlpha(0.8).setDepth(60) : null;
     this.bossName = this.add.text(w / 2, h - 58, '', { fontFamily: FONT_TITLE, fontSize: '16px', color: '#ffd0c0', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setVisible(false);
     this.buildButtons();
     if (isTouchDevice(this)) this.buildTouch();
@@ -201,6 +204,7 @@ export class UIScene extends Phaser.Scene {
   // ---------------------------------------------------------------- HUD
   update(_t: number, dms: number) {
     this.t += dms / 1000;
+    this.cheatTag?.setX(this.scale.width / 2);
     const gs = this.gs;
     this.hud.clear();
     if (!gs || !gs.player || !gs.scene.isActive() && !gs.scene.isPaused()) {

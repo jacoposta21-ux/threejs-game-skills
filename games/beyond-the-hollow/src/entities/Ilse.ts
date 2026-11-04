@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { CHEATS } from '../core/cheats';
 import { t } from '../core/i18n';
 import { DEPTH, TILE } from '../core/constants';
 import { Sound } from '../core/Audio';
@@ -31,7 +32,7 @@ export class Ilse extends Phaser.Physics.Arcade.Sprite {
   }
   hurt(dmg: number) {
     if (this.invuln > 0 || this.mode === 'down') return;
-    this.hp -= dmg;
+    if (!CHEATS.infiniteLives) this.hp -= dmg;
     this.invuln = 1;
     Sound.play('hurt');
     this.setTintFill(0xffffff);
