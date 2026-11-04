@@ -12,6 +12,7 @@ export default defineConfig({
   },
   use: {
     baseURL: 'http://127.0.0.1:5188',
+    ...(process.env.CHROMIUM_PATH ? { launchOptions: { executablePath: process.env.CHROMIUM_PATH } } : {}),
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

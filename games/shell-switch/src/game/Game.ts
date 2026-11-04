@@ -111,6 +111,7 @@ export class Game {
   private suspicionMax = 0;
   private readonly worldRoot = new THREE.Group();
   private testMode = false;
+  private hadLock = false;
   private readonly frameInfo = { calls: 0, triangles: 0 };
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -137,6 +138,14 @@ export class Game {
       if (document.hidden && this.state === 'play') {
         this.saveNow();
         this.pause();
+      }
+    });
+    // Esc while the mouse is captured only releases the lock in most browsers: treat that as pause.
+    document.addEventListener('pointerlockchange', () => {
+      if (document.pointerLockElement === this.canvas) this.hadLock = true;
+      else if (this.hadLock) {
+        this.hadLock = false;
+        if (this.state === 'play') this.pause();
       }
     });
     window.addEventListener('beforeunload', () => {
@@ -380,6 +389,7 @@ export class Game {
 
   pause(): void {
     if (this.state !== 'play') return;
+    this.hadLock = false;
     this.state = 'paused';
     Portal.gameplay(false);
     this.input.releasePointerLock();
@@ -1582,7 +1592,7 @@ export class Game {
     this.hud.setAction(this.action ? this.action.t / this.action.dur : null, this.action?.label ?? '');
     const [bits, total] = this.bitsCount();
     this.hud.setStats(bits, total, this.progress.cores);
-    this.hud.setInventory([...this.progress.items].filter((x) => x !== 'cityPass' || !this.progress.flag('passGranted') || true));
+    this.hud.setInventory([...this.progress.items].filter((x) => x !== 'cityPass'));
     // Tracker.
     const m = this.pickMission();
     if (m) {

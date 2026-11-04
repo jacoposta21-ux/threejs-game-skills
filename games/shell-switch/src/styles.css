@@ -1383,3 +1383,20 @@ body.touch #mini-host {
     font-size: 13px;
   }
 }
+
+/* Stacking: world labels < touch controls < HUD (pass-through except buttons) < menus. */
+#world-layer {
+  z-index: 1;
+}
+#touch {
+  z-index: 2;
+}
+#hud {
+  z-index: 3;
+}
+#menus {
+  z-index: 5;
+}
+#flash {
+  z-index: 6;
+}

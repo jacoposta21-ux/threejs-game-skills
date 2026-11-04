@@ -43,7 +43,12 @@ export function buildMuseum(ctx: AreaCtx): void {
   props.wall(-42, -23, -42, -20, H, stone, 0.5, trim);
   signs.add('UTILITY', -41.7, 3.2, -24.5, 1.4, Math.PI / 2, { bg: '#ffe27a', fg: '#2a2238' });
   // Column B dividers.
-  props.wall(-52, -48, -42, -48, H, stone, 0.5, trim);
+  props.wall(-52, -48, -47.45, -48, H, stone, 0.5, trim);
+  props.wall(-46.55, -48, -42, -48, H, stone, 0.5, trim);
+  // Glim-sized escape hatch so nobody gets stranded in the sealed archive.
+  ctx.add(new Vent('vent-archive', 'museum', V(-47, 0, -48), 'x', g));
+  w.block(-47, 0.75, -48, 0.9, H - 0.75, 0.5, stone);
+  col.box(-47, 0.75, -48, 0.9, H - 0.75, 0.5);
   props.wall(-52, -40, -42, -40, H, stone, 0.5, trim);
   props.wall(-52, -30, -42, -30, H, stone, 0.5, trim);
   // Wall x = -52.

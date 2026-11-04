@@ -324,6 +324,11 @@ function computePixelMetrics(png) {
 // the full Chromium build in new headless mode against the real GPU.
 async function launchBrowser() {
   const { chromium } = await loadDependency('@playwright/test');
+  // Containers whose preinstalled browser build differs from the npm Playwright
+  // version can point at it explicitly.
+  if (process.env.CHROMIUM_PATH) {
+    return chromium.launch({ executablePath: process.env.CHROMIUM_PATH, args: ['--enable-unsafe-swiftshader'] });
+  }
   try {
     return await chromium.launch({ channel: 'chromium' });
   } catch {

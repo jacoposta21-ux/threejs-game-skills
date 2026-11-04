@@ -164,7 +164,7 @@ export function buildCircus(ctx: AreaCtx): void {
   for (const x of [27.5, 32.5]) w.cyl(x, 0, 19.2, 0.4, 0.4, 0.3, '#2a2238', 10, { rx: Math.PI / 2, y: 0.4 });
   w.block(30, 2.0, 13.75, 1.0, 0.6, 0.05, '#ffe27a');
   signs.add('RINGMASTER · KEEP OUT', 30, 2.7, 13.76, 2.4, Math.PI, { bg: '#2a2238', fg: '#ffe27a', shape: 'rect' });
-  ctx.add(new Door('trailer', 'circus', V(30, 0, 14), 1.6, 2.6, 'x', { type: 'item', item: 'keycard', hint: 'A keycard slot. Moose the bouncer wears the card on his belt.' }, 'slide', 'Trailer', g, [30, 16.5]));
+  ctx.add(new Door('trailer', 'circus', V(30, 0, 14), 1.6, 2.6, 'x', { type: 'item', item: 'keycard', consume: true, hint: 'A keycard slot. Moose the bouncer wears the card on his belt.' }, 'slide', 'Trailer', g, [30, 16.5]));
   ctx.add(new ItemPickup('fuse-pickup', 'circus', V(32, 1.0, 17.8), 'fuse', g));
   w.block(32, 0, 17.8, 1.2, 0.7, 0.8, '#7d5130');
   col.box(32, 0, 17.8, 1.2, 0.7, 0.8);
