@@ -135,7 +135,8 @@ export function buildStation(ctx: AreaCtx): void {
   col.box(ns.x, 0, ns.z, 4.4, 2.5, 3, 'none', true);
   signs.add('SAUCER SIGHTED?!', ns.x, 2.95, ns.z + 1.72, 3.2, 0, { bg: '#fbf7ee', fg: '#e2473f', shape: 'rect', sub: 'Gazette Extra — Read All About It' });
   ctx.add(new CorePickup('station', V(ns.x, 3.2, ns.z), g));
-  ctx.add(new Plate('plate-step', 'station', V(ns.x, 0, 39.75), 1.6, 1.3, 'stepPlaced', g));
+  const stepPad = ctx.add(new Plate('plate-step', 'station', V(ns.x, 0, 39.75), 1.6, 1.3, 'stepPlaced', g));
+  stepPad.snap = [ns.x, 39.58];
 
   // Station clock (stopped at the moment of the crash).
   k.metal.cyl(0, 3.4, 31.35, 0.9, 0.9, 0.2, '#2d3a6b', 18, { rx: Math.PI / 2, y: 0 });

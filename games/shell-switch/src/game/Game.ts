@@ -498,6 +498,10 @@ export class Game {
     resizeRenderer(this.renderer, this.camera, this.maxDpr);
   }
   private maxDpr = 2;
+  /** Phones and the Low preset: blob shadows only for characters, shorter crowd draw distance. */
+  private get lowCost(): boolean {
+    return IS_MOBILE || this.settings.quality === 'low';
+  }
 
   private bindUi(): void {
     document.querySelector('#btn-pause')!.addEventListener('click', () => {
@@ -1543,7 +1547,7 @@ export class Game {
     for (const n of this.npcs) {
       const ch = n.ch;
       const d = Math.hypot(ch.pos.x - cp.x, ch.pos.z - cp.z);
-      const visible = d < 75;
+      const visible = d < (this.lowCost ? 42 : 75);
       ch.model.root.visible = visible;
       ch.active = visible;
       if (!visible) continue;
@@ -1621,8 +1625,9 @@ export class Game {
     this.shadowT -= dt;
     if (this.shadowT <= 0) {
       this.shadowT = 0.5;
+      const castRange = this.lowCost ? 0 : 22;
       for (const ch of this.characters) {
-        const near = Math.hypot(ch.pos.x - cp.x, ch.pos.z - cp.z) < 22;
+        const near = Math.hypot(ch.pos.x - cp.x, ch.pos.z - cp.z) < castRange;
         for (const m of ch.model.meshes) m.castShadow = near;
       }
     }
@@ -1645,7 +1650,7 @@ export class Game {
     const pr = this.currentPrompts;
     const busy = !!this.action || this.ejecting || this.launching || !!this.possessS;
     const eLabel = busy ? null : pr.e?.label ?? null;
-    const fLabel = busy ? null : pr.f?.label ?? pr.fDefault;
+    const fLabel = busy ? null : pr.f?.label ?? (pr.fDefault || h.ability);
     this.hud.setPrompts(eLabel, fLabel, c !== this.glim);
     const wp = !busy ? (pr.e ?? pr.f) : null;
     this.hud.setWorldPrompt(wp ? wp.pos : null, wp === pr.e ? 'E' : 'F', wp?.label ?? '');

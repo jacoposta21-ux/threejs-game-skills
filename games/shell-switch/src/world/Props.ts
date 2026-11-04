@@ -162,7 +162,22 @@ export class Props {
       this.k.world.block(cx, h, cz, w + 0.1, 0.18, d + 0.1, trim);
       this.k.world.block(cx, 0, cz, w + 0.08, 0.3, d + 0.08, trim);
     }
-    this.col.box(cx, 0, cz, w, h + 0.2, d, 'none', h > 2.2);
+    if (h >= 3) {
+      // Wainscot: darker lower panel, chair rail and evenly spaced pilasters give walls scale and craft.
+      const dark = '#' + new THREE.Color(color).multiplyScalar(0.8).getHexString();
+      const rail = trim ?? '#' + new THREE.Color(color).multiplyScalar(1.12).getHexString();
+      const along = w >= d;
+      this.k.world.block(cx, 0.3, cz, w + (along ? 0 : 0.06), 0.85, d + (along ? 0.06 : 0), dark);
+      this.k.world.block(cx, 1.15, cz, w + (along ? 0 : 0.1), 0.1, d + (along ? 0.1 : 0), rail);
+      this.k.world.block(cx, h - 0.55, cz, w + (along ? 0 : 0.08), 0.12, d + (along ? 0.08 : 0), rail);
+      const len = along ? w : d;
+      const n = Math.floor(len / 4);
+      for (let i = 1; i < n; i += 1) {
+        const o = -len / 2 + (i * len) / n;
+        this.k.world.block(along ? cx + o : cx, 1.25, along ? cz : cz + o, along ? 0.28 : t + 0.12, h - 1.85, along ? t + 0.12 : 0.28, rail);
+      }
+    }
+    this.col.box(cx, 0, cz, w, h + 0.2, d, 'none', h >= 2);
   }
 
   fence(x0: number, z0: number, x1: number, z1: number, color = '#fbf7ee', h = 1.0): void {

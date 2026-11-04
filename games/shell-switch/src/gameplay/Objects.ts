@@ -268,9 +268,24 @@ export class Plate extends WorldObject {
     this.markerY = 1.2;
     this.range = 0;
   }
+  /** Optional exact spot a crate is nudged to when it lands on the pad (e.g. flush against a ledge). */
+  snap: [number, number] | null = null;
+
   update(_dt: number, g: Game): void {
     let on = false;
-    for (const c of g.crates) if (c.style.kind === 'crate' && c.isInside(this.pos.x - this.w / 2, this.pos.x + this.w / 2, this.pos.z - this.d / 2, this.pos.z + this.d / 2)) on = true;
+    for (const c of g.crates) {
+      if (c.style.kind !== 'crate' || !c.isInside(this.pos.x - this.w / 2, this.pos.x + this.w / 2, this.pos.z - this.d / 2, this.pos.z + this.d / 2)) continue;
+      on = true;
+      if (this.snap && (Math.abs(c.pos.x - this.snap[0]) > 0.01 || Math.abs(c.pos.z - this.snap[1]) > 0.01)) {
+        c.pos.x = this.snap[0];
+        c.pos.z = this.snap[1];
+        c.group.position.copy(c.pos);
+        c.group.rotation.set(0, 0, 0);
+        c.syncCollider();
+        g.progress.objects[c.id] = [c.pos.x, c.pos.y, c.pos.z];
+        g.progress.dirty = true;
+      }
+    }
     if (on !== this.active) {
       this.active = on;
       if (on) {
