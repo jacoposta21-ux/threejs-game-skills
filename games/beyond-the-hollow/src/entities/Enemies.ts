@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { t } from '../core/i18n';
 import { DEPTH, TILE } from '../core/constants';
 import { Sound } from '../core/Audio';
 import type { GameScene } from '../scenes/GameScene';
@@ -1266,7 +1267,7 @@ export class ShadowBoss extends Enemy {
       this.gs.fx.smokeWisp(bx, by);
       if (!this.warned) {
         this.warned = true;
-        this.gs.toast(this.phase >= 2 ? 'Only light can wound it — lanterns, or the light of the past' : 'It cannot be hurt in the dark — light the lanterns!', 2600);
+        this.gs.toast(this.phase >= 2 ? t('Only light can wound it — lanterns, or the light of the past') : t('It cannot be hurt in the dark — light the lanterns!'), 2600);
       }
       return false;
     }
@@ -1347,7 +1348,7 @@ export class ShadowHeart extends Enemy {
   beginFight() {
     this.mode = 'p1';
     this.gs.infectNodes(3);
-    this.gs.toast('Hang from the infected nodes with the Light Thread (F) to purify them', 3200);
+    this.gs.toast(t('Hang from the infected nodes with the Light Thread (F) to purify them'), 3200);
   }
   roar() {
     Sound.play('roar', this.pan());
@@ -1421,7 +1422,7 @@ export class ShadowHeart extends Enemy {
           this.coreOpen = true;
           this.play('heart-open');
           Sound.play('core', this.pan());
-          this.gs.toast('Its core is torn open — strike!', 1600);
+          this.gs.toast(t('Its core is torn open — strike!'), 1600);
         }
       }
     }

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { t } from '../core/i18n';
 import { DEPTH, TILE, VIEW_H, VIEW_W_MIN } from '../core/constants';
 import { Controls } from '../core/Controls';
 import { Sound } from '../core/Audio';
@@ -563,7 +564,7 @@ export class GameScene extends Phaser.Scene {
     // Pip command
     if (this.controls.pressed.pip && !this.cutscene && p.state !== 'dead') {
       const r = this.pip.command();
-      if (r === 'lure') this.toast('Pip sings — creatures will follow her', 1400);
+      if (r === 'lure') this.toast(t('Pip sings — creatures will follow her'), 1400);
     }
     if (!this.cutscene && !this.pipControl) p.update(dt);
     else p.animate();
@@ -776,7 +777,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   onRitualStart(door: Door) {
-    this.toast('Protect Ilse while she opens the Keeper door!', 2200);
+    this.toast(t('Protect Ilse while she opens the Keeper door!'), 2200);
     const il = this.ilse!;
     for (const dx of [-260, 260]) {
       const s = new VeiledShade(this, door.s.x + dx, door.s.y - 40, true);
@@ -791,7 +792,7 @@ export class GameScene extends Phaser.Scene {
 
   onIlseDown() {
     this.player.die();
-    this.time.delayedCall(800, () => this.toast('Ilse has fallen', 2000));
+    this.time.delayedCall(800, () => this.toast(t('Ilse has fallen'), 2000));
   }
 
   private updatePipControl(dt: number) {
@@ -835,7 +836,7 @@ export class GameScene extends Phaser.Scene {
     p.setPState('air');
     Sound.play('checkpoint');
     this.fx.ring(p.x, p.y - 30, 0xffd27a);
-    this.toast('Elias rises. Ilse runs to the Seed —', 2000);
+    this.toast(t('Elias rises. Ilse runs to the Seed —'), 2000);
     const b = this.boss as ShadowHeart;
     if (!this.ilse) {
       this.ilse = new Ilse(this, this.bossArena![0] + 40, this.level.heightPx - 5 * TILE);
@@ -847,7 +848,7 @@ export class GameScene extends Phaser.Scene {
         if (!this.ilse || Math.abs(this.ilse.x - (b.x - 30)) < 24) {
           wait.remove();
           b.holdOpen();
-          this.toast('Ilse holds the core open — now, Elias!', 2400);
+          this.toast(t('Ilse holds the core open — now, Elias!'), 2400);
         }
       },
     });
@@ -863,7 +864,7 @@ export class GameScene extends Phaser.Scene {
   snuffLanterns() {
     if (!this.lanterns.some((l) => l.lit)) return;
     this.lanterns.forEach((l) => l.setLit(false));
-    this.toast('The Shadow snuffs out the lanterns!', 1600);
+    this.toast(t('The Shadow snuffs out the lanterns!'), 1600);
   }
 
   spawnEnemy(e: Enemy) {
@@ -883,7 +884,7 @@ export class GameScene extends Phaser.Scene {
     const bodies = [this.player.body, ...this.crates.map((c) => c.body)];
     if (blockers.some((b) => bodies.some((bd) => b.overlaps(bd)))) {
       Sound.play('hurt');
-      this.toast('Something stands in the way in the other time', 1400);
+      this.toast(t('Something stands in the way in the other time'), 1400);
       this.ecoCd = 0.4;
       return;
     }
@@ -1187,7 +1188,7 @@ export class GameScene extends Phaser.Scene {
 
   onBossPhase(n: number) {
     if (this.boss instanceof ShadowHeart) {
-      if (n === 2) this.toast('Its waves live in one time only — switch with the Echo (R)', 2600);
+      if (n === 2) this.toast(t('Its waves live in one time only — switch with the Echo (R)'), 2600);
       if (n === 3) {
         const p = this.player;
         p.setPState('cutscene');
@@ -1198,7 +1199,7 @@ export class GameScene extends Phaser.Scene {
         Sound.play('death');
         this.pipControl = true;
         this.pip.takeControl(true);
-        this.toast('Elias is struck down! Fly Pip (arrows) to gather the light of the Seed', 3200);
+        this.toast(t('Elias is struck down! Fly Pip (arrows) to gather the light of the Seed'), 3200);
         const [a, b] = this.bossArena!;
         for (const fx of [0.18, 0.5, 0.82]) {
           const m = this.add.image(a + (b - a) * fx, this.level.heightPx - 5 * TILE - 120 - Math.random() * 120, 'mote').setScale(0.6).setBlendMode(ADD).setDepth(DEPTH.glow);
@@ -1209,16 +1210,16 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (this.boss instanceof ShadowBoss) {
-      if (n === 2) this.toast('It snuffs the light — look into the past (Echo)', 2400);
+      if (n === 2) this.toast(t('It snuffs the light — look into the past (Echo)'), 2400);
       if (n === 3) {
-        this.toast('It is eating the light! Stay close to Pip', 2200);
+        this.toast(t('It is eating the light! Stay close to Pip'), 2200);
         this.tweens.add({ targets: this.lighting, darkness: Math.min(0.97, this.lighting.darkness + 0.15), duration: 1500 });
       }
       return;
     }
     if (this.boss instanceof Warden) {
       if (n === 2) {
-        this.toast('The Warden launches its sentries!', 1800);
+        this.toast(t('The Warden launches its sentries!'), 1800);
         const [a, b] = this.bossArena!;
         for (const fx of [a + 160, b - 160]) {
           const d = new Drone(this, fx, this.level.heightPx - 7 * TILE);
@@ -1227,13 +1228,13 @@ export class GameScene extends Phaser.Scene {
         }
       }
       if (n === 3) {
-        this.toast('Overheating! It strikes faster', 1800);
+        this.toast(t('Overheating! It strikes faster'), 1800);
         this.crushers.forEach((c) => (c.t = 0));
       }
       return;
     }
     if (n === 2) {
-      this.toast('The Guardian calls its brood!', 1800);
+      this.toast(t('The Guardian calls its brood!'), 1800);
       const L = this.level;
       const [a, b] = this.bossArena!;
       for (const fx of [a + 120, b - 120]) {
@@ -1247,7 +1248,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (n === 3) {
-      this.toast('The Heart dims — stay in the light', 1800);
+      this.toast(t('The Heart dims — stay in the light'), 1800);
       this.tweens.add({ targets: this.lighting, extra: 0.2, duration: 1500 });
       const s = new Stalker(this, this.bossArena![0] + 80, this.level.heightPx - 200);
       this.enemies.push(s);
@@ -1275,7 +1276,7 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.setBounds(0, 0, this.level.widthPx, this.level.heightPx);
       this.physics.world.setBounds(0, 0, this.level.widthPx, this.level.heightPx + 400);
       if (g instanceof ShadowHeart) this.hooks.forEach((h) => h.setDark(false));
-      this.toast(g instanceof ShadowHeart ? 'The Seed is free' : g instanceof Warden ? 'The Ancient Sentinel falls silent' : g instanceof ShadowBoss ? 'The Shadow flees into the Seed' : 'The lock is open', 2500);
+      this.toast(g instanceof ShadowHeart ? t('The Seed is free') : g instanceof Warden ? t('The Ancient Sentinel falls silent') : g instanceof ShadowBoss ? t('The Shadow flees into the Seed') : t('The lock is open'), 2500);
       Sound.playTheme('ending');
     });
   }

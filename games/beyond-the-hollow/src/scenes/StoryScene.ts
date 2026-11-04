@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { t } from '../core/i18n';
 import { LEVELS } from '../levels/levels';
 import { Sound } from '../core/Audio';
 import { Save } from '../core/Save';
@@ -42,7 +43,7 @@ export class StoryScene extends Phaser.Scene {
       texts.push(t);
       this.tweens.add({ targets: t, alpha: 1, delay: 900 + i * 2200, duration: 1400 });
     });
-    const cont = this.add.text(w / 2, h - 50, 'Press any key to continue', { fontFamily: FONT_BODY, fontSize: '15px', color: COL.dim }).setOrigin(0.5).setAlpha(0);
+    const cont = this.add.text(w / 2, h - 50, t('Press any key to continue'), { fontFamily: FONT_BODY, fontSize: '15px', color: COL.dim }).setOrigin(0.5).setAlpha(0);
     const ready = 900 + L.intro.length * 2200;
     this.tweens.add({ targets: cont, alpha: 0.8, delay: Math.min(ready, 2500), duration: 800 });
     let done = false;

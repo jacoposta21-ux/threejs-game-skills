@@ -67,6 +67,8 @@ export class Menu {
       const en = !r.item.enabled || r.item.enabled();
       const sel = i === this.index;
       r.text.setText(typeof r.item.label === 'function' ? r.item.label() : r.item.label);
+      // longer translations shrink to stay inside the pill
+      r.text.setScale(Math.min(1, (r.w - 48) / Math.max(1, r.text.width)));
       r.text.setColor(!en ? '#4d555a' : sel ? '#ffffff' : COL.text);
       r.bg.clear();
       if (sel && en) {

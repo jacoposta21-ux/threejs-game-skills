@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { applyLanguage, detectLanguage, type LangCode } from '../core/i18n';
 import { buildElias } from '../art/elias';
 import { buildCreatures } from '../art/creatures';
 import { buildCommonProps, buildFx, buildThemeProps } from '../art/props';
@@ -22,6 +23,7 @@ export class BootScene extends Phaser.Scene {
   create() {
     Crazy.loadingStart();
     const s = Save.load();
+    applyLanguage((s.settings.lang as LangCode) || detectLanguage());
     Sound.setVolumes(s.settings.music, s.settings.sfx);
     const steps: (() => void)[] = [
       () => buildFx(this),

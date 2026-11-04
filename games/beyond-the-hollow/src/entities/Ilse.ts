@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { t } from '../core/i18n';
 import { DEPTH, TILE } from '../core/constants';
 import { Sound } from '../core/Audio';
 import type { GameScene } from '../scenes/GameScene';
@@ -95,7 +96,7 @@ export class Ilse extends Phaser.Physics.Arcade.Sprite {
         if (this.channelT >= 4) {
           this.glow.setAlpha(0);
           this.door?.openPermanent();
-          this.gs.toast('The Keeper door opens for Ilse', 1800);
+          this.gs.toast(t('The Keeper door opens for Ilse'), 1800);
           this.mode = 'follow';
           this.door = null;
         }

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { t } from '../core/i18n';
 import { Sound } from '../core/Audio';
 import { Save } from '../core/Save';
 import { TouchState } from '../core/Controls';
@@ -349,7 +350,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   toast(msg: string, ms = 2200) {
-    this.toastText.setText(msg);
+    this.toastText.setWordWrapWidth(this.scale.width - 40).setText(t(msg));
     this.tweens.killTweensOf(this.toastText);
     this.toastText.setAlpha(0);
     this.tweens.add({ targets: this.toastText, alpha: 1, duration: 250 });
@@ -388,15 +389,15 @@ export class UIScene extends Phaser.Scene {
     gs.scene.pause();
     Crazy.gameplayStop();
     Sound.stopCharge();
-    const c = this.panel('pause', 'Paused', gs.levelDef.subtitle + ' · ' + gs.levelDef.name);
+    const c = this.panel('pause', t('Paused'), gs.levelDef.subtitle + ' · ' + gs.levelDef.name);
     const h = this.scale.height;
     this.menu = new Menu(this, this.scale.width / 2, h * 0.24 + 120, [
-      { label: 'Resume', action: () => this.closePause() },
-      { label: 'Restart from checkpoint', action: () => this.restart(true) },
-      { label: 'Restart chapter', action: () => this.restart(false) },
-      { label: () => (this.scale.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'), action: () => toggleFullscreen(this) },
-      { label: () => `Sound: ${Sound.muted ? 'Off' : 'On'}`, action: () => Sound.setMuted(!Sound.muted) },
-      { label: 'Quit to title', action: () => this.quit() },
+      { label: t('Resume'), action: () => this.closePause() },
+      { label: t('Restart from checkpoint'), action: () => this.restart(true) },
+      { label: t('Restart chapter'), action: () => this.restart(false) },
+      { label: () => (this.scale.isFullscreen ? t('Exit Fullscreen') : t('Fullscreen')), action: () => toggleFullscreen(this) },
+      { label: () => `${t('Sound')}: ${Sound.muted ? t('Off') : t('On')}`, action: () => Sound.setMuted(!Sound.muted) },
+      { label: t('Quit to title'), action: () => this.quit() },
     ], { width: 340, gap: Math.min(52, (h * 0.6) / 6) });
     c.add(this.menu.container);
     this.controlsLegend(c);
@@ -406,8 +407,8 @@ export class UIScene extends Phaser.Scene {
     const w = this.scale.width, h = this.scale.height;
     if (h < 520) return;
     const txt = isTouchDevice(this)
-      ? 'Touch: ◀ ▶ move · JUMP (tap again to boost) · FIRE (hold to charge) · PIP · ▲ climb · ▼ crouch'
-      : 'Move A/D ←→ · Jump SPACE · Crouch S ↓ · Climb W ↑ · Fire X/J/Click (hold = charge) · Pip Q/K/Right-click · Pause ESC · Fullscreen in menu';
+      ? t('Touch: ◀ ▶ move · JUMP (tap again to boost) · FIRE (hold to charge) · PIP · ▲ climb · ▼ crouch')
+      : t('Move A/D ←→ · Jump SPACE · Crouch S ↓ · Climb W ↑ · Fire X/J/Click (hold = charge) · Pip Q/K/Right-click · Pause ESC · Fullscreen in menu');
     c.add(this.add.text(w / 2, h - 40, txt, { fontFamily: FONT_BODY, fontSize: '14px', color: COL.dim, align: 'center', wordWrap: { width: w - 60 } }).setOrigin(0.5, 1));
   }
 
@@ -421,13 +422,13 @@ export class UIScene extends Phaser.Scene {
   showGameOver() {
     const gs = this.gs;
     if (!gs) return;
-    const lines = ['The Hollow is patient.', 'Pip will not leave you.', 'Not like this. Not yet.', 'The dark remembers your name.'];
-    const c = this.panel('gameover', 'Elias has fallen', lines[Save.data.deaths % lines.length]);
+    const lines = ['The Hollow is patient.', 'Pip will not leave you.', 'Not like this. Not yet.', 'The dark remembers your name.'].map((s) => t(s));
+    const c = this.panel('gameover', t('Elias has fallen'), lines[Save.data.deaths % lines.length]);
     const h = this.scale.height;
     this.menu = new Menu(this, this.scale.width / 2, h * 0.24 + 130, [
-      { label: 'Retry from checkpoint', action: () => this.restart(true) },
-      { label: 'Restart chapter', action: () => this.restart(false) },
-      { label: 'Quit to title', action: () => this.quit() },
+      { label: t('Retry from checkpoint'), action: () => this.restart(true) },
+      { label: t('Restart chapter'), action: () => this.restart(false) },
+      { label: t('Quit to title'), action: () => this.quit() },
     ], { width: 340 });
     c.add(this.menu.container);
     gs.scene.pause();
@@ -473,7 +474,7 @@ export class UIScene extends Phaser.Scene {
     const t1 = this.add.text(w / 2 - pw / 2 + 28, h / 2 - ph / 2 + 24, head, { fontFamily: FONT_TITLE, fontSize: '16px', color: COL.accent }).setLetterSpacing(3);
     const t2 = this.add.text(w / 2 - pw / 2 + 28, h / 2 - ph / 2 + 60, rest.join('\n'), { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: '19px', color: COL.text, wordWrap: { width: pw - 56 }, lineSpacing: 6 });
     const found = Save.data.lore.length;
-    const t3 = this.add.text(w / 2, h / 2 + ph / 2 - 22, `Recorder ${found} found · ${isTouchDevice(this) ? 'tap' : 'press E'} to continue`, { fontFamily: FONT_BODY, fontSize: '14px', color: COL.dim }).setOrigin(0.5);
+    const t3 = this.add.text(w / 2, h / 2 + ph / 2 - 22, isTouchDevice(this) ? t('Recordings found: {0} · tap to continue', found) : t('Recordings found: {0} · press E to continue', found), { fontFamily: FONT_BODY, fontSize: '14px', color: COL.dim }).setOrigin(0.5);
     c.add([dim, g, t1, t2, t3]);
     c.setAlpha(0);
     this.tweens.add({ targets: c, alpha: 1, duration: 300 });

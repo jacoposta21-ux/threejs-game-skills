@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { t } from '../core/i18n';
 import { Sound } from '../core/Audio';
 import { Save } from '../core/Save';
 import { CHAPTERS, LEVELS } from '../levels/levels';
@@ -53,18 +54,18 @@ export class EndingScene extends Phaser.Scene {
       const ilse = this.add.sprite(el.x - 46, el.y, 'ilse', 0).setScale(0.86).setOrigin(0.5, 0.95).play('ilse-idle').setTint(0x2a1a22);
       void ilse;
       lines = lightEnding
-        ? [
+        ? ([
             'Pip sang. Every verse Elias had gathered — his mother’s voice, the Keepers’ voices — became one song.',
             'The Seed woke whole. The Shadow had nothing left to hold, and it let go.',
             'At dawn, two people and one small light climbed out onto Hollow Ridge.',
             'Far below, for the first time in a thousand years, the Hollow dreamed of gardens.',
-          ]
-        : [
+          ] as string[]).map((s) => t(s))
+        : ([
             'There were not enough verses. Pip knew it before they did.',
             'She flew into the Seed, and the Seed woke — golden, whole and alive.',
             'At dawn, Elias and his mother climbed out onto Hollow Ridge. Neither of them spoke.',
             'In a crack in the rock, a tiny golden light blinked. Three short. Three long.',
-          ];
+          ] as string[]).map((s) => t(s));
       if (!lightEnding) {
         pip.setVisible(false);
         glow.setVisible(false);
@@ -105,21 +106,23 @@ export class EndingScene extends Phaser.Scene {
       pip.setDepth(5);
       glow.setDepth(5);
     }
+    let ly = h * 0.16 - 14;
     lines.forEach((l, i) => {
-      const t = this.add.text(w / 2, h * 0.16 + i * 44, l, { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: `${Math.min(21, w / 36)}px`, color: '#fff6e8', stroke: '#2a1420', strokeThickness: 4, align: 'center', wordWrap: { width: w - 60 } }).setOrigin(0.5).setAlpha(0);
-      this.tweens.add({ targets: t, alpha: 1, delay: 2000 + i * 3000, duration: 1500 });
-      this.tweens.add({ targets: t, alpha: 0, delay: 15000, duration: 1500 });
+      const lt = this.add.text(w / 2, ly, l, { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: `${Math.min(21, w / 36)}px`, color: '#fff6e8', stroke: '#2a1420', strokeThickness: 4, align: 'center', wordWrap: { width: w - 60 } }).setOrigin(0.5, 0).setAlpha(0);
+      ly += lt.height + 12;
+      this.tweens.add({ targets: lt, alpha: 1, delay: 2000 + i * 3000, duration: 1500 });
+      this.tweens.add({ targets: lt, alpha: 0, delay: 15000, duration: 1500 });
     });
     const c = this.add.container(w / 2, h * 0.36).setAlpha(0);
-    const t = this.add.text(0, 0, chapter === 4 ? 'BEYOND THE HOLLOW' : `CHAPTER ${ch.roman} · ${ch.title.toUpperCase()}`, { fontFamily: FONT_TITLE, fontSize: `${Math.min(48, w / 16)}px`, color: '#fff6e8', stroke: '#2a1420', strokeThickness: 6 }).setOrigin(0.5).setLetterSpacing(6);
+    const ttl = this.add.text(0, 0, chapter === 4 ? 'BEYOND THE HOLLOW' : t('Chapter {0} · {1}', ch.roman, ch.title).toUpperCase(), { fontFamily: FONT_TITLE, fontSize: `${Math.min(48, w / 16)}px`, color: '#fff6e8', stroke: '#2a1420', strokeThickness: 6 }).setOrigin(0.5).setLetterSpacing(6);
     const g = this.add.graphics();
     ornament(g, 0, 40, 380, 0xfff0d0, 0.9);
     const found = Save.data.lore.length;
     const total = LEVELS.reduce((n, L) => n + L.lore.length, 0);
-    const credits = this.add.text(0, 70, `${next >= 0 ? 'Chapter complete' : chapter === 4 ? (lightEnding ? 'Ending · Light' : 'Ending · Seed') + '\n\nThank you for playing' : 'Thank you for playing'}\n\nRecordings found  ${found} / ${total}      Falls  ${Save.data.deaths}\n\n${chapter === 4 && !lightEnding ? 'Find more recordings — the Canto can still change Pip’s fate.' : ch.next ? 'Next — ' + ch.next : ''}`, { fontFamily: FONT_BODY, fontSize: '17px', color: '#fff6e8', align: 'center', stroke: '#2a1420', strokeThickness: 3 }).setOrigin(0.5, 0);
-    c.add([g, t, credits]);
+    const credits = this.add.text(0, 70, `${next >= 0 ? t('Chapter complete') : chapter === 4 ? (lightEnding ? t('Ending · Light') : t('Ending · Seed')) + '\n\n' + t('Thank you for playing') : t('Thank you for playing')}\n\n${t('Recordings found')}  ${found} / ${total}      ${t('Falls')}  ${Save.data.deaths}\n\n${chapter === 4 && !lightEnding ? t('Find more recordings — the Canto can still change Pip’s fate.') : ch.next ? t('Next — {0}', ch.next) : ''}`, { fontFamily: FONT_BODY, fontSize: '17px', color: '#fff6e8', align: 'center', stroke: '#2a1420', strokeThickness: 3, wordWrap: { width: w - 40 } }).setOrigin(0.5, 0);
+    c.add([g, ttl, credits]);
     this.tweens.add({ targets: c, alpha: 1, delay: 16500, duration: 2000 });
-    const back = this.add.text(w / 2, h - 36, next >= 0 ? 'Press any key to begin the next chapter' : 'Press any key to return to the title', { fontFamily: FONT_BODY, fontSize: '15px', color: COL.text }).setOrigin(0.5).setAlpha(0);
+    const back = this.add.text(w / 2, h - 36, next >= 0 ? t('Press any key to begin the next chapter') : t('Press any key to return to the title'), { fontFamily: FONT_BODY, fontSize: '15px', color: COL.text }).setOrigin(0.5).setAlpha(0);
     this.tweens.add({ targets: back, alpha: 0.85, delay: 18000, duration: 1000 });
     this.time.delayedCall(4000, () => {
       const go = () => {

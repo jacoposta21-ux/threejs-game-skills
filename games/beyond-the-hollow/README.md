@@ -76,24 +76,33 @@ Pip learns the **Light Thread** (F / O, gamepad LB, touch HOOK): catch a glowing
 | 4 | The Sanctuary of the Seed | **Ilse** follows you; at Keeper doors she kneels and channels while shades hunt her (if she falls, it's game over) | Veiled Shades |
 | 5 | The Heart of Shadow | **Final boss**, three phases: hang from infected nodes to purify them; dodge waves that exist in only one time (Echo); Elias is struck down and you fly **Pip** to gather the Seed's light, then Ilse holds the core open for the last shot | — |
 
-**Two endings.** With at least 80% of the game's 49 recordings found you get *Light* (the Canto is complete and Pip stays with Elias). Otherwise you get *Seed* (Pip becomes the Hollow's new heart).
+**Two endings.** With at least 80% of the game's 50 recordings found you get *Light* (the Canto is complete and Pip stays with Elias). Otherwise you get *Seed* (Pip becomes the Hollow's new heart).
 
 Story and level structure for Chapters III–IV live in `docs/capitoli-3-4.md`.
 
 The title screen opens on the key art (`src/assets/keyart.jpg`), and `public/cover-512.jpg` is a cover thumbnail for the portal listing.
 
-Checkpoints save to `localStorage`, and Continue resumes from the last one. Chapter select is grouped by chapter. A death offers retry from checkpoint or restart chapter. The game also has lore recordings (49), settings (music/sfx volume, quality, screen shake), fullscreen, and gamepad support.
+Checkpoints save to `localStorage`, and Continue resumes from the last one. Chapter select is grouped by chapter. A death offers retry from checkpoint or restart chapter. The game also has lore recordings (50), settings (music/sfx volume, quality, language, screen shake), fullscreen, and gamepad support.
+
+## Languages
+
+The game is fully translated into English, Italiano, Español, Français, Deutsch and Português: menus, HUD messages, hints, story, recordings, boss titles and endings. On first launch the language follows the browser (on CrazyGames that is the player's locale); Settings → Language switches it at any time, and the choice is saved.
+
+- `src/core/i18n.ts` — `t('English text', …args)` for UI strings; `applyLanguage()` rewrites the level/chapter data in place from stable ids (`<level>.intro.0`, `<level>.lore.2`, `ch3.end.1`…).
+- `src/i18n/<lang>.ts` — one pack per language (`ui` keyed by the English text, `data` keyed by id). Key and button names (JUMP, FIRE, SPACE, Q…) stay as on the controls.
+- `node --experimental-strip-types tools/i18n-check.ts` lists every translatable string and fails on missing ids, stray keys or broken `{0}` placeholders (`--dump file.json` writes the source catalogue).
 
 ## Architecture
 
 ```
-src/core     constants, Save (localStorage), Audio (generative music + SFX), Controls (kbd/mouse/pad/touch), CrazySDK wrapper
+src/core     constants, Save (localStorage), i18n, Audio (generative music + SFX), Controls (kbd/mouse/pad/touch), CrazySDK wrapper
 src/art      procedural painters: elias (FK pose → sprite sheet), creatures, tiles (autotiled, extruded atlas), backgrounds, props/FX
 src/levels   ASCII segment level data + compiler (→ Phaser Tilemap)
 src/world    LevelMap (tilemap layers, decor scatter), Objects (doors, plates, mechanisms, hazards…), Lighting (darkness RT), Fx
 src/entities Player (explicit animation/physics state machine), Pip, Enemies (Crawler, Stalker, Burrower, Guardian/boss)
 src/scenes   Boot, Menu, Story, BG (parallax), Game, UI (HUD/menus/touch), Ending
-tools        validate-levels.ts, gen-chapter2/3/4.py (map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs, playtest-ch3.mjs, playtest-ch4.mjs
+src/i18n     translation packs (it, es, fr, de, pt)
+tools        validate-levels.ts, i18n-check.ts, gen-chapter2/3/4.py (map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs, playtest-ch3.mjs, playtest-ch4.mjs
 ```
 
 ## CrazyGames

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { LANGS, applyLanguage, lang, t } from '../core/i18n';
 import { Save } from '../core/Save';
 import { Sound } from '../core/Audio';
 import { CHAPTERS, LEVELS } from '../levels/levels';
@@ -38,7 +39,7 @@ export class MenuScene extends Phaser.Scene {
     this.root = this.add.container(0, 0);
     this.title = this.add.container(0, 0);
     this.title.add(this.buildTitle());
-    this.prompt = this.add.text(0, 0, isTouchDevice(this) ? 'Tap to begin' : 'Press any key', { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: '20px', color: COL.text }).setOrigin(0.5);
+    this.prompt = this.add.text(0, 0, isTouchDevice(this) ? t('Tap to begin') : t('Press any key'), { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: '20px', color: COL.text }).setOrigin(0.5);
     this.tweens.add({ targets: this.prompt, alpha: 0.35, duration: 1100, yoyo: true, repeat: -1 });
     // opening splash: the key art, cover-fitted, until the first input
     const splash = this.add.container(0, 0).setDepth(100);
@@ -191,12 +192,12 @@ export class MenuScene extends Phaser.Scene {
     this.page = 'main';
     const has = Save.hasProgress() && !Save.data.completed;
     const items: MenuItem[] = [];
-    if (has) items.push({ label: `Continue — ${LEVELS[Save.data.level]?.subtitle ?? ''}`, action: () => this.startGame(Save.data.level, Save.data.checkpoint) });
-    items.push({ label: has || Save.data.completed ? 'New Journey' : 'Begin the Journey', action: () => { Save.newGame(); this.registry.getAll && Object.keys(this.registry.getAll()).forEach((k) => k.startsWith('persist-') && this.registry.remove(k)); this.startStory(0); } });
-    items.push({ label: 'Chapters', action: () => this.showChapters() });
-    items.push({ label: 'Settings', action: () => this.showSettings() });
-    items.push({ label: 'How to Play', action: () => this.showControls() });
-    items.push({ label: () => (this.scale.isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'), action: () => toggleFullscreen(this) });
+    if (has) items.push({ label: t('Continue — {0}', LEVELS[Save.data.level]?.subtitle ?? ''), action: () => this.startGame(Save.data.level, Save.data.checkpoint) });
+    items.push({ label: has || Save.data.completed ? t('New Journey') : t('Begin the Journey'), action: () => { Save.newGame(); this.registry.getAll && Object.keys(this.registry.getAll()).forEach((k) => k.startsWith('persist-') && this.registry.remove(k)); this.startStory(0); } });
+    items.push({ label: t('Chapters'), action: () => this.showChapters() });
+    items.push({ label: t('Settings'), action: () => this.showSettings() });
+    items.push({ label: t('How to Play'), action: () => this.showControls() });
+    items.push({ label: () => (this.scale.isFullscreen ? t('Exit Fullscreen') : t('Fullscreen')), action: () => toggleFullscreen(this) });
     this.setMenu(items, 360);
   }
 
@@ -205,12 +206,12 @@ export class MenuScene extends Phaser.Scene {
     const items: MenuItem[] = CHAPTERS.map((C, ci) => {
       const first = LEVELS.findIndex((L) => L.chapter === ci + 1);
       return {
-        label: first <= Save.data.unlocked ? `Chapter ${C.roman} · ${C.title}` : `Chapter ${C.roman} · ???`,
+        label: t('Chapter {0} · {1}', C.roman, first <= Save.data.unlocked ? C.title : '???'),
         enabled: () => first <= Save.data.unlocked,
         action: () => this.showParts(ci + 1),
       };
     });
-    items.push({ label: 'Back', action: () => this.showMain() });
+    items.push({ label: t('Back'), action: () => this.showMain() });
     this.setMenu(items, 460);
   }
 
@@ -224,7 +225,7 @@ export class MenuScene extends Phaser.Scene {
         action: () => this.startStory(i),
       });
     });
-    items.push({ label: 'Back', action: () => this.showChapters() });
+    items.push({ label: t('Back'), action: () => this.showChapters() });
     this.setMenu(items, 460);
   }
 
@@ -238,23 +239,40 @@ export class MenuScene extends Phaser.Scene {
       Save.write();
     };
     this.setMenu([
-      { label: () => `Music  ${pct(st.music)}`, action: () => { st.music = cyc(st.music); apply(); } },
-      { label: () => `Effects  ${pct(st.sfx)}`, action: () => { st.sfx = cyc(st.sfx); apply(); Sound.play('pip'); } },
-      { label: () => `Visual quality  ${st.quality === 'high' ? 'High' : 'Performance'}`, action: () => { st.quality = st.quality === 'high' ? 'low' : 'high'; apply(); } },
-      { label: () => `Screen shake  ${st.shake ? 'On' : 'Off'}`, action: () => { st.shake = !st.shake; apply(); } },
-      { label: 'Back', action: () => this.showMain() },
+      { label: () => `${t('Music')}  ${pct(st.music)}`, action: () => { st.music = cyc(st.music); apply(); } },
+      { label: () => `${t('Effects')}  ${pct(st.sfx)}`, action: () => { st.sfx = cyc(st.sfx); apply(); Sound.play('pip'); } },
+      { label: () => `${t('Visual quality')}  ${st.quality === 'high' ? t('High') : t('Performance')}`, action: () => { st.quality = st.quality === 'high' ? 'low' : 'high'; apply(); } },
+      {
+        label: () => `${t('Language')}  ${LANGS.find((l) => l.code === lang())!.name}`,
+        action: () => {
+          const i = LANGS.findIndex((l) => l.code === lang());
+          st.lang = LANGS[(i + 1) % LANGS.length].code;
+          applyLanguage(st.lang as never);
+          Save.write();
+          this.relabel();
+        },
+      },
+      { label: () => `${t('Screen shake')}  ${st.shake ? t('On') : t('Off')}`, action: () => { st.shake = !st.shake; apply(); } },
+      { label: t('Back'), action: () => this.showMain() },
     ], 380);
+  }
+
+  /** language changed: rebuild the visible texts, keeping the cursor on the Language row */
+  private relabel() {
+    this.prompt.setText(isTouchDevice(this) ? t('Tap to begin') : t('Press any key'));
+    this.showSettings();
+    this.menu?.select(2, false);
   }
 
   private showControls() {
     this.page = 'controls';
     const lines = isTouchDevice(this)
-      ? ['◀ ▶  move', 'JUMP  jump · tap again in the air: Pip-boost', '▲  climb ladders and ledges · ▼ crouch, hide', 'FIRE  Lumen Coil · hold to charge', 'PIP  send Pip to mechanisms or to lure creatures']
-      : ['A D / ← →  move        SPACE / Z  jump (again in the air: Pip-boost)', 'W / ↑  climb ladders and ledges        S / ↓  crouch, crawl, hide', 'X / J / Left-click  fire the Lumen Coil · hold to charge', 'Q / K / Right-click  send Pip to mechanisms, or to lure creatures', 'ESC / P  pause        Gamepad supported'];
-    const t = this.add.text(0, -20, lines.join('\n\n'), { fontFamily: FONT_BODY, fontSize: `${Math.min(18, this.scale.width / 40)}px`, color: COL.text, align: 'center', lineSpacing: 2 }).setOrigin(0.5, 0);
-    this.setMenu([{ label: 'Back', action: () => this.showMain() }], 200);
-    this.menu!.container.y = t.height + 30;
-    this.root.add(t);
+      ? ['◀ ▶  move', 'JUMP  jump · tap again in the air: Pip-boost', '▲  climb ladders and ledges · ▼ crouch, hide', 'FIRE  Lumen Coil · hold to charge', 'PIP  send Pip to mechanisms or to lure creatures', 'ECO  Echo: switch present / past', 'HOOK  Light Thread: swing from glowing nodes'].map((s) => t(s))
+      : ['A D / ← →  move        SPACE / Z  jump (again in the air: Pip-boost)', 'W / ↑  climb ladders and ledges        S / ↓  crouch, crawl, hide', 'X / J / Left-click  fire the Lumen Coil · hold to charge', 'Q / K / Right-click  send Pip to mechanisms, or to lure creatures', 'R / U  Echo: switch present / past        F / O  Light Thread', 'ESC / P  pause        Gamepad supported'].map((s) => t(s));
+    const txt = this.add.text(0, -20, lines.join('\n\n'), { fontFamily: FONT_BODY, fontSize: `${Math.min(18, this.scale.width / 40)}px`, color: COL.text, align: 'center', lineSpacing: 2 }).setOrigin(0.5, 0);
+    this.setMenu([{ label: t('Back'), action: () => this.showMain() }], 200);
+    this.menu!.container.y = txt.height + 30;
+    this.root.add(txt);
   }
 
   private startStory(level: number) {

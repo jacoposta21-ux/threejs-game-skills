@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { t } from '../core/i18n';
 import { DEPTH, PHYS, TILE } from '../core/constants';
 import { Sound } from '../core/Audio';
 import { PROP_SCALE } from '../art/props';
@@ -146,7 +147,7 @@ export class Mechanism {
         d.setOpen(true);
         d.holdOpen = this.timed;
       }
-      this.gs.toast(`The gate opens — ${this.timed} seconds!`, 1600);
+      this.gs.toast(t('The gate opens — {0} seconds!', this.timed), 1600);
       for (let k = 1; k < this.timed; k++) this.gs.time.delayedCall(k * 1000, () => Sound.play(k >= this.timed - 2 ? 'chargeReady' : 'ui'));
       this.gs.time.delayedCall(this.timed * 1000, () => {
         this.active = false;
@@ -161,7 +162,7 @@ export class Mechanism {
       this.gs.time.delayedCall(700, () => d.openPermanent());
       this.gs.cinematicFocus(d.s.x, d.topY + 40, 1300);
     }
-    this.gs.toast('Ancient mechanism awakened');
+    this.gs.toast(t('Ancient mechanism awakened'));
   }
   update(dt: number) {
     this.t += dt;
@@ -186,7 +187,7 @@ export class Checkpoint {
     if (!silent) {
       Sound.play('checkpoint');
       this.gs.fx.glowE.explode(20, this.s.x, this.s.y - 50);
-      this.gs.toast('Checkpoint — your progress is saved');
+      this.gs.toast(t('Checkpoint — your progress is saved'));
     }
   }
 }
@@ -265,7 +266,7 @@ export class Cocoon {
     if (!big) {
       Sound.play('hit');
       this.gs.fx.armorSparks(this.s.x, this.img.y);
-      this.gs.toast('The web holds — charge your shot (hold FIRE)');
+      this.gs.toast(t('The web holds — charge your shot (hold FIRE)'));
       return;
     }
     this.alive = false;
@@ -874,7 +875,7 @@ export class VineBud {
     if (this.grown) return;
     if (!big) {
       Sound.play('hit');
-      this.gs.toast('The seed needs more light — charge your shot', 1600);
+      this.gs.toast(t('The seed needs more light — charge your shot'), 1600);
       return;
     }
     this.grow();
