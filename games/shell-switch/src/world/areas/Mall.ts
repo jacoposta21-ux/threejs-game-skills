@@ -180,6 +180,7 @@ export function buildMall(ctx: AreaCtx): void {
       blocker: [-51.5, -14, 0.9, 2.8],
       weak: ['lure', 'distract'],
       permanent: [],
+      releaseFlag: 'door:sparkle',
       strict: true,
       refuse: { block: 'Browsing is by appointment only.', intimidate: 'I have a permit for these prices, officer.', scare: 'A ghost? In MY shop? Be gone, I have insurance.' },
     },

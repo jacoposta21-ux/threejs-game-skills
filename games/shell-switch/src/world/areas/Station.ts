@@ -41,6 +41,7 @@ export function buildStation(ctx: AreaCtx): void {
   signs.add('MIND THE GAP', 12, 1.6, 46.28, 2.0, 0, { bg: '#ffe27a', fg: '#2a2238' });
   signs.add('WANTED: DUCK THIEF', -6, 1.4, 45.72, 1.6, Math.PI, { bg: '#fbf7ee', fg: '#2a2238', shape: 'poster', sub: 'striped sweater, long nose' });
   signs.add('VISIT THE CIRCUS!', 7, 1.4, 45.72, 1.6, Math.PI, { bg: '#f39a3d', fg: '#ffffff', shape: 'poster', sub: 'Human cannonball nightly' });
+  g.noDropZones.push([-1.6, 1.6, 44.6, 47.4]);
   const trunk = ctx.add(new Crate('trunk', 'station', V(0, 0, 46), { w: 2.1, h: 1.9, d: 1.0, color: '#7d4fc9', kind: 'trunk', name: 'steamer trunk' }, g));
   void trunk;
 
@@ -183,11 +184,11 @@ export function buildStation(ctx: AreaCtx): void {
     personality: 'grumpy',
     guard: {
       blocker: [-12, 36.4, 0, 0],
-      weak: ['intimidate', 'scare'],
+      weak: ['intimidate', 'scare', 'lure'],
       movedFlag: 'spikeGone',
       moveTo: [18.6, 34],
       afterMoveMode: 'sit',
-      refuse: { lure: 'Ugh. Pop music.', distract: 'Clowns are for babies.', block: 'This window\'s mine, pal.' },
+      refuse: { distract: 'Clowns are for babies.', block: 'This window\'s mine, pal.' },
     },
     pocket: { label: 'a can of glitter paint', bits: 1 },
   });

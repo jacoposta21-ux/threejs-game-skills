@@ -50,7 +50,7 @@ export const HOSTS: Record<HostKind, HostDef> = {
     ability: 'Hop-Dash',
     abilityHint: 'Quick dash. Tiny enough for vents.',
     color: P.alien,
-    stats: { speed: 5.2, run: 8, accel: 30, jump: 8.6, gravity: 1, small: true },
+    stats: { speed: 5.2, run: 8, accel: 30, jump: 9.0, gravity: 1, small: true },
     voice: 1.8,
     spec: base({
       torso: { bottom: 0.2, mid: 0.22, top: 0.19, h: 0.2, depth: 0.95, color: P.alien },

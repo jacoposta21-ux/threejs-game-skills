@@ -157,6 +157,9 @@ export class Crate extends WorldObject {
     for (const tryReach of [reach, reach * 0.75, c.model.radius + Math.max(w, d) / 2 + 0.15]) {
       const tx = c.pos.x + fx * tryReach;
       const tz = c.pos.z + fz * tryReach;
+      // Never through walls, never back into a doorway that must stay clear.
+      if (!g.col.lineOfSight(c.pos.x, c.pos.z, tx, tz, c.pos.y + 0.6) || !g.col.lineOfSight(c.pos.x, c.pos.z, tx, tz, c.pos.y + 1.6)) continue;
+      if (g.noDropZones.some(([x0, x1, z0, z1]) => tx + w / 2 > x0 && tx - w / 2 < x1 && tz + d / 2 > z0 && tz - d / 2 < z1)) continue;
       const gy = g.col.groundHeight(tx, tz, Math.min(w, d) / 2, c.pos.y + 1.6, 0.01, { radius: 0.3, height: 1, small: false, phasing: false, ignore: this.collider });
       const r = Math.min(w, d) * 0.45;
       const blocked = g.col.overlapsSolid(tx, gy + 0.02, tz, { radius: r, height: h - 0.05, small: false, phasing: false, ignore: this.collider });
@@ -178,6 +181,15 @@ export class Crate extends WorldObject {
       return true;
     }
     return false;
+  }
+
+  resetHome(g: Game): void {
+    this.pos.copy(this.home);
+    this.group.position.copy(this.home);
+    this.group.rotation.set(0, 0, 0);
+    this.state = 'rest';
+    this.syncCollider();
+    delete g.progress.objects[this.id];
   }
 
   /** Called when the host is exited or ejected while carrying. */
@@ -258,7 +270,7 @@ export class Plate extends WorldObject {
   }
   update(_dt: number, g: Game): void {
     let on = false;
-    for (const c of g.crates) if (c.isInside(this.pos.x - this.w / 2, this.pos.x + this.w / 2, this.pos.z - this.d / 2, this.pos.z + this.d / 2)) on = true;
+    for (const c of g.crates) if (c.style.kind === 'crate' && c.isInside(this.pos.x - this.w / 2, this.pos.x + this.w / 2, this.pos.z - this.d / 2, this.pos.z + this.d / 2)) on = true;
     if (on !== this.active) {
       this.active = on;
       if (on) {

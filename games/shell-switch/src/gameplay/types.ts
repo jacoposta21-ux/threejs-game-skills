@@ -12,7 +12,7 @@ export interface AreaInfo {
 }
 
 export const AREAS: AreaInfo[] = [
-  { id: 'station', name: 'Puffington Station', tagline: 'Where you crash-landed', rect: [-24, 24, 30.5, 64], spawn: [-6, 50, Math.PI], color: '#e2473f' },
+  { id: 'station', name: 'Puffington Station', tagline: 'Where you crash-landed', rect: [-24, 29, 30.5, 64], spawn: [-6, 50, Math.PI], color: '#e2473f' },
   { id: 'mall', name: 'Glitterbox Mall', tagline: 'Shop till you hop', rect: [-64, -22.5, -20, 28], spawn: [-27, 0, -Math.PI / 2], color: '#ff8fc0' },
   { id: 'circus', name: 'Big Top Bonanza', tagline: 'Step right up', rect: [22.5, 68, -24, 24], spawn: [27, 0, Math.PI / 2], color: '#f39a3d' },
   { id: 'museum', name: 'Museum of Peculiar History', tagline: 'Please do not haunt the exhibits', rect: [-64, -20.5, -60, -20.2], spawn: [-24, -27, -Math.PI / 2], color: '#3bb3a8' },
@@ -48,6 +48,8 @@ export interface GuardDef {
   permanent?: Weakness[];
   dish?: string;
   afterMoveMode?: 'sit' | 'wander' | 'idle' | 'eat';
+  /** Once this flag is set the post blocker is permanently disabled. */
+  releaseFlag?: string;
   /** Guard chases suspicious hosts doing shady things nearby. */
   strict?: boolean;
   /** Lines when an ineffective approach is tried. */

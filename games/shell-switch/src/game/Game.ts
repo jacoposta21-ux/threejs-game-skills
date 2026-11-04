@@ -23,7 +23,7 @@ import type { Pose } from '../characters/CharacterModel';
 import { CHAT, PICKED, POSSESS_SEEN } from '../characters/Lines';
 import { Progress, loadSettings, type Settings } from '../gameplay/Progress';
 import { AREAS, ITEM_INFO, areaAt, areaInfo, type AreaId, type ItemId, type NpcSpawn } from '../gameplay/types';
-import { Crate, CorePickup, Postcard, Saucer, type WorldObject } from '../gameplay/Objects';
+import { Crate, CorePickup, Plate, Postcard, Saucer, type WorldObject } from '../gameplay/Objects';
 import { StarBits, type BitDef } from '../gameplay/StarBits';
 import { MISSIONS, currentStep, type Mission, type Target } from '../gameplay/Missions';
 import { ACHIEVEMENTS } from '../gameplay/Achievements';
@@ -77,6 +77,8 @@ export class Game {
   glim!: Character;
   controlled!: Character;
   carrying: Crate | null = null;
+  /** Rects [minX,maxX,minZ,maxZ] where heavy objects may not be set down. */
+  readonly noDropZones: [number, number, number, number][] = [];
   portraits = {} as Record<HostKind, string>;
   time = 0;
   private rngFn = createSeededRandom(7);
@@ -111,6 +113,7 @@ export class Game {
   private suspicionMax = 0;
   private readonly worldRoot = new THREE.Group();
   private testMode = false;
+  private sessionStarted = false;
   private hadLock = false;
   private readonly frameInfo = { calls: 0, triangles: 0 };
 
@@ -167,9 +170,20 @@ export class Game {
 
   start(): void {
     this.loop.start();
+    this.hud.show(false);
+    let auto: string | null = null;
+    try {
+      auto = window.sessionStorage.getItem('shell-switch-autostart');
+      window.sessionStorage.removeItem('shell-switch-autostart');
+    } catch {
+      auto = null;
+    }
+    if (auto) {
+      this.startGame(auto === 'new');
+      return;
+    }
     this.menus.title();
     this.audio.setMusic('menu');
-    this.hud.show(false);
   }
 
   dispose(): void {
@@ -313,7 +327,19 @@ export class Game {
   }
 
   // ===================================================================== flow
-  startGame(fresh: boolean): void {
+  startGame(fresh: boolean, allowReload = true): void {
+    // World objects only ever advance; a second start in one page session reloads for a pristine town.
+    if (this.sessionStarted && allowReload) {
+      if (fresh) Progress.clear();
+      try {
+        window.sessionStorage.setItem('shell-switch-autostart', fresh ? 'new' : 'continue');
+        window.location.reload();
+        return;
+      } catch {
+        /* sessionStorage unavailable: fall through to in-place restore */
+      }
+    }
+    this.sessionStarted = true;
     this.audio.unlock();
     if (fresh) Progress.clear();
     this.progress = (!fresh && Progress.load()) || new Progress();
@@ -337,6 +363,8 @@ export class Game {
   private restoreFromProgress(): void {
     const p = this.progress;
     // Reset dynamic state.
+    if (this.phaseT > 0 || this.controlled.mover.phasing) this.endPhase(true);
+    this.cancelFlights();
     if (this.controlled !== this.glim) this.forceUnpossess();
     this.carrying = null;
     this.action = null;
@@ -421,8 +449,31 @@ export class Game {
     this.menus.title();
   }
 
+  /** Abort the possession hop / cannon arc and undo their transforms. */
+  private cancelFlights(): void {
+    if (this.possessS) {
+      this.possessS = null;
+      this.glim.locked = 0;
+    }
+    if (this.launchS) {
+      this.launchS = null;
+      this.controlled.vel.set(0, 0, 0);
+    }
+    this.launching = false;
+    this.glim.model.root.rotation.x = 0;
+    this.glim.model.root.scale.setScalar(1);
+    for (const ch of this.characters) ch.model.root.rotation.x = 0;
+  }
+
   unstuck(): void {
+    this.cancelFlights();
     if (this.controlled !== this.glim) this.exitHost(true);
+    // Heavy crates lost somewhere unreachable go back to where they started (unless they're doing their job on a plate).
+    for (const c of this.crates) {
+      if (c.style.kind !== 'crate' || c.area !== this.currentArea) continue;
+      const onPlate = this.objects.some((o) => o instanceof Plate && c.isInside(o.pos.x - o.w / 2, o.pos.x + o.w / 2, o.pos.z - o.d / 2, o.pos.z + o.d / 2));
+      if (!onPlate && c.state === 'rest') c.resetHome(this);
+    }
     const sp = areaInfo(this.currentArea).spawn;
     this.glim.place(sp[0], 0, sp[1], sp[2]);
     this.cam.snap(this.glim.pos);
@@ -628,6 +679,9 @@ export class Game {
     this.audio.play('possess', { pos: target.pos });
     const npc = this.npcById.get(target.id);
     if (npc) {
+      if (npc.state === 'sing') this.audio.stopLoop('sing');
+      npc.autoSingT = 0;
+      npc.autoPerformT = 0;
       npc.state = 'idle';
       target.wish.set(0, 0);
       target.faceToward(this.glim.pos.x, this.glim.pos.z);
@@ -747,7 +801,7 @@ export class Game {
 
   // ===================================================================== consequences
   caught(npc: Npc): void {
-    if (this.ejecting) return;
+    if (this.ejecting || this.possessS || this.launchS) return;
     this.progress.bump('caught');
     this.achieve('busted');
     this.say(npc.ch, 'GOTCHA! Out you go!');
@@ -757,6 +811,7 @@ export class Game {
 
   eject(msg: string, _reason: string): void {
     if (this.ejecting) return;
+    this.cancelFlights();
     this.ejecting = true;
     this.ejectT = 1.1;
     this.flash();
@@ -1493,6 +1548,11 @@ export class Game {
       ch.active = visible;
       if (!visible) continue;
       if (!ch.possessed && playing && d < 60) n.update(dt, this);
+      else if (n.state === 'sing' && d >= 60) {
+        n.autoSingT = 0;
+        n.state = 'idle';
+        this.audio.stopLoop('sing');
+      }
       else if (!playing) {
         ch.wish.set(0, 0);
         if (n.state === 'wander' || n.state === 'idle') n.update(dt, this);
@@ -1791,7 +1851,7 @@ export class Game {
       return;
     }
     if (this.state === 'title' || this.state === 'ending') {
-      this.startGame(true);
+      this.startGame(true, false);
     }
     this.menus.close();
     this.state = 'play';

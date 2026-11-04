@@ -1046,7 +1046,7 @@ body.touch #mini-host {
 }
 
 .host-card.locked img {
-  filter: brightness(0) opacity(0.5);
+  filter: grayscale(1) brightness(0.3) contrast(1.4);
 }
 
 .host-card h3 {

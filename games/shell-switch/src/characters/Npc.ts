@@ -192,7 +192,12 @@ export class Npc {
       if (this.state !== 'follow' && g.rng() < 0.01) g.say(this.ch, 'Is she... humming? Weakly?');
       return;
     }
+    if (gd && !this.moved && gd.weak.includes('lure') && (gd.permanent?.includes('lure') ?? true)) {
+      this.weaknessHit(g, 'lure');
+      return;
+    }
     if (this.state !== 'follow') {
+      if (this.lingerHome <= 0) this.savedHome.copy(this.home);
       this.enter('follow');
       if (g.rng() < 0.6) g.say(this.ch, SWOON[Math.floor(g.rng() * SWOON.length)]);
     }
@@ -259,7 +264,7 @@ export class Npc {
       g.setFlag(gd.movedFlag);
       this.syncFlags(g);
       const line =
-        w === 'intimidate' ? 'Alright, alright! I\'m going!' : w === 'feed' ? 'Is that for ME?! *nom*' : w === 'scare' ? 'NOPE! I quit! I QUIT!' : w === 'decree' ? 'A holiday? Don\'t mind if I do!' : 'Fine!';
+        w === 'intimidate' ? 'Alright, alright! I\'m going!' : w === 'feed' ? 'Is that for ME?! *nom*' : w === 'scare' ? 'NOPE! I quit! I QUIT!' : w === 'decree' ? 'A holiday? Don\'t mind if I do!' : w === 'lure' ? 'Ugh... that song is stuck in my head. I need a sit-down.' : 'Fine!';
       g.say(this.ch, line);
       if (w === 'feed') this.baseMode = 'sit';
     }
@@ -556,8 +561,7 @@ export class Npc {
     if (this.lingerHome > 0) {
       this.lingerHome -= dt;
       if (this.lingerHome <= 0 && this.state === 'idle' && this.baseMode !== 'idle') {
-        this.home.set(this.spawn.x, this.spawn.y ?? 0, this.spawn.z);
-        if (this.moved && this.spawn.guard?.moveTo) this.home.set(this.spawn.guard.moveTo[0], this.spawn.y ?? 0, this.spawn.guard.moveTo[1]);
+        this.home.copy(this.savedHome);
         this.goHome();
       }
     }
@@ -614,12 +618,14 @@ export class Npc {
 
     // Guard post blocker follows the guard's presence at the post.
     if (this.blocker) {
-      const atPost = !this.moved && this.state !== 'watch' && this.state !== 'follow' && this.state !== 'flee' && Math.hypot(ch.pos.x - this.spawn.x, ch.pos.z - this.spawn.z) < 1.4;
+      const released = !!this.spawn.guard?.releaseFlag && g.progress.flag(this.spawn.guard.releaseFlag);
+      const atPost = !released && !this.moved && this.state !== 'watch' && this.state !== 'follow' && this.state !== 'flee' && Math.hypot(ch.pos.x - this.spawn.x, ch.pos.z - this.spawn.z) < 1.4;
       this.blocker.enabled = atPost;
     }
   }
 
   private lingerHome = 0;
+  private readonly savedHome = new THREE.Vector3();
 
   /** Steer toward p. Returns true when arrived. */
   private moveTo(p: THREE.Vector3, arrive: number, run: boolean): boolean {

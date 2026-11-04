@@ -144,7 +144,7 @@ export function buildMuseum(ctx: AreaCtx): void {
 
   // ---- dinosaur gallery (landmark skeleton)
   const bone = '#f4ecd8';
-  const dx = -57;
+  const dx = -58.2;
   const dz = -30;
   for (let i = 0; i < 9; i += 1) {
     const t = i / 8;
@@ -155,8 +155,8 @@ export function buildMuseum(ctx: AreaCtx): void {
   w.sphere(dx + 4.5, 3.6, dz, 0.45, bone, 8, 6, { sx: 1.4 });
   for (const lx of [-2, 1.5]) for (const s of [-1, 1]) w.add(new THREE.CylinderGeometry(0.08, 0.1, 2.4, 5), bone, { x: dx + lx, y: 1.2, z: dz + s * 0.5, rz: 0.15 });
   w.add(new THREE.CylinderGeometry(0.04, 0.12, 3.5, 5), bone, { x: dx - 4.8, y: 2.0, z: dz, rz: 1.1 });
-  w.block(dx, 0, dz, 10, 0.3, 3, '#5a5f78');
-  col.box(dx, 0, dz, 10, 2.6, 3);
+  w.block(dx, 0, dz, 7.4, 0.3, 3, '#5a5f78');
+  col.box(dx, 0, dz, 7.4, 2.6, 3);
   signs.add('DINOSAURUS PROBABLY', dx, 0.65, dz + 1.52, 2.2, 0, { bg: '#2a2238', fg: '#ffffff', shape: 'rect' });
 
   // ---- NPCs

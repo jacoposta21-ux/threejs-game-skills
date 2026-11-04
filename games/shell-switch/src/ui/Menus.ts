@@ -172,7 +172,7 @@ export class Menus {
     this.screen = 'collection';
     this.back = back;
     const g = this.g;
-    const p = g.progress;
+    const p = back === 'title' ? (Progress.load() ?? g.progress) : g.progress;
     let body = '';
     if (this.collectionTab === 'hosts') {
       body = `<div class="grid-hosts">${HOST_ORDER.map((id) => this.hostCard(id, p.discovered.has(id))).join('')}</div>`;
