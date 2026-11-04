@@ -105,6 +105,9 @@ export const de: LangPack = {
     'The fight resumes where you fell': 'Der Kampf geht dort weiter, wo du gefallen bist',
     'Skip this fight': 'Kampf überspringen',
     'Too hard? You can skip this fight and carry on with the story.': 'Zu schwer? Du kannst diesen Kampf überspringen und mit der Geschichte weitermachen.',
+    'Hold ↓ to drop through thin ledges (or ↓ + JUMP)': 'Halte ↓, um durch dünne Kanten nach unten zu fallen (oder ↓ + JUMP)',
+    '▼ (hold)  drop through thin ledges': '▼ (halten)  durch dünne Kanten fallen',
+    'Hold S / ↓ (or ↓ + SPACE)  drop through thin ledges': 'S / ↓ halten (oder ↓ + LEERTASTE)  durch dünne Kanten fallen',
   },
   data: {
     'station.name': 'Die Verlassene Station',

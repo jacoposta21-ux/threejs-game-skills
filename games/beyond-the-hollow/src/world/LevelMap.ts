@@ -96,12 +96,14 @@ export class LevelMap {
           let above = false, below = false;
           for (let k = 1; k <= 9; k++) if (this.solid(x, y - k)) { above = true; break; }
           for (let k = 1; k <= 12; k++) if (this.solid(x, y + k)) { below = true; break; }
-          const n = Math.sin(x * 0.37 + Math.sin(y * 0.5) * 2) + Math.sin(y * 0.61 + x * 0.11);
-          if (above && below && n > -0.9) {
+          // continuous fill (random holes made hard-edged dark rectangles that read as solid blocks)
+          if (above && below) {
             const t = back.putTileAt(TILE_BACK + Math.floor(r() * 8), x, y);
             t.tint = this.def.theme === 'station' ? 0x6a7078 : 0x585e6c;
           }
         }
+      // a faint layer behind the play space, so it never reads as a solid block
+      back.setAlpha(0.5);
       this.back = back;
     }
     const ground = map.createBlankLayer('ground', ts)!;

@@ -256,9 +256,9 @@ export class MenuScene extends Phaser.Scene {
   private showControls() {
     this.page = 'controls';
     const lines = isTouchDevice(this)
-      ? ['◀ ▶  move', 'JUMP  jump · tap again in the air: Pip-boost', '▲  climb ladders and ledges · ▼ crouch, hide', 'FIRE  Lumen Coil · hold to charge', 'PIP  send Pip to mechanisms or to lure creatures', 'ECO  Echo: switch present / past', 'HOOK  Light Thread: swing from glowing nodes'].map((s) => t(s))
-      : ['A D / ← →  move        SPACE / Z  jump (again in the air: Pip-boost)', 'W / ↑  climb ladders and ledges        S / ↓  crouch, crawl, hide', 'X / J / Left-click  fire the Lumen Coil · hold to charge', 'Q / K / Right-click  send Pip to mechanisms, or to lure creatures', 'R / U  Echo: switch present / past        F / O  Light Thread', 'ESC / P  pause        Gamepad supported'].map((s) => t(s));
-    const txt = this.add.text(0, -20, lines.join('\n\n'), { fontFamily: FONT_BODY, fontSize: `${Math.min(18, this.scale.width / 40)}px`, color: COL.text, align: 'center', lineSpacing: 2 }).setOrigin(0.5, 0);
+      ? ['◀ ▶  move', 'JUMP  jump · tap again in the air: Pip-boost', '▲  climb ladders and ledges · ▼ crouch, hide', '▼ (hold)  drop through thin ledges', 'FIRE  Lumen Coil · hold to charge', 'PIP  send Pip to mechanisms or to lure creatures', 'ECO  Echo: switch present / past', 'HOOK  Light Thread: swing from glowing nodes'].map((s) => t(s))
+      : ['A D / ← →  move        SPACE / Z  jump (again in the air: Pip-boost)', 'W / ↑  climb ladders and ledges        S / ↓  crouch, crawl, hide', 'Hold S / ↓ (or ↓ + SPACE)  drop through thin ledges', 'X / J / Left-click  fire the Lumen Coil · hold to charge', 'Q / K / Right-click  send Pip to mechanisms, or to lure creatures', 'R / U  Echo: switch present / past        F / O  Light Thread', 'ESC / P  pause        Gamepad supported'].map((s) => t(s));
+    const txt = this.add.text(0, -20, lines.join('\n'), { fontFamily: FONT_BODY, fontSize: `${Math.min(18, this.scale.width / 40)}px`, color: COL.text, align: 'center', lineSpacing: 12 }).setOrigin(0.5, 0);
     this.setMenu([{ label: t('Back'), action: () => this.showMain() }], 200);
     this.menu!.container.y = txt.height + 30;
     this.root.add(txt);

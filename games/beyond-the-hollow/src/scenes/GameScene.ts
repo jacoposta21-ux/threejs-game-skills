@@ -1145,6 +1145,16 @@ export class GameScene extends Phaser.Scene {
     this.registry.set(k, v);
   }
 
+  private ledgeT = 0;
+  /** The first time Elias lingers on a thin ledge, tell the player how to drop through it. */
+  ledgeTip(dt: number) {
+    if (this.registry.get('tip-ledge')) return;
+    this.ledgeT += dt;
+    if (this.ledgeT < 3) return;
+    this.registry.set('tip-ledge', true);
+    this.toast(t('Hold ↓ to drop through thin ledges (or ↓ + JUMP)'), 3200);
+  }
+
   // ------------------------------------------------------------------ performance
   private fpsWin = { t: 0, n: 0, sum: 0, slow: 0 };
   /** If the frame rate stays under ~48 fps for two 4-second windows, switch to Performance once. */

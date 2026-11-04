@@ -105,6 +105,9 @@ export const pt: LangPack = {
     'The fight resumes where you fell': 'A luta recomeça de onde você caiu',
     'Skip this fight': 'Pular a luta',
     'Too hard? You can skip this fight and carry on with the story.': 'Difícil demais? Você pode pular esta luta e seguir com a história.',
+    'Hold ↓ to drop through thin ledges (or ↓ + JUMP)': 'Segure ↓ para descer das bordas finas (ou ↓ + JUMP)',
+    '▼ (hold)  drop through thin ledges': '▼ (segurar)  descer das bordas finas',
+    'Hold S / ↓ (or ↓ + SPACE)  drop through thin ledges': 'Segure S / ↓ (ou ↓ + ESPAÇO)  descer das bordas finas',
   },
   data: {
     'station.name': 'A Estação Abandonada',

@@ -34,6 +34,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   shootPose = 0;
   aimUp = false;
   dropThrough = 0;
+  private downHoldT = 0;
   stateTime = 0;
   landLock = 0;
   airTime = 0;
@@ -269,6 +270,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         if (!this.crouching && Math.random() < 0.5) this.gs.fx.dust(this.x - this.facing * 6, body.bottom, 1);
       }
     }
+    // thin ledges: holding ↓ while standing still drops through (↓ + JUMP does it at once)
+    const onLedge = onFloor && this.onOneWay();
+    this.downHoldT = onLedge && ctl.held.down && dir === 0 ? this.downHoldT + dt : 0;
+    if (this.downHoldT > 0.4) {
+      this.downHoldT = 0;
+      this.dropThrough = 0.25;
+      body.y += 2;
+    }
+    if (onLedge) this.gs.ledgeTip(dt);
     // ladder grab
     const onLadder = this.lvl.ladderAtWorld(body.center.x, body.center.y) || this.lvl.ladderAtWorld(body.center.x, body.bottom + 2);
     this.ladderCd = Math.max(0, this.ladderCd - dt);
