@@ -23,6 +23,7 @@ interface ThreeGameDiagnostics {
     height: number;
     dpr: number;
   };
+  game?: Record<string, unknown>;
 }
 
 interface ThreeGameTestHooks {

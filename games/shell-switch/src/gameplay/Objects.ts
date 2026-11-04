@@ -307,7 +307,7 @@ export class Door extends WorldObject {
     readonly inside?: [number, number],
   ) {
     super(id, area, pos);
-    const t = style === 'vault' ? 0.6 : 0.25;
+    const t = style === 'vault' ? 0.6 : 0.5;
     const sx = axis === 'x' ? w : t;
     const sz = axis === 'x' ? t : w;
     this.collider = g.col.addDynamic({
@@ -425,8 +425,8 @@ export class Door extends WorldObject {
   private isInsideChar(g: Game): boolean {
     if (!this.inside) return false;
     const c = g.controlled.pos;
-    if (this.axis === 'x') return Math.sign(c.z - this.pos.z) === Math.sign(this.inside[1] - this.pos.z);
-    return Math.sign(c.x - this.pos.x) === Math.sign(this.inside[0] - this.pos.x);
+    if (this.axis === 'x') return (c.z - this.pos.z) * Math.sign(this.inside[1] - this.pos.z) > 0.45;
+    return (c.x - this.pos.x) * Math.sign(this.inside[0] - this.pos.x) > 0.45;
   }
 
   promptE(g: Game): string | null {
@@ -1118,9 +1118,6 @@ export class Lasers extends WorldObject {
     }
     this.range = 0;
   }
-  get active(): boolean {
-    return false;
-  }
   update(_dt: number, g: Game): void {
     const on = !g.progress.flag(this.offFlag);
     for (const b of this.beams) b.visible = on;
@@ -1143,7 +1140,6 @@ export class Lasers extends WorldObject {
       }
     }
   }
-  done = false;
 }
 
 // ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@ export class Character {
   hoverY = 0;
   visibleDist = 0;
   active = true;
+  pushed = false;
   /** Ghost float height. */
   floatBase = 0;
 

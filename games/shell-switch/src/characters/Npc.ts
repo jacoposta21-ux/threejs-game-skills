@@ -49,7 +49,7 @@ export class Npc {
     readonly spawn: NpcSpawn,
     g: Game,
   ) {
-    this.home.set(spawn.x, 0, spawn.z);
+    this.home.set(spawn.x, spawn.y ?? 0, spawn.z);
     this.homeYaw = spawn.yaw ?? 0;
     this.baseMode = spawn.mode;
     this.ringAngle = g.rng() * Math.PI * 2;
@@ -57,7 +57,7 @@ export class Npc {
     if (spawn.guard) {
       const [x, z, w, d] = spawn.guard.blocker;
       if (w > 0 && d > 0) {
-        this.blocker = g.col.addDynamic({ minX: x - w / 2, maxX: x + w / 2, minY: 0, maxY: 3, minZ: z - d / 2, maxZ: z + d / 2, enabled: true, pass: 'none', tag: `post:${spawn.id}` });
+        this.blocker = g.col.addDynamic({ minX: x - w / 2, maxX: x + w / 2, minY: spawn.y ?? 0, maxY: (spawn.y ?? 0) + 3, minZ: z - d / 2, maxZ: z + d / 2, enabled: true, pass: 'none', tag: `post:${spawn.id}` });
       }
     }
     this.enter(this.modeState(spawn.mode));
@@ -72,19 +72,25 @@ export class Npc {
     return !!this.spawn.guard && !this.moved;
   }
 
+  /** Guards that hold a post and refuse approaches that are not their weakness. */
+  get postGuard(): boolean {
+    const gd = this.spawn.guard;
+    return !!gd && !this.moved && (!!this.blocker || !!gd.strict || !!gd.refuse);
+  }
+
   /** Re-apply persistent flags (after load or flag changes). */
   syncFlags(g: Game): void {
     const gd = this.spawn.guard;
     if (gd?.movedFlag && g.progress.flag(gd.movedFlag) && !this.moved) {
       this.moved = true;
-      if (gd.moveTo) this.home.set(gd.moveTo[0], 0, gd.moveTo[1]);
+      if (gd.moveTo) this.home.set(gd.moveTo[0], this.spawn.y ?? 0, gd.moveTo[1]);
       this.baseMode = gd.afterMoveMode ?? this.spawn.afterMove ?? 'sit';
       this.goHome();
     }
     const r = this.spawn.relocate;
     if (r && g.progress.flag(r.flag) && !this.relocated) {
       this.relocated = true;
-      this.home.set(r.to[0], 0, r.to[1]);
+      this.home.set(r.to[0], this.spawn.y ?? 0, r.to[1]);
       if (r.yaw !== undefined) this.homeYaw = r.yaw;
       this.baseMode = r.mode;
       if (r.emotion) this.emotionBase = r.emotion;
@@ -95,7 +101,7 @@ export class Npc {
 
   /** Teleport to home (load). */
   snapHome(): void {
-    this.ch.place(this.home.x, 0, this.home.z, this.homeYaw);
+    this.ch.place(this.home.x, this.home.y, this.home.z, this.homeYaw);
     this.enter(this.modeState(this.baseMode));
   }
 
@@ -107,6 +113,8 @@ export class Npc {
         return 'sit';
       case 'sleep':
         return 'sleep';
+      case 'eat':
+        return 'eat';
       case 'idle':
       case 'queue':
         return 'idle';
@@ -133,7 +141,7 @@ export class Npc {
   /** Clown show / spectacle nearby. */
   onShow(g: Game, pos: THREE.Vector3, duration: number): void {
     if (this.spawn.busy || this.state === 'flee' || this.state === 'sleep' || this.state === 'eat' || this.state === 'chase') return;
-    if (this.isGuard && !this.spawn.guard!.weak.includes('distract')) {
+    if (this.postGuard && !this.spawn.guard!.weak.includes('distract')) {
       this.refuse(g, 'distract', 'Nice try. I\'m working.');
       return;
     }
@@ -155,7 +163,7 @@ export class Npc {
       this.weaknessHit(g, 'intimidate');
       return;
     }
-    if (gd && !this.moved) {
+    if (gd && this.postGuard) {
       this.refuse(g, 'intimidate', 'Whistle all you like, officer.');
       return;
     }
@@ -176,7 +184,7 @@ export class Npc {
   onSong(g: Game, singer: Character, strong: boolean): void {
     if (this.spawn.busy || this.state === 'flee' || this.state === 'sleep' || this.state === 'eat' || this.state === 'chase') return;
     const gd = this.spawn.guard;
-    if (gd && !this.moved && !gd.weak.includes('lure')) {
+    if (gd && this.postGuard && !gd.weak.includes('lure')) {
       this.refuse(g, 'lure', 'Lovely voice. Still not moving.');
       return;
     }
@@ -229,7 +237,6 @@ export class Npc {
   /** Possession just ended: wobbly confusion, then adopt this spot as home. */
   onExit(g: Game): void {
     this.home.copy(this.ch.pos);
-    this.home.y = 0;
     this.homeYaw = this.ch.yaw;
     if (this.spawn.type === 'host' && this.baseMode === 'post') this.baseMode = 'idle';
     if (this.autoPerformT > 0) {
@@ -331,8 +338,17 @@ export class Npc {
     const distToPlayer = Math.hypot(pp.x - ch.pos.x, pp.z - ch.pos.z);
 
     // ---- perception of the naked alien
-    const alien = g.hostKind === 'alien' && !g.ejecting && !g.launching;
-    if (alien && this.canSee(g, pp, 9.5)) {
+    const alien = g.hostKind === 'alien' && !g.ejecting && !g.launching && g.state === 'play';
+    if (alien && this.spawn.type === 'host') {
+      // Hosts are curious, not scared: they just stare at the little visitor.
+      if (distToPlayer < 5 && this.state !== 'sleep') {
+        ch.faceToward(pp.x, pp.z);
+        if (ch.barkCooldown <= 0 && distToPlayer < 3.5) {
+          ch.barkCooldown = 10;
+          g.say(ch, ['Well hello there, little fella.', 'Are you... lost?', 'What a peculiar jellybean.', 'Does it bite?'][Math.floor(g.rng() * 4)]);
+        }
+      }
+    } else if (alien && this.canSee(g, pp, 9.5)) {
       const k = (this.spawn.guard?.strict || this.personality === 'guard' ? 0.9 : 0.5) * (1 - distToPlayer / 11);
       this.suspicion = Math.min(1.2, this.suspicion + dt * k * 1.4);
     } else if (this.state !== 'chase') {
@@ -362,7 +378,7 @@ export class Npc {
       if (hk === 'ghost' && this.state !== 'dance') {
         this.onScare(g, pp);
       } else {
-        g.say(ch, pickReact(hk, this.personality, g.rng));
+        g.say(ch, pickReact(hk, this.personality, () => g.rng()));
         this.reactT = 1.6;
         ch.faceToward(pp.x, pp.z);
       }
@@ -540,8 +556,8 @@ export class Npc {
     if (this.lingerHome > 0) {
       this.lingerHome -= dt;
       if (this.lingerHome <= 0 && this.state === 'idle' && this.baseMode !== 'idle') {
-        this.home.set(this.spawn.x, 0, this.spawn.z);
-        if (this.moved && this.spawn.guard?.moveTo) this.home.set(this.spawn.guard.moveTo[0], 0, this.spawn.guard.moveTo[1]);
+        this.home.set(this.spawn.x, this.spawn.y ?? 0, this.spawn.z);
+        if (this.moved && this.spawn.guard?.moveTo) this.home.set(this.spawn.guard.moveTo[0], this.spawn.y ?? 0, this.spawn.guard.moveTo[1]);
         this.goHome();
       }
     }
@@ -554,7 +570,7 @@ export class Npc {
       if (this.stuckT > 2.5 && (this.state === 'wander' || this.state === 'return' || this.state === 'goto')) {
         // Give up and teleport-settle home if out of view, else pick a new target.
         if (this.state === 'wander') this.hasTarget = false;
-        else if (!g.near(ch.pos, 14)) ch.place(this.home.x, 0, this.home.z, this.homeYaw);
+        else if (!g.near(ch.pos, 14)) ch.place(this.home.x, this.home.y, this.home.z, this.homeYaw);
         this.stuckT = 0;
       }
     } else this.stuckT = 0;

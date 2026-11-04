@@ -2,31 +2,60 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#111312" />
-    <link rel="icon" href="data:," />
-    <title>Three.js Vite Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#2d2a4a" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='38' rx='20' ry='22' fill='%235fe0b8'/%3E%3Ccircle cx='32' cy='32' r='11' fill='white'/%3E%3Ccircle cx='32' cy='33' r='6' fill='%237a4fd0'/%3E%3C/svg%3E" />
+    <title>Shell Switch</title>
   </head>
   <body>
     <main id="app">
-      <canvas id="game-canvas" aria-label="Playable Three.js game canvas"></canvas>
-      <section id="hud" aria-live="polite">
-        <div class="hud-metric">
-          <span>Relays</span>
-          <strong><span id="score-value">0</span>/<span id="target-value">8</span></strong>
+      <canvas id="game-canvas" aria-label="Shell Switch game view"></canvas>
+
+      <div id="world-layer" aria-hidden="true"></div>
+
+      <section id="hud" class="hidden" aria-live="polite">
+        <div id="tracker" class="sticker">
+          <div id="tracker-area"></div>
+          <div id="tracker-title"></div>
+          <ol id="tracker-steps"></ol>
         </div>
-        <div class="hud-metric">
-          <span>Time</span>
-          <strong id="timer-value">00:00</strong>
+        <div id="hud-right">
+          <div id="cores" class="sticker" aria-label="Star Cores"></div>
+          <div id="bits" class="sticker"><span class="bit-icon"></span><b id="bits-value">0</b><small id="bits-total">/0</small></div>
+          <button id="btn-pause" class="icon-btn sticker" aria-label="Pause"><span class="pause-glyph"></span></button>
         </div>
-        <div id="status-line">Collect relays</div>
+        <div id="host-bar">
+          <div id="host-portrait"><img id="host-img" alt="" /></div>
+          <div id="host-info">
+            <div id="host-name"></div>
+            <div id="host-ability"></div>
+          </div>
+          <div id="eye" aria-label="Suspicion"><div id="eye-fill"></div></div>
+          <div id="prompts">
+            <div class="prompt" id="prompt-e"><kbd>E</kbd><span></span></div>
+            <div class="prompt" id="prompt-f"><kbd>F</kbd><span></span></div>
+            <div class="prompt" id="prompt-q"><kbd>Q</kbd><span>Hop out</span></div>
+          </div>
+        </div>
+        <div id="action-ring" class="hidden"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" class="bg" /><circle cx="20" cy="20" r="16" class="fg" id="action-arc" /></svg><span id="action-label"></span></div>
+        <div id="banner"></div>
+        <div id="toasts"></div>
+        <div id="inventory"></div>
       </section>
-      <div id="touch-controls" aria-hidden="true">
-        <div id="touch-stick">
-          <div id="touch-knob"></div>
+
+      <div id="touch" class="hidden">
+        <div id="stick"><div id="knob"></div></div>
+        <div id="touch-buttons">
+          <button class="tbtn" id="t-ability"><b>F</b><span id="t-ability-label">Ability</span></button>
+          <button class="tbtn" id="t-interact"><b>E</b><span id="t-interact-label">Use</span></button>
+          <button class="tbtn" id="t-jump"><b>⤒</b><span>Jump</span></button>
+          <button class="tbtn small" id="t-exit"><b>Q</b><span>Exit</span></button>
+          <button class="tbtn small" id="t-run"><b>»</b><span>Run</span></button>
         </div>
-        <button id="dash-button" type="button">Dash</button>
       </div>
+
+      <div id="menus"></div>
+      <div id="flash"></div>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
