@@ -118,7 +118,7 @@ const hp0 = s.boss.hp;
 await ev(() => { const s = window.__BTH.scene, b = s.boss; s.lanterns.forEach((l) => l.setLit(false, true)); b.tick = () => { b.coreOpen = b.exposed(); }; b.body.setVelocity(0, 0); b.x = s.player.x + 160; b.y = s.player.y - 60; b.body.reset(b.x, b.y); s.player.facing = 1; });
 for (let i = 0; i < 4; i++) { await tap(page, 'KeyX', 40); await wait(page, 180); }
 const hpDark = await ev(() => window.__BTH.scene.boss.hp);
-await ev(() => { const s = window.__BTH.scene, b = s.boss; const l = s.lanterns.filter((l) => l.s.ty === 18)[0]; l.setLit(true, true); b.x = l.s.x + 40; b.y = l.ly - 10; b.body.reset(b.x, b.y); s.player.body.reset(l.s.x - 180, 19 * 32); s.player.facing = 1; });
+await ev(() => { const s = window.__BTH.scene, b = s.boss; const [ax, bx] = s.bossArena; const l = s.lanterns.filter((l) => l.s.ty === 18 && l.s.x > ax + 200 && l.s.x < bx - 80)[0]; l.setLit(true, true); b.x = l.s.x + 40; b.y = l.ly - 10; b.body.reset(b.x, b.y); s.player.body.reset(l.s.x - 180, 19 * 32); s.player.facing = 1; });
 await wait(page, 200);
 for (let i = 0; i < 4; i++) { await tap(page, 'KeyX', 40); await wait(page, 180); }
 const hpLit = await ev(() => window.__BTH.scene.boss.hp);

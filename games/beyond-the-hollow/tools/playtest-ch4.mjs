@@ -81,7 +81,7 @@ check('IV-5: hanging from an infected node purifies it and wounds the Heart', hp
 await ev(() => { const s = window.__BTH.scene; s.player.releaseSwing(false); s.hooks.filter((h) => h.dark).forEach((h) => { h.setDark(false); s.boss.nodePurified(); }); });
 const mode2 = await ev(() => window.__BTH.scene.boss.mode);
 // time wave: harmless in the other time
-await ev(() => { const s = window.__BTH.scene; if (s.past) s.toggleEco(); s.player.hp = 5; s.player.maxHp = 5; s.player.invuln = 0; s.spawnTimeWave(s.player.x + 60, true); });
+await ev(() => { const s = window.__BTH.scene; const b = s.boss; b.orbT = 99; b.slamT = 99; b.laserT = -1; b.waveT = 99; s.shots.clear(true, true); s.timeWaves.forEach((w) => w.img.destroy()); s.timeWaves.length = 0; if (s.past) s.toggleEco(); s.player.hp = 5; s.player.maxHp = 5; s.player.invuln = 0; s.spawnTimeWave(s.player.x + 60, true); });
 await wait(page, 600);
 const hpAfterPastWave = (await state(page)).player.hp;
 await ev(() => { const s = window.__BTH.scene; s.player.invuln = 0; s.spawnTimeWave(s.player.x + 60, false); });
