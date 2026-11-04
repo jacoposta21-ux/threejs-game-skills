@@ -3,7 +3,7 @@ import { DEPTH, TILE } from '../core/constants';
 import { Sound } from '../core/Audio';
 import type { GameScene } from '../scenes/GameScene';
 
-export type EnemyKind = 'crawler' | 'stalker' | 'burrower' | 'guardian' | 'boss' | 'drone';
+export type EnemyKind = 'crawler' | 'stalker' | 'burrower' | 'guardian' | 'boss' | 'drone' | 'mimic';
 
 export abstract class Enemy extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
@@ -263,6 +263,9 @@ export class Crawler extends Enemy {
 /** A shadow that hunts through darkness and recoils from light. */
 export class Stalker extends Enemy {
   kind: EnemyKind = 'stalker';
+  /** Ombra Velata: splits into two smaller shades the first time it is destroyed */
+  veiled = false;
+  small = false;
   vx = 0;
   vy = 0;
   mode: 'drift' | 'hunt' | 'flee' | 'attack' | 'stunned' = 'drift';
@@ -518,13 +521,13 @@ export class Guardian extends Enemy {
   private stepT = 0;
   private chargeHit = false;
   private spitT = 0;
-  constructor(gs: GameScene, x: number, y: number, boss: boolean, bounds: [number, number]) {
-    super(gs, x, y, boss ? 'heartguard' : 'guardian');
+  constructor(gs: GameScene, x: number, y: number, boss: boolean, bounds: [number, number], tex?: string) {
+    super(gs, x, y, tex ?? (boss ? 'heartguard' : 'guardian'));
     this.isBoss = boss;
     this.kind = boss ? 'boss' : 'guardian';
-    this.key = boss ? 'heartguard' : 'guardian';
-    this.hp = this.maxHp = boss ? 46 : 16;
-    this.sc = boss ? 0.62 : 0.5;
+    this.key = tex ?? (boss ? 'heartguard' : 'guardian');
+    this.hp = this.maxHp = boss ? 46 : tex === 'keeper' ? 22 : 16;
+    this.sc = boss ? 0.62 : tex === 'keeper' ? 0.56 : 0.5;
     this.setScale(this.sc).setOrigin(0.5, 236 / 240);
     this.setDepth(DEPTH.enemies + 1);
     this.body.setSize(200, 150).setOffset(50, 84);
@@ -1044,6 +1047,224 @@ export class Warden extends Enemy {
     this.alive = false;
     this.beam.destroy();
     this.body.enable = false;
+    this.gs.onBossDefeated(this);
+  }
+}
+
+// ---------------------------------------------------------------- Chapter III enemies
+/** Ombra Velata: a stalker wrapped in shadow veils that splits into two small shades. */
+export class VeiledShade extends Stalker {
+  constructor(gs: GameScene, x: number, y: number, small = false) {
+    super(gs, x, y);
+    this.veiled = !small;
+    this.small = small;
+    this.setTint(0xb08aff);
+    if (small) {
+      this.setScale(0.34);
+      this.hp = this.maxHp = 1;
+    }
+  }
+  preUpdate(t: number, dt: number) {
+    super.preUpdate(t, dt);
+    if (this.flashT <= 0) this.setTint(0xb08aff);
+  }
+  die() {
+    if (this.veiled) {
+      this.gs.fx.smokeWisp(this.x, this.y);
+      for (const s of [-1, 1]) this.gs.spawnEnemy(new VeiledShade(this.gs, this.x + s * 30, this.y + 40, true));
+    }
+    super.die();
+  }
+}
+
+/** Fungo Mimo: looks like a bounce cap, bites whoever comes close or lands on it. */
+export class Mimic extends Enemy {
+  kind: EnemyKind = 'mimic';
+  mode: 'wait' | 'bite' | 'rest' = 'wait';
+  bit = false;
+  constructor(gs: GameScene, x: number, y: number) {
+    super(gs, x, y + 1, 'mimic');
+    this.hp = this.maxHp = 2;
+    this.setScale(0.5 * 1.3).setOrigin(0.5, 1);
+    this.body.setAllowGravity(false);
+    this.body.moves = false;
+    this.body.setSize(80, 44).setOffset(8, 30);
+    this.contactDamage = 0;
+    this.play('mimic-idle');
+  }
+  tick(dt: number) {
+    if (!this.alive) return;
+    this.stateT += dt;
+    const p = this.player.body;
+    const dx = Math.abs(p.center.x - this.x), dy = this.y - p.bottom;
+    switch (this.mode) {
+      case 'wait':
+        if (dx < 56 && dy > -10 && dy < 70) {
+          this.mode = 'bite';
+          this.stateT = 0;
+          this.bit = false;
+          this.play('mimic-bite');
+          Sound.play('crawler', this.pan());
+        }
+        break;
+      case 'bite':
+        if (!this.bit && this.stateT > 0.16) {
+          this.bit = true;
+          if (Math.abs(p.center.x - this.x) < 46 && this.y - p.bottom < 60 && this.y - p.bottom > -12) {
+            this.player.hurt(1, this.x);
+            if (this.player.body.velocity.y > 0) this.player.body.setVelocityY(-380);
+          }
+        }
+        if (this.stateT > 0.7) { this.mode = 'rest'; this.stateT = 0; this.play('mimic-idle'); }
+        break;
+      case 'rest':
+        if (this.stateT > 1.1) this.mode = 'wait';
+        break;
+    }
+  }
+}
+
+/**
+ * L'Ombra Prima. Untouchable in darkness: only lantern light — or, from phase 2, the golden light of
+ * the past seen through Pip's Echo — makes it solid. Snuffs lanterns, spawns veiled shades, eats light.
+ */
+export class ShadowBoss extends Enemy {
+  kind: EnemyKind = 'boss';
+  mode: 'intro' | 'drift' | 'lunge' | 'roar' = 'intro';
+  phase = 1;
+  coreOpen = false;
+  vx = 0;
+  vy = 0;
+  orbT = 2;
+  snuffT = 7;
+  lungeCd = 2;
+  warned = false;
+  minX: number;
+  maxX: number;
+  constructor(gs: GameScene, x: number, y: number, bounds: [number, number]) {
+    super(gs, x, y - 200, 'ombra');
+    this.hp = this.maxHp = 54;
+    this.minX = bounds[0];
+    this.maxX = bounds[1];
+    this.setScale(0.62).setDepth(DEPTH.enemies + 1);
+    this.play('ombra-drift');
+    this.body.setAllowGravity(false);
+    this.body.setSize(220, 200).setOffset(70, 60);
+    this.contactDamage = 2;
+    this.setAlpha(0.8);
+    this.eyes = gs.add.image(x, y, 'glow').setTint(0xc87aff).setBlendMode(Phaser.BlendModes.ADD).setScale(2.4).setAlpha(0.7).setDepth(DEPTH.glow);
+  }
+  eyes: Phaser.GameObjects.Image;
+  preUpdate(t: number, d: number) {
+    super.preUpdate(t, d);
+    this.eyes?.setPosition(this.x, this.y - 30).setAlpha(this.alive ? (this.coreOpen ? 0.95 : 0.6) : 0).setTint(this.coreOpen ? 0xffd27a : 0xc87aff);
+  }
+  corePos() {
+    return { x: this.x, y: this.y - 20 };
+  }
+  beginFight() { this.mode = 'drift'; }
+  roar() {
+    this.mode = 'roar';
+    this.stateT = 0;
+    this.play('ombra-lunge');
+    Sound.play('stalker', this.pan());
+    Sound.play('roar', this.pan());
+    this.gs.fx.shake(0.01, 700);
+  }
+  /** Is the shadow currently made solid by light? */
+  exposed() {
+    if (this.gs.lanternLightAt(this.x, this.y) > 0.25) return true;
+    return this.phase >= 2 && this.gs.past;
+  }
+  vulnerable() {
+    return this.alive && this.mode !== 'intro';
+  }
+  tick(dt: number) {
+    if (!this.alive) return;
+    this.stateT += dt;
+    const f = this.hp / this.maxHp;
+    const np = f < 0.33 ? 3 : f < 0.66 ? 2 : 1;
+    if (np !== this.phase) {
+      this.phase = np;
+      this.gs.onBossPhase(np);
+      this.roar();
+    }
+    this.coreOpen = this.exposed();
+    this.setAlpha(this.flashT > 0 ? 1 : this.coreOpen ? 1 : 0.62 + Math.sin(this.stateT * 3) * 0.08);
+    const p = this.player;
+    const sp = this.phase === 3 ? 125 : this.phase === 2 ? 105 : 85;
+    let tx = Phaser.Math.Clamp(p.x, this.minX, this.maxX), ty = p.y - 150 + Math.sin(this.stateT * 1.3) * 30;
+    switch (this.mode) {
+      case 'intro':
+        this.body.setVelocity(0, 0);
+        return;
+      case 'roar':
+        tx = this.x; ty = this.y;
+        if (this.stateT > 1.1) { this.mode = 'drift'; this.play('ombra-drift'); }
+        break;
+      case 'drift': {
+        this.lungeCd -= dt;
+        this.orbT -= dt;
+        this.snuffT -= dt;
+        if (this.orbT <= 0) {
+          this.orbT = this.phase === 3 ? 2.2 : 3;
+          for (let i = -1; i <= 1; i++) {
+            const a = Math.atan2(p.y - 30 - this.y, p.x - this.x) + i * 0.25;
+            this.gs.spawnShot(this.x + Math.cos(a) * 40, this.y + Math.sin(a) * 40, Math.cos(a) * 260, Math.sin(a) * 260);
+          }
+          Sound.play('stalker', this.pan());
+        }
+        if (this.phase >= 2 && this.snuffT <= 0) {
+          this.snuffT = this.phase === 3 ? 6 : 9;
+          this.gs.snuffLanterns();
+          this.gs.spawnShadesAround(this.x, this.y);
+        }
+        if (this.lungeCd <= 0 && this.distToPlayer() < 230) {
+          this.mode = 'lunge';
+          this.stateT = 0;
+          this.play('ombra-lunge');
+          Sound.play('stalker', this.pan());
+          const d = Math.max(1, this.distToPlayer());
+          this.vx = ((p.x - this.x) / d) * 430;
+          this.vy = ((p.y - 30 - this.y) / d) * 430;
+        }
+        break;
+      }
+      case 'lunge':
+        this.body.setVelocity(this.vx, this.vy);
+        if (this.stateT > 0.45) {
+          this.mode = 'drift';
+          this.lungeCd = this.phase === 3 ? 1.8 : 2.8;
+          this.play('ombra-drift');
+        }
+        this.setFlipX(this.vx < 0);
+        return;
+    }
+    const dx = tx - this.x, dy = ty - this.y, d = Math.max(1, Math.hypot(dx, dy));
+    this.vx = Phaser.Math.Linear(this.vx, (dx / d) * Math.min(sp, d * 2), Math.min(1, dt * 2));
+    this.vy = Phaser.Math.Linear(this.vy, (dy / d) * Math.min(sp, d * 2), Math.min(1, dt * 2));
+    this.body.setVelocity(this.vx, this.vy);
+    this.setFlipX(p.x < this.x);
+    if (Math.random() < 0.15) this.gs.fx.smokeWisp(this.x + (Math.random() - 0.5) * 100, this.y + 40);
+  }
+  hit(dmg: number, srcX: number, big: boolean, bx = 0, by = 0) {
+    if (!this.alive || this.mode === 'intro') return false;
+    if (!this.coreOpen) {
+      // the bolt passes through living darkness
+      this.gs.fx.smokeWisp(bx, by);
+      if (!this.warned) {
+        this.warned = true;
+        this.gs.toast(this.phase >= 2 ? 'Only light can wound it — lanterns, or the light of the past' : 'It cannot be hurt in the dark — light the lanterns!', 2600);
+      }
+      return false;
+    }
+    super.hit(big ? dmg + 1 : dmg, srcX, big, bx, by);
+    return true;
+  }
+  die() {
+    this.alive = false;
+    this.body.enable = false;
+    this.gs.tweens.add({ targets: this.eyes, alpha: 0, duration: 800, onComplete: () => this.eyes.destroy() });
     this.gs.onBossDefeated(this);
   }
 }

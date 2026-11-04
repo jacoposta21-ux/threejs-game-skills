@@ -4,6 +4,7 @@ import { buildCreatures } from '../art/creatures';
 import { buildCommonProps, buildFx, buildThemeProps } from '../art/props';
 import { buildBackgrounds } from '../art/backgrounds';
 import { buildChapter2Common } from '../art/chapter2';
+import { buildChapter3 } from '../art/chapter3';
 import { Save } from '../core/Save';
 import { Sound } from '../core/Audio';
 import { Crazy } from '../core/CrazySDK';
@@ -27,6 +28,7 @@ export class BootScene extends Phaser.Scene {
       () => buildCreatures(this),
       () => buildCommonProps(this),
       () => buildChapter2Common(this),
+      () => buildChapter3(this),
       () => buildBackgrounds(this, 'forest'),
       () => buildThemeProps(this, 'forest'),
     ];

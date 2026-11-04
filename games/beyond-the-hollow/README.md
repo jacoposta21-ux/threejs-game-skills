@@ -25,6 +25,7 @@ npm run validate:levels  # reachability proof for all five levels
 | Climb ladders / ledges | W, ↑ | | ▲ |
 | Lumen Coil (hold to charge) | X, J | Left-click (aims at cursor) | FIRE |
 | Pip: wake mechanisms or sing a lure | Q, K | Right-click | PIP |
+| Pip's Echo: present ↔ past (Chapter III) | R, U | RB | ECO |
 | Pause | Esc, P | Start | ❚❚ |
 
 ## Chapters
@@ -50,9 +51,23 @@ The story is split into chapters, and each one ends with its own boss.
 | 3 | The Sunken Temple | timed totems (7-second gates), swinging blades | Burrowers, Stalkers |
 | 4 | The Sentinel's Vault | arena fight | **Boss: The Ancient Sentinel**: bomb runs, laser columns, ground dives that leave its core exposed; it calls Watchers in phase 2 |
 
+### Chapter III · The Keepers’ City
+
+Pip learns the **Echo** (R / U, gamepad RB, touch ECO): the world switches between the ruined **present** and the golden **past** of the Keepers' city. Some stones exist only in one time.
+
+| Part | Area | New mechanics | New threats |
+| --- | --- | --- | --- |
+| 1 | The Deep Threshold | Echo bridges and rubble, rising spore columns, switching time in mid-air | Veiled Shades (split in two) |
+| 2 | The Hanging Gardens | vine seeds that grow into ladders under a charged blast | Mimic caps (look like bounce caps, bite) |
+| 3 | The Keepers’ Quarter | crate puzzle across both times; Ilse's birthplace | **Mini-boss: the Broken Keeper** |
+| 4 | The Archive of Voices | Keeper lanterns (lit by Pip or a charged blast) keep shades away | Veiled Shades in the dark |
+| 5 | The Shadow Well | lantern-lit arena | **Boss: The First Shadow**: untouchable in darkness; light the lanterns. From phase 2 it snuffs them, and the light of the past wounds it. In phase 3 it eats the light |
+
+Story and level structure for Chapters III–IV live in `docs/capitoli-3-4.md`.
+
 The title screen opens on the key art (`src/assets/keyart.jpg`), and `public/cover-512.jpg` is a cover thumbnail for the portal listing.
 
-Checkpoints save to `localStorage`, and Continue resumes from the last one. Chapter select is grouped by chapter. A death offers retry from checkpoint or restart chapter. The game also has lore recordings (27), settings (music/sfx volume, quality, screen shake), fullscreen, and gamepad support.
+Checkpoints save to `localStorage`, and Continue resumes from the last one. Chapter select is grouped by chapter. A death offers retry from checkpoint or restart chapter. The game also has lore recordings (39), settings (music/sfx volume, quality, screen shake), fullscreen, and gamepad support.
 
 ## Architecture
 
@@ -63,7 +78,7 @@ src/levels   ASCII segment level data + compiler (→ Phaser Tilemap)
 src/world    LevelMap (tilemap layers, decor scatter), Objects (doors, plates, mechanisms, hazards…), Lighting (darkness RT), Fx
 src/entities Player (explicit animation/physics state machine), Pip, Enemies (Crawler, Stalker, Burrower, Guardian/boss)
 src/scenes   Boot, Menu, Story, BG (parallax), Game, UI (HUD/menus/touch), Ending
-tools        validate-levels.ts, gen-chapter2.py (Chapter II map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs
+tools        validate-levels.ts, gen-chapter2.py / gen-chapter3.py (map authoring), harness.mjs, playtest-l1.mjs, playtest-all.mjs, playtest-ch2.mjs, playtest-ch3.mjs
 ```
 
 ## CrazyGames

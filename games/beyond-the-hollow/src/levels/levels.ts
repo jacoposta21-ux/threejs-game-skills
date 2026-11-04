@@ -14,19 +14,22 @@
  */
 import type { ThemeKey } from '../art/themes';
 import { CHAPTER2 } from './chapter2.ts';
+import { CHAPTER3 } from './chapter3.ts';
 
 export interface LevelDef {
   id: string;
   name: string;
   subtitle: string;
   theme: ThemeKey;
-  music: 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'ice' | 'foundry' | 'ruins';
+  music: 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'ice' | 'foundry' | 'ruins' | 'keepers' | 'abyss';
+  /** Pip's Echo (present/past switching) is available */
+  eco?: boolean;
   /** which story chapter this part belongs to (1-based) */
   chapter: number;
   /** slippery ice floors */
   ice?: boolean;
   /** boss presented when the arena is entered */
-  boss?: { name: string; sub: string; music: 'boss' | 'boss2' };
+  boss?: { name: string; sub: string; music: 'boss' | 'boss2' | 'boss3' };
   darkness: number;
   backWall: boolean;
   doubleJump: boolean;
@@ -65,7 +68,18 @@ export const CHAPTERS: ChapterDef[] = [
       'Pip flickered the old signal once more. It came from below. Far below.',
       'His mother had not been taken. She had gone on ahead.',
     ],
-    next: 'Chapter III · coming soon',
+    next: 'Chapter III · The Keepers’ City',
+  },
+  {
+    roman: 'III',
+    title: 'The Keepers’ City',
+    ending: [
+      'The First Shadow broke apart and poured itself down, into the light at the heart of the world.',
+      'Behind a wall of living crystal, the Seed glowed — and beside it stood a woman with a red scarf.',
+      'His mother pressed her hand against the glass. She was smiling, and she was crying.',
+      '“Don’t bring Pip here,” she said. Pip, on his shoulder, had already begun to sing.',
+    ],
+    next: 'Chapter IV · The Seed — coming soon',
   },
 ];
 
@@ -748,4 +762,4 @@ const CHAPTER1: LevelDef[] = [
   },
 ];
 
-export const LEVELS: LevelDef[] = [...CHAPTER1, ...CHAPTER2];
+export const LEVELS: LevelDef[] = [...CHAPTER1, ...CHAPTER2, ...CHAPTER3];

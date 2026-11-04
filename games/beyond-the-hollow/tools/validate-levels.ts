@@ -9,12 +9,12 @@ for (const [li, def] of LEVELS.entries()) {
   const at = (x: number, y: number) => (x < 0 || y < 0 || x >= W || y >= H ? '#' : grid[y][x]);
   const solid = (c: string) => c === '#' || c === 'h' || c === '!' || c === '{' || c === '}';
   const hazard = (c: string) => c === '^' || c === 'v' || c === 'a';
-  const pass = (x: number, y: number) => !solid(at(x, y)) && !hazard(at(x, y));
+  const pass = (x: number, y: number) => !solid(at(x, y)) && !hazard(at(x, y)) && !((at(x, y) === 'Q' || at(x, y) === 'q') && false);
   const water = (x: number, y: number) => '~<>'.includes(at(x, y));
-  const ladder = (x: number, y: number) => at(x, y) === 'H' || at(x, y) === '|' || at(x, y) === 'Y';
+  const ladder = (x: number, y: number) => 'H|Y:g'.includes(at(x, y)) && at(x, y) !== ' ';
   const support = (x: number, y: number) => {
     const c = at(x, y);
-    return solid(c) || c === '=' || c === '-' || c === 'T' || (c === 'H' && at(x, y - 1) !== 'H') || ((c === '|' || c === 'Y') && at(x, y - 1) !== '|');
+    return solid(c) || c === '=' || c === '-' || c === 'T' || c === 'Q' || c === 'q' || (c === 'H' && at(x, y - 1) !== 'H') || ((c === '|' || c === 'Y') && at(x, y - 1) !== '|');
   };
   const isNode = (x: number, y: number) => {
     if (!pass(x, y)) return false;
@@ -67,9 +67,10 @@ for (const [li, def] of LEVELS.entries()) {
     // jumping (from ground, ladder or water surface)
     const canJump = grounded || onLadder || (inWater && !water(x, y - 1));
     if (!canJump || !tall(x, y)) continue;
-    const bounce = at(x, y) === 'm' || at(x - 1, y) === 'm' || at(x + 1, y) === 'm';
-    const maxUp = bounce ? (def.doubleJump ? 12 : 10) : up;
-    for (let dy = -6; dy <= maxUp; dy++) {
+    const bounce = 'mu'.includes(at(x, y)) || 'mu'.includes(at(x - 1, y)) || 'mu'.includes(at(x + 1, y));
+    const updraft = at(x, y) === 'u' || at(x - 1, y) === 'u' || at(x + 1, y) === 'u';
+    const maxUp = updraft ? 17 : bounce ? (def.doubleJump ? 12 : 10) : up;
+    for (let dy = -14; dy <= maxUp; dy++) {
       const maxDx = bounce && dy > 3 ? 6 : dy <= 1 ? (def.doubleJump ? 7 : 5) : dy <= 3 ? (def.doubleJump ? 6 : 4) : 4;
       // rise column
       let ok = true;

@@ -10,17 +10,18 @@ export const TouchState = {
   shoot: false,
   pip: false,
   interact: false,
+  eco: false,
   active: false,
 };
 
-type Btn = 'left' | 'right' | 'up' | 'down' | 'jump' | 'shoot' | 'pip' | 'interact' | 'pause';
+type Btn = 'left' | 'right' | 'up' | 'down' | 'jump' | 'shoot' | 'pip' | 'interact' | 'pause' | 'eco';
 
 /**
  * Unified input: keyboard (arrows/WASD + action keys), mouse aim/shoot, gamepad, and touch.
  * Edge-triggered "pressed" flags are valid for exactly one update().
  */
 export class Controls {
-  held: Record<Btn, boolean> = { left: false, right: false, up: false, down: false, jump: false, shoot: false, pip: false, interact: false, pause: false };
+  held: Record<Btn, boolean> = { left: false, right: false, up: false, down: false, jump: false, shoot: false, pip: false, interact: false, pause: false, eco: false };
   private prev: Record<Btn, boolean> = { ...this.held };
   pressed: Record<Btn, boolean> = { ...this.held };
   released: Record<Btn, boolean> = { ...this.held };
@@ -36,7 +37,7 @@ export class Controls {
     const K = Phaser.Input.Keyboard.KeyCodes;
     const map: Record<string, number> = {
       left: K.LEFT, a: K.A, right: K.RIGHT, d: K.D, up: K.UP, w: K.W, down: K.DOWN, s: K.S,
-      space: K.SPACE, z: K.Z, x: K.X, j: K.J, q: K.Q, k: K.K, e: K.E, l: K.L, esc: K.ESC, p: K.P, c: K.C, shift: K.SHIFT,
+      space: K.SPACE, z: K.Z, x: K.X, j: K.J, q: K.Q, k: K.K, e: K.E, l: K.L, esc: K.ESC, p: K.P, c: K.C, shift: K.SHIFT, r: K.R, u: K.U,
     };
     for (const [n, code] of Object.entries(map)) this.keys[n] = kb.addKey(code, true, false);
     kb.addCapture([K.SPACE, K.UP, K.DOWN, K.LEFT, K.RIGHT]);
@@ -80,6 +81,7 @@ export class Controls {
     h.pip = this.k('q', 'k') || pb(3) || pb(6) || T.pip || this.mousePip;
     h.interact = this.k('e', 'l', 'shift') || pb(1) || T.interact;
     h.pause = this.k('esc', 'p') || pb(9);
+    h.eco = this.k('r', 'u') || pb(5) || T.eco;
     if (!this.enabled) {
       for (const b of Object.keys(h) as Btn[]) if (b !== 'pause') h[b] = false;
     }

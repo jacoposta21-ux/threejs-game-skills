@@ -532,6 +532,37 @@ function ruinsLayer(ctx: Ctx, th: ThemeDef, depth: number, r: () => number) {
   glows(ctx, th.accent2, r, 10 - depth * 3, 10, 0.5, 150, base);
 }
 
+/** The Keepers' City: towers and bridges of a dead civilisation, warm gold windows, glow-caps. */
+function keepersLayer(ctx: Ctx, th: ThemeDef, depth: number, r: () => number) {
+  const col = [th.far, th.mid, th.near][depth];
+  const base = [470, 530, 600][depth];
+  ceilingFringe(ctx, col, [100, 80, 60][depth], r, 18);
+  // towers with lit windows and domes
+  for (let i = 0; i < [9, 6, 4][depth]; i++) {
+    const x = r() * BG_W, w = [40, 60, 80][depth] * (0.6 + r() * 0.6), h = 160 + r() * 240;
+    wrap(x, w, (xx) => {
+      ctx.fillStyle = col;
+      ctx.fillRect(xx - w / 2, base - h, w, h + 100);
+      ctx.beginPath(); ctx.arc(xx, base - h, w / 2, Math.PI, 0); ctx.fill();
+      ctx.fillRect(xx - 2, base - h - w / 2 - 20, 4, 22);
+      if (depth < 2) {
+        ctx.fillStyle = rgba(th.accent, 0.55 - depth * 0.2);
+        for (let k = 0; k < 5; k++) if (r() < 0.55) ctx.fillRect(xx - w / 2 + 6 + r() * (w - 16), base - h + 20 + r() * (h - 40), 4, 7);
+      }
+    });
+  }
+  // arched bridges between towers
+  ctx.strokeStyle = col;
+  ctx.lineWidth = [8, 12, 16][depth];
+  for (let i = 0; i < 3; i++) {
+    const x = r() * BG_W, w = 160 + r() * 200, y = base - 120 - r() * 160;
+    wrap(x, w, (xx) => { ctx.beginPath(); ctx.moveTo(xx, y); ctx.quadraticCurveTo(xx + w / 2, y + 50, xx + w, y); ctx.stroke(); });
+  }
+  if (depth > 0) for (let i = 0; i < 3; i++) { const x = r() * BG_W, cw = [0, 110, 160][depth] * (0.6 + r() * 0.5); const glow = r() < 0.5 ? th.accent2 : '#d07aff'; wrap(x, cw, (xx) => mushroom(ctx, xx, base + 20, cw * 1.2, cw, col, mix(col, glow, 0.15), glow, r)); }
+  groundFringe(ctx, col, base, 24, r);
+  glows(ctx, th.accent, r, 10 - depth * 3, 9, 0.5, 120, base);
+}
+
 const LAYERS: Record<ThemeKey, (ctx: Ctx, th: ThemeDef, d: number, r: () => number) => void> = {
   station: stationLayer,
   forest: forestLayer,
@@ -541,6 +572,8 @@ const LAYERS: Record<ThemeKey, (ctx: Ctx, th: ThemeDef, d: number, r: () => numb
   ice: iceLayer,
   foundry: foundryLayer,
   ruins: ruinsLayer,
+  keepers: keepersLayer,
+  abyss: cavernLayer,
 };
 
 /** Builds 4 parallax layer textures: bg-<theme>-0 (sky) .. bg-<theme>-3 (nearest). */

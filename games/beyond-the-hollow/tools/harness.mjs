@@ -89,3 +89,16 @@ export async function autopilotRight(page, untilX, { maxMs = 12000, double = tru
   }
   await page.keyboard.up('ArrowRight');
 }
+
+/** Hold keys for ms while dismissing any lore log that opens along the way. */
+export async function walk(page, keys, ms) {
+  for (const k of keys) await page.keyboard.down(k);
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    const closed = await page.evaluate(() => { const ui = window.__game.scene.getScene('UI'); if (ui.logOpen) { ui.closeLog(); return true; } return false; });
+    // a paused scene resets its keys: press them again like a real keyboard's auto-repeat would
+    if (closed) { await page.waitForTimeout(50); for (const k of keys) { await page.keyboard.up(k); await page.keyboard.down(k); } }
+    await page.waitForTimeout(100);
+  }
+  for (const k of keys.slice().reverse()) await page.keyboard.up(k);
+}

@@ -134,7 +134,7 @@ export class LevelMap {
         } else if (c === 'a') {
           liquid.putTileAt(this.ch(x, y - 1) === 'a' ? TILE_ACID : TILE_ACID_TOP, x, y);
         }
-        if ('PCEiBo_MhLG+!rm%csbXWDwKTYZdpNV'.includes(c)) {
+        if ('PCEiBo_MhLG+!rm%csbXWDwKTYZdpNVQqugflSkO'.includes(c)) {
           if (c === 'D' || c === 'w') {
             if (this.ch(x, y - 1) === c) continue; // part of a stack started above
             let h = 1;

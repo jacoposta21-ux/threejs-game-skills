@@ -1,7 +1,7 @@
-export type ThemeKey = 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'ice' | 'foundry' | 'ruins';
+export type ThemeKey = 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'ice' | 'foundry' | 'ruins' | 'keepers' | 'abyss';
 
 /** New themes reuse the prop shapes of an existing family, recoloured by their own palette. */
-export const FAMILY: Record<ThemeKey, 'station' | 'forest' | 'caverns' | 'ocean' | 'heart'> = { station: 'station', forest: 'forest', caverns: 'caverns', ocean: 'ocean', heart: 'heart', ice: 'caverns', foundry: 'station', ruins: 'forest' };
+export const FAMILY: Record<ThemeKey, 'station' | 'forest' | 'caverns' | 'ocean' | 'heart'> = { station: 'station', forest: 'forest', caverns: 'caverns', ocean: 'ocean', heart: 'heart', ice: 'caverns', foundry: 'station', ruins: 'forest', keepers: 'forest', abyss: 'caverns' };
 
 export interface ThemeDef {
   key: ThemeKey;
@@ -66,5 +66,17 @@ export const THEMES: Record<ThemeKey, ThemeDef> = {
     key: 'ruins', rock: ['#14121c', '#3a3448', '#76708a'], top: ['#2f8f6f', '#6ef0b8', '#d8ffe8'], topStyle: 'moss',
     sky: ['#04060c', '#12163a', '#145a5a'], far: '#22305a', mid: '#18203e', near: '#080a18', fog: '#7affd8', accent: '#7affd8', accent2: '#d07aff',
     lamp: 0x9ffff0, darkColor: 0x020308, spike: ['#e0d8f0', '#5a4a6a'], platform: ['#8a8098', '#3a3448'], ladder: 'vine', water: ['#1a5a7a', '#a8fff0'],
+  },
+  keepers: {
+    // "The Keepers' City": a dead city of teal stone and gold, overgrown with glow-caps
+    key: 'keepers', rock: ['#14161e', '#3a4050', '#8a8aa0'], top: ['#2f8f6f', '#6ef0b8', '#e0fff0'], topStyle: 'moss',
+    sky: ['#05060c', '#141a36', '#2a3a4a'], far: '#2a3048', mid: '#1c2034', near: '#0a0c16', fog: '#ffd27a', accent: '#ffd27a', accent2: '#7ff5e0',
+    lamp: 0xffd27a, darkColor: 0x030308, spike: ['#f0e0b0', '#6a5a3a'], platform: ['#b8a070', '#4a3c28'], ladder: 'vine', water: ['#1a5a7a', '#a8fff0'],
+  },
+  abyss: {
+    // "The Shadow Well": the deepest dark, violet-black with teal spore-light
+    key: 'abyss', rock: ['#0c0814', '#2a1e40', '#5a4880'], top: ['#7a4ad0', '#c8a0ff', '#f0e0ff'], topStyle: 'crystal',
+    sky: ['#020106', '#0e0620', '#1e0e3a'], far: '#1e1236', mid: '#140c26', near: '#070410', fog: '#9f6aff', accent: '#7ff5e0', accent2: '#c87aff',
+    lamp: 0x9ffff0, darkColor: 0x020104, spike: ['#e0d0ff', '#4a2a7a'], platform: ['#7a6aa8', '#2a2048'], ladder: 'vine', water: ['#2a1a5a', '#c8b0ff'],
   },
 };

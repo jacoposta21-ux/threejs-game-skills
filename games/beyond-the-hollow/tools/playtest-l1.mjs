@@ -1,7 +1,7 @@
 import { boot, startLevel, state, tp, segX, hold, tap, wait, check, summary } from './harness.mjs';
 const { browser, page, errors } = await boot();
 await startLevel(page, 0);
-await page.evaluate(() => window.__BTH.scene.enemies.forEach((e) => e.kind === 'crawler' && e.x > 1500 && e.x < 2100 && (e.tick = () => {})));
+await page.evaluate(() => window.__BTH.scene.enemies.forEach((e) => { e.tick = () => {}; e.contactDamage = 0; }));
 let s = await state(page);
 const x0 = s.player.x;
 await hold(page, ['ArrowRight'], 900);

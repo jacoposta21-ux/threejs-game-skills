@@ -11,7 +11,9 @@ import { Lighting } from '../world/Lighting';
 import { ArcEmitter, Bouncer, Checkpoint, Cocoon, Crate, Door, Exit, GhostPlatform, HideSpot, Hint, Lamp, Light, Lore, Mechanism, Orb, Plate, SporeVent, Stalactite } from '../world/Objects';
 import { Player } from '../entities/Player';
 import { Pip } from '../entities/Pip';
-import { Burrower, Crawler, Drone, Enemy, Guardian, Stalker, Warden } from '../entities/Enemies';
+import { Burrower, Crawler, Drone, Enemy, Guardian, Mimic, ShadowBoss, Stalker, VeiledShade, Warden } from '../entities/Enemies';
+import { EcoBlock, Lantern, Updraft, VineBud } from '../world/Objects';
+import type { BGScene } from './BGScene';
 import { BreakWall, Belt, Crusher, Mover, Pendulum } from '../world/Objects';
 import { buildChapter2ThemeProps } from '../art/chapter2';
 import { THEMES } from '../art/themes';
@@ -39,7 +41,13 @@ export class GameScene extends Phaser.Scene {
   fx!: Fx;
   lighting!: Lighting;
   enemies: Enemy[] = [];
-  boss: Guardian | Warden | null = null;
+  boss: Guardian | Warden | ShadowBoss | null = null;
+  past = false;
+  ecoBlocks: EcoBlock[] = [];
+  updrafts: Updraft[] = [];
+  buds: VineBud[] = [];
+  lanterns: Lantern[] = [];
+  private ecoCd = 0;
   breaks: BreakWall[] = [];
   movers: Mover[] = [];
   belts: Belt[] = [];
@@ -111,6 +119,11 @@ export class GameScene extends Phaser.Scene {
     this.shocks = [];
     this.fogs = [];
     this.boss = null;
+    this.past = false;
+    this.ecoBlocks = [];
+    this.updrafts = [];
+    this.buds = [];
+    this.lanterns = [];
     this.breaks = [];
     this.movers = [];
     this.belts = [];
@@ -167,6 +180,12 @@ export class GameScene extends Phaser.Scene {
     sp('%').forEach((s) => this.vents.push(new SporeVent(this, s)));
     sp('L').forEach((s) => this.lamps.push(new Lamp(this, s)));
     sp('N').forEach((s) => this.mechs.push(new Mechanism(this, s)));
+    sp('Q').forEach((s) => this.ecoBlocks.push(new EcoBlock(this, s, true)));
+    sp('q').forEach((s) => this.ecoBlocks.push(new EcoBlock(this, s, false)));
+    this.ecoBlocks.forEach((b) => b.apply(true));
+    sp('u').forEach((s) => this.updrafts.push(new Updraft(this, s)));
+    sp('g').forEach((s, i) => this.buds.push(new VineBud(this, s, i)));
+    sp('l').forEach((s) => this.lanterns.push(new Lantern(this, s)));
     sp('K').forEach((s) => this.breaks.push(new BreakWall(this, s)));
     sp('T').forEach((s) => this.movers.push(new Mover(this, s)));
     sp('Y').forEach((s) => this.movers.push(new Mover(this, s)));
@@ -211,6 +230,7 @@ export class GameScene extends Phaser.Scene {
       }
     });
     this.cocoons.forEach((c, i) => persist.cocoons.includes(i) && c.hit(true));
+    this.buds.forEach((b, i) => (persist.vines || []).includes(i) && b.grow(true));
 
     // enemies
     for (const s of L.spawns) {
@@ -219,13 +239,16 @@ export class GameScene extends Phaser.Scene {
       if (s.ch === 'b') this.enemies.push(new Burrower(this, s.x, s.y));
       if (s.ch === 'X') this.enemies.push(new Guardian(this, s.x, s.y, false, [s.x - 9 * TILE, s.x + 7 * TILE]));
       if (s.ch === 'd') this.enemies.push(new Drone(this, s.x, s.y));
-      if (s.ch === 'W' || s.ch === 'V') {
+      if (s.ch === 'f') this.enemies.push(new Mimic(this, s.x, s.y));
+      if (s.ch === 'S') this.enemies.push(new VeiledShade(this, s.x, s.y));
+      if (s.ch === 'k') this.enemies.push(new Guardian(this, s.x, s.y, false, [s.x - 8 * TILE, s.x + 8 * TILE], 'keeper'));
+      if (s.ch === 'W' || s.ch === 'V' || s.ch === 'O') {
         // arena = open floor span around the boss
         let a = s.tx, b = s.tx;
         while (a > 0 && !L.solid(a - 1, s.ty) && s.tx - a < 24) a--;
         while (b < L.W - 1 && !L.solid(b + 1, s.ty) && !this.doors.some((d) => d.s.tx === b + 1) && b - s.tx < 24) b++;
         this.bossArena = [a * TILE, (b + 1) * TILE];
-        const g = s.ch === 'W' ? new Guardian(this, s.x, s.y, true, [a * TILE + 90, (b + 1) * TILE - 90]) : new Warden(this, s.x, s.y, [a * TILE + 120, (b + 1) * TILE - 120]);
+        const g = s.ch === 'W' ? new Guardian(this, s.x, s.y, true, [a * TILE + 90, (b + 1) * TILE - 90]) : s.ch === 'V' ? new Warden(this, s.x, s.y, [a * TILE + 120, (b + 1) * TILE - 120]) : new ShadowBoss(this, s.x, s.y, [a * TILE + 100, (b + 1) * TILE - 100]);
         this.boss = g;
         this.enemies.push(g);
       }
@@ -251,6 +274,9 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.player, moverImgs, undefined, moverOneWay);
     this.physics.add.collider(crateImgs, moverImgs, undefined, moverOneWay);
     this.physics.add.collider(this.player, breakImgs);
+    const ecoImgs = this.ecoBlocks.map((b) => b.img);
+    this.physics.add.collider(this.player, ecoImgs);
+    this.physics.add.collider(crateImgs, ecoImgs);
     this.physics.add.collider(crateImgs, breakImgs);
     const oneWay = (obj: any, tile: Phaser.Tilemaps.Tile) => {
       if (tile.index === 32 || tile.index === 33) {
@@ -306,6 +332,15 @@ export class GameScene extends Phaser.Scene {
       const bw = this.breaks.find((x) => x.img === w);
       if (bw && bw.alive) bw.hit(bolt.big);
       this.boltImpact(bolt);
+    });
+    this.physics.add.overlap(this.bolts, this.buds.map((b) => b.img), (a, b) => {
+      const [bolt, im] = pick<Bolt>(a, b, isBolt);
+      const bud = this.buds.find((x) => x.img === im);
+      if (bud && !bud.grown) {
+        bud.hit(bolt.big);
+        if (bud.grown) this.persistAdd('vines', bud.index);
+        this.boltImpact(bolt);
+      }
     });
     this.shots = this.physics.add.group({ allowGravity: false });
     this.bombs = this.physics.add.group({ allowGravity: true });
@@ -485,6 +520,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const p = this.player;
+    // Pip's Echo: switch between the present and the Keepers' past
+    this.ecoCd = Math.max(0, this.ecoCd - dt);
+    if (this.controls.pressed.eco && this.levelDef.eco && !this.cutscene && p.state !== 'dead') this.toggleEco();
     // Pip command
     if (this.controls.pressed.pip && !this.cutscene && p.state !== 'dead') {
       const r = this.pip.command();
@@ -509,6 +547,7 @@ export class GameScene extends Phaser.Scene {
     for (const b of this.belts) b.update(dt);
     for (const c of this.crushers) c.update(dt);
     for (const pd of this.pendulums) pd.update(dt);
+    for (const u of this.updrafts) u.update(dt);
     this.updateBolts(dt);
     this.updateShocks(dt);
     this.updateTriggers();
@@ -535,6 +574,7 @@ export class GameScene extends Phaser.Scene {
     lights.push({ x: this.pip.x, y: this.pip.y, r: this.pip.lightRadius * 2.1, i: 1 });
     lights.push({ x: p.x, y: p.y - 30, r: 120, i: 0.55 });
     for (const l of this.lamps) lights.push(l.light());
+    for (const ln of this.lanterns) { const L = ln.light(); if (L) lights.push(L); }
     for (const a of this.arcs) {
       const L = a.light();
       if (L) lights.push(L);
@@ -617,6 +657,52 @@ export class GameScene extends Phaser.Scene {
     return this.enemies.some((e) => e.alive && Phaser.Math.Distance.Between(e.x, e.y, x, y) < r);
   }
 
+  /** Brightness 0..1 from lit Keeper lanterns at a point (what makes the Shadow solid). */
+  lanternLightAt(x: number, y: number) {
+    let best = 0;
+    for (const l of this.lanterns) if (l.lit) best = Math.max(best, 1 - Phaser.Math.Distance.Between(x, y, l.s.x, l.ly) / 300);
+    return best;
+  }
+
+  snuffLanterns() {
+    if (!this.lanterns.some((l) => l.lit)) return;
+    this.lanterns.forEach((l) => l.setLit(false));
+    this.toast('The Shadow snuffs out the lanterns!', 1600);
+  }
+
+  spawnEnemy(e: Enemy) {
+    this.enemies.push(e);
+    this.addEnemyToGroup(e);
+  }
+
+  spawnShadesAround(x: number, y: number) {
+    const alive = this.enemies.filter((e) => e instanceof VeiledShade && e.alive).length;
+    for (let i = 0; i < Math.min(2, 4 - alive); i++) this.spawnEnemy(new VeiledShade(this, x + (i ? 120 : -120), y + 60));
+  }
+
+  toggleEco() {
+    if (this.ecoCd > 0) return;
+    // refuse if a block of the other time would appear inside Elias or a crate
+    const blockers = this.ecoBlocks.filter((b) => b.pastOnly !== this.past);
+    const bodies = [this.player.body, ...this.crates.map((c) => c.body)];
+    if (blockers.some((b) => bodies.some((bd) => b.overlaps(bd)))) {
+      Sound.play('hurt');
+      this.toast('Something stands in the way in the other time', 1400);
+      this.ecoCd = 0.4;
+      return;
+    }
+    this.past = !this.past;
+    this.ecoCd = 0.45;
+    this.ecoBlocks.forEach((b) => b.apply());
+    Sound.play(this.past ? 'reveal' : 'wake');
+    this.fx.ring(this.pip.x, this.pip.y, this.past ? 0xffd27a : 0x9f8aff);
+    this.cameras.main.flash(220, this.past ? 255 : 160, this.past ? 220 : 140, this.past ? 150 : 255);
+    this.tweens.add({ targets: this.lighting, extra: this.past ? -0.28 : 0, duration: 400 });
+    (this.scene.get('BG') as BGScene).setWarm(this.past);
+    this.level.back?.forEachTile((t) => (t.tint = this.past ? 0xd8b070 : 0x585e6c));
+    this.ui.setPast(this.past);
+  }
+
   nearestMechanism(x: number, y: number, range: number) {
     let best: Mechanism | null = null, bd = range;
     for (const m of this.mechs) {
@@ -626,6 +712,17 @@ export class GameScene extends Phaser.Scene {
         bd = d;
         best = m;
       }
+    }
+    // unlit Keeper lanterns are lit by Pip too
+    let lan: Lantern | null = null;
+    for (const l of this.lanterns) {
+      if (l.lit) continue;
+      const d = Phaser.Math.Distance.Between(x, y, l.s.x, l.ly);
+      if (d < bd) { bd = d; lan = l; }
+    }
+    if (lan) {
+      const l = lan;
+      return { x: l.s.x, y: l.ly, activate: () => l.setLit(true) };
     }
     if (!best) return null;
     const m = best;
@@ -676,6 +773,7 @@ export class GameScene extends Phaser.Scene {
       b.life -= dt;
       if (Math.random() < 0.9) this.boltTrail.explode(1, b.x, b.y);
       if (this.level.waterAtWorld(b.x, b.y)) b.life -= dt * 2;
+      if (b.big) for (const l of this.lanterns) if (!l.lit && Phaser.Math.Distance.Between(b.x, b.y, l.s.x, l.ly) < 26) l.setLit(true);
       if (b.life <= 0) this.boltImpact(b, true);
     }
   }
@@ -805,14 +903,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ persistence within a chapter attempt
-  private persisted(): { mechs: number[]; cocoons: number[] } {
+  private persisted(): { mechs: number[]; cocoons: number[]; vines?: number[] } {
     const k = 'persist-' + this.levelIndex;
-    return this.registry.get(k) || { mechs: [], cocoons: [] };
+    return this.registry.get(k) || { mechs: [], cocoons: [], vines: [] };
   }
-  private persistAdd(kind: 'mechs' | 'cocoons', i: number) {
+  private persistAdd(kind: 'mechs' | 'cocoons' | 'vines', i: number) {
     const k = 'persist-' + this.levelIndex;
     const v = this.persisted();
-    if (!v[kind].includes(i)) v[kind].push(i);
+    v[kind] = v[kind] || [];
+    if (!v[kind]!.includes(i)) v[kind]!.push(i);
     this.registry.set(k, v);
   }
 
@@ -870,7 +969,7 @@ export class GameScene extends Phaser.Scene {
     this.ui.letterbox(true);
     Sound.stopMusic();
     cam.stopFollow();
-    cam.pan(boss.x, boss.y - 120, 1400, 'Sine.easeInOut');
+    cam.pan(boss.x, Math.max(boss.y - 120, this.level.heightPx - 7 * TILE - 200), 1400, 'Sine.easeInOut');
     this.time.delayedCall(1500, () => {
       boss.roar();
       const info = this.levelDef.boss!;
@@ -878,6 +977,8 @@ export class GameScene extends Phaser.Scene {
     });
     this.time.delayedCall(3600, () => {
       cam.setBounds(a - 40, 0, b - a + 80, this.level.heightPx);
+      // the arena is closed while the fight lasts: Elias can't wander off-camera
+      this.physics.world.setBounds(a, 0, b - a, this.level.heightPx + 400);
       cam.startFollow(this.player, true, 0.08, 0.1, 0, 30);
       this.cutscene = false;
       this.player.setPState('air');
@@ -889,6 +990,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   onBossPhase(n: number) {
+    if (this.boss instanceof ShadowBoss) {
+      if (n === 2) this.toast('It snuffs the light — look into the past (Echo)', 2400);
+      if (n === 3) {
+        this.toast('It is eating the light! Stay close to Pip', 2200);
+        this.tweens.add({ targets: this.lighting, darkness: Math.min(0.97, this.lighting.darkness + 0.15), duration: 1500 });
+      }
+      return;
+    }
     if (this.boss instanceof Warden) {
       if (n === 2) {
         this.toast('The Warden launches its sentries!', 1800);
@@ -946,7 +1055,8 @@ export class GameScene extends Phaser.Scene {
       for (const d of this.doors) d.openPermanent();
       this.lighting.extra = -0.3;
       this.cameras.main.setBounds(0, 0, this.level.widthPx, this.level.heightPx);
-      this.toast(g instanceof Warden ? 'The Iron Warden falls silent' : 'The lock is open', 2500);
+      this.physics.world.setBounds(0, 0, this.level.widthPx, this.level.heightPx + 400);
+      this.toast(g instanceof Warden ? 'The Ancient Sentinel falls silent' : g instanceof ShadowBoss ? 'The Shadow flees into the Seed' : 'The lock is open', 2500);
       Sound.playTheme('ending');
     });
   }

@@ -45,6 +45,21 @@ export class EndingScene extends Phaser.Scene {
     this.tweens.add({ targets: [pip, glow], y: '-=14', duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     this.cameras.main.fadeIn(2500, 255, 255, 255);
     const lines = ch.ending;
+    if (chapter === 3) {
+      // the Seed chamber: Ilse behind a wall of living crystal
+      buildBackgrounds(this, 'abyss');
+      bg.setTexture('bg-abyss-0');
+      this.add.image(w / 2, h / 2, 'bg-abyss-2').setDisplaySize(Math.max(w, h * 1.6), Math.max(h, w / 1.6)).setAlpha(0.85);
+      const seed = this.add.image(w * 0.72, h * 0.55, 'glow').setScale(5).setTint(0xffd27a).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8);
+      this.tweens.add({ targets: seed, scale: 5.6, alpha: 0.55, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      const ilse = this.add.sprite(w * 0.6, h * 0.86, 'elias', 0).setScale(0.9).setOrigin(0.5, 0.95).play('elias-idle').setFlipX(true).setTint(0xd8a0b0);
+      const pane = this.add.rectangle(w * 0.53, h * 0.5, 26, h, 0x7ff5e0, 0.22).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: pane, fillAlpha: 0.35, duration: 1400, yoyo: true, repeat: -1 });
+      void ilse;
+      el.setDepth(5).clearTint();
+      pip.setDepth(5);
+      glow.setDepth(5);
+    }
     if (chapter === 2) {
       buildBackgrounds(this, 'ruins');
       // the open capsule in the deep vault, lit by the temple's glow instead of a dawn sky

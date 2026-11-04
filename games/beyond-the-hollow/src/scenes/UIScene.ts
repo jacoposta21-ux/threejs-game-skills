@@ -11,6 +11,8 @@ export class UIScene extends Phaser.Scene {
   gs: GameScene | null = null;
   private hud!: Phaser.GameObjects.Graphics;
   private vignette!: Phaser.GameObjects.Image;
+  private warm!: Phaser.GameObjects.Rectangle;
+  private pastOn = false;
   private pipIcon!: Phaser.GameObjects.Image;
   private barTop!: Phaser.GameObjects.Rectangle;
   private barBot!: Phaser.GameObjects.Rectangle;
@@ -38,6 +40,7 @@ export class UIScene extends Phaser.Scene {
     this.ready = true;
     this.events.once('shutdown', () => (this.ready = false));
     this.vignette = this.add.image(0, 0, 'vignette').setOrigin(0).setDepth(-1);
+    this.warm = this.add.rectangle(0, 0, 10, 10, 0xffc070, 0).setOrigin(0).setDepth(-2).setBlendMode(Phaser.BlendModes.ADD);
     this.hud = this.add.graphics();
     this.pipIcon = this.add.image(0, 0, 'pip', 0).setScale(0.55);
     const w = this.scale.width, h = this.scale.height;
@@ -60,8 +63,16 @@ export class UIScene extends Phaser.Scene {
     this.layout();
   }
 
+  setPast(on: boolean) {
+    this.pastOn = on;
+    this.tweens.add({ targets: this.warm, fillAlpha: on ? 0.13 : 0, duration: 350 });
+  }
+
   attach(gs: GameScene) {
     this.gs = gs;
+    this.pastOn = false;
+    this.warm?.setFillStyle(0xffc070, 0);
+    if (this.touchUI) { this.touchUI.destroy(); this.touchUI = null; this.buildTouch(); }
     this.shownHp = gs.player.hp;
     this.closeOverlay();
     this.showBossBar(false);
@@ -72,6 +83,7 @@ export class UIScene extends Phaser.Scene {
   private layout() {
     const w = this.scale.width, h = this.scale.height;
     this.vignette.setDisplaySize(w, h);
+    this.warm.setSize(w, h);
     this.barTop.width = w;
     this.barBot.width = w;
     this.barBot.y = h;
@@ -180,6 +192,7 @@ export class UIScene extends Phaser.Scene {
     pad(w - r * 4.1, by + r * 0.3, 'FIRE', 'shoot');
     pad(w - r * 3.3, by - r * 2.2, 'PIP', 'pip', r * 0.85);
     pad(w - r * 1.4, by - r * 2.5, 'USE', 'interact', r * 0.7);
+    if (this.gs?.levelDef.eco) pad(w - r * 5.4, by - r * 2.0, 'ECO', 'eco', r * 0.8);
   }
 
   // ---------------------------------------------------------------- HUD
@@ -225,6 +238,17 @@ export class UIScene extends Phaser.Scene {
       }
       g.lineStyle(1.2, 0xefe6d2, 0.5 * hide);
       g.strokeEllipse(cx, cy, 13, 19);
+    }
+    // Echo indicator (Chapter III): an hourglass that glows gold in the past
+    if (gs.levelDef.eco) {
+      const ex = x0 + 48 + Math.min(p.maxHp, 12) * 24, ey = y0 + 7;
+      g.fillStyle(0x05070a, 0.5 * hide);
+      g.fillCircle(ex, ey, 17);
+      g.lineStyle(1.5, this.pastOn ? 0xffd27a : 0x9f8aff, 0.9 * hide);
+      g.strokeCircle(ex, ey, 17);
+      g.fillStyle(this.pastOn ? 0xffd27a : 0x9f8aff, hide);
+      g.fillTriangle(ex - 7, ey - 9, ex + 7, ey - 9, ex, ey);
+      g.fillTriangle(ex - 7, ey + 9, ex + 7, ey + 9, ex, ey);
     }
     // charge ring under the vitality
     if (p.charging && p.charge > 0.15) {

@@ -305,6 +305,7 @@ interface GPal { plate: string; plateHi: string; skin: string; moss: string; cor
 const GUARD_PAL: Record<string, GPal> = {
   guardian: { plate: '#3e5a60', plateHi: '#8fb5b0', skin: '#1d2b30', moss: '#e7d6b0', core: '#53e8ff', coreHi: '#e6ffff', eye: '#9ff6ff' },
   heartguard: { plate: '#5a2c35', plateHi: '#d79b8c', skin: '#22121a', moss: '#efe0cc', core: '#ff4d5e', coreHi: '#fff0e0', eye: '#ffcf6e' },
+  keeper: { plate: '#6a5a3a', plateHi: '#f0d090', skin: '#1a1a24', moss: '#9ff5c8', core: '#ffd27a', coreHi: '#fffbe8', eye: '#ffe9a8' },
 };
 
 function drawGuardian(ctx: Ctx, pal: GPal, t: number, mode: 'walk' | 'slam' | 'roar', k: number, coreOpen: number) {
@@ -470,7 +471,7 @@ export function buildCreatures(scene: Phaser.Scene) {
   anim(scene, 'burrower-idle', 'burrower', 0, 4, 7, -1);
   anim(scene, 'burrower-bite', 'burrower', 4, 3, 14, 0);
 
-  for (const key of ['guardian', 'heartguard']) {
+  for (const key of ['guardian', 'heartguard', 'keeper']) {
     const pal = GUARD_PAL[key];
     paintSheet(scene, key, 320, 240, 14, 7, (ctx, i) => {
       if (i < 6) drawGuardian(ctx, pal, i / 6, 'walk', 0, 0);

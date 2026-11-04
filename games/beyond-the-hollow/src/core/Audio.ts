@@ -2,7 +2,7 @@
  * Fully synthesized audio: atmospheric generative music + event SFX through a shared reverb.
  * No audio files are downloaded, which keeps the initial load tiny.
  */
-type Theme = 'menu' | 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'boss' | 'ending' | 'ice' | 'foundry' | 'ruins' | 'boss2';
+type Theme = 'menu' | 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'boss' | 'ending' | 'ice' | 'foundry' | 'ruins' | 'boss2' | 'keepers' | 'abyss' | 'boss3';
 
 interface ThemeDef {
   root: number; // midi
@@ -27,6 +27,9 @@ const THEMES: Record<Theme, ThemeDef> = {
   foundry: { root: 36, scale: [0, 1, 3, 5, 6, 10, 12], pad: [0, 6, 12], cutoff: 700, noteEvery: [1.8, 3.4], wind: 0.06, pulse: true, bellType: 'triangle' },
   ruins: { root: 47, scale: [0, 2, 4, 7, 9, 12, 14], pad: [0, 7, 16], cutoff: 1100, noteEvery: [1.1, 2.4], wind: 0.05, bellType: 'triangle' },
   boss2: { root: 38, scale: [0, 1, 5, 6, 7, 12], pad: [0, 6, 13], cutoff: 1400, noteEvery: [0.4, 0.8], wind: 0.03, pulse: true, bellType: 'square' },
+  keepers: { root: 45, scale: [0, 2, 4, 5, 7, 9, 11, 12, 16], pad: [0, 4, 7, 11], cutoff: 1200, noteEvery: [1.0, 2.2], wind: 0.05, bellType: 'triangle' },
+  abyss: { root: 35, scale: [0, 1, 3, 6, 7, 10, 12], pad: [0, 6, 13], cutoff: 480, noteEvery: [2.5, 5], wind: 0.1, bellType: 'sine' },
+  boss3: { root: 37, scale: [0, 1, 3, 6, 7, 8, 12], pad: [0, 1, 6], cutoff: 900, noteEvery: [0.45, 0.9], wind: 0.06, pulse: true, bellType: 'sine' },
   ending: { root: 48, scale: [0, 2, 4, 7, 9, 11, 12, 16, 19], pad: [0, 4, 7, 11], cutoff: 1600, noteEvery: [0.8, 1.6], wind: 0.02, bellType: 'sine' },
 };
 

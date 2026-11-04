@@ -787,3 +787,140 @@ export class Pendulum {
     if (Math.abs(Math.cos(this.t * 2.4)) > 0.995 && Math.abs(this.gs.player.x - this.ax) < 500) Sound.play('spark');
   }
 }
+
+// ================================================================== Chapter III objects
+
+/** A block that exists only in one time: 'Q' only in the past, 'q' only in the present. */
+export class EcoBlock {
+  img: Phaser.Physics.Arcade.Image;
+  cell: number;
+  constructor(public gs: GameScene, public s: Spawn, public pastOnly: boolean) {
+    this.img = gs.physics.add.staticImage(s.x, s.y - TILE / 2, pastOnly ? 'eco-past' : 'eco-present').setScale(PROP_SCALE).setDepth(DEPTH.interact);
+    this.img.refreshBody();
+    this.cell = s.ty * gs.level.W + s.tx;
+    // like tile faces: no collision on sides that touch solid ground or another block of the same time,
+    // so Elias walks smoothly from the floor onto a bridge of the past
+    const L = gs.level;
+    const same = (x: number, y: number) => L.isSolidCh(L.ch(x, y)) || L.ch(x, y) === s.ch;
+    const cc = (this.img.body as Phaser.Physics.Arcade.StaticBody).checkCollision;
+    cc.left = !same(s.tx - 1, s.ty);
+    cc.right = !same(s.tx + 1, s.ty);
+    cc.up = !same(s.tx, s.ty - 1);
+    cc.down = !same(s.tx, s.ty + 1);
+  }
+  get solidNow() {
+    return this.pastOnly === this.gs.past;
+  }
+  apply(instant = false) {
+    const on = this.solidNow;
+    (this.img.body as Phaser.Physics.Arcade.StaticBody).enable = on;
+    if (on) this.gs.level.blocked.add(this.cell);
+    else this.gs.level.blocked.delete(this.cell);
+    const a = on ? 1 : 0.13;
+    if (instant) this.img.setAlpha(a);
+    else this.gs.tweens.add({ targets: this.img, alpha: a, duration: 260 });
+    this.img.setBlendMode(on ? Phaser.BlendModes.NORMAL : ADD);
+  }
+  overlaps(b: Phaser.Physics.Arcade.Body) {
+    const x0 = this.s.x - TILE / 2, y0 = this.s.y - TILE;
+    return b.right > x0 + 1 && b.left < x0 + TILE - 1 && b.bottom > y0 + 1 && b.top < y0 + TILE - 1;
+  }
+}
+
+/** Column of rising glow-spores that lifts Elias. */
+export class Updraft {
+  top: number;
+  emitter: Phaser.GameObjects.Particles.ParticleEmitter;
+  constructor(public gs: GameScene, public s: Spawn) {
+    let ty = s.ty;
+    while (ty > 0 && !gs.level.solid(s.tx, ty - 1)) ty--;
+    this.top = ty * TILE;
+    const h = s.y - this.top;
+    gs.add.image(s.x, s.y, 'beam').setOrigin(0.5, 1).setDisplaySize(52, h).setFlipY(true).setTint(0x9ff5c8).setAlpha(0.18).setBlendMode(ADD).setDepth(DEPTH.decorBack);
+    this.emitter = gs.add.particles(0, 0, 'spore', {
+      x: { min: s.x - 14, max: s.x + 14 }, y: s.y - 4, lifespan: (h / 140) * 1000, speedY: { min: -170, max: -110 }, speedX: { min: -8, max: 8 },
+      scale: { start: 0.6, end: 0.2 }, alpha: { start: 0.9, end: 0 }, tint: [0x9ff5c8, 0xd07aff, 0x7ff5e0], blendMode: 'ADD', frequency: 90,
+    }).setDepth(DEPTH.glow);
+  }
+  update(dt: number) {
+    const p = this.gs.player;
+    const b = p.body;
+    if (p.state === 'dead' || p.state === 'climb' || p.state === 'swim') return;
+    if (Math.abs(b.center.x - this.s.x) < 20 && b.bottom > this.top + 8 && b.top < this.s.y) {
+      b.setVelocityY(Math.max(b.velocity.y - 3000 * dt, -400));
+      if (p.state === 'ground') p.setPState('air');
+      p.usedDouble = false;
+      p.airTime = Math.max(p.airTime, 0.1);
+    }
+  }
+}
+
+/** A seed of the Keepers' gardens: a charged blast makes it grow into a climbable vine (grid cells ':' above it). */
+export class VineBud {
+  img: Phaser.Physics.Arcade.Image;
+  grown = false;
+  constructor(public gs: GameScene, public s: Spawn, public index: number) {
+    this.img = gs.physics.add.staticImage(s.x, s.y - 8, 'vinebud').setScale(PROP_SCALE).setDepth(DEPTH.interact);
+    this.img.refreshBody();
+    // generous hitbox: a straight shot from a standing Elias must reach the seed on the floor
+    (this.img.body as Phaser.Physics.Arcade.StaticBody).setSize(30, 64);
+    gs.tweens.add({ targets: this.img, scaleY: PROP_SCALE * 1.12, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+  }
+  hit(big: boolean) {
+    if (this.grown) return;
+    if (!big) {
+      Sound.play('hit');
+      this.gs.toast('The seed needs more light — charge your shot', 1600);
+      return;
+    }
+    this.grow();
+  }
+  grow(instant = false) {
+    if (this.grown) return;
+    this.grown = true;
+    const L = this.gs.level;
+    const cells: number[] = [this.s.ty];
+    for (let ty = this.s.ty - 1; ty > 0 && L.grid[ty][this.s.tx] === ':'; ty--) cells.push(ty);
+    if (!instant) Sound.play('reveal');
+    cells.forEach((ty, k) => {
+      const make = () => {
+        L.grid[ty][this.s.tx] = 'H';
+        const t = L.ground.putTileAt(33, this.s.tx, ty);
+        if (k === cells.length - 1) t.setCollision(false, false, true, false);
+        if (!instant) this.gs.fx.glowE.explode(3, this.s.tx * TILE + 16, ty * TILE + 16);
+      };
+      if (instant) make();
+      else this.gs.time.delayedCall(k * 70, make);
+    });
+    // the tile below the old top is no longer the ladder top
+    this.img.setVisible(false);
+    (this.img.body as Phaser.Physics.Arcade.StaticBody).enable = false;
+  }
+}
+
+/** Keeper lantern: lit by Pip or a charged blast; light that shadows fear. The Shadow can snuff it. */
+export class Lantern {
+  img: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Image;
+  lit = false;
+  ly: number;
+  constructor(public gs: GameScene, public s: Spawn) {
+    this.img = gs.add.image(s.x, s.y + 1, 'lantern', 0).setOrigin(0.5, 1).setScale(PROP_SCALE).setDepth(DEPTH.interact);
+    this.ly = s.y - 34;
+    this.glow = gs.add.image(s.x, this.ly, 'glow').setTint(0xffd27a).setBlendMode(ADD).setAlpha(0).setScale(2.2).setDepth(DEPTH.glow);
+  }
+  setLit(on: boolean, quiet = false) {
+    if (on === this.lit) return;
+    this.lit = on;
+    this.img.setFrame(on ? 1 : 0);
+    this.gs.tweens.add({ targets: this.glow, alpha: on ? 0.75 : 0, duration: on ? 300 : 600 });
+    if (!quiet) {
+      Sound.play(on ? 'checkpoint' : 'stalker');
+      if (on) this.gs.fx.glowE.explode(14, this.s.x, this.ly);
+      else this.gs.fx.smokeWisp(this.s.x, this.ly);
+    }
+  }
+  light(): Light | null {
+    return this.lit ? { x: this.s.x, y: this.ly, r: 300, i: 1 } : null;
+  }
+}

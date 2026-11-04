@@ -523,9 +523,9 @@ export function buildThemeProps(scene: Phaser.Scene, key: ThemeKey) {
       c.fill();
       c.fillStyle = '#c8ffe8';
       c.fillRect(2, 23, 20, 2);
-    } else if (key === 'ice') {
+    } else if (key === 'ice' || key === 'abyss') {
       crystalProp(c, 12, 40, 32, '#7ff5e0', '#ffffff', r);
-    } else if (key === 'ruins') {
+    } else if (key === 'ruins' || key === 'keepers') {
       // stone brazier with a living flame
       c.fillStyle = radial(c, 12, 16, 16, [[0, 'rgba(230,255,250,1)'], [0.35, 'rgba(127,245,224,0.8)'], [1, 'rgba(127,245,224,0)']]);
       c.fillRect(0, 0, 24, 34);
@@ -587,7 +587,7 @@ export function buildThemeProps(scene: Phaser.Scene, key: ThemeKey) {
       c.fillRect(12, 4, 3, 58);
     } else {
       // dense foliage: overlapping fronds / kelp / tendrils
-      const cols = key === 'ice' ? ['#3a5a7a', '#6a9ac0', '#24405a'] : key === 'ruins' ? ['#2a6a44', '#4a9a5a', '#1a4a30'] : key === 'forest' ? ['#1e5e4a', '#2f8f6f', '#155040'] : key === 'caverns' ? ['#27334f', '#3b4c72', '#1a2238'] : key === 'ocean' ? ['#0f4a44', '#1f7a6a', '#0a3330'] : ['#5a1a2a', '#8a2c40', '#3a0e1a'];
+      const cols = key === 'ice' || key === 'abyss' ? ['#3a2a6a', '#6a4ab0', '#20163a'] : key === 'ruins' || key === 'keepers' ? ['#2a6a44', '#4a9a5a', '#1a4a30'] : key === 'forest' ? ['#1e5e4a', '#2f8f6f', '#155040'] : key === 'caverns' ? ['#27334f', '#3b4c72', '#1a2238'] : key === 'ocean' ? ['#0f4a44', '#1f7a6a', '#0a3330'] : ['#5a1a2a', '#8a2c40', '#3a0e1a'];
       for (let i = 0; i < 16; i++) {
         const x = 6 + r() * 36, h = 34 + r() * 30;
         c.strokeStyle = OUT;
@@ -661,7 +661,7 @@ function crystalProp(c: Ctx, x: number, base: number, h: number, col: string, hi
 function decor(c: Ctx, key: ThemeKey, d: number, r: () => number) {
   const th = THEMES[key];
   const B = 24;
-  if (key === 'ice') {
+  if (key === 'ice' || key === 'abyss') {
     if (d < 2) crystalProp(c, 10 + r() * 12, B, 8 + r() * 12, d ? '#d07aff' : '#7ff5e0', '#ffffff', r);
     else if (d < 4) { // snow drift
       for (let i = 0; i < 3; i++) { const x = 6 + i * 9 + r() * 3, h = 6 + r() * 10, cw = 6 + r() * 6; c.fillStyle = '#e8dcc8'; c.fillRect(x - 1, B - h, 2.4, h); c.fillStyle = radial(c, x, B - h, cw, [[0, 'rgba(208,122,255,0.6)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(x - cw, B - h - cw, cw * 2, cw * 2); c.fillStyle = d === 2 ? '#2fbf90' : '#a04ad0'; c.beginPath(); c.ellipse(x, B - h, cw / 2, cw / 3.2, 0, Math.PI, Math.PI * 2); c.fill(); }
@@ -691,7 +691,7 @@ function decor(c: Ctx, key: ThemeKey, d: number, r: () => number) {
     }
     return;
   }
-  if (key === 'ruins') {
+  if (key === 'ruins' || key === 'keepers') {
     if (d === 0) { // fallen column drum
       c.fillStyle = '#5a5470'; c.fillRect(4, B - 12, 24, 12); c.fillStyle = 'rgba(0,0,0,0.25)'; for (let x = 7; x < 28; x += 5) c.fillRect(x, B - 12, 1.5, 12);
       c.fillStyle = '#3a8a5a'; c.fillRect(4, B - 13, 24, 2);

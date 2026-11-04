@@ -34,6 +34,11 @@ export class BGScene extends Phaser.Scene {
       l.height = BG_H;
     }
   }
+  /** Warm golden grade for the Keepers' past (Pip's Echo). */
+  setWarm(on: boolean) {
+    const tint = on ? 0xffd9a0 : 0xffffff;
+    for (const l of this.layers) l.setTint(tint);
+  }
   update(_t: number, dms: number) {
     const w = this.scale.width, h = this.scale.height;
     const game = this.scene.get('Game');

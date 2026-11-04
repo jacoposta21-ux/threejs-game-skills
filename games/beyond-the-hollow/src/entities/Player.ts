@@ -55,6 +55,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.setSize(BODY_W, BODY_H).setOffset((128 - BODY_W) / 2, FEET - BODY_H);
     this.body.setMaxVelocity(600, 1400);
     this.body.pushable = false;
+    this.body.setCollideWorldBounds(true);
     this.lastSafe.set(x, y);
   }
 
