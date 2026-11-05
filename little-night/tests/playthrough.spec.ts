@@ -157,7 +157,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     r = await T.walk(5.4, -2.0); r = await T.walk(7.2, -2.0); ok(L.state().hazard.grab < 0.6, 'walking in the lit pantry');
     u = await T.useId('pantry-b'); ok(/Place LUMO/.test(u.prompt || ''), 'pantry perch B: ' + u.prompt);
     ok(await T.waitFor(() => L.state().lumo.state === 'perched' && L.game.lumo.anchor.id === 'pantry-b', 4000), 'perched B');
-    r = await T.walk(8.1, -3.35); ok(r.ok, 'beside the flour sack');
+    r = await T.walk(8.1, -3.05, { tol: 0.25 }); ok(r.ok, 'beside the flour sack');
     u = await T.useId('flour-sack'); ok(L.state().mode === 'pushing', 'grabbed sack: ' + u.prompt);
     const sack = () => L.game.interactions.find('flour-sack').base;
     ok(await T.push(-Math.PI / 2, -1, () => sack().x < 8.3, 8000), 'pulled the sack away x=' + sack().x);

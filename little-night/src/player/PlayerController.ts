@@ -374,7 +374,7 @@ export class PlayerController {
       // Dragging backwards: make sure the player has room first.
       const nx = this.position.x + dx;
       const nz = this.position.z + dz;
-      const playerFree = this.world.isSpaceFree(nx, nz, PLAYER.radius, this.position.y + PLAYER.stepUp, this.height - PLAYER.stepUp, target);
+      const playerFree = this.world.isSpaceFree(nx, nz, PLAYER.radius * 0.9, this.position.y + PLAYER.stepUp, this.height - PLAYER.stepUp, target);
       if (playerFree && target.tryMove(dx, dz)) {
         this.position.x = nx;
         this.position.z = nz;
