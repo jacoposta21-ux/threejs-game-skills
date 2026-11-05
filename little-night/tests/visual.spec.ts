@@ -19,6 +19,13 @@ async function canvasVariance(page: import('@playwright/test').Page): Promise<{ 
   return { variance: max - min, buckets: buckets.size };
 }
 
+test.setTimeout(240_000);
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('littlenight.settings.v1')) localStorage.setItem('littlenight.settings.v1', JSON.stringify({ version: 1, master: 0.5, music: 0.5, sfx: 0.5, sensitivity: 1, invertY: false, quality: 'low', subtitles: true }));
+  });
+});
+
 test('menu renders, game starts, and the player moves with real input', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));

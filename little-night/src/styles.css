@@ -1095,3 +1095,21 @@ input[type='range']:focus-visible {
     font-size: clamp(36px, 8vh, 64px);
   }
 }
+
+.hud-click {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 56px);
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border: 1px solid rgba(199, 154, 74, 0.6);
+  border-radius: 4px;
+  background: rgba(7, 8, 15, 0.6);
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.hud-click.show {
+  opacity: 1;
+}

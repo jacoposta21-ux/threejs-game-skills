@@ -193,7 +193,14 @@ export class Game {
       this.audio.unlock();
       if (this.state === 'playing' && !this.input.pointerLocked) this.input.requestPointerLock();
     });
-    window.addEventListener('pointerdown', () => this.audio.unlock(), { once: false });
+    window.addEventListener('pointerdown', () => {
+      const first = !this.audio.ready;
+      this.audio.unlock();
+      if (first && this.audio.ready && this.state === 'menu') {
+        this.audio.startAmbience(0.45, 0.25);
+        this.audio.setPad('menu');
+      }
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         if (this.state === 'playing') this.pause();
@@ -675,6 +682,7 @@ export class Game {
       fear: this.fear.value,
       visible: visible && this.state === 'playing',
       touch: this.input.isTouchDevice(),
+      needsClick: visible && this.state === 'playing' && !this.input.isTouchDevice() && !this.input.pointerLocked && !this.cinematics.active,
     };
   }
 
@@ -727,10 +735,12 @@ export class Game {
   }
 
   private installTestHooks(): void {
+    // Test hooks only exist in dev builds or with ?test (never for regular players).
+    const params = new URLSearchParams(location.search);
+    if (!import.meta.env.DEV && !params.has('test')) return;
     const hooks = new TestHooks(this);
     window.__THREE_GAME_TEST_HOOKS__ = hooks.public();
-    const params = new URLSearchParams(location.search);
-    if (import.meta.env.DEV || params.has('test')) window.__LN__ = hooks.dev();
+    window.__LN__ = hooks.dev();
   }
 
   /** Internal access for the test harness. */

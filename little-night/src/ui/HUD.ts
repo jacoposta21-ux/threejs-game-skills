@@ -14,6 +14,7 @@ export interface HudState {
   fear: number;
   visible: boolean;
   touch: boolean;
+  needsClick?: boolean;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, html = ''): HTMLElementTagNameMap[K] {
@@ -43,6 +44,7 @@ export class HUD implements UIBridge {
   private examineEl: HTMLElement;
   private slats: HTMLElement;
   private fadeEl: HTMLElement;
+  private clickEl: HTMLElement;
   private timers = new Map<HTMLElement, number>();
   subtitlesEnabled = true;
   examineOpen = false;
@@ -63,6 +65,7 @@ export class HUD implements UIBridge {
     this.objectiveEl = el('div', 'hud-objective', this.root);
     this.itemEl = el('div', 'hud-item', this.root);
     this.cardEl = el('div', 'hud-card', this.root);
+    this.clickEl = el('div', 'hud-click', this.root, 'Click to look around');
 
     // LUMO energy: a little firefly whose lantern fills, ringed by ten segments.
     this.energyEl = el('div', 'hud-energy', this.root);
@@ -186,6 +189,7 @@ export class HUD implements UIBridge {
         this.promptEl.classList.remove('show');
       }
     }
+    this.clickEl.classList.toggle('show', Boolean(s.needsClick));
     this.crosshair.classList.toggle('target', s.targeting);
     this.crosshair.classList.toggle('crawl', s.crawling);
     this.slats.classList.toggle('show', s.hidden);
