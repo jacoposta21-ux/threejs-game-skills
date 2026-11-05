@@ -132,7 +132,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     ok(L.state().crawling, 'forced to crawl under the cabinets');
     u = await T.useId('bread-tin'); ok(/bread tin/.test(u.prompt || ''), 'tin prompt: ' + u.prompt);
     const tin = () => L.game.interactions.find('bread-tin').base;
-    ok(await T.push(-Math.PI / 2, 1, () => tin().x > 0.5, 8000), 'pushed the bread tin aside x=' + tin().x);
+    ok(await T.push(-Math.PI / 2, 1, () => tin().x > 0.62, 8000), 'pushed the bread tin aside x=' + tin().x);
     u = await T.useId('pantry-key'); ok(/key/.test(u.prompt || ''), 'key prompt: ' + u.prompt);
     ok(L.state().inventory.includes('pantry-key'), 'has the pantry key');
     await T.wait(600);

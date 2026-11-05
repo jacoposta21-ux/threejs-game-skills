@@ -258,11 +258,11 @@ export class Kitchen extends Level {
     // --- Bread tin & pantry key on the counter ---------------------------------------------------
     const tin = new PushableObject('bread-tin', K.breadTin(), {
       size: v3(0.38, 0.3, 0.26),
-      position: v3(0.0, 0.92, -3.45),
+      position: v3(0.12, 0.92, -3.45),
       climbable: false,
       label: 'the bread tin',
       axis: 'x',
-      bounds: { min: new THREE.Vector2(-0.35, -4), max: new THREE.Vector2(2.6, 0) },
+      bounds: { min: new THREE.Vector2(0.1, -4), max: new THREE.Vector2(2.6, 0) },
       scrape: 1,
     });
     this.register(tin);
@@ -279,7 +279,7 @@ export class Kitchen extends Level {
       minPlayerY: 0.8,
       onPicked: (c) => this.onKey(c),
     });
-    key.root.position.set(0.0, 0.935, -3.66);
+    key.root.position.set(0.12, 0.935, -3.66);
     key.root.rotation.y = 0.4;
     this.register(key);
 
@@ -458,7 +458,7 @@ export class Kitchen extends Level {
       m.renderOrder = 2;
       b.add(m);
     };
-    chalk('key', 0.0, 1.25, -3.73, 0, 0, 0.26);
+    chalk('key', 0.12, 1.25, -3.73, 0, 0, 0.26);
     chalk('arrow', -0.9, 0.012, -2.2, -Math.PI / 2, -Math.PI / 2 + 0.3);
     chalk('firefly', 0.3, 0.45, -3.11, 0, 0, 0.2);
     chalk('perch', 5.4, 1.55, -0.6, 0, Math.PI, 0.26);
