@@ -12,7 +12,8 @@
     "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs",
     "test:smoke": "playwright test tests/visual.spec.ts",
     "test:playthrough": "playwright test tests/playthrough.spec.ts --project=desktop-chrome",
-    "package:crazygames": "npm run build && python3 scripts/package_crazygames.py"
+    "package:crazygames": "npm run build && python3 scripts/package_crazygames.py",
+    "build:single": "vite build --config vite.single.config.ts && cp dist-single/index.html little-night.html"
   },
   "dependencies": {
     "@fontsource/fraunces": "^5.3.0",
@@ -27,7 +28,8 @@
     "@types/three": "^0.184.1",
     "pngjs": "^7.0.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.13"
+    "vite": "^8.0.13",
+    "vite-plugin-singlefile": "^2.3.4"
   },
   "description": "LITTLE NIGHT - a first-person stylized horror adventure for the browser (Three.js + TypeScript + Vite)."
 }
