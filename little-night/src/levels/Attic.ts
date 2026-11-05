@@ -114,6 +114,7 @@ export class Attic extends Level {
   private bulbs: THREE.MeshBasicMaterial[] = [];
   private finaleChalk: THREE.Mesh[] = [];
   private hushSpawnTimer = -1;
+  private cageNote: Examinable | null = null;
 
   protected construct(ctx: GameContext): void {
     const b = this.b;
@@ -481,6 +482,7 @@ export class Attic extends Level {
     const cageNote = new Examinable('cage-plate', 'A plate on the cage', 'Engraved: “What the lantern shows, the box will know.” Below it, three little dials.', '', 0.3, 0.2, 0.3, 'Read the plate');
     cageNote.root.position.set(5.15, 0.74, 0);
     this.register(cageNote);
+    this.cageNote = cageNote;
     // The coat stand (revealed in the finale).
     this.coat = A.coatStand();
     this.coat.visible = false;
@@ -570,7 +572,11 @@ export class Attic extends Level {
       ctx.world.markChanged();
       hush.patrol.push(v3(4.6, 0, 1.2), v3(4.0, 0, -1.0));
     }
-    if (ctx.flags.has('attic-cage-open')) this.cageT = 1;
+    if (ctx.flags.has('attic-cage-open')) {
+      this.cageT = 1;
+      if (this.cageNote) this.cageNote.enabled = false;
+      for (const d of this.dials) d.locked = true;
+    }
     for (const id of ['gate-gear', 'gate-spring', 'gate-crank']) {
       if (ctx.flags.has(`socket:${id}`)) ctx.inventory.remove(id.replace('gate-', ''));
     }
@@ -621,6 +627,7 @@ export class Attic extends Level {
     if (!ok || ctx.flags.has('attic-cage-open')) return;
     ctx.flags.set('attic-cage-open');
     for (const d of this.dials) d.locked = true;
+    if (this.cageNote) this.cageNote.enabled = false;
     ctx.audio.play('unlock', { pos: v3(5.6, 0.6, 0), volume: 1.2 });
     ctx.audio.play('glimmer', { pos: v3(5.6, 0.9, 0) });
     ctx.ui.subtitle('[the cage lifts away]', 3);
