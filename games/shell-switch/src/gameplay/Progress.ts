@@ -10,6 +10,7 @@ interface SaveData {
   items: ItemId[];
   collected: string[];
   discovered: HostKind[];
+  extras?: string[];
   achievements: string[];
   missions: string[];
   objects: Record<string, number[]>;
@@ -44,6 +45,8 @@ export class Progress {
   items = new Set<ItemId>();
   collected = new Set<string>();
   discovered = new Set<HostKind>(['alien']);
+  /** Townsfolk possessed after the finale (NPC ids). */
+  extras = new Set<string>();
   achievements = new Set<string>();
   missions = new Set<string>();
   objects: Record<string, number[]> = {};
@@ -91,6 +94,7 @@ export class Progress {
       items: [...this.items],
       collected: [...this.collected],
       discovered: [...this.discovered],
+      extras: [...this.extras],
       achievements: [...this.achievements],
       missions: [...this.missions],
       objects: this.objects,
@@ -122,6 +126,7 @@ export class Progress {
       p.collected = new Set(d.collected);
       p.discovered = new Set(d.discovered);
       p.discovered.add('alien');
+      p.extras = new Set(d.extras ?? []);
       p.achievements = new Set(d.achievements);
       p.missions = new Set(d.missions);
       p.objects = d.objects ?? {};

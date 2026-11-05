@@ -6,7 +6,7 @@ import type { Collider } from '../world/Collision';
 import type { Emotion, Pose } from './CharacterModel';
 import { ALARM, DANCE, DAZED, pickReact, SCARED, SHADY, SWOON, WATCH, ZAPPED } from './Lines';
 
-export type NpcState = 'wander' | 'idle' | 'post' | 'sit' | 'sleep' | 'eat' | 'watch' | 'follow' | 'flee' | 'chase' | 'goto' | 'dazed' | 'dance' | 'perform' | 'sing' | 'shocked' | 'return';
+export type NpcState = 'nap' | 'wander' | 'idle' | 'post' | 'sit' | 'sleep' | 'eat' | 'watch' | 'follow' | 'flee' | 'chase' | 'goto' | 'dazed' | 'dance' | 'perform' | 'sing' | 'shocked' | 'return';
 
 const tmpA = new THREE.Vector3();
 
@@ -199,7 +199,8 @@ export class Npc {
     if (this.state !== 'follow') {
       if (this.lingerHome <= 0) this.savedHome.copy(this.home);
       this.enter('follow');
-      if (g.rng() < 0.6) g.say(this.ch, SWOON[Math.floor(g.rng() * SWOON.length)]);
+      const lines = singer.host?.id === 'singer' ? SWOON : ['Ooh, where are we going?', 'Wait for me!', 'Everyone\'s going, so I\'m going!'];
+      if (g.rng() < 0.6) g.say(this.ch, lines[Math.floor(g.rng() * lines.length)]);
     }
     this.followChar = singer;
     this.busyT = 6;
@@ -226,6 +227,22 @@ export class Npc {
     this.enter('dance');
     this.busyT = 7;
     if (g.rng() < 0.5) g.say(this.ch, DANCE[Math.floor(g.rng() * DANCE.length)]);
+  }
+
+  /** Post-game extras: stun briefly (flash, stamp, sigh). */
+  daze(g: Game, seconds: number, line?: string): void {
+    if (this.ch.possessed) return;
+    this.enter('dazed');
+    this.busyT = seconds;
+    if (line) g.say(this.ch, line);
+  }
+
+  /** Post-game extras: nod off where they stand. */
+  nap(g: Game, seconds: number): void {
+    if (this.ch.possessed || this.state === 'sleep') return;
+    this.enter('nap');
+    this.busyT = seconds;
+    if (g.rng() < 0.4) g.say(this.ch, '*yaaawn*');
   }
 
   onZap(g: Game): void {
@@ -299,7 +316,7 @@ export class Npc {
   }
 
   canSee(g: Game, p: THREE.Vector3, range: number): boolean {
-    if (this.ch.possessed || this.state === 'sleep' || this.state === 'watch' || this.state === 'follow' || this.state === 'flee' || this.state === 'dance' || this.state === 'eat' || this.state === 'dazed') return false;
+    if (this.ch.possessed || this.state === 'sleep' || this.state === 'nap' || this.state === 'watch' || this.state === 'follow' || this.state === 'flee' || this.state === 'dance' || this.state === 'eat' || this.state === 'dazed') return false;
     const dx = p.x - this.ch.pos.x;
     const dz = p.z - this.ch.pos.z;
     const d = Math.hypot(dx, dz);
@@ -383,7 +400,8 @@ export class Npc {
       if (hk === 'ghost' && this.state !== 'dance') {
         this.onScare(g, pp);
       } else {
-        g.say(ch, pickReact(hk, this.personality, () => g.rng()));
+        const neighbourly = ['Oh, hi neighbour!', 'Lovely weather, isn\'t it?', 'Have we met?', 'You seem... different today.'];
+        g.say(ch, hk === 'extra' ? neighbourly[Math.floor(g.rng() * neighbourly.length)] : pickReact(hk, this.personality, () => g.rng()));
         this.reactT = 1.6;
         ch.faceToward(pp.x, pp.z);
       }
@@ -515,6 +533,14 @@ export class Npc {
           g.say(ch, 'Hmph. Slippery little...');
           this.goHome();
         }
+        break;
+      }
+      case 'nap': {
+        this.busyT -= dt;
+        pose = 'sleep';
+        emotion = 'sleepy';
+        if (g.rng() < dt * 0.8) g.vfx.spawn('zzz', ch.pos.x + 0.2, ch.pos.y + ch.model.height, ch.pos.z, 0.2, 0.6, 0, '#ffffff', 0.35, 2, 0, 0.1, 0.2);
+        if (this.busyT <= 0) this.enter(this.modeState(this.baseMode));
         break;
       }
       case 'dazed': {

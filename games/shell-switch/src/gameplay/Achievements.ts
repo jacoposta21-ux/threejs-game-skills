@@ -21,5 +21,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'cannon_brick', name: 'Human Cannonball (XL)', desc: 'Fire Brick out of the circus cannon.', hidden: true },
   { id: 'fashion', name: 'Fashion Police', desc: 'Blow the whistle at the Mayor.', hidden: true },
   { id: 'striker', name: 'Ding Ding Ding', desc: 'Ring the high striker bell.', hidden: true },
+  { id: 'crowd10', name: 'Crowd Surfer', desc: 'Possess 10 townsfolk after the story.', hidden: false },
+  { id: 'crowd_all', name: 'Everybody, Everywhere', desc: 'Possess every townsperson in Fizzwick.', hidden: false },
   { id: 'miss', name: 'Haystack Landing', desc: 'Fire the cannon at the wrong target.', hidden: true },
 ];

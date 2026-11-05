@@ -14,8 +14,15 @@ export interface MoveStats {
   floats?: boolean;
 }
 
+/** What the player is wearing: a story host, or (after the finale) any townsperson. */
+export type ControlKind = HostKind | 'extra';
+
+/** Post-game abilities for ordinary townsfolk. */
+export type ExtraEffect = 'flash' | 'lure' | 'show' | 'nap' | 'halt' | 'spray' | 'freeze' | 'bark';
+
 export interface HostDef {
-  id: HostKind;
+  id: ControlKind;
+  extra?: { effect: ExtraEffect; lines: string[] };
   name: string;
   title: string;
   bio: string;

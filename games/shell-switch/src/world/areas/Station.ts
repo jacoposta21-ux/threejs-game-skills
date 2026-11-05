@@ -186,6 +186,7 @@ export function buildStation(ctx: AreaCtx): void {
     guard: {
       blocker: [-12, 36.4, 0, 0],
       weak: ['intimidate', 'scare', 'lure'],
+      info: 'Spike won\'t budge for just anyone. Try the law: Officer Pina\'s whistle',
       movedFlag: 'spikeGone',
       moveTo: [18.6, 34],
       afterMoveMode: 'sit',
@@ -222,6 +223,7 @@ export function buildStation(ctx: AreaCtx): void {
     guard: {
       blocker: [13, 39.75, 2.0, 1.6],
       weak: ['intimidate', 'scare'],
+      info: 'Gertie only takes a break when a police officer tells her to',
       movedFlag: 'gertieBreak',
       moveTo: [-19, 38],
       afterMoveMode: 'sit',

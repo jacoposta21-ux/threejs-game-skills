@@ -18,7 +18,7 @@ import { Vfx } from '../fx/Vfx';
 import { AudioSystem } from '../audio/AudioSystem';
 import { Character } from '../characters/Character';
 import { Npc } from '../characters/Npc';
-import { HOSTS, HOST_ORDER, NAMED, civilianSpec, type HostKind } from '../characters/Archetypes';
+import { HOSTS, HOST_ORDER, NAMED, civilianSpec, type ControlKind, type HostKind } from '../characters/Archetypes';
 import type { Pose } from '../characters/CharacterModel';
 import { CHAT, PICKED, POSSESS_SEEN } from '../characters/Lines';
 import { Progress, loadSettings, type Settings } from '../gameplay/Progress';
@@ -29,12 +29,15 @@ import { MISSIONS, currentStep, type Mission, type Target } from '../gameplay/Mi
 import { ACHIEVEMENTS } from '../gameplay/Achievements';
 import { Hud } from '../ui/Hud';
 import { Menus } from '../ui/Menus';
-import { renderPortraits } from '../ui/Portraits';
+import { renderPortrait, renderPortraits } from '../ui/Portraits';
+import { extraDefFor } from '../characters/Extras';
+import type { HostDef } from '../characters/Archetypes';
 import { createSeededRandom } from '../utils/random';
 import { Portal } from '../platform/Portal';
 
 interface Act {
   label: string;
+  info?: boolean;
   pos: THREE.Vector3;
   dist: number;
   run: () => void;
@@ -113,6 +116,37 @@ export class Game {
   private suspicionMax = 0;
   private readonly worldRoot = new THREE.Group();
   private testMode = false;
+  /** Every townsperson's post-game possession profile, keyed by NPC id. */
+  readonly extraDefs = new Map<string, HostDef>();
+  private readonly extraPortraits = new Map<string, string>();
+  private extraShowT = 0;
+  private extraLureT = 0;
+
+  get extraTotal(): number {
+    return this.extraDefs.size;
+  }
+
+  /** The story is over: anyone in town can be possessed. */
+  get storyDone(): boolean {
+    return this.progress.flag('saucerFixed');
+  }
+
+  portraitOf(ch: Character): string {
+    const h = ch.host ?? HOSTS.alien;
+    if (h.id !== 'extra') return this.portraits[h.id as HostKind] ?? '';
+    return this.extraPortrait(ch.id);
+  }
+
+  extraPortrait(id: string): string {
+    let url = this.extraPortraits.get(id);
+    if (!url) {
+      const def = this.extraDefs.get(id);
+      if (!def) return '';
+      url = renderPortrait(this.renderer, this.mats, def.spec, def.color);
+      this.extraPortraits.set(id, url);
+    }
+    return url;
+  }
   private sessionStarted = false;
   private hadLock = false;
   private readonly frameInfo = { calls: 0, triangles: 0 };
@@ -160,7 +194,7 @@ export class Game {
     return this.rngFn();
   }
 
-  get hostKind(): HostKind {
+  get hostKind(): ControlKind {
     return this.controlled?.host?.id ?? 'alien';
   }
 
@@ -282,10 +316,16 @@ export class Game {
         this.hostChars.set(s.host, ch);
       } else if (s.type === 'named' && s.named) {
         const n = NAMED[s.named];
-        ch = new Character(s.id, n.name, 'civilian', n.spec, this.mats, null, seed++, s.area);
+        ch = new Character(s.id, n.name, 'civilian', n.spec, this.mats, null, seed, s.area);
+        this.extraDefs.set(s.id, extraDefFor(s, n.spec, n.name, seed));
+        seed += 1;
       } else {
         const r = createSeededRandom(seed * 97 + 13);
-        ch = new Character(s.id, s.civ === 'kid' ? 'Kid' : 'Local', 'civilian', civilianSpec(s.civ ?? 'shopper', r), this.mats, null, seed++, s.area);
+        const spec = civilianSpec(s.civ ?? 'shopper', r);
+        const def = extraDefFor(s, spec, null, seed);
+        ch = new Character(s.id, def.name, 'civilian', spec, this.mats, null, seed, s.area);
+        this.extraDefs.set(s.id, def);
+        seed += 1;
       }
       ch.place(s.x, s.y ?? 0, s.z, s.yaw ?? 0);
       this.addCharacter(ch);
@@ -351,10 +391,6 @@ export class Game {
     document.querySelector('#touch')!.classList.toggle('hidden', !IS_MOBILE);
     this.updateArea(true);
     if (fresh) {
-      window.setTimeout(() => {
-        if (this.testMode) return;
-        this.hint('You crash-landed! Brick the porter looks strong. Walk up to him and press <b>E</b> to hop inside.', 7);
-      }, 1800);
       this.say(this.glim, 'Blorp?! My saucer!', true);
     }
     this.saveNow();
@@ -508,6 +544,12 @@ export class Game {
       this.audio.play('uiClick');
       this.pause();
     });
+    const hintBtn = document.querySelector<HTMLElement>('#tracker-hint-btn')!;
+    hintBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.requestHint();
+    });
+    document.querySelector('#tracker')!.addEventListener('click', () => this.requestHint());
     this.input.bindButton(document.querySelector('#t-ability')!, 'ability');
     this.input.bindButton(document.querySelector('#t-interact')!, 'interact');
     this.input.bindButton(document.querySelector('#t-jump')!, 'jump');
@@ -694,7 +736,12 @@ export class Game {
   }
 
   private finishPossess(target: Character): void {
-    const firstTime = !this.progress.discovered.has(target.host!.id);
+    const isExtra = target.host!.id === 'extra';
+    const firstTime = isExtra ? !this.progress.extras.has(target.id) : !this.progress.discovered.has(target.host!.id as HostKind);
+    if (isExtra) {
+      const npcB = this.npcById.get(target.id);
+      if (npcB?.blocker) npcB.blocker.enabled = false;
+    }
     this.possessS = null;
     this.glim.model.root.visible = false;
     this.glim.active = false;
@@ -721,14 +768,25 @@ export class Game {
       }
     }
     const h = target.host!;
-    if (firstTime) {
-      this.progress.discovered.add(h.id);
+    if (isExtra) {
+      if (firstTime) {
+        this.progress.extras.add(target.id);
+        this.progress.dirty = true;
+        this.audio.play('discover');
+        const n = this.progress.extras.size;
+        const total = this.extraTotal;
+        this.hud.toast(`New extra: <b>${h.name}</b> (${n}/${total}) · F: ${h.ability}`, 'pink', 3.5);
+        if (n >= 10) this.achieve('crowd10');
+        if (n >= total) this.achieve('crowd_all');
+      } else this.hud.toast(`You are now <b>${h.name}</b> · F: ${h.ability}`, '', 2.2);
+    } else if (firstTime) {
+      this.progress.discovered.add(h.id as HostKind);
       this.progress.dirty = true;
       this.audio.play('discover');
       if (this.progress.discovered.size >= HOST_ORDER.length) this.achieve('wardrobe');
       this.state = 'card';
       this.input.releasePointerLock();
-      this.menus.discover(h.id, () => {
+      this.menus.discover(h.id as HostKind, () => {
         this.state = 'play';
       });
     } else {
@@ -752,6 +810,8 @@ export class Game {
       npc.autoSingT = this.singT > 0 ? this.singT + 5 : 0;
     }
     this.performT = 0;
+    this.extraShowT = 0;
+    this.extraLureT = 0;
     if (this.singT > 0) {
       this.singT = 0;
       if (!npc || npc.autoSingT <= 0) this.audio.stopLoop('sing');
@@ -912,7 +972,7 @@ export class Game {
   }
 
   // ===================================================================== interaction resolution
-  private resolve(): { e: Act | null; f: Act | null; fDefault: string } {
+  private resolve(): { e: Act | null; f: Act | null; fDefault: string; info: Act | null } {
     const c = this.controlled;
     const p = c.pos;
     const hk = this.hostKind;
@@ -943,8 +1003,20 @@ export class Game {
       const d = Math.hypot(ch.pos.x - p.x, ch.pos.z - p.z) - ch.model.radius;
       if (d > 1.6 || Math.abs(ch.pos.y - p.y) > 1.5) continue;
       const top = ch.model.topWorld(new THREE.Vector3());
-      if (hk === 'alien' && ch.host) {
-        consider('e', { label: `Possess ${ch.host.name}`, pos: top, dist: d - 1, run: () => this.startPossess(ch) });
+      const def = ch.host ?? (this.storyDone ? this.extraDefs.get(ch.id) : undefined);
+      if (hk === 'alien' && def) {
+        consider('e', {
+          label: `Possess ${def.name}`,
+          pos: top,
+          dist: d - 1,
+          run: () => {
+            if (!ch.host) {
+              ch.host = def;
+              ch.stats = def.stats;
+            }
+            this.startPossess(ch);
+          },
+        });
         continue;
       }
       const gd = n.spawn.guard;
@@ -973,6 +1045,24 @@ export class Game {
         consider('f', { label: `Zap ${ch.name}?!`, pos: top, dist: d + 1.2, run: () => this.zapNpc(n) });
       }
     }
+    // Explanations when nothing here is usable by the current host.
+    let info: Act | null = null;
+    if (!e && !f) {
+      for (const o of this.objects) {
+        const d = o.distanceTo(p);
+        if (d > o.infoRange || Math.abs(o.pos.y - p.y) > 2.6) continue;
+        const li = o.promptInfo(this);
+        if (li && (!info || d < info.dist)) info = { label: li, info: true, pos: new THREE.Vector3(o.pos.x, o.pos.y + Math.min(o.markerY, 2.2), o.pos.z), dist: d, run: () => undefined };
+      }
+      if (!this.storyDone) {
+        for (const n of this.npcs) {
+          const gi = n.spawn.guard?.info;
+          if (!gi || n.moved || n.ch.possessed) continue;
+          const d = Math.hypot(n.ch.pos.x - p.x, n.ch.pos.z - p.z);
+          if (d < 3.2 && (!info || d < info.dist)) info = { label: gi, info: true, pos: n.ch.model.topWorld(new THREE.Vector3()), dist: d, run: () => undefined };
+        }
+      }
+    }
     let fDefault = this.defaultAbilityLabel();
     if (this.carrying) {
       f = null;
@@ -982,11 +1072,13 @@ export class Game {
       f = null;
       fDefault = 'Stop singing';
     }
-    return { e, f, fDefault };
+    return { e, f, fDefault, info };
   }
 
   private defaultAbilityLabel(): string {
     switch (this.hostKind) {
+      case 'extra':
+        return this.controlled.host?.ability ?? 'Ability';
       case 'alien':
         return 'Hop-dash';
       case 'strongman':
@@ -1132,6 +1224,71 @@ export class Game {
         this.proclaim();
         break;
       }
+      case 'extra':
+        this.useExtraAbility();
+        break;
+    }
+  }
+
+  /** Post-game townsfolk abilities: silly, harmless, crowd-pleasing. */
+  private useExtraAbility(): void {
+    const c = this.controlled;
+    const ex = c.host?.extra;
+    if (!ex) return;
+    const line = ex.lines[Math.floor(this.rng() * ex.lines.length)];
+    this.say(c, line, true);
+    const fwd = tmpV.set(Math.sin(c.yaw), 0, Math.cos(c.yaw));
+    const around = (r: number, front = false) =>
+      this.npcs.filter((n) => {
+        if (n.ch === c || n.ch.possessed || !n.ch.active) return false;
+        const dx = n.ch.pos.x - c.pos.x;
+        const dz = n.ch.pos.z - c.pos.z;
+        const d = Math.hypot(dx, dz);
+        if (d > r) return false;
+        return !front || d < 1.5 || (dx * fwd.x + dz * fwd.z) / d > 0.2;
+      });
+    switch (ex.effect) {
+      case 'flash':
+        this.beginAction(0.6, 'Click!', 'point', () => undefined);
+        this.audio.play('zap', { pos: c.pos, volume: 0.4, pitch: 1.6 });
+        this.vfx.burst('spark', c.pos.x + fwd.x, c.pos.y + 1.4, c.pos.z + fwd.z, { count: 16, color: '#ffffff', speed: 5, up: 0.5, size: 0.5 });
+        for (const n of around(8, true)) n.daze(this, 2.5, this.rng() < 0.5 ? 'My eyes! Spots!' : undefined);
+        break;
+      case 'lure':
+        this.beginAction(0.8, line, 'wave', () => undefined);
+        this.audio.play('cheer', { pos: c.pos, volume: 0.6 });
+        this.extraLureT = 8;
+        break;
+      case 'show':
+        this.audio.play('honk', { pos: c.pos, pitch: 1.3 });
+        this.extraShowT = 7;
+        break;
+      case 'nap':
+        this.beginAction(1.4, 'Once upon a time...', 'sit', () => undefined);
+        for (const n of around(7)) n.nap(this, 6);
+        break;
+      case 'halt':
+        this.beginAction(0.7, 'HALT!', 'point', () => undefined);
+        this.audio.play('alert', { pos: c.pos });
+        for (const n of around(8, true)) n.onWhistle(this, c.pos);
+        break;
+      case 'spray':
+        this.beginAction(0.8, 'Pssssht!', 'point', () => undefined);
+        this.audio.play('sizzle', { pos: c.pos, pitch: 1.5 });
+        this.vfx.burst('confetti', c.pos.x + fwd.x * 1.2, c.pos.y + 1.2, c.pos.z + fwd.z * 1.2, { count: 40, color: ['#ff6fb5', '#ffe27a', '#5fe0b8'], speed: 4, up: 1.5, gravity: 6 });
+        for (const n of around(6)) if (this.rng() < 0.5) this.say(n.ch, ['Hey! My shoes!', 'Is that GLITTER?', 'Call the police!'][Math.floor(this.rng() * 3)]);
+        break;
+      case 'freeze':
+        this.beginAction(0.9, line, 'proclaim', () => undefined);
+        this.audio.play('thud', { pos: c.pos, pitch: 1.4 });
+        for (const n of around(7)) n.daze(this, 3);
+        break;
+      case 'bark': {
+        this.beginAction(0.6, '...', 'point', () => undefined);
+        const target = around(4, true)[0];
+        if (target) window.setTimeout(() => this.say(target.ch, ['Excuse me?!', 'Rude!', 'I\'ll have you know this is vintage!'][Math.floor(this.rng() * 3)]), 700);
+        break;
+      }
     }
   }
 
@@ -1238,8 +1395,7 @@ export class Game {
       const clown = this.hostChars.get('clown');
       if (clown) {
         if (!p.flag('bigTopOpen') && Math.hypot(clown.pos.x - 33, clown.pos.z) < 8) {
-          const watchers = this.npcs.filter((n) => n.state === 'watch' && Math.hypot(n.ch.pos.x - 33, n.ch.pos.z) < 10).length;
-          if (watchers >= 4) {
+          if (this.queueWatchers() >= 4) {
             this.setFlag('bigTopOpen');
             const ros = this.npcById.get('rosalind');
             if (ros) this.say(ros.ch, 'Listen to that crowd! The Big Top is OPEN!');
@@ -1256,8 +1412,7 @@ export class Game {
     if (!p.flag('showDone') && p.flag('velvetMic')) {
       const singing = (this.hostKind === 'singer' && this.singT > 0) || this.npcs.some((n) => n.state === 'sing');
       if (singing) {
-        const audience = this.npcs.filter((n) => (n.state === 'follow' || n.state === 'idle') && n.busyT >= 0 && Math.hypot(n.ch.pos.x + 42, n.ch.pos.z + 7) < 4.2 && !n.ch.host && n.spawn.id !== 'gus').length;
-        if (audience >= 4) {
+        if (this.stageAudience() >= 4) {
           this.setFlag('showDone');
           const gus = this.npcById.get('gus');
           if (gus) this.say(gus.ch, 'FOUR! We have a crowd! Velvet, you\'re ON!');
@@ -1284,6 +1439,229 @@ export class Game {
     if (p.flag('saucerFixed')) this.achieve('homeward');
     const [bg, bt] = this.bits.countIn(null);
     if (bg >= bt && bt > 0) this.achieve('bits_all');
+  }
+
+  /** People watching a show by the Big Top queue (C1 counter). */
+  queueWatchers(): number {
+    return this.npcs.filter((n) => n.state === 'watch' && Math.hypot(n.ch.pos.x - 33, n.ch.pos.z) < 10).length;
+  }
+
+  /** Listeners standing in the mall's audience circle (M2 counter). */
+  stageAudience(): number {
+    return this.npcs.filter((n) => n.state === 'follow' && Math.hypot(n.ch.pos.x + 42, n.ch.pos.z + 7) < 4.2 && !n.ch.host && n.spawn.id !== 'gus').length;
+  }
+
+  private stepT = 0;
+  private hintLevel = 0;
+  private trackerStep: { m: Mission; step: number } | null = null;
+
+  /** H / tap on the mission panel: reveal the next hint for the current step. */
+  requestHint(): void {
+    if (this.state !== 'play' || !this.trackerStep) return;
+    const { m, step } = this.trackerStep;
+    const st = m.steps[Math.min(step, m.steps.length - 1)];
+    if (this.hintLevel < st.hints.length) {
+      this.hintLevel = Math.max(this.hintLevel, this.autoHintLevel()) + 1;
+      this.audio.play('uiOpen', { volume: 0.6 });
+      this.progress.set('tip:hint');
+    }
+  }
+
+  private autoHintLevel(): number {
+    return this.stepT > 210 ? 3 : this.stepT > 130 ? 2 : this.stepT > 60 ? 1 : 0;
+  }
+
+  /** Nearest character the current step needs, when you are wearing the wrong one. */
+  private neededHost(hosts: HostKind[]): Character | null {
+    let best: Character | null = null;
+    let bd = Infinity;
+    for (const k of hosts) {
+      if (k === 'alien') continue;
+      const ch = this.hostChars.get(k);
+      if (!ch) continue;
+      const d = Math.hypot(ch.pos.x - this.controlled.pos.x, ch.pos.z - this.controlled.pos.z);
+      if (d < bd) {
+        bd = d;
+        best = ch;
+      }
+    }
+    return best;
+  }
+
+  private updateTracker(dt: number): void {
+    const c = this.controlled;
+    const m = this.pickMission();
+    if (!m) {
+      this.trackerStep = null;
+      const [b, t] = this.bitsCount();
+      const steps: { text: string; state: 'done' | 'now' | 'todo' }[] = [{ text: `Hunt Star Bits (${b}/${t}) and secret postcards`, state: 'now' }];
+      if (this.storyDone) steps.push({ text: `Possess the townsfolk: ${this.progress.extras.size}/${this.extraTotal} extras collected`, state: 'now' });
+      this.hud.setTracker('Fizzwick', '#4a8fe0', this.storyDone ? 'Free roam' : 'Explore', steps);
+      this.hud.setTrackerExtras(null, null, 0);
+      this.hud.setObjective(null, '', c.pos);
+      return;
+    }
+    const step = currentStep(m, this);
+    const idx = Math.min(step, m.steps.length - 1);
+    const st = m.steps[idx];
+    const area = areaInfo(m.area);
+    const here = m.area === this.currentArea;
+    const key = m.id + step;
+    if (key !== this.lastStepKey) {
+      if (this.lastStepKey && step > 0 && step < m.steps.length) this.audio.play('missionStart', { volume: 0.5 });
+      this.lastStepKey = key;
+      this.stepT = 0;
+      this.hintLevel = 0;
+    }
+    this.stepT += dt;
+    this.trackerStep = { m, step };
+    // Compact: only the step that matters now (the journal lists the whole mission).
+    let text = st.text;
+    if (st.progress) {
+      const p = st.progress(this);
+      if (p) text += ` (${p})`;
+    }
+    const steps: { text: string; state: 'done' | 'now' | 'todo' }[] = here
+      ? [{ text, state: 'now' }]
+      : [
+          { text: `Head to ${area.name}`, state: 'now' },
+          { text: `Then: ${st.text}`, state: 'todo' },
+        ];
+    this.hud.setTracker(`${area.name} · step ${idx + 1}/${m.steps.length}`, area.color, m.title, steps);
+
+    // Who is needed for this step?
+    let need: { text: string; faces: string[] } | null = null;
+    let markTarget: THREE.Vector3 | null = null;
+    let markLabel = here ? 'Objective' : area.name;
+    const hk = this.hostKind;
+    if (here && st.hosts && st.hosts.length && !st.hosts.includes(hk as HostKind)) {
+      const wantsGlim = st.hosts.includes('alien');
+      const others = st.hosts.filter((k) => k !== 'alien');
+      const faces = st.hosts.map((k) => this.portraits[k]).filter(Boolean);
+      if (wantsGlim && c !== this.glim) {
+        need = { text: IS_MOBILE ? 'This is a job for Glim: tap the Q button to hop out.' : 'This is a job for Glim: press Q to hop out.', faces: [this.portraits.alien] };
+      } else if (others.length) {
+        const names = others.map((k) => HOSTS[k].name.split(' ')[0]).join(' or ');
+        const who = this.neededHost(others);
+        const where = who ? areaInfo(areaAt(who.pos.x, who.pos.z)).name : '';
+        const sameArea = who && areaAt(who.pos.x, who.pos.z) === this.currentArea;
+        need = {
+          text: `Needs ${names}.${who ? ` ${who.host?.name.split(' ')[0]} is ${sameArea ? 'nearby' : `in ${where}`}${c === this.glim ? ': go possess them.' : ': hop out (Q) and go get them.'}` : ''}`,
+          faces,
+        };
+        if (who && this.settings.showHints) {
+          markTarget = who.model.topWorld(new THREE.Vector3()).add(tmpV.set(0, 0.5, 0));
+          markLabel = who.host?.name.split(' ')[0] ?? 'Host';
+        }
+      }
+    }
+    const shown = Math.min(st.hints.length, Math.max(this.hintLevel, this.autoHintLevel()));
+    const hint = shown > 0 ? st.hints[shown - 1] : null;
+    this.hud.setTrackerExtras(need, hint, st.hints.length - shown);
+
+    let tp: THREE.Vector3 | null = null;
+    if (this.settings.showHints) {
+      if (markTarget) tp = markTarget;
+      else if (!here) {
+        const sp = area.spawn;
+        tp = new THREE.Vector3(sp[0], 2.5, sp[1]);
+      } else tp = this.targetPos(st.target);
+    }
+    this.hud.setObjective(tp, markLabel, c.pos);
+  }
+
+  // ------------------------------------------------------------- tutorial tips
+  private tipT = 0;
+  private tipId: string | null = null;
+  private tipStart = new THREE.Vector3();
+
+  private readonly tips: { id: string; when: (g: Game) => boolean; done: (g: Game, t: number) => boolean; text: (g: Game) => string }[] = [
+    {
+      id: 'move',
+      when: (g) => !g.progress.discovered.has('strongman'),
+      done: (g, t) => t > 3 && g.glim.pos.distanceTo(g.tipStart) > 4,
+      text: () =>
+        IS_MOBILE
+          ? 'Drag the <b>left side</b> of the screen to walk, drag the <b>right side</b> to look around. Tap <b>Jump</b> to hop.'
+          : 'Move with <b>WASD</b>. Click the game and move the mouse to look around. <b>Shift</b> runs, <b>Space</b> jumps.',
+    },
+    {
+      id: 'possess',
+      when: (g) => !g.progress.discovered.has('strongman') && !!g.currentPrompts.e && /Possess/.test(g.currentPrompts.e.label),
+      done: (g) => g.controlled !== g.glim,
+      text: () => (IS_MOBILE ? 'Tap <b>E</b> to jump inside this person!' : 'Press <b>E</b> to jump inside this person!'),
+    },
+    {
+      id: 'ability',
+      when: (g) => g.controlled !== g.glim,
+      done: (g, t) => t > 9 || g.actionPose !== null || !!g.carrying,
+      text: (g) =>
+        `You are now <b>${g.controlled.host?.name}</b>. Every host has a special ability on <b>F</b>. The bar at the bottom always shows what <b>E</b> and <b>F</b> will do right now.`,
+    },
+    {
+      id: 'carry',
+      when: (g) => !!g.carrying,
+      done: (g) => !g.carrying,
+      text: () => `Heavy lifting! Walk somewhere and press <b>F</b> again to put it down. ${IS_MOBILE ? '' : 'Running + F throws it.'}`,
+    },
+    {
+      id: 'exit',
+      when: (g) => g.progress.missions.has('S1') && g.controlled !== g.glim,
+      done: (g, t) => g.controlled === g.glim || t > 12,
+      text: () =>
+        `Press <b>${IS_MOBILE ? 'the Q button' : 'Q'}</b> to hop out. Hosts stay where you leave them: you can walk them anywhere in town and park them for later puzzles.`,
+    },
+    {
+      id: 'suspicion',
+      when: (g) => g.controlled === g.glim && g.suspicionMax > 0.3,
+      done: (_g, t) => t > 9,
+      text: () => 'Someone is staring! People get suspicious when they see a tiny alien (watch the <b>eye meter</b>). Hide inside a host or stay out of sight: guards who catch you send you back to the entrance.',
+    },
+    {
+      id: 'hint',
+      when: (g) => g.stepT > 45 && !g.progress.flag('tip:hint'),
+      done: (g, t) => g.progress.flag('tip:hint') || t > 10,
+      text: () => (IS_MOBILE ? 'Stuck? Tap the <b>mission panel</b> for a hint.' : 'Stuck? Press <b>H</b> (or click the mission panel) for a hint.'),
+    },
+    {
+      id: 'journal',
+      when: (g) => g.progress.flag('passGranted') && g.currentArea === 'hub',
+      done: (_g, t) => t > 10,
+      text: () => `You reached Fountain Square! Every district starts here. ${IS_MOBILE ? 'Open the pause menu' : 'Press <b>Tab</b>'} for the Mission Journal and choose which mission to follow.`,
+    },
+    {
+      id: 'postgame',
+      when: (g) => g.storyDone,
+      done: (_g, t) => t > 12,
+      text: () => 'Story complete! Now <b>everyone in Fizzwick can be possessed</b>. Each townsperson has a silly ability. Collect them all in Collection → Extras.',
+    },
+  ];
+
+  private updateTips(dt: number): void {
+    if (this.testMode) {
+      this.hud.showTip(null);
+      return;
+    }
+    if (this.tipId) {
+      const tip = this.tips.find((t) => t.id === this.tipId)!;
+      this.tipT += dt;
+      if (tip.done(this, this.tipT)) {
+        this.progress.set(`tip:${tip.id}`);
+        this.tipId = null;
+        this.hud.showTip(null);
+      } else this.hud.showTip(tip.text(this));
+      return;
+    }
+    for (const tip of this.tips) {
+      if (this.progress.flag(`tip:${tip.id}`) || !tip.when(this)) continue;
+      this.tipId = tip.id;
+      this.tipT = 0;
+      this.tipStart.copy(this.glim.pos);
+      this.audio.play('uiOpen', { volume: 0.5 });
+      this.hud.showTip(tip.text(this));
+      return;
+    }
+    this.hud.showTip(null);
   }
 
   private pickMission(): Mission | null {
@@ -1351,6 +1729,7 @@ export class Game {
       this.input.endFrame();
       return;
     }
+    if (i.hint) this.requestHint();
     if (i.journal) {
       this.state = 'paused';
       this.input.releasePointerLock();
@@ -1497,7 +1876,20 @@ export class Game {
     }
 
     // Continuous abilities.
-    if (this.performT > 0) {
+    if (this.extraLureT > 0) {
+      this.extraLureT -= dt;
+      this.songAt(c, true);
+    }
+    if (this.extraShowT > 0) {
+      this.extraShowT -= dt;
+      c.model.pose = 'dance';
+      c.model.emotion = 'happy';
+      this.performTick -= dt;
+      if (this.performTick <= 0) {
+        this.performTick = 0.3;
+        this.showAt(c.pos, this.extraShowT + 2, c);
+      }
+    } else if (this.performT > 0) {
       this.performT -= dt;
       c.model.pose = 'perform';
       c.model.emotion = 'happy';
@@ -1539,7 +1931,7 @@ export class Game {
     if (this.carrying) this.carrying.updateCarry(this);
   }
 
-  private currentPrompts: { e: Act | null; f: Act | null; fDefault: string } = { e: null, f: null, fDefault: '' };
+  private currentPrompts: { e: Act | null; f: Act | null; fDefault: string; info: Act | null } = { e: null, f: null, fDefault: '', info: null };
 
   private updateWorld(dt: number, playing: boolean): void {
     const cp = this.controlled.pos;
@@ -1646,46 +2038,21 @@ export class Game {
   private updateHud(dt: number): void {
     const c = this.controlled;
     const h = c.host ?? HOSTS.alien;
-    this.hud.setHost(h.name, `F · ${h.ability}`, this.portraits[h.id] ?? '', h.color === '#2a2238' ? '#7d6fb0' : h.color);
+    this.hud.setHost(h.name, `F · ${h.ability}`, this.portraitOf(c), h.color === '#2a2238' ? '#7d6fb0' : h.color);
     const pr = this.currentPrompts;
     const busy = !!this.action || this.ejecting || this.launching || !!this.possessS;
     const eLabel = busy ? null : pr.e?.label ?? null;
     const fLabel = busy ? null : pr.f?.label ?? (pr.fDefault || h.ability);
     this.hud.setPrompts(eLabel, fLabel, c !== this.glim);
-    const wp = !busy ? (pr.e ?? pr.f) : null;
-    this.hud.setWorldPrompt(wp ? wp.pos : null, wp === pr.e ? 'E' : 'F', wp?.label ?? '');
+    const wp = !busy ? (pr.e ?? pr.f ?? pr.info) : null;
+    this.hud.setWorldPrompt(wp ? wp.pos : null, wp === pr.e ? 'E' : wp === pr.f ? 'F' : '?', wp?.label ?? '', !!wp?.info);
     this.hud.setAction(this.action ? this.action.t / this.action.dur : null, this.action?.label ?? '');
     const [bits, total] = this.bitsCount();
     this.hud.setStats(bits, total, this.progress.cores);
     this.hud.setInventory([...this.progress.items].filter((x) => x !== 'cityPass'));
     // Tracker.
-    const m = this.pickMission();
-    if (m) {
-      const step = currentStep(m, this);
-      const area = areaInfo(m.area);
-      const here = m.area === this.currentArea;
-      const steps = m.steps.map((s, idx) => ({ text: s.text, state: (idx < step ? 'done' : idx === step ? 'now' : 'todo') as 'done' | 'now' | 'todo' }));
-      if (!here) steps.unshift({ text: `Head to ${area.name}`, state: 'now' });
-      if (!here) steps[1].state = 'todo';
-      this.hud.setTracker(area.name, area.color, m.title, steps);
-      const key = m.id + step;
-      if (key !== this.lastStepKey) {
-        this.lastStepKey = key;
-        if (step > 0 && step < m.steps.length) this.audio.play('missionStart', { volume: 0.5 });
-      }
-      let tp: THREE.Vector3 | null = null;
-      if (this.settings.showHints) {
-        if (!here) {
-          const sp = area.spawn;
-          tp = new THREE.Vector3(sp[0], 2.5, sp[1]);
-        } else tp = this.targetPos(m.steps[Math.min(step, m.steps.length - 1)].target);
-      }
-      this.hud.setObjective(tp, here ? 'Objective' : area.name, c.pos);
-    } else {
-      const [b, t] = this.bitsCount();
-      this.hud.setTracker('Fizzwick', '#4a8fe0', 'Free roam', [{ text: `Hunt Star Bits (${b}/${t}) and secret postcards`, state: 'now' }]);
-      this.hud.setObjective(null, '', c.pos);
-    }
+    this.updateTracker(dt);
+    this.updateTips(dt);
     // Suspicion + NPC icons.
     let sMax = 0;
     this.hud.beginIcons();
@@ -1754,7 +2121,7 @@ export class Game {
     this.glim.place(this.saucer.pos.x + 4, 0, this.saucer.pos.z - 3, Math.PI);
     this.cam.snap(this.glim.pos);
     this.audio.setMusic(this.currentArea);
-    if (!this.replayEnding) this.hint('Glim decided to stay a little longer. Fizzwick still hides Star Bits, postcards and secrets...', 6);
+    if (!this.replayEnding) this.hint('Glim decided to stay a little longer... and now <b>everyone in Fizzwick can be possessed!</b>', 7);
   }
 
   // ===================================================================== save
@@ -1808,7 +2175,7 @@ export class Game {
   }
 
   private installHooks(): void {
-    const states = ['title', 'active-play', 'possessed', 'station-core', 'mall', 'circus', 'museum', 'cityhall', 'journal', 'collection', 'ending'];
+    const states = ['title', 'active-play', 'possessed', 'station-core', 'mall', 'circus', 'museum', 'cityhall', 'journal', 'collection', 'ending', 'postgame'];
     window.__THREE_GAME_TEST_HOOKS__ = {
       seed: (v: number) => {
         this.rngFn = createSeededRandom(v);
@@ -1914,6 +2281,9 @@ export class Game {
         break;
       case 'cityhall':
         setup(['trunkMoved', 'spikeGone', 'passGranted'], ['station', 'mall', 'circus', 'museum'], [0, -40, Math.PI], 'mayor');
+        break;
+      case 'postgame':
+        setup(['trunkMoved', 'spikeGone', 'passGranted', 'saucerFixed'], ['station', 'mall', 'circus', 'museum', 'cityhall'], [-3, 37, Math.PI * 0.5]);
         break;
       case 'journal':
         setup([], [], [-4, 49.5, Math.PI * 0.85]);

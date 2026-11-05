@@ -13,6 +13,7 @@ export interface Intents {
   abilityHeld: boolean;
   pause: boolean;
   journal: boolean;
+  hint: boolean;
   lookX: number;
   lookY: number;
   zoom: number;
@@ -30,6 +31,7 @@ export class Input {
     abilityHeld: false,
     pause: false,
     journal: false,
+    hint: false,
     lookX: 0,
     lookY: 0,
     zoom: 0,
@@ -198,6 +200,7 @@ export class Input {
       if (k === 'KeyF') this.intent.ability = true;
       if (k === 'Escape' || k === 'KeyP') this.intent.pause = true;
       if (k === 'Tab' || k === 'KeyJ') this.intent.journal = true;
+      if (k === 'KeyH') this.intent.hint = true;
       if (this.touchActive && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(k)) this.touchActive = false;
     }
     if (down) this.keys.add(k);
@@ -243,7 +246,7 @@ export class Input {
 
   endFrame(): void {
     const i = this.intent;
-    i.jump = i.interact = i.exit = i.ability = i.pause = i.journal = false;
+    i.jump = i.interact = i.exit = i.ability = i.pause = i.journal = i.hint = false;
     i.lookX = i.lookY = 0;
     i.zoom = 0;
   }

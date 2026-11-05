@@ -227,6 +227,7 @@ export function buildCircus(ctx: AreaCtx): void {
       blocker: [30, 13.45, 2.4, 0.8],
       weak: ['distract', 'scare'],
       permanent: ['scare'],
+      info: 'Moose can\'t resist a good show. Noodle the clown, perhaps?',
       movedFlag: 'mooseSearching',
       moveTo: [40, 9],
       afterMoveMode: 'wander',
@@ -247,7 +248,7 @@ export function buildCircus(ctx: AreaCtx): void {
     mode: 'idle',
     personality: 'kid',
     emotion: 'sad',
-    guard: { blocker: [0, 0, 0, 0], weak: ['feed'], dish: 'candy', movedFlag: 'candyKid', moveTo: [55, 12.5], afterMoveMode: 'eat' },
+    guard: { blocker: [0, 0, 0, 0], info: 'This kid dreams of cotton candy (Chef Bun, at the pink cart)', weak: ['feed'], dish: 'candy', movedFlag: 'candyKid', moveTo: [55, 12.5], afterMoveMode: 'eat' },
   });
   S.push({ id: 'circ-t1', type: 'civilian', civ: 'tourist', area: 'circus', x: 46, z: -16, mode: 'wander', radius: 6, personality: 'cheerful' });
   S.push({ id: 'circ-t2', type: 'civilian', civ: 'kid', area: 'circus', x: 40, z: 6, mode: 'wander', radius: 5, personality: 'kid' });

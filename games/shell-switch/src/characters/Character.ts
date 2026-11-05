@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CharacterModel, type CharacterSpec } from './CharacterModel';
-import type { CharacterKind, HostDef, HostKind, MoveStats } from './Archetypes';
+import type { CharacterKind, ControlKind, HostDef, MoveStats } from './Archetypes';
 import type { CollisionWorld, MoverInfo } from '../world/Collision';
 import type { Materials } from '../world/Materials';
 
@@ -38,11 +38,11 @@ export class Character {
 
   constructor(
     readonly id: string,
-    readonly name: string,
+    public name: string,
     readonly kind: CharacterKind,
     spec: CharacterSpec,
     mats: Materials,
-    readonly host: HostDef | null,
+    public host: HostDef | null,
     seed: number,
     area: string,
   ) {
@@ -62,7 +62,7 @@ export class Character {
     return this.model.root.position;
   }
 
-  get hostKind(): HostKind | null {
+  get hostKind(): ControlKind | null {
     return this.host ? this.host.id : null;
   }
 

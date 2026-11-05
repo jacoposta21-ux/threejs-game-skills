@@ -78,6 +78,14 @@ Spatial format: one continuous open town, third-person orbit camera (~6 m behind
 
 Each area also has 10 Star Bits, 2 hidden postcards (secrets reached by vents, smash walls, bouncy-jump ledges, ghost phasing, or pickpocketing), and environmental storytelling props (crash scorch trail, UFO headlines, lost-and-found pile, etc.).
 
+## Guidance and post-game (v2)
+
+- Every mission step declares which hosts can do it, three escalating hints (auto after ~60 s / 130 s / 210 s on a step, or on demand with H) and, where useful, a live counter (spectators, listeners).
+- If you wear the wrong host, the tracker says who is needed and where they are, and the marker points to them first.
+- Objects and guards explain themselves when you can't use them ("only Slink can pick it", "Waldo is starving…").
+- One-time tutorial tips: movement, possession, F ability, carrying, hopping out, suspicion, hints, journal.
+- After the finale every NPC can be possessed as an "extra" with a generated name, bio and a harmless ability (flash, lure, show, nap, halt, spray, freeze, bark). Long walks between districts are kept on purpose.
+
 ## Physics
 
 Custom collision (documented choice): static AABB world colliders on a spatial grid, cylinder character controller with step-up, gravity, jump; heavy crates are kinematic AABBs. No rigid-body simulation is needed — authored feel and deterministic puzzles matter more.

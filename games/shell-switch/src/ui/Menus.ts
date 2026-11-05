@@ -16,7 +16,7 @@ export type Screen = 'none' | 'title' | 'pause' | 'journal' | 'collection' | 'se
 export class Menus {
   screen: Screen = 'none';
   private back: Screen = 'title';
-  private collectionTab: 'hosts' | 'achievements' | 'postcards' = 'hosts';
+  private collectionTab: 'hosts' | 'extras' | 'achievements' | 'postcards' = 'hosts';
   private onClose: (() => void) | null = null;
 
   constructor(private readonly g: Game) {
@@ -135,10 +135,10 @@ export class Menus {
           const step = currentStep(m, g);
           const status = doneM ? '✔' : avail ? '◆' : '🔒';
           const tracked = g.trackedMission?.id === m.id;
-          const sub = doneM ? 'Complete' : avail ? esc(m.steps[Math.min(step, m.steps.length - 1)].text) : 'Locked';
+          const sub = doneM ? 'Complete' : avail ? esc(m.steps[Math.min(step, m.steps.length - 1)].text) : `🔒 ${esc(m.lockedHint)}`;
           return `<div class="mission-row${tracked ? ' tracked' : ''}${avail && !doneM ? '' : ' locked'}" data-m="${m.id}">
             <span class="st">${status}</span>
-            <div>${esc(m.title)}<small>${avail || doneM ? esc(m.blurb) : ''}</small><small>${sub}</small></div>
+            <div>${esc(m.title)}<small>${esc(m.blurb)}</small><small>${sub}</small></div>
             <span class="rw">${esc(m.reward)}</span></div>`;
         })
         .join('');
@@ -176,6 +176,20 @@ export class Menus {
     let body = '';
     if (this.collectionTab === 'hosts') {
       body = `<div class="grid-hosts">${HOST_ORDER.map((id) => this.hostCard(id, p.discovered.has(id))).join('')}</div>`;
+    } else if (this.collectionTab === 'extras') {
+      const ids = [...g.extraDefs.keys()];
+      const known = ids.filter((id) => p.extras.has(id));
+      const intro = g.storyDone || back === 'title'
+        ? `<p style="margin:0 0 10px;font-weight:700;opacity:.85">${g.storyDone ? 'After the finale anyone in town can be possessed. Each extra has a silly ability on F.' : 'Finish the story to possess the townsfolk.'}</p>`
+        : '<p style="margin:0 0 10px;font-weight:700;opacity:.85">🔒 Finish the story (repair your saucer) and every townsperson in Fizzwick becomes possessable.</p>';
+      body =
+        intro +
+        `<div class="grid-hosts">${known
+          .map((id) => {
+            const d = g.extraDefs.get(id)!;
+            return `<div class="host-card"><img src="${g.extraPortrait(id)}" alt="${esc(d.name)}" /><h3>${esc(d.name)}</h3><div style="font-size:11px;opacity:.8">${esc(d.title)}</div><span class="ab" style="background:#ffe27a">F · ${esc(d.ability)}</span><p>${esc(d.abilityHint)}</p><p style="opacity:.7">${esc(d.bio)}</p></div>`;
+          })
+          .join('')}${ids.length - known.length > 0 ? `<div class="host-card locked"><h3 style="margin-top:30px">+${ids.length - known.length}</h3><p>townsfolk still to possess</p></div>` : ''}</div>`;
     } else if (this.collectionTab === 'achievements') {
       body = ACHIEVEMENTS.map((a) => {
         const got = p.achievements.has(a.id);
@@ -201,11 +215,13 @@ export class Menus {
           <div class="stat">Hosts <b>${p.discovered.size}/${HOST_ORDER.length}</b></div>
           <div class="stat">Star Bits <b>${bits}/${total}</b></div>
           <div class="stat">Postcards <b>${g.postcards.filter((x) => p.collected.has(x.id)).length}/${g.postcards.length}</b></div>
+          <div class="stat">Extras <b>${p.extras.size}/${g.extraTotal}</b></div>
           <div class="stat">Achievements <b>${p.achievements.size}/${ACHIEVEMENTS.length}</b></div>
         </div>
         <div class="tabs" style="margin-bottom:12px">
           <button class="tab ${this.collectionTab === 'hosts' ? 'on' : ''}" data-t="hosts">Hosts</button>
           <button class="tab ${this.collectionTab === 'achievements' ? 'on' : ''}" data-t="achievements">Achievements</button>
+          <button class="tab ${this.collectionTab === 'extras' ? 'on' : ''}" data-t="extras">Extras</button>
           <button class="tab ${this.collectionTab === 'postcards' ? 'on' : ''}" data-t="postcards">Postcards</button>
         </div>
         ${body}

@@ -28,6 +28,8 @@ export class Hud {
   private w = 1;
   private h = 1;
   private lastTracker = '';
+  private lastExtras = '';
+  private lastTip: string | null = null;
   private lastInv = '';
   private lastBits = '';
   private lastCores = -1;
@@ -112,6 +114,34 @@ export class Hud {
     this.bannerT = 3;
   }
 
+  setTrackerExtras(need: { text: string; faces: string[] } | null, hint: string | null, hintLeft: number): void {
+    const key = JSON.stringify([need, hint, hintLeft]);
+    if (key === this.lastExtras) return;
+    this.lastExtras = key;
+    const nd = $('#tracker-need');
+    nd.classList.toggle('hidden', !need);
+    if (need) nd.innerHTML = `${need.faces.map((f) => `<img src="${f}" alt="" />`).join('')}<span>${need.text}</span>`;
+    const hd = $('#tracker-hint');
+    hd.classList.toggle('hidden', !hint);
+    if (hint) hd.textContent = hint;
+    const btn = $('#tracker-hint-btn');
+    btn.classList.toggle('hidden', hintLeft <= 0);
+    btn.querySelector('span')!.textContent = hint ? 'More help' : 'Hint';
+  }
+
+  showTip(html: string | null): void {
+    if (html === this.lastTip) return;
+    this.lastTip = html;
+    const t = $('#tip');
+    t.classList.toggle('hidden', !html);
+    if (html) {
+      $('#tip-text').innerHTML = html;
+      t.classList.remove('pop');
+      void t.offsetWidth;
+      t.classList.add('pop');
+    }
+  }
+
   setTracker(area: string, areaColor: string, title: string, steps: { text: string; state: 'done' | 'now' | 'todo' }[]): void {
     const key = area + title + steps.map((s) => s.state + s.text).join('|');
     if (key === this.lastTracker) return;
@@ -160,7 +190,8 @@ export class Hud {
     $('#t-exit').classList.toggle('hidden', !canExit);
   }
 
-  setWorldPrompt(p: THREE.Vector3 | null, key: string, text: string): void {
+  setWorldPrompt(p: THREE.Vector3 | null, key: string, text: string, info = false): void {
+    this.worldPrompt.classList.toggle('info', info);
     if (!p) {
       this.worldPrompt.classList.add('hidden');
       return;

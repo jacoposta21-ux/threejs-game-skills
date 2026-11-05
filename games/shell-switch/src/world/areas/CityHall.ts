@@ -180,6 +180,7 @@ export function buildCityHall(ctx: AreaCtx): void {
       blocker: [0, -74.7, 2.8, 0.9],
       weak: ['feed', 'scare'],
       dish: 'souffle',
+      info: 'Tank would do anything for a Triple Soufflé from Chef Bun',
       movedFlag: 'tankFed',
       moveTo: [-8, -78],
       afterMoveMode: 'eat',

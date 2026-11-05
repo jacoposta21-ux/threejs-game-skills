@@ -22,6 +22,7 @@ npm run dev        # http://127.0.0.1:5188
 | Host ability | F | big F button (shows the current ability) |
 | Hop out of host | Q | Q button |
 | Journal | Tab or J | pause → Mission Journal |
+| Hint for the current step | H (or click the mission panel) | tap the mission panel |
 | Pause | Esc or P | pause button |
 
 ## The game
@@ -30,7 +31,9 @@ npm run dev        # http://127.0.0.1:5188
 - **10 possessable hosts**, each with its own model, gait, voice and F ability: Glim (hop-dash, vents), Brick the strongman (lift/throw, smash walls, aim the cannon), Officer Pina (whistle & order), Noodle the clown (showtime distraction), Chef Bun (cook & serve), Slink the thief (pick locks, pickpocket), Velvet Vox the singer (lure crowds), Lady Mopewell the ghost (phase & boo), Prof. Volta the scientist (zap machines) and the bonus Mayor Bumbleton (decree doors, city holiday).
 - **16 missions** (3 per district + finale) that chain hosts across districts, with alternative solutions for several guards.
 - **NPCs** wander, react to whichever host you wear, gossip, panic, chase, watch shows, follow songs and grow suspicious when they see the naked alien or shady behaviour. Guards who catch you toss Glim back to the district entrance (progress is kept).
-- **Progression**: mission tracker + objective marker, journal, host collection with bios, 56 Star Bits, 10 hidden postcards, 16 achievements (11 hidden), unlockable districts, localStorage save.
+- **Guidance**: a compact tracker shows the current step, who can do it (with portraits) and where that character is; the objective marker leads to the needed character first. Hints escalate on their own if you stay stuck (or press **H** / tap the panel), tutorial tips teach each control the first time it matters, and walking up to something with the wrong character explains what it needs.
+- **Post-game**: after the finale **every townsperson can be possessed** (44 extras), each with a name, a bio and a silly F ability (flash photos, tantrums, sales, bedtime stories, glitter tags…), collected in Collection → Extras.
+- **Progression**: mission journal (with unlock conditions), host collection with bios, 56 Star Bits, 10 hidden postcards, 18 achievements (11 hidden), unlockable districts, localStorage save.
 
 ## Build and deploy
 

@@ -27,6 +27,12 @@ export abstract class WorldObject {
   promptF(_g: Game): string | null {
     return null;
   }
+  /** Non-actionable explanation shown when the current host cannot use this ("needs Slink"). */
+  promptInfo(_g: Game): string | null {
+    return null;
+  }
+  /** How close you must be to read the info prompt. */
+  infoRange = 2.6;
   useE(_g: Game): void {}
   useF(_g: Game): void {}
   update(_dt: number, _g: Game): void {}
@@ -127,6 +133,10 @@ export class Crate extends WorldObject {
       return `Lift ${this.style.name}`;
     }
     return null;
+  }
+
+  promptInfo(g: Game): string | null {
+    return this.state === 'rest' && g.hostKind !== 'strongman' ? `Too heavy · only Brick can lift this` : null;
   }
 
   useF(g: Game): void {
@@ -462,10 +472,9 @@ export class Door extends WorldObject {
     const l = this.lock;
     if (l.type === 'item') {
       if (g.hasItem(l.item)) return `Use ${ITEM_INFO[l.item].name}`;
-      return `${this.label}: locked`;
+      return `${this.label}: needs ${ITEM_INFO[l.item].name}`;
     }
-    if (l.type === 'pick' || l.type === 'decree') return `${this.label}: locked`;
-    if (l.type === 'flag') return null;
+    if (l.type === 'pick' || l.type === 'decree' || l.type === 'flag') return null;
     return `Open ${this.label}`;
   }
 
@@ -487,6 +496,14 @@ export class Door extends WorldObject {
     }
     g.audio.play('denied', { pos: this.pos });
     if (l.type !== 'flag') g.hint(l.hint);
+  }
+
+  promptInfo(g: Game): string | null {
+    if (this.open) return null;
+    if (this.lock.type === 'pick' && g.hostKind !== 'thief') return `${this.label}: locked · Slink can pick it`;
+    if (this.lock.type === 'decree' && g.hostKind !== 'mayor') return `${this.label}: only the Mayor's decree opens it`;
+    if (this.lock.type === 'flag') return `${this.label}: ${this.lock.hint}`;
+    return null;
   }
 
   promptF(g: Game): string | null {
@@ -587,6 +604,11 @@ export class Phaseable extends WorldObject {
     this.group.add(this.glow);
     this.range = 0;
   }
+  promptInfo(g: Game): string | null {
+    if (g.hostKind === 'ghost') return g.controlled.mover.phasing ? null : 'Press F to phase, then drift through';
+    return this.kind === 'bars' ? 'Spectral bars · only a ghost can pass' : 'Glass case · only a ghost could reach inside';
+  }
+
   update(_dt: number, g: Game): void {
     if (this.kind === 'bars') {
       const near = g.hostKind === 'ghost' && this.distanceTo(g.controlled.pos) < 4;
@@ -627,6 +649,9 @@ export class Vent extends WorldObject {
     this.group.add(mesh(b, g.mats.metal));
     this.range = 0;
     this.markerY = 1.1;
+  }
+  promptInfo(g: Game): string | null {
+    return g.hostKind === 'alien' ? 'Vent · Glim fits through!' : 'Vent · only tiny Glim fits (hop out with Q)';
   }
 }
 
@@ -690,6 +715,11 @@ export class Machine extends WorldObject {
   init(g: Game): void {
     this.done = g.progress.flag(this.opts.flag);
   }
+  promptInfo(g: Game): string | null {
+    if (this.done || g.hostKind === 'scientist') return null;
+    return `${this.opts.label[0].toUpperCase()}${this.opts.label.slice(1)}: dead · Prof. Volta can zap it`;
+  }
+
   promptF(g: Game): string | null {
     if (g.hostKind !== 'scientist' || this.done) return null;
     if (this.opts.needs && !g.progress.flag(this.opts.needs.flag)) return `${this.opts.label}: no power`;
@@ -757,6 +787,10 @@ export class Stove extends WorldObject {
     this.range = 2.0;
     this.markerY = 1.9;
   }
+  promptInfo(g: Game): string | null {
+    return g.hostKind !== 'chef' && !g.hasItem(this.recipe) ? `Kitchen · only Chef Bun can cook ${ITEM_INFO[this.recipe].name} here` : null;
+  }
+
   promptF(g: Game): string | null {
     if (g.hostKind !== 'chef') return null;
     if (g.hasItem(this.recipe)) return null;
@@ -916,12 +950,12 @@ export class CorePickup extends WorldObject {
   }
   promptE(g: Game): string | null {
     if (this.done) return null;
-    if (this.requires && !this.requires.includes(g.hostKind)) return 'Star Core: out of reach';
+    if (this.requires && !this.requires.includes(g.hostKind as HostKind)) return 'Star Core: out of reach';
     return 'Grab the Star Core!';
   }
   useE(g: Game): void {
     if (this.done) return;
-    if (this.requires && !this.requires.includes(g.hostKind)) {
+    if (this.requires && !this.requires.includes(g.hostKind as HostKind)) {
       g.hint('Something is in the way. Who could get past it?');
       return;
     }
@@ -1001,6 +1035,9 @@ export class Breakable extends WorldObject {
   }
   promptF(g: Game): string | null {
     return !this.done && g.hostKind === 'strongman' && !g.carrying ? 'Smash cracked wall' : null;
+  }
+  promptInfo(g: Game): string | null {
+    return !this.done && g.hostKind !== 'strongman' ? 'Cracked wall · someone very strong could smash it' : null;
   }
   useF(g: Game): void {
     if (this.done || g.hostKind !== 'strongman') return;
@@ -1097,6 +1134,10 @@ export class Cannon extends WorldObject {
     g.vfx.burst('puff', muzzle.x, muzzle.y, muzzle.z, { count: 24, color: ['#ffffff', '#d0d0d8'], speed: 5, up: 1.5, size: 0.9, grow: 1.5 });
     g.vfx.burst('confetti', muzzle.x, muzzle.y, muzzle.z, { count: 30, color: ['#ff8fc0', '#ffe27a', '#4a8fe0', '#4fb06a'], speed: 6, up: 3, gravity: 6 });
   }
+  promptInfo(g: Game): string | null {
+    return g.hostKind !== 'strongman' ? `Aimed at ${this.aims[this.aim].label} · only Brick can turn it` : null;
+  }
+
   promptF(g: Game): string | null {
     return g.hostKind === 'strongman' && !g.carrying ? `Turn cannon (→ ${this.aims[(this.aim + 1) % this.aims.length].label})` : null;
   }
@@ -1191,6 +1232,9 @@ export class HighStriker extends WorldObject {
   }
   promptF(g: Game): string | null {
     return g.hostKind === 'strongman' && !g.carrying ? 'Swing the mallet' : null;
+  }
+  promptInfo(g: Game): string | null {
+    return g.hostKind !== 'strongman' ? 'Test your strength · needs serious muscles' : null;
   }
   useF(g: Game): void {
     g.beginAction(0.5, 'Wind up…', 'lift', () => {

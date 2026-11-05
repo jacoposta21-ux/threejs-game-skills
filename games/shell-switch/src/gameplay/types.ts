@@ -48,6 +48,8 @@ export interface GuardDef {
   permanent?: Weakness[];
   dish?: string;
   afterMoveMode?: 'sit' | 'wander' | 'idle' | 'eat';
+  /** Shown when you walk up to them: what would move this guard. */
+  info?: string;
   /** Once this flag is set the post blocker is permanently disabled. */
   releaseFlag?: string;
   /** Guard chases suspicious hosts doing shady things nearby. */
