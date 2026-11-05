@@ -78,7 +78,10 @@ await page.evaluate(() => {
     for (let i = 0; i < 400; i++) { D.step(); if (window.__BTH && window.__BTH.scene.player && !window.__BTH.scene.cutscene) break; }
     D.hideUI();
     D.cleanLevel();
+    D.frame();
   };
+  // portrait trailers: bring the camera closer so Elias and Pip read on a phone
+  D.frame = () => { if (g.scale.height > g.scale.width) { const sc = window.__BTH.scene; sc.tweens.killTweensOf(sc.cameras.main); sc.applyZoom(); sc.cameras.main.setZoom(sc.cameras.main.zoom * 1.6); } };
   // simple run-right autopilot (jump at walls/gaps, Pip boost on tall walls)
   D.autopilot = () => {
     const s = window.__BTH.scene, p = s.player, L = s.level, T = 32;
@@ -157,6 +160,7 @@ if (!ONLY || ONLY.includes('7')) {
     s.player.body.reset(a[0] + 9 * 32, s.player.y);
     for (let i = 0; i < 300 && !(s.bossStarted && !s.cutscene); i++) D.step();
     D.hideUI();
+    D.frame();
     const b = s.boss; s.player.body.reset(b.x - 330, s.player.y); s.player.facing = 1; s.player.setFlipX(false);
     b.attackCd = 99; b.setMode('roar'); D.step(2);
   });
