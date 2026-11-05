@@ -116,6 +116,8 @@ export const it: LangPack = {
     'Normal: the fights as designed.': 'Normale: gli scontri come sono stati pensati.',
     'Hard: faster, tougher bosses, no healing between phases.': 'Difficile: boss più veloci e resistenti, niente cure tra le fasi.',
     'Make boss fights easier (Story)': 'Rendi più facili i boss (Storia)',
+    'Revive here (watch an ad)': 'Rinasci qui (guarda una pubblicità)',
+    'Ad not available right now': 'Pubblicità non disponibile in questo momento',
   },
   data: {
     'station.name': 'La Stazione Abbandonata',

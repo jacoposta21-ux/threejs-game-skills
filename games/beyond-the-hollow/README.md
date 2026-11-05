@@ -170,7 +170,8 @@ Playgama uses the [Bridge SDK](https://www.npmjs.com/package/@playgama/bridge), 
 | `gameplay_started` / `gameplay_stopped` | sent on play, pause, death and level end |
 | `level_started` / `level_completed` / `level_failed` | sent at those moments |
 | `player_got_achievement` | sent when a boss is defeated |
-| interstitials | shown between parts and chapters; the platform enforces the minimum delay (60 s in the config) and game audio is muted while the ad is open |
+| interstitials | shown at natural breaks: between parts and chapters, on Retry / Restart after a fall, and on Quit to title. The platform enforces the minimum delay (60 s in the config; no initial delay) and game audio is muted while the ad is open |
+| rewarded | the game-over panel offers **Revive here (watch an ad)**: Elias gets up on the last safe ground with full health (Ilse too). Shown only when the platform supports rewarded ads, preloaded at start |
 | audio / pause / visibility | the platform's audio switch mutes the game; a pause request opens the in-game pause menu; a hidden page suspends audio |
 | `bridge.platform.language` | picks the language on first launch |
 | `bridge.storage` | mirrors the save (cloud saves where the platform has them); at boot the stored save is loaded |

@@ -432,6 +432,7 @@ export class UIScene extends Phaser.Scene {
     const c = this.panel('gameover', t('Elias has fallen'), lines[Save.data.deaths % lines.length]);
     const h = this.scale.height;
     this.menu = new Menu(this, this.scale.width / 2, h * 0.24 + 130, [
+      ...(Portal.rewardedAvailable() ? [{ label: t('Revive here (watch an ad)'), action: () => this.reviveWithAd() }] : []),
       { label: t('Retry from checkpoint'), action: () => this.restart(true) },
       ...(gs.canEaseBoss() ? [{ label: t('Make boss fights easier (Story)'), action: () => this.easeBoss() }] : []),
       ...(gs.canSkipBoss() ? [{ label: t('Skip this fight'), action: () => this.skipBoss() }] : []),
@@ -461,21 +462,54 @@ export class UIScene extends Phaser.Scene {
     gs.skipBoss();
   }
 
+  private adBusy = false;
+  /** game over → rewarded ad → get up right here */
+  private reviveWithAd() {
+    const gs = this.gs;
+    if (!gs || this.adBusy) return;
+    this.adBusy = true;
+    this.menu?.setActive(false);
+    Portal.rewarded().then((ok) => {
+      this.adBusy = false;
+      if (!ok) {
+        this.toast(t('Ad not available right now'), 1800);
+        this.menu?.setActive(true);
+        return;
+      }
+      this.closeOverlay();
+      gs.scene.resume();
+      this.letterbox(false, true);
+      gs.reviveHere();
+    });
+  }
+
   private restart(fromCp: boolean) {
     const gs = this.gs;
-    if (!gs) return;
-    this.closeOverlay();
-    gs.scene.resume();
-    this.letterbox(false, true);
-    gs.retry(fromCp);
+    if (!gs || this.adBusy) return;
+    // a natural break: the portal may show an interstitial (it enforces its own minimum delay)
+    this.adBusy = true;
+    this.menu?.setActive(false);
+    Portal.breakAd('retry').then(() => {
+      this.adBusy = false;
+      this.closeOverlay();
+      gs.scene.resume();
+      this.letterbox(false, true);
+      gs.retry(fromCp);
+    });
   }
 
   private quit() {
-    this.closeOverlay();
+    if (this.adBusy) return;
+    this.adBusy = true;
+    this.menu?.setActive(false);
     Portal.gameplayStop();
-    this.scene.stop('BG');
-    this.scene.stop('Game');
-    this.scene.start('Menu');
+    Portal.breakAd('quit').then(() => {
+      this.adBusy = false;
+      this.closeOverlay();
+      this.scene.stop('BG');
+      this.scene.stop('Game');
+      this.scene.start('Menu');
+    });
   }
 
   showLog(text: string) {

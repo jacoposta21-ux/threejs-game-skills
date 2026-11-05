@@ -1238,6 +1238,29 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /** After a rewarded ad: Elias gets up on the last safe ground with full health (and Ilse with him). */
+  reviveHere() {
+    const p = this.player;
+    const cam = this.cameras.main;
+    cam.zoomEffect.reset();
+    this.applyZoom();
+    this.time.timeScale = 1;
+    this.tweens.timeScale = 1;
+    p.hp = p.maxHp;
+    p.alpha = 1;
+    this.respawnAtSafe();
+    p.invuln = 2.5;
+    p.play('elias-idle', true);
+    if (this.ilse && this.ilse.mode === 'down') {
+      this.ilse.hp = this.ilse.maxHp;
+      this.ilse.body.reset(p.x - p.facing * 50, p.y - 4);
+      this.ilse.follow();
+    }
+    this.fx.ring(p.x, p.y - 30, 0xffd27a);
+    Sound.play('checkpoint');
+    Portal.gameplayStart();
+  }
+
   retry(fromCheckpoint: boolean) {
     const cp = fromCheckpoint ? this.lastLitCheckpoint() : -1;
     if (!fromCheckpoint) this.registry.remove('persist-' + this.levelIndex);
@@ -1534,9 +1557,9 @@ export class GameScene extends Phaser.Scene {
         Save.write();
       }
       if (chapterDone) {
-        Portal.breakAd(true).then(() => this.scene.start('Ending', { chapter: this.levelDef.chapter, next: next < LEVELS.length ? next : -1 }));
+        Portal.breakAd('chapter').then(() => this.scene.start('Ending', { chapter: this.levelDef.chapter, next: next < LEVELS.length ? next : -1 }));
       } else {
-        Portal.breakAd(false).then(() => this.scene.start('Story', { level: next }));
+        Portal.breakAd('level').then(() => this.scene.start('Story', { level: next }));
       }
     });
   }

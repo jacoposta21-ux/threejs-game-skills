@@ -55,6 +55,24 @@ export const Crazy = {
   happytime() {
     try { if (ready) sdk.game.happytime(); } catch { /* */ }
   },
+  get ready() {
+    return ready;
+  },
+  /** Rewarded ad. Resolves true only if the ad played to the end. */
+  rewardedAd(): Promise<boolean> {
+    if (!ready) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      try {
+        sdk.ad.requestAd('rewarded', {
+          adStarted: () => Sound.suspend(true),
+          adFinished: () => { Sound.suspend(false); resolve(true); },
+          adError: () => { Sound.suspend(false); resolve(false); },
+        });
+      } catch {
+        resolve(false);
+      }
+    });
+  },
   /** Midgame ad between chapters. Resolves when finished or immediately if no SDK. */
   midgameAd(): Promise<void> {
     if (!ready) return Promise.resolve();

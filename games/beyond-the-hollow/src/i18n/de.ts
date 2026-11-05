@@ -116,6 +116,8 @@ export const de: LangPack = {
     'Normal: the fights as designed.': 'Normal: die Kämpfe wie vorgesehen.',
     'Hard: faster, tougher bosses, no healing between phases.': 'Schwer: schnellere, zähere Bosse, keine Heilung zwischen den Phasen.',
     'Make boss fights easier (Story)': 'Bosskämpfe leichter machen (Story)',
+    'Revive here (watch an ad)': 'Hier wiederbeleben (Werbung ansehen)',
+    'Ad not available right now': 'Werbung gerade nicht verfügbar',
   },
   data: {
     'station.name': 'Die Verlassene Station',

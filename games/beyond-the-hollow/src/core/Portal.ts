@@ -58,6 +58,8 @@ export const Portal = {
       });
       bridge.platform.on(bridge.EVENT_NAME.VISIBILITY_STATE_CHANGED, (state: string) => Sound.suspend(state === 'hidden'));
     } catch { /* older platforms: events unsupported */ }
+    // have a rewarded ad ready for the game-over screen
+    try { if (bridge.advertisement.isRewardedSupported) bridge.advertisement.preloadRewarded(); } catch { /* */ }
     // cloud save → local cache, so the synchronous Save module sees the player's progress
     try {
       const v = await bridge.storage.get(SAVE_KEY, false);
@@ -121,8 +123,9 @@ export const Portal = {
    * An interstitial at a natural break (between parts / chapters). Sound is muted while it plays.
    * Resolves when the ad is over, failed, or was not shown (the platform enforces its own minimum delay).
    */
-  breakAd(chapterEnd: boolean): Promise<void> {
-    if (!IS_PLAYGAMA) return chapterEnd ? Crazy.midgameAd() : Promise.resolve();
+  breakAd(_reason: 'level' | 'chapter' | 'retry' | 'quit'): Promise<void> {
+    // CrazyGames and Playgama both rate-limit midgame ads themselves
+    if (!IS_PLAYGAMA) return Crazy.midgameAd();
     const b = bridge;
     if (!b || !b.advertisement?.isInterstitialSupported) return Promise.resolve();
     return new Promise((resolve) => {
@@ -149,6 +152,46 @@ export const Portal = {
       }
       // if the platform skips the ad (minimum delay not reached) no state change comes: don't hang
       setTimeout(() => { if (!adPlaying) finish(); }, 1500);
+    });
+  },
+  /** can we offer a rewarded ad right now? */
+  rewardedAvailable(): boolean {
+    if (!IS_PLAYGAMA) return Crazy.ready;
+    try {
+      return !!bridge?.advertisement?.isRewardedSupported;
+    } catch {
+      return false;
+    }
+  },
+  /** A rewarded ad. Resolves true only when the platform grants the reward. Sound is muted while it plays. */
+  rewarded(): Promise<boolean> {
+    if (!IS_PLAYGAMA) return Crazy.rewardedAd();
+    const b = bridge;
+    if (!b || !b.advertisement?.isRewardedSupported) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      let granted = false, done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        adPlaying = false;
+        applyAudio();
+        try { b.advertisement.off?.(b.EVENT_NAME.REWARDED_STATE_CHANGED, onState); } catch { /* */ }
+        try { b.advertisement.preloadRewarded(); } catch { /* */ }
+        resolve(granted);
+      };
+      const onState = (state: string) => {
+        if (state === 'opened') {
+          adPlaying = true;
+          applyAudio();
+        } else if (state === 'rewarded') granted = true;
+        else if (state === 'closed' || state === 'failed') finish();
+      };
+      try {
+        b.advertisement.on(b.EVENT_NAME.REWARDED_STATE_CHANGED, onState);
+        b.advertisement.showRewarded();
+      } catch {
+        finish();
+      }
     });
   },
   /** mirror the save to the platform's storage (cloud saves where available) */
