@@ -74,7 +74,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     ok(await T.waitFor(() => L.state().lumo.energy >= 99.5, 9000), 'LUMO charged to full');
     L.press('lumo'); await T.wait(900);
     ok(L.state().lumo.state === 'follow', 'LUMO recalled');
-    r = await T.walk(-1.4, 0.4); ok(L.state().pos[1] < 0.05, 'back on the floor');
+    r = await T.walk(-1.4, 0.4); await T.wait(800); ok(L.state().pos[1] < 0.05, 'back on the floor');
   `);
   await run(page, 'bedroom: push the toy chest to the door, open it', `
     let r = await T.walk(-0.78, 1.9); ok(r.ok, 'behind the chest');
@@ -140,7 +140,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
   `);
   await run(page, 'kitchen: distraction throw, pantry, perches, sack, wind key', `
     L.game.enemies.hush.tuning.hearing = 1;
-    let r = await T.walk(-0.8, -2.6); ok(L.state().pos[1] < 0.05, 'climbed down');
+    let r = await T.walk(-0.8, -2.6); await T.wait(800); ok(L.state().pos[1] < 0.05, 'climbed down');
     r = await T.walk(-1.0, 1.75); ok(r.ok, 'at the spoon');
     let u = await T.useId('spoon-a'); ok(L.state().held === 'spoon-a', 'holding the spoon: ' + u.prompt);
     L.lookAt(-4.0, 0.9, 2.8); await T.wait(100); L.press('throw'); await T.wait(1500);
@@ -205,7 +205,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     L.setYaw(-Math.PI / 2, 0); await T.wait(100); p = await T.jump(); ok(p[1] > 1.15, 'top of the tower');
     u = await T.useId('crank'); ok(/crank/.test(u.prompt || ''), 'crank prompt: ' + u.prompt);
     ok(L.state().inventory.includes('crank'), 'has the crank');
-    r = await T.walk(2.9, 0.2, { timeout: 4000 }); r = await T.walk(2.15, -1.7); ok(L.state().pos[1] < 0.05, 'down and at the mechanism');
+    r = await T.walk(2.9, 0.2, { timeout: 4000 }); r = await T.walk(2.15, -1.7); await T.wait(800); ok(L.state().pos[1] < 0.05, 'down and at the mechanism');
     u = await T.useId('gate-gear'); ok(/gear/.test(u.prompt || ''), 'socket gear: ' + u.prompt);
     u = await T.useId('gate-spring'); ok(/spring/.test(u.prompt || ''), 'socket spring: ' + u.prompt);
     u = await T.useId('gate-crank'); ok(/crank/.test(u.prompt || ''), 'socket crank: ' + u.prompt);
@@ -222,7 +222,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     let p = await T.jump(); ok(p[1] > 0.45, 'on the trunk');
     u = await T.useId('lantern'); ok(/lantern/.test(u.prompt || ''), 'lantern prompt: ' + u.prompt);
     ok(await T.waitFor(() => L.state().flags['a-projected'] === true, 4000), 'symbols projected');
-    r = await T.walk(4.3, -0.6, { timeout: 4000 }); r = await T.walk(4.75, 0.0); ok(L.state().pos[1] < 0.05, 'at the dials');
+    r = await T.walk(4.3, -0.6, { timeout: 4000 }); r = await T.walk(4.75, 0.0); await T.wait(800); ok(L.state().pos[1] < 0.05, 'at the dials');
     const presses = [1, 5, 4];
     for (let i = 0; i < 3; i++) for (let k = 0; k < presses[i]; k++) { await T.useId('dial-' + i); await T.wait(80); }
     ok(L.state().flags['attic-cage-open'] === true, 'cage open (dials correct)');
