@@ -354,6 +354,8 @@ export class Kitchen extends Level {
     this.register(wkEx);
     const p1 = new Perch('pantry-a', v3(5.4, 1.15, -0.62), Math.PI);
     const p2 = new Perch('pantry-b', v3(9.36, 1.2, -2.1), -Math.PI / 2);
+    p1.lureRange = 2.5;
+    p2.lureRange = 2.5;
     this.register(p1);
     this.register(p2);
     ctx.hazards.addZone(
@@ -479,7 +481,7 @@ export class Kitchen extends Level {
     const hush = ctx.enemies.setup(nav, ctx);
     hush.spots = [underTable, passage, underIsland, cupboard];
     hush.perches = [p1, p2];
-    hush.patrol = [v3(-1.2, 0, 1.3), v3(2.4, 0, 1.6), v3(3.3, 0, -1.4), v3(-0.9, 0, -2.3), v3(-2.8, 0, -0.6)];
+    hush.patrol = [v3(-1.2, 0, 1.3), v3(2.4, 0, 1.6), v3(2.5, 0, -1.2), v3(-0.9, 0, -2.3), v3(-2.8, 0, -0.6)];
     hush.tuning.patrolSpeed = 0.95;
     hush.tuning.investigateSpeed = 1.35;
     hush.tuning.chaseSpeed = 1.85;
@@ -559,7 +561,7 @@ export class Kitchen extends Level {
     ctx.ui.objective('Find what the melody was hiding');
     const hush = ctx.enemies.hush!;
     hush.guard = null;
-    hush.patrol = [v3(-1.2, 0, 1.3), v3(2.4, 0, 1.6), v3(3.3, 0, -1.4), v3(-0.9, 0, -2.3), v3(-2.8, 0, -0.6)];
+    hush.patrol = [v3(-1.2, 0, 1.3), v3(2.4, 0, 1.6), v3(2.5, 0, -1.2), v3(-0.9, 0, -2.3), v3(-2.8, 0, -0.6)];
     this.after(0.9, () => ctx.checkpoint('pantry'));
   }
 

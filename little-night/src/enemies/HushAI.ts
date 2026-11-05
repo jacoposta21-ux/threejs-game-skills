@@ -267,7 +267,7 @@ export class HushAI {
 
     // Lure: a lit perch draws it in.
     this.lureCheck -= dt;
-    if (this.lureCheck <= 0 && ['patrol', 'guard', 'lookaround', 'investigate'].includes(this.state)) {
+    if (this.lureCheck <= 0 && !this.blind && ['patrol', 'guard', 'lookaround', 'investigate'].includes(this.state)) {
       this.lureCheck = 0.5;
       for (const perch of this.perches) {
         if (!perch.occupied || ctx.lumo.anchor !== perch || !ctx.lumo.isLit) continue;
