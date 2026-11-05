@@ -479,7 +479,7 @@ export class Attic extends Level {
       b.add(m);
     });
     const cageNote = new Examinable('cage-plate', 'A plate on the cage', 'Engraved: “What the lantern shows, the box will know.” Below it, three little dials.', '', 0.3, 0.2, 0.3, 'Read the plate');
-    cageNote.root.position.set(5.15, 0.52, 0);
+    cageNote.root.position.set(5.15, 0.74, 0);
     this.register(cageNote);
     // The coat stand (revealed in the finale).
     this.coat = A.coatStand();

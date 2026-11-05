@@ -226,7 +226,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     r = await T.walk(4.3, -0.6, { timeout: 4000 }); r = await T.walk(4.75, 0.0); await T.wait(800); ok(L.state().pos[1] < 0.05, 'at the dials');
     const presses = [1, 5, 4];
     for (let i = 0; i < 3; i++) for (let k = 0; k < presses[i]; k++) { await T.useId('dial-' + i); await T.wait(80); }
-    ok(L.state().flags['attic-cage-open'] === true, 'cage open (dials correct)');
+    ok(L.state().flags['attic-cage-open'] === true, 'cage open (dials correct) ' + JSON.stringify([0,1,2].map((i) => L.state().flags['dial:dial-' + i])));
     ok(await T.waitFor(() => L.state().checkpoint === 'finale', 4000), 'finale checkpoint');
     await T.wait(1200);
     u = await T.useId('wind-box'); ok(/Wind/.test(u.prompt || ''), 'wind prompt: ' + u.prompt);
