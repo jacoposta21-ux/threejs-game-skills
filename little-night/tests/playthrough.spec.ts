@@ -118,7 +118,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     L.game.enemies.hush.tuning.hearing = 0;
     ok(L.state().checkpoint === 'start', 'kitchen start checkpoint');
     let r = await T.walk(-5.9, 2.2); r = await T.walk(-3.9, 1.9); ok(r.ok, 'entered the kitchen');
-    r = await T.walk(-1.6, 2.45); ok(r.ok, 'south of the east chair');
+    r = await T.walk(-3.9, 3.35); r = await T.walk(-1.6, 3.35); r = await T.walk(-1.6, 2.45); ok(r.ok, 'south of the east chair');
     let u = await T.useId('chair-e'); ok(L.state().mode === 'pushing', 'grabbed chair: ' + u.prompt);
     const chair = () => L.game.interactions.find('chair-e').base;
     ok(await T.push(0, 1, () => chair().z < -2.85, 12000), 'pushed chair north z=' + chair().z);
