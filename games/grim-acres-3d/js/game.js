@@ -633,7 +633,17 @@ export class Game {
   }
 
   _spend(cost) {
-    if (this.energy < cost) { this.ui.toast(t('msg.tooTired'), 'warn'); Audio.play('error'); return false; }
+    if (this.energy < cost) {
+      if (Platform.rewardedAvailable && this._energyAdDay !== this.day) { // once a day: offer an ad for a second wind
+        this._energyAdDay = this.day;
+        this.ui.confirm(t('ad.energyAsk'), `📺 ${t('ad.watch')}`, t('ui.no'), async () => {
+          if (await Platform.rewarded('energy')) { this.energy = this.maxEnergy; this.ui.toast(t('ad.energyDone')); Audio.play('coin'); }
+          else this.ui.toast(t('ad.unavailable'));
+        });
+        return false;
+      }
+      this.ui.toast(t('msg.tooTired'), 'warn'); Audio.play('error'); return false;
+    }
     this.energy -= cost;
     return true;
   }

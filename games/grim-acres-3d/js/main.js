@@ -33,6 +33,10 @@ async function boot() {
   // platform hooks (Playgama Bridge: pause/audio events; no-ops on CrazyGames and local)
   Platform.onAudio = (on) => Audio.setPlatformMuted(!on);
   if (Platform.audioEnabled === false) Audio.setPlatformMuted(true);
+  Platform.onAd = (showing) => {
+    Audio.setPlatformMuted(showing || Platform.audioEnabled === false);
+    input.clearHeld();
+  };
   Platform.onPause = (paused) => {
     Audio.setPlatformMuted(paused || Platform.audioEnabled === false);
     if (paused && game.mode === 'play' && !ui.modal) ui.openPause(game);
@@ -40,6 +44,7 @@ async function boot() {
   window.addEventListener('resize', () => { renderer.resize(); if (game.mode === 'play') renderer.snap(game); });
 
   const start = (fresh) => {
+    Platform.interstitial('start'); // natural break: starting a session
     ui.hideTitle();
     ui.showHud(true);
     game.mode = 'play';
@@ -75,7 +80,7 @@ async function boot() {
       },
     });
   };
-  ui.onQuit = goTitle;
+  ui.onQuit = () => { Platform.interstitial('quit'); goTitle(); };
   // after catching the Gnomer: a fresh game with a (most likely) different culprit
   ui.onNewGame = () => { const caught = game.mystery.gnomerId; Save.clear(); game.newGame(Save.settings().difficulty || 'normal', caught); start(true); };
   if (/[?&]debug\b/.test(location.search)) window.__grim = { game, ui, renderer, Platform }; // test hook
@@ -92,13 +97,13 @@ async function boot() {
   const loop = (now) => {
     const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
     last = now;
-    game.frame(dt);
+    if (!Platform.adActive) game.frame(dt); // the world holds still while an ad is on screen
     ui.update(dt);
     if (game.mode === 'play') ui.updateHud(game);
     renderer.render(game, dt);
     Audio.music(game.mode === 'title' ? 'title' : game.mode !== 'play' ? null
       : game.minutes >= 19 * 60 ? 'night' : game.weather === 'rain' && game.playerArea().outdoor ? 'rain' : 'day');
-    Platform.setGameplay(game.mode === 'play' && !ui.blocking && !document.hidden);
+    Platform.setGameplay(game.mode === 'play' && !ui.blocking && !document.hidden && !Platform.adActive);
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);

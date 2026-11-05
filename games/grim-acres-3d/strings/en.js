@@ -801,4 +801,12 @@ export default {
       banter: ["Has anyone seen my stamp?", "In triplicate, please.", "Lovely day for a committee!", "I declare this bench officially sat on.", "Please keep the square tidy.", "Motion carried! What motion? Any motion."],
     },
   },
+  ad: {
+    double: "Watch an ad: double today's earnings (+{n})",
+    doubled: "Earnings doubled! +{n} coins",
+    energyAsk: "Too tired to go on? Watch a short ad to get all your energy back.",
+    watch: "Watch ad",
+    energyDone: "Energy restored!",
+    unavailable: "No ad available right now. Try again later.",
+  },
 };

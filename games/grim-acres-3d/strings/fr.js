@@ -794,4 +794,12 @@ export default {
       banter: ["Quelqu'un a vu mon tampon ?", "En trois exemplaires, s'il vous plaît.", "Belle journée pour un comité !", "Je déclare ce banc officiellement occupé.", "Gardez la place propre, s'il vous plaît.", "Motion adoptée ! Quelle motion ? N'importe laquelle."],
     },
   },
+  ad: {
+    double: "Regardez une pub : doublez les gains du jour (+{n})",
+    doubled: "Gains doublés ! +{n} pièces",
+    energyAsk: "Trop fatigué pour continuer ? Regardez une courte pub pour récupérer toute votre énergie.",
+    watch: "Voir la pub",
+    energyDone: "Énergie restaurée !",
+    unavailable: "Aucune pub disponible pour le moment. Réessayez plus tard.",
+  },
 };

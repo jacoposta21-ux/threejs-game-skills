@@ -794,4 +794,12 @@ export default {
       banter: ["¿Alguien ha visto mi sello?", "Por triplicado, por favor.", "¡Qué buen día para un comité!", "Declaro este banco oficialmente ocupado.", "Mantened limpia la plaza, por favor.", "¡Moción aprobada! ¿Qué moción? Cualquiera."],
     },
   },
+  ad: {
+    double: "Mira un anuncio: duplica las ganancias de hoy (+{n})",
+    doubled: "¡Ganancias duplicadas! +{n} monedas",
+    energyAsk: "¿Demasiado cansado para seguir? Mira un anuncio corto para recuperar toda tu energía.",
+    watch: "Ver anuncio",
+    energyDone: "¡Energía recuperada!",
+    unavailable: "No hay anuncios disponibles ahora. Inténtalo más tarde.",
+  },
 };

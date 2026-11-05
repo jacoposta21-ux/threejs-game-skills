@@ -794,4 +794,12 @@ export default {
       banter: ["Alguém viu meu carimbo?", "Em três vias, por favor.", "Que belo dia para uma comissão!", "Declaro este banco oficialmente ocupado.", "Mantenham a praça limpa, por favor.", "Moção aprovada! Que moção? Qualquer uma."],
     },
   },
+  ad: {
+    double: "Assista a um anúncio: dobre os ganhos de hoje (+{n})",
+    doubled: "Ganhos dobrados! +{n} moedas",
+    energyAsk: "Cansado demais para continuar? Assista a um anúncio curto para recuperar toda a energia.",
+    watch: "Ver anúncio",
+    energyDone: "Energia recuperada!",
+    unavailable: "Nenhum anúncio disponível agora. Tente mais tarde.",
+  },
 };

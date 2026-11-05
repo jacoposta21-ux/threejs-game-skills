@@ -795,4 +795,12 @@ export default {
       banter: ["Qualcuno ha visto il mio timbro?", "In triplice copia, per favore.", "Che bella giornata per una commissione!", "Dichiaro questa panchina ufficialmente occupata.", "Tenete pulita la piazza, per favore.", "Mozione approvata! Quale mozione? Una qualsiasi."],
     },
   },
+  ad: {
+    double: "Guarda un annuncio: raddoppia i guadagni di oggi (+{n})",
+    doubled: "Guadagni raddoppiati! +{n} monete",
+    energyAsk: "Troppo stanco per continuare? Guarda un breve annuncio per recuperare tutta l'energia.",
+    watch: "Guarda annuncio",
+    energyDone: "Energia recuperata!",
+    unavailable: "Nessun annuncio disponibile ora. Riprova più tardi.",
+  },
 };

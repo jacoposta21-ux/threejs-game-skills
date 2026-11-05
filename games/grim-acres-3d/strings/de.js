@@ -794,4 +794,12 @@ export default {
       banter: ["Hat jemand meinen Stempel gesehen?", "In dreifacher Ausfertigung, bitte.", "Schöner Tag für einen Ausschuss!", "Ich erkläre diese Bank offiziell für besetzt.", "Bitte haltet den Platz sauber.", "Antrag angenommen! Welcher Antrag? Irgendeiner."],
     },
   },
+  ad: {
+    double: "Werbung ansehen: heutige Einnahmen verdoppeln (+{n})",
+    doubled: "Einnahmen verdoppelt! +{n} Münzen",
+    energyAsk: "Zu müde zum Weitermachen? Sieh dir eine kurze Werbung an und hol dir deine ganze Energie zurück.",
+    watch: "Werbung ansehen",
+    energyDone: "Energie aufgefüllt!",
+    unavailable: "Gerade keine Werbung verfügbar. Versuch es später noch einmal.",
+  },
 };

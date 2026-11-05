@@ -8,6 +8,7 @@ import { CLUES } from './mystery.js';
 import { HOTBAR } from './inventory.js';
 import { formatClock, dayOfWeek, SEASON_DAYS } from './time.js';
 import { Audio } from './audio.js';
+import { Platform } from './platform.js';
 import { Save } from './save.js';
 import { ACHIEVEMENTS } from './data/achievements.js';
 import { Progress } from './progress.js';
@@ -734,6 +735,7 @@ export class UI {
 
   // ------------------------------------------------------------ morning summary
   showMorning(r, game) {
+    Platform.interstitial('day_end'); // natural break: a new day begins
     const body = h('div');
     body.append(h('div', { class: 'summary-line' }, h('span', { text: t('morning.weather', { weather: t(`weather.${r.weather}`) }) }), h('span', { text: t('morning.daysLeft', { n: game.daysLeft }) })));
     if (r.weather === 'rain') body.append(h('p', { class: 'help', text: t('morning.rain') }));
@@ -759,6 +761,15 @@ export class UI {
     if (!r.shipped.length) body.append(h('p', { class: 'help', text: t('morning.nothingShipped') }));
     for (const s of r.shipped) body.append(h('div', { class: 'item-row' }, icon(s.id), h('div', { class: 'grow' }, `${itemName(s.id)} ×${s.qty}`), h('span', { class: 'price' }, coin(s.value))));
     if (r.shipped.length) body.append(h('div', { class: 'summary-line' }, h('b', { text: t('morning.total', { n: r.income }) })));
+    if (r.income > 0 && Platform.rewardedAvailable) {
+      const btn = h('button', { class: 'btn small ad-btn', onclick: async () => {
+        btn.disabled = true;
+        const ok = await Platform.rewarded('double_earnings');
+        if (ok) { game.money += r.income; game.stats.earned += r.income; game.save(); this.toast(t('ad.doubled', { n: r.income })); Audio.play('coin'); btn.remove(); }
+        else { btn.disabled = false; this.toast(t('ad.unavailable')); }
+      } }, `📺 ${t('ad.double', { n: r.income })}`);
+      body.append(btn);
+    }
     if (r.seasonOver) body.append(h('p', { class: 'news good', text: t('msg.seasonOver') }));
     const el = this.panel(t('morning.title', { day: game.day }), body, [h('button', { class: 'btn primary focus', onclick: () => this.close() }, t('morning.ok'))], { noX: true });
     this.open('morning', el, { closable: true });

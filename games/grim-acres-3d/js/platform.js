@@ -4,6 +4,7 @@
 let sdk = null;
 let gameplayOn = false;
 let loading = false;
+let adActive = false;
 
 function safe(fn, fallback) {
   try { return fn(); } catch { return fallback; }
@@ -29,6 +30,29 @@ export const Platform = {
       sdk = null;
       return false;
     }
+  },
+
+  onAd: null,
+  get adActive() { return adActive; },
+  get rewardedAvailable() { return !!sdk; },
+  // CrazyGames: no midgame ad before the player has played (their preroll covers the load)
+  interstitial(placement) { return placement === 'start' ? Promise.resolve(false) : this._ad('midgame').then((r) => r.shown); },
+  rewarded() { return this._ad('rewarded').then((r) => r.shown && r.finished); },
+  _ad(type) {
+    return new Promise((resolve) => {
+      if (!sdk || adActive) { resolve({ shown: false, finished: false }); return; }
+      let shown = false;
+      const end = (finished) => { if (adActive) { adActive = false; if (this.onAd) this.onAd(false); } resolve({ shown, finished }); };
+      const ok = safe(() => {
+        sdk.ad.requestAd(type, {
+          adStarted: () => { shown = true; adActive = true; if (this.onAd) this.onAd(true); },
+          adFinished: () => end(true),
+          adError: () => end(false),
+        });
+        return true;
+      }, false);
+      if (!ok) end(false);
+    });
   },
 
   loadingStart() {

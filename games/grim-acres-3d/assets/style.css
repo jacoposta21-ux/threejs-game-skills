@@ -360,3 +360,6 @@ body.touch #prompt { bottom: 4.4rem; left: auto; right: 6.2rem; transform: none;
   text-shadow: 0 2px 0 #7a4a1a, 0 0 18px rgba(242, 193, 78, 0.6); margin: 0.2rem 0 0.6rem; animation: winPop 0.6s ease-out; }
 @keyframes winPop { 0% { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); } }
 .btn:disabled { opacity: 0.5; cursor: default; }
+
+.ad-btn { display: block; margin: 0.6rem auto 0; border-color: var(--accent2); }
+.ad-btn:disabled { opacity: 0.6; }
