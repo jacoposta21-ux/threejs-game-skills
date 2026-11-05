@@ -299,10 +299,10 @@ export class Kitchen extends Level {
     this.register(this.pantryDoor);
 
     // --- Pantry interior -----------------------------------------------------------------------
-    const shelfN = K.pantryShelf(3.6, 1.9, 0.4, [0.3, 0.75, 1.2, 1.65], ctx.rng);
-    shelfN.position.set(6.6, 0, -3.55);
+    const shelfN = K.pantryShelf(3.1, 1.9, 0.4, [0.3, 0.75, 1.2, 1.65], ctx.rng);
+    shelfN.position.set(6.35, 0, -3.55);
     b.add(shelfN);
-    b.solid(6.6, 0, -3.55, 3.6, 1.9, 0.4, 'wood', false, { walkable: false });
+    b.solid(6.35, 0, -3.55, 3.1, 1.9, 0.4, 'wood', false, { walkable: false });
     const shelfS = K.pantryShelf(3.2, 1.6, 0.35, [0.35, 0.7, 1.1], ctx.rng);
     shelfS.position.set(7.4, 0, -0.78);
     b.add(shelfS);
