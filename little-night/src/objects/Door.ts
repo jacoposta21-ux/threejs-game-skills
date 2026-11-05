@@ -90,6 +90,9 @@ export class Door extends Interactable {
       const unlocked = (item && ctx.inventory.has(item)) || (flag && ctx.flags.has(flag));
       if (!unlocked) return { verb: message, disabled: true };
     }
+    if ((this.opts.needsReach ?? true) && ctx.player.crawling && ctx.player.position.y + 1.02 >= (this.opts.handleHeight ?? 1.0) - 0.05) {
+      return { verb: 'Stand up (C) to reach the handle', disabled: true };
+    }
     if ((this.opts.needsReach ?? true) && ctx.player.reachY < (this.opts.handleHeight ?? 1.0) - 0.05) {
       return { verb: 'The handle is too high', disabled: true };
     }

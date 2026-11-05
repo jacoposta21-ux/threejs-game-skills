@@ -54,6 +54,8 @@ export class PlayerController {
   yaw = 0;
   pitch = 0;
   crawling = false;
+  /** Crawl imposed by a low ceiling (not chosen): ends automatically when there is room. */
+  forcedCrawl = false;
   grounded = true;
   mode: PlayerMode = 'normal';
   surface: Surface = 'wood';
@@ -175,6 +177,13 @@ export class PlayerController {
     }
 
     this.integrateVertical(dt);
+    if (this.forcedCrawl && this.grounded && this.crawling) {
+      const ceiling = this.world.ceilingAt(this.position.x, this.position.z, PLAYER.radius, this.position.y);
+      if (ceiling >= this.position.y + PLAYER.standHeight + 0.02) {
+        this.crawling = false;
+        this.forcedCrawl = false;
+      }
+    }
     this.updateSteps(dt);
     this.syncCamera(dt);
   }
@@ -237,6 +246,7 @@ export class PlayerController {
 
   toggleCrawl(force?: boolean): void {
     const want = force ?? !this.crawling;
+    this.forcedCrawl = false;
     if (want === this.crawling) return;
     if (!want) {
       const ceiling = this.world.ceilingAt(this.position.x, this.position.z, PLAYER.radius, this.position.y);
@@ -321,7 +331,10 @@ export class PlayerController {
     this.position.z = THREE.MathUtils.lerp(c.from.z, c.to.z, along);
     // Rise slightly above the top then settle, like hauling yourself up.
     this.position.y = THREE.MathUtils.lerp(c.from.y, c.to.y, rise) + Math.sin(k * Math.PI) * 0.06;
-    if (c.endCrawl) this.crawling = true;
+    if (c.endCrawl && !this.crawling) {
+      this.crawling = true;
+      this.forcedCrawl = true;
+    }
     if (k >= 1) {
       this.position.copy(c.to);
       this.mode = 'normal';
