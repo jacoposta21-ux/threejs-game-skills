@@ -29,6 +29,8 @@ await page.evaluate(() => {
   };
   D.releaseAll = () => [...D.held].forEach((c) => D.key(c, false));
   // a recording picked up along the way would pause the game behind the hidden UI: close it at once
+  // hide the UI controls right before every render (the UI's own update shows some of them again)
+  g.events.on('prerender', () => { if (D.hiding && g.scene.isActive('UI')) D.hideUI(); });
   D.step = (n = 1) => { for (let i = 0; i < n; i++) { const ui = g.scene.getScene('UI'); if (ui && ui.logOpen) ui.closeLog(); D.t += 1000 / 30; g.step(D.t, 1000 / 30); } };
   // overlay canvas for captions (game font)
   const oc = document.createElement('canvas');
@@ -63,7 +65,13 @@ await page.evaluate(() => {
     m.title.setPosition(port ? w / 2 : w * 0.64, h * (port ? 0.22 : 0.3));
     m.root?.setVisible(false);
   };
-  D.hideUI = () => { const ui = g.scene.getScene('UI'); if (ui && ui.cameras?.main) ui.cameras.main.setVisible(false); };
+  // keep the UI layer's colour grading (the warm past, the vignette) but hide every control and readout
+  D.hideUI = () => {
+    const ui = g.scene.getScene('UI');
+    if (!ui || !ui.children) return;
+    ui.cameras.main.setVisible(true);
+    for (const o of ui.children.list) o.setVisible(o === ui.warm ? ui.warm.fillAlpha > 0 : o === ui.vignette);
+  };
   D.cleanLevel = () => {
     const s = window.__BTH.scene;
     s.hints.forEach((h) => h.text.destroy()); s.hints = [];
@@ -76,6 +84,7 @@ await page.evaluate(() => {
     window.__BTH = undefined;
     g.scene.start('Game', { level: lv, checkpoint: cp });
     for (let i = 0; i < 400; i++) { D.step(); if (window.__BTH && window.__BTH.scene.player && !window.__BTH.scene.cutscene) break; }
+    D.hiding = true;
     D.hideUI();
     D.cleanLevel();
     D.frame();
@@ -102,46 +111,50 @@ async function shoot(name, frames, cap, perFrame, opts = {}) {
   const fade = 12;
   for (let i = 0; i < frames; i++) {
     const a = !cap ? 0 : Math.min(1, Math.max(0, (i - (opts.capDelay ?? 8)) / fade), (frames - i) / fade);
-    const data = await page.evaluate(([i, cap, a, big, fn]) => { const D = window.__D; if (fn) (0, eval)('(' + fn + ')')(i); D.step(); return D.grab(cap, a, big); }, [i, cap, a, !!opts.big, perFrame ? perFrame.toString() : null]);
+    const data = await page.evaluate(([i, cap, a, big, fn]) => { const D = window.__D; if (fn) (0, eval)('(' + fn + ')')(i); D.step(); if (window.__game.scene.isActive('UI')) D.hideUI(); return D.grab(cap, a, big); }, [i, cap, a, !!opts.big, perFrame ? perFrame.toString() : null]);
     fs.writeFileSync(`${OUT}/f${String(frame++).padStart(4, '0')}.jpg`, Buffer.from(data.split(',')[1], 'base64'));
   }
   console.log(name, 'done, frames', frame, errors.length ? errors : '');
 }
 const ev = (fn, arg) => page.evaluate(fn, arg);
 
+
+const T = 75, M = 90; // frames per shot (2.5 s / 3 s)
 // 1 · title over the painted vista
-if (!ONLY || ONLY.includes('1')) {
+if (!ONLY || ONLY.includes('a')) {
   await ev(() => { const g = window.__game; const m = g.scene.getScene('Menu'); m.prompt?.setVisible(false); m.menu?.container?.setVisible(false); window.__D.bigTitle(); });
-  await shoot('title', 100, null, (i) => { const m = window.__game.scene.getScene('Menu'); m.prompt?.setVisible(false); window.__D.bigTitle(); });
+  await shoot('title', T, null, () => { const m = window.__game.scene.getScene('Menu'); m.prompt?.setVisible(false); window.__D.bigTitle(); });
 }
-// 2 · forest run with Pip boost
-if (!ONLY || ONLY.includes('2')) {
-  await ev(() => { const D = window.__D; D.startLevel(1); const s = window.__BTH.scene; s.player.body.reset(28 * 32, s.player.y); D.step(10); });
-  await shoot('forest', 120, 'Descend into the Hollow', () => window.__D.autopilot());
+// 2 · mushroom forest: run onto a glowing cap and bounce high
+if (!ONLY || ONLY.includes('b')) {
+  await ev(() => { const D = window.__D; D.startLevel(1); const s = window.__BTH.scene; s.player.body.reset(48 * 32, 19 * 32 - 1); D.step(4); });
+  await shoot('forest', T, 'Descend into the Hollow', () => window.__D.key('ArrowRight', true));
   await ev(() => window.__D.releaseAll());
 }
-// 3 · dark caverns: Pip's light, shooting
-if (!ONLY || ONLY.includes('3')) {
-  await ev(() => { const D = window.__D; D.startLevel(2); D.step(5); });
-  await shoot('caverns', 105, "Pip's light holds back the dark", (i) => { const D = window.__D; D.autopilot(); if (i % 18 === 4) D.key('KeyX', true); if (i % 18 === 7) D.key('KeyX', false); });
+// 3 · hanging gardens
+if (!ONLY || ONLY.includes('c')) {
+  await ev(() => { const D = window.__D; D.startLevel(10); const s = window.__BTH.scene; s.player.body.reset(8 * 32, 19 * 32 - 1); D.step(4); });
+  await shoot('gardens', T, 'A world that glows in the dark', () => window.__D.autopilot());
   await ev(() => window.__D.releaseAll());
 }
-// 4 · temple blades
-if (!ONLY || ONLY.includes('4')) {
-  await ev(() => { const D = window.__D; D.startLevel(7); const s = window.__BTH.scene, pd = s.pendulums[1]; s.player.body.reset(pd.ax - 300, 19 * 32 - 1); pd.t = 0.3; D.step(5); });
-  await shoot('temple', 105, 'Ancient ruins. Deadly machines.', (i) => { const D = window.__D; if (i > 20) D.autopilot(); });
+// 4 · underground ocean: swim between the lights
+if (!ONLY || ONLY.includes('d')) {
+  await ev(() => {
+    const D = window.__D; D.startLevel(3); const s = window.__BTH.scene, L = s.level;
+    // deepest water column a bit into the level
+    let best = null;
+    for (let x = 60; x < L.W - 20 && !best; x++) { let d = 0; for (let y = 2; y < L.H; y++) if (L.isWater(x, y)) d++; if (d >= 4) best = x; }
+    let wy = 2; while (!L.isWater(best, wy)) wy++;
+    s.player.body.reset(best * 32, (wy + 2) * 32);
+    D.step(6);
+  });
+  await shoot('ocean', M, 'Explore a living underworld', (i) => { const D = window.__D; D.key('ArrowRight', true); D.key('Space', i % 22 < 6); });
   await ev(() => window.__D.releaseAll());
 }
-// 5 · Echo: present / past
-if (!ONLY || ONLY.includes('5')) {
-  await ev(() => { const D = window.__D; D.startLevel(9); D.step(5); });
-  await shoot('echo', 120, 'Shift between present and past', (i) => { const D = window.__D; const s = window.__BTH.scene; if (i === 25 || i === 70) s.toggleEco(); if (i > 30) D.autopilot(); if (i % 10 === 0 && window.__DBG) console.log('ECO', i, JSON.stringify({ fl: s.cameras.main.flashEffect.isRunning, fa: s.cameras.main.flashEffect.alpha, fade: s.cameras.main.fadeEffect.isRunning, past: s.past, p: [Math.round(s.player.x), Math.round(s.player.y)], st: s.player.state, act: s.scene.isActive(), scenes: window.__game.scene.getScenes(true).map((x) => x.scene.key) })); });
-  await ev(() => { const D = window.__D; D.releaseAll(); if (window.__BTH.scene.past) window.__BTH.scene.toggleEco(); });
-}
-// 6 · Light Thread
-if (!ONLY || ONLY.includes('6')) {
-  await ev(() => { const D = window.__D; D.startLevel(14); const s = window.__BTH.scene; const n = s.hooks[0]; s.player.body.reset(n.x - 60, n.y + 140); s.player.attach(n); D.step(3); });
-  await shoot('thread', 120, 'Swing on threads of light', () => {
+// 5 · sea of sap: swing node to node over the golden sap
+if (!ONLY || ONLY.includes('e')) {
+  await ev(() => { const D = window.__D; D.startLevel(15); const s = window.__BTH.scene; const n = s.hooks.slice().sort((a, b) => a.x - b.x)[1]; s.player.body.reset(n.x - 80, n.y + 150); s.player.attach(n); D.step(3); });
+  await shoot('sap', M, 'Swing on threads of light', () => {
     const D = window.__D, s = window.__BTH.scene, p = s.player;
     D.key('ArrowRight', true);
     D.cd = (D.cd || 0) - 1;
@@ -152,32 +165,84 @@ if (!ONLY || ONLY.includes('6')) {
   });
   await ev(() => window.__D.releaseAll());
 }
-// 7 · boss
-if (!ONLY || ONLY.includes('7')) {
+// 6 · the Keepers' quarter in the golden past
+if (!ONLY || ONLY.includes('f')) {
+  await ev(() => { const D = window.__D; D.startLevel(11); const s = window.__BTH.scene; s.player.body.reset(30 * 32, 19 * 32 - 1); D.step(4); });
+  await shoot('past', M, 'Walk through the past', (i) => { const D = window.__D, s = window.__BTH.scene; if (i === 14 && !s.past) s.toggleEco(); if (i > 4) D.autopilot(); });
+  await ev(() => { const D = window.__D; D.releaseAll(); const s = window.__BTH.scene; if (s.past) s.toggleEco(); });
+}
+// 7 · sanctuary: Ilse opens the Keeper door while the shades come
+if (!ONLY || ONLY.includes('g')) {
   await ev(() => {
-    const D = window.__D; D.startLevel(4);
+    const D = window.__D; D.startLevel(17); const s = window.__BTH.scene;
+    const door = s.doors.find((d) => d.ritual);
+    s.player.body.reset(door.s.x - 170, 19 * 32 - 1); s.player.facing = 1; s.player.setFlipX(false);
+    s.ilse.body.reset(door.s.x - 60, 19 * 32 - 1);
+    D.step(30);
+    for (const e of s.enemies) if (e.alive && e.kind !== 'boss') { e.x = door.s.x + 260 + Math.random() * 120; e.body.reset(e.x, 18 * 32); }
+  });
+  await shoot('ritual', M, 'Protect your mother', (i) => { const D = window.__D, s = window.__BTH.scene; s.ilse && (s.ilse.invuln = 1); if (i % 10 === 2) D.key('KeyX', true); if (i % 10 === 5) D.key('KeyX', false); });
+  await ev(() => window.__D.releaseAll());
+}
+// 8 · the Ancient Sentinel: laser columns, then the dive
+if (!ONLY || ONLY.includes('h')) {
+  await ev(() => {
+    const D = window.__D; D.startLevel(8);
     const s = window.__BTH.scene, a = s.bossArena;
     s.player.body.reset(a[0] + 9 * 32, s.player.y);
     for (let i = 0; i < 300 && !(s.bossStarted && !s.cutscene); i++) D.step();
-    D.hideUI();
-    D.frame();
-    const b = s.boss; s.player.body.reset(b.x - 330, s.player.y); s.player.facing = 1; s.player.setFlipX(false);
-    b.attackCd = 99; b.setMode('roar'); D.step(2);
+    D.hideUI(); D.frame();
+    s.player.body.reset((a[0] + a[1]) / 2 - 200, s.player.y);
+    s.boss.setMode('laser'); D.step(2);
   });
-  await shoot('boss', 135, 'Face the guardians of the deep', (i) => {
+  await shoot('sentinel', M, 'Face ancient guardians', (i) => {
     const D = window.__D, s = window.__BTH.scene, b = s.boss, p = s.player;
-    if (i === 55) { b.x = p.x + 260; b.body.reset(b.x, b.y); b.setMode('windup'); }
-    if (i === 70) D.key('Space', true);
-    if (i === 78) D.key('Space', false);
-    if (b.mode === 'open' && i % 6 === 0) { p.facing = Math.sign(b.x - p.x) || 1; D.key('KeyX', true); }
+    if (i === 50) b.setMode('dive');
+    D.key('ArrowRight', i % 40 < 14); D.key('ArrowLeft', i % 40 >= 20 && i % 40 < 32);
+    if (b.mode === 'stuck' && i % 6 === 0) { p.facing = Math.sign(b.x - p.x) || 1; D.key('KeyX', true); }
     if (i % 6 === 3) D.key('KeyX', false);
   });
   await ev(() => window.__D.releaseAll());
 }
-// 8 · end card
-if (!ONLY || ONLY.includes('8')) {
-  await ev(() => { const D = window.__D, g = window.__game; ['Game', 'UI', 'BG'].forEach((k) => g.scene.isActive(k) && g.scene.stop(k)); g.scene.start('Menu'); D.step(40); const m = g.scene.getScene('Menu'); m.prompt?.setVisible(false); m.menu?.container?.setVisible(false); D.bigTitle(); });
-  await shoot('end', 95, 'PLAY NOW', (i) => { const m = window.__game.scene.getScene('Menu'); m.prompt?.setVisible(false); m.menu?.container?.setVisible(false); window.__D.bigTitle(); }, { big: true, capDelay: 10 });
+// 9 · the Heart of Shadow: Ilse holds the core open, Elias strikes
+if (!ONLY || ONLY.includes('i')) {
+  await ev(() => {
+    const D = window.__D; D.startLevel(18);
+    const s = window.__BTH.scene, a = s.bossArena;
+    s.player.body.reset(a[0] + 9 * 32, s.player.y);
+    for (let i = 0; i < 300 && !(s.bossStarted && !s.cutscene); i++) D.step();
+    D.hideUI(); D.frame();
+    const b = s.boss;
+    s.hooks.forEach((h) => h.setDark(false));
+    b.phase = 3; b.mode = 'p3pip'; b.hp = Math.floor(b.maxHp * 0.25);
+    s.pipControl = true; s.endPipControl();
+    s.ilse.body.reset(b.x - 90, s.level.heightPx - 5 * 32 - 1);
+    D.step(20);
+    s.player.body.reset(b.x - (window.__game.scale.height > window.__game.scale.width ? 150 : 260), s.player.y); s.player.facing = 1;
+  });
+  await shoot('heart', M, 'Free the Seed', (i) => {
+    const D = window.__D, s = window.__BTH.scene, b = s.boss, p = s.player;
+    if (b && b.alive) b.hp = Math.max(b.hp, 6);
+    D.key('ArrowUp', true);
+    if (i % 7 === 0) { p.facing = 1; D.key('KeyX', true); }
+    if (i % 7 === 3) D.key('KeyX', false);
+  });
+  await ev(() => window.__D.releaseAll());
+}
+// 10 · dawn: Elias and Ilse climb out onto Hollow Ridge
+if (!ONLY || ONLY.includes('j')) {
+  await ev(() => {
+    const D = window.__D, g = window.__game;
+    ['Game', 'UI', 'BG'].forEach((k) => g.scene.isActive(k) && g.scene.stop(k));
+    g.scene.start('Ending', { chapter: 4, next: -1 });
+    D.step(80);
+  });
+  await shoot('dawn', T, null, () => {});
+}
+// 11 · end card
+if (!ONLY || ONLY.includes('k')) {
+  await ev(() => { const D = window.__D, g = window.__game; ['Ending', 'Game', 'UI', 'BG'].forEach((k) => g.scene.isActive(k) && g.scene.stop(k)); g.scene.start('Menu'); D.step(40); const m = g.scene.getScene('Menu'); m.prompt?.setVisible(false); m.menu?.container?.setVisible(false); D.bigTitle(); });
+  await shoot('end', 60, 'PLAY NOW', () => { const m = window.__game.scene.getScene('Menu'); m.prompt?.setVisible(false); m.menu?.container?.setVisible(false); window.__D.bigTitle(); }, { big: true, capDelay: 6 });
 }
 console.log('frames', frame, 'errors', errors);
 await browser.close();
