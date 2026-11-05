@@ -987,9 +987,11 @@ input[type='range']:focus-visible {
 
 .t-interact .lbl {
   position: absolute;
-  right: 84px;
-  top: 50%;
-  transform: translateY(-50%);
+  right: -6px;
+  bottom: 84px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(7, 8, 15, 0.55);
   max-width: 34vw;
   font-size: 13px;
   text-align: right;

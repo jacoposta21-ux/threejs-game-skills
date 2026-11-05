@@ -228,7 +228,7 @@ export class Bedroom extends Level {
     this.register(this.chest);
 
     // --- Rug, toys, drawings -------------------------------------------------
-    b.add(P.roundRug(1.3, '#2e3550', '#7a5638', '#a8946e').translateX(0.2).translateZ(0.2));
+    b.add(P.roundRug(1.3, '#2a2f44', '#4f3b2c', '#6e624c').translateX(0.2).translateZ(0.2));
     const whale = P.rockingWhale();
     whale.position.set(1.2, 0, -2.5);
     whale.rotation.y = -0.4;

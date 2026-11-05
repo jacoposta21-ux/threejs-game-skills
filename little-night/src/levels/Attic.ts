@@ -163,7 +163,7 @@ export class Attic extends Level {
     rw.position.set(7.0, 2.0, 0);
     rw.rotation.y = Math.PI / 2;
     b.add(rw);
-    const shaft = lightShaft(0.8, 3.6, '#b8a6ff', 0.045);
+    const shaft = lightShaft(0.7, 3.2, '#b8a6ff', 0.022);
     shaft.position.set(6.9, 2.3, 0);
     shaft.rotation.set(0, Math.PI / 2, 1.05);
     b.add(shaft);
