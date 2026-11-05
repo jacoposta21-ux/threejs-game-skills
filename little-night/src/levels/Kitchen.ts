@@ -551,7 +551,7 @@ export class Kitchen extends Level {
     ctx.ui.subtitle('[the radio crackles. Something in the kitchen stops and listens.]', 3.5);
     ctx.audio.play('hushWhisper', { pos: ctx.enemies.hush!.eye.clone(), volume: 0.8 });
     this.setGuard(ctx, false);
-    window.setTimeout(() => ctx.checkpoint('key'), 300);
+    this.after(0.3, () => ctx.checkpoint('key'));
   }
 
   private onPantryOpen(ctx: GameContext): void {
@@ -560,7 +560,7 @@ export class Kitchen extends Level {
     const hush = ctx.enemies.hush!;
     hush.guard = null;
     hush.patrol = [v3(-1.2, 0, 1.3), v3(2.4, 0, 1.6), v3(3.3, 0, -1.4), v3(-0.9, 0, -2.3), v3(-2.8, 0, -0.6)];
-    window.setTimeout(() => ctx.checkpoint('pantry'), 900);
+    this.after(0.9, () => ctx.checkpoint('pantry'));
   }
 
   private onWindKey(ctx: GameContext): void {
@@ -584,7 +584,7 @@ export class Kitchen extends Level {
     this.spawnHoleArm();
     ctx.audio.play('hushWhisper', { pos: v3(8.95, 0.3, -3.7), volume: 1.4 });
     ctx.ui.objective('Get to the attic ladder!');
-    window.setTimeout(() => ctx.checkpoint('hall'), 200);
+    this.after(0.2, () => ctx.checkpoint('hall'));
     this.hallChaseTimer = 2.8;
   }
 

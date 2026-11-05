@@ -90,7 +90,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     u = await T.useId('bedroom-door'); ok(u.prompt === 'Open', 'door prompt from the chest: ' + u.prompt);
     ok(await T.waitFor(() => L.state().flags['door:bedroom-door'] === true, 3000), 'door open');
     await T.wait(1500);
-    ok(L.state().checkpoint === 'door', 'checkpoint after the door');
+    ok(await T.waitFor(() => L.state().checkpoint === 'door', 4000), 'checkpoint after the door');
   `);
   await run(page, 'bedroom: light the hallway, survive the encounter, take the chute', `
     let r = await T.walk(1.7, 3.0, { timeout: 4000 });
@@ -136,7 +136,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     u = await T.useId('pantry-key'); ok(/key/.test(u.prompt || ''), 'key prompt: ' + u.prompt);
     ok(L.state().inventory.includes('pantry-key'), 'has the pantry key');
     await T.wait(600);
-    ok(L.state().checkpoint === 'key', 'checkpoint after the key');
+    ok(await T.waitFor(() => L.state().checkpoint === 'key', 4000), 'checkpoint after the key');
   `);
   await run(page, 'kitchen: distraction throw, pantry, perches, sack, wind key', `
     L.game.enemies.hush.tuning.hearing = 1;
@@ -150,7 +150,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     u = await T.useId('pantry-door'); ok(u.prompt === 'Unlock', 'unlock prompt: ' + u.prompt);
     ok(await T.waitFor(() => L.state().flags['door:pantry-door'] === true, 3000), 'pantry open');
     await T.wait(1500);
-    ok(L.state().checkpoint === 'pantry', 'checkpoint at the pantry');
+    ok(await T.waitFor(() => L.state().checkpoint === 'pantry', 4000), 'checkpoint at the pantry');
     u = await T.useId('pantry-a'); ok(u.prompt === 'Place LUMO', 'pantry perch A: ' + u.prompt);
     ok(await T.waitFor(() => L.state().lumo.state === 'perched', 4000), 'perched A');
     r = await T.walk(5.4, -2.0); r = await T.walk(7.2, -2.0); ok(L.state().hazard.grab < 0.6, 'walking in the lit pantry');

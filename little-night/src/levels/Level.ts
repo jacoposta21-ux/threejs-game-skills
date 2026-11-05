@@ -64,6 +64,12 @@ export abstract class Level {
   protected ctx!: GameContext;
   time = 0;
   batchStats = { before: 0, after: 0 };
+  private timers: { t: number; fn: () => void }[] = [];
+
+  /** Run fn after `seconds` of game time (pauses with the game). */
+  protected after(seconds: number, fn: () => void): void {
+    this.timers.push({ t: seconds, fn });
+  }
 
   /** Build geometry, colliders and interactables. */
   protected abstract construct(ctx: GameContext): void;
@@ -157,6 +163,13 @@ export abstract class Level {
     stormUniforms.uTime.value = this.time;
     lumoUniforms.uTime.value = this.time;
     for (const t of this.traps) t.cooldown = Math.max(0, t.cooldown - dt);
+    for (const timer of [...this.timers]) {
+      timer.t -= dt;
+      if (timer.t <= 0) {
+        this.timers.splice(this.timers.indexOf(timer), 1);
+        timer.fn();
+      }
+    }
     const p = ctx.player.position;
     for (const z of this.zones) {
       if (z.once && z.fired) continue;

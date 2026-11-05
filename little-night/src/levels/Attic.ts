@@ -613,7 +613,7 @@ export class Attic extends Level {
     ctx.ui.objective('Open the music box cage');
     const hush = ctx.enemies.hush!;
     hush.patrol.push(v3(4.6, 0, 1.2), v3(4.0, 0, -1.0));
-    window.setTimeout(() => ctx.checkpoint('gate'), 2500);
+    this.after(2.5, () => ctx.checkpoint('gate'));
   }
 
   private checkDials(ctx: GameContext): void {
@@ -627,7 +627,7 @@ export class Attic extends Level {
     ctx.ui.objective('Wind the music box');
     if (this.melody) this.melody.detune = 0;
     ctx.interactions.markDirty();
-    window.setTimeout(() => ctx.checkpoint('finale'), 1600);
+    this.after(1.6, () => ctx.checkpoint('finale'));
   }
 
   private windBox(ctx: GameContext): void {

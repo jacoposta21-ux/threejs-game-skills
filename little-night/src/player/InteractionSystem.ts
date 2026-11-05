@@ -13,7 +13,7 @@ export class InteractionSystem {
   prompt: Prompt | null = null;
   held: Throwable | null = null;
   private hitList: THREE.Object3D[] = [];
-  private dirty = true;
+  dirty = true;
 
   register<T extends Interactable>(item: T): T {
     this.items.push(item);

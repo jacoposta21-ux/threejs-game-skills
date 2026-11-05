@@ -514,7 +514,7 @@ export class Bedroom extends Level {
   private onDoorOpened(ctx: GameContext): void {
     ctx.flags.set('ch1-door');
     ctx.ui.objective('Cross the dark hallway');
-    window.setTimeout(() => ctx.checkpoint('door'), 1200);
+    this.after(1.2, () => ctx.checkpoint('door'));
   }
 
   private startEncounter(ctx: GameContext): void {
