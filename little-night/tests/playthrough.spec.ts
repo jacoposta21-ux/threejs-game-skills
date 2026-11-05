@@ -151,6 +151,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     ok(await T.waitFor(() => L.state().flags['door:pantry-door'] === true, 3000), 'pantry open');
     await T.wait(1500);
     ok(await T.waitFor(() => L.state().checkpoint === 'pantry', 4000), 'checkpoint at the pantry');
+    r = await T.walk(4.5, -2.05);
     u = await T.useId('pantry-a'); ok(u.prompt === 'Place LUMO', 'pantry perch A: ' + u.prompt);
     ok(await T.waitFor(() => L.state().lumo.state === 'perched', 4000), 'perched A');
     r = await T.walk(5.4, -2.0); r = await T.walk(7.2, -2.0); ok(L.state().hazard.grab < 0.6, 'walking in the lit pantry');
