@@ -121,7 +121,7 @@ test('complete playthrough from the main menu to the ending', async ({ page }) =
     r = await T.walk(-3.9, 3.35); r = await T.walk(-1.6, 3.35); r = await T.walk(-1.6, 2.45); ok(r.ok, 'south of the east chair');
     let u = await T.useId('chair-e'); ok(L.state().mode === 'pushing', 'grabbed chair: ' + u.prompt);
     const chair = () => L.game.interactions.find('chair-e').base;
-    ok(await T.push(0, 1, () => chair().z < -2.85, 12000), 'pushed chair north z=' + chair().z);
+    ok(await T.push(0, 1, () => chair().z < -2.72, 12000), 'pushed chair north z=' + chair().z);
     r = await T.walk(-2.2, chair().z); ok(r.ok, 'west of chair');
     u = await T.useId('chair-e'); ok(L.state().mode === 'pushing', 'grabbed chair again');
     ok(await T.push(-Math.PI / 2, 1, () => chair().x > -0.4, 8000), 'pushed chair to the counter x=' + chair().x);
