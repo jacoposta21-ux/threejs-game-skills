@@ -358,7 +358,7 @@ export class Attic extends Level {
     crankVis.add(cyl(0.012, 0.012, 0.14, P.M.brass(), 8).rotateZ(Math.PI / 2));
     crankVis.add(rbox(0.016, 0.16, 0.016, P.M.brass(), 0.004, -0.07, 0, 0));
     const crank = new Pickup('crank', crankVis, { item: 'crank', name: 'a crank handle', icon: 'crank' });
-    crank.root.position.set(2.95, 1.22, 1.05);
+    crank.root.position.set(3.12, 1.22, 0.86);
     this.register(crank);
     const blk = new Throwable('a-block', P.toyBlock('G', '#5aa05a'), 'the toy block', 'thunk');
     blk.root.position.set(-0.4, 0.055, 0.6);
