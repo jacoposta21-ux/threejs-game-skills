@@ -787,7 +787,11 @@ class TestHooks {
       savedAt: Date.now(),
     });
     for (let i = 0; i < 200 && (g.state as string) !== 'playing'; i++) await this.waitFrames(1);
-    await this.waitFrames(60);
+    // Fast-forward settling (LUMO flight, fades) so captures are quick even on software GL.
+    const steps = g.testSteps;
+    g.testSteps = 12;
+    await this.waitFrames(4);
+    g.testSteps = steps;
     g.internals.setFade(0);
   }
 
@@ -815,7 +819,9 @@ class TestHooks {
             await this.load('bedroom', 'door', { 'lumo-found': true, 'drawer:dresser-0': true, 'got:lumo': true, 'door:bedroom-door': true, 'ch1-door': true, 'pos:chest': [1.65, 2.75] }, [], 80);
             g.player.teleport(new THREE.Vector3(0.9, 0, 4.4), Math.PI / 2);
             g.lumo.sendTo(g.ctx, g.interactions.find('hall-a') as never);
-            await this.waitFrames(90);
+            g.testSteps = 12;
+            await this.waitFrames(4);
+            g.testSteps = 1;
             break;
           case 'kitchen':
             await this.load('kitchen', 'start', {}, [], 80);
