@@ -70,6 +70,8 @@ export class HushAI {
   private stuckTimer = 0;
   private lastPos = new THREE.Vector3();
   speed = 0;
+  /** Test harness only: perception disabled. */
+  blind = false;
   onCatch: (() => void) | null = null;
   onStateChange: ((s: HushState, prev: HushState) => void) | null = null;
   spots: SearchableSpot[] = [];
@@ -206,7 +208,7 @@ export class HushAI {
 
   /** Can THE HUSH see the player right now (used when hiding). */
   canSee(ctx: GameContext): boolean {
-    if (!this.active || this.fade < 0.5) return false;
+    if (this.blind || !this.active || this.fade < 0.5) return false;
     const p = ctx.player;
     if (p.mode === 'hidden') return false;
     const head = new THREE.Vector3(p.position.x, p.eyeY, p.position.z);

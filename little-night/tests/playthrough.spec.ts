@@ -30,7 +30,7 @@ async function run(page: Page, label: string, body: string): Promise<Log> {
 }
 
 const blindHush = `
-  const h = L.game.enemies.hush; if (h) { h.tuning.sight = 0; }
+  const h = L.game.enemies.hush; if (h) { h.blind = true; }
 `;
 
 test('complete playthrough from the main menu to the ending', async ({ page }) => {
