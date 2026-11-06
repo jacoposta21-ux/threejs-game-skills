@@ -156,7 +156,7 @@ export class MaterialLib {
           roughness: 0.05,
           metalness: 0,
           transparent: true,
-          opacity: 0.32,
+          opacity: 0.26,
           side,
           depthWrite: false,
           clearcoat: 1,

@@ -374,8 +374,6 @@ export class PhysicsWorld {
       const T = e.time;
       // small deterministic spread so marbles do not stack on one landing point
       const spread = Math.sin((i + 1) * 12.9898 + this.time * 78.233) * 0.35;
-      const lateral = new THREE.Vector3(-z.dir?.z || 0, 0, z.dir?.x || 0);
-      void lateral;
       const tx = z.target.x;
       const ty = z.target.y;
       const tz = z.target.z;

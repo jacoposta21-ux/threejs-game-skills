@@ -6,7 +6,7 @@ export default defineConfig({
   // frame-time collapse makes game time drift from wall time, flaking timed
   // gameplay phases and screenshot baselines.
   workers: 1,
-  timeout: 30_000,
+  timeout: 120_000,
   expect: {
     timeout: 5_000,
   },

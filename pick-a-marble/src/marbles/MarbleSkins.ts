@@ -242,17 +242,18 @@ export function skinMaterial(skin: MarbleSkin): THREE.Material {
     default: {
       const map = skinTexture(skin);
       const special = skin.kind === 'special';
-      mat = new THREE.MeshPhysicalMaterial({
+      const pm = new THREE.MeshPhysicalMaterial({
         color: map ? 0xffffff : base,
-        map: map ?? undefined,
         roughness: 0.12,
         metalness: 0.05,
         clearcoat: 1,
         clearcoatRoughness: 0.05,
         emissive: skin.pattern === 'lava' ? new THREE.Color('#ff4400') : skin.pattern === 'galaxy' ? new THREE.Color('#2a0f60') : new THREE.Color(0),
         emissiveIntensity: special ? 0.5 : 0,
-        emissiveMap: skin.pattern === 'lava' || skin.pattern === 'galaxy' ? map ?? undefined : undefined,
       });
+      if (map) pm.map = map;
+      if (map && (skin.pattern === 'lava' || skin.pattern === 'galaxy')) pm.emissiveMap = map;
+      mat = pm;
     }
   }
   matCache.set(skin.id, mat);

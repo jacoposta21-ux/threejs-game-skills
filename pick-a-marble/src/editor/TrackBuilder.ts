@@ -599,6 +599,7 @@ export class TrackBuilder {
     this.commit();
     // continue from the new piece's exit
     const outs = worldPorts(pd).filter((w) => w.kind === 'out');
+    if (outs.length) this.followBuildHead(outs[0].pos);
     if (outs.length && gp.snapped !== undefined) {
       this.buildHeight = Math.max(1, Math.round(outs[0].pos.y * 2) / 2);
     }
@@ -624,6 +625,16 @@ export class TrackBuilder {
   }
 
   lastError = '';
+
+  /** Keep the newest exit in view: pan the orbit camera when it drifts toward the screen edge. */
+  private followBuildHead(p: THREE.Vector3): void {
+    const v = p.clone().project(this.camera);
+    if (Math.abs(v.x) < 0.55 && v.y > -0.45 && v.y < 0.6 && v.z < 1) return;
+    const target = this.cams.controls.target.clone();
+    const delta = p.clone().sub(target).multiplyScalar(0.75);
+    delta.y *= 0.6;
+    this.cams.tweenTo(this.camera.position.clone().add(delta), target.add(delta));
+  }
 
   get ghostState(): { ok: boolean; snapped: boolean; reason?: string } | null {
     return this.ghostPlacement;

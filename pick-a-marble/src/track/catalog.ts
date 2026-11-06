@@ -8,11 +8,9 @@ import {
   laneProfile,
   latheSurface,
   profileCap,
-  resample,
   sampleFn,
   smooth,
   smoother,
-  window01,
   type ChannelShape,
   type V2,
 } from './geometry';
@@ -36,7 +34,6 @@ import {
   sphere,
   straightPoints,
   tagMesh,
-  transport,
   tubeRings,
   tubeShape,
   wideShape,
@@ -175,7 +172,7 @@ const verticalDrop: PieceDef = {
     const ch = channel(frames, shape, ['glass', 'glass']);
     ch.mesh.castShadow = false;
     return {
-      ...emptyBuild(group(ch.mesh, tubeRings(frames, 0.9, 1, 0.12, 0.88))),
+      ...emptyBuild(group(ch.mesh, tubeRings(frames, 1.4, 1, 0.12, 0.88))),
       surfaces: [ch.surface],
       lanes: [laneFrom(frames, 0, 1)],
     };
@@ -229,7 +226,7 @@ const loop: PieceDef = {
     const frames = framesFromUps(pts, t.ups);
     const ch = channel(frames, tubeShape(0.1, 0.8), ['glass', 'glass']);
     ch.mesh.castShadow = false;
-    const visual = group(ch.mesh, tubeRings(frames, 1.1, 1, 0.12, 0.78));
+    const visual = group(ch.mesh, tubeRings(frames, 1.8, 1, 0.12, 0.78));
     return {
       ...emptyBuild(visual),
       surfaces: [ch.surface],
@@ -267,7 +264,7 @@ const corkscrew: PieceDef = {
     const pole = cyl(0.35, 7.6, ['body'], V(0, -2.6, 2));
     const cap = sphere(0.45, ['accent'], V(0, 1.2, 2));
     return {
-      ...emptyBuild(group(ch.mesh, tubeRings(frames, 1.3, 1, 0.07, 0.93), pole, cap)),
+      ...emptyBuild(group(ch.mesh, tubeRings(frames, 2.6, 1, 0.07, 0.93), pole, cap)),
       surfaces: [ch.surface],
       lanes: [laneFrom(frames, 0, 1)],
     };
@@ -455,7 +452,7 @@ const tube: PieceDef = {
     const frames = shear(straightPoints(12, -1, 0.2, () => 0, (f) => -0.9 * Math.sin(PI * f) ** 2));
     const ch = channel(frames, tubeShape(0.08, 0.92), ['glass', 'glass']);
     ch.mesh.castShadow = false;
-    return { ...emptyBuild(group(ch.mesh, tubeRings(frames, 1.2, 1, 0.08, 0.92))), surfaces: [ch.surface], lanes: [laneFrom(frames, 0, 1)] };
+    return { ...emptyBuild(group(ch.mesh, tubeRings(frames, 2.0, 1, 0.08, 0.92))), surfaces: [ch.surface], lanes: [laneFrom(frames, 0, 1)] };
   },
 };
 

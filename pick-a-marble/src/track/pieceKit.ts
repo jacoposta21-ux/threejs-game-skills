@@ -137,7 +137,7 @@ export const transport = frameTransport;
 /** Decorative glass-tube rings along frames. */
 export function tubeRings(frames: PathSample[], every: number, rho: number, a: number, b: number): THREE.Object3D {
   const g = new THREE.Group();
-  const geo = new THREE.TorusGeometry(rho + 0.13, 0.07, 6, 24);
+  const geo = new THREE.TorusGeometry(rho + 0.12, 0.045, 6, 28);
   let next = 0;
   for (const fr of frames) {
     if (fr.f < a || fr.f > b) continue;
@@ -146,7 +146,7 @@ export function tubeRings(frames: PathSample[], every: number, rho: number, a: n
     const m = tagMesh(geo, ['accent']);
     const center = fr.p.clone().addScaledVector(fr.u, rho);
     m.position.copy(center);
-    const look = new THREE.Matrix4().makeBasis(fr.s, fr.u, fr.t);
+    const look = new THREE.Matrix4().makeBasis(fr.s, fr.u, fr.t.clone().negate());
     m.quaternion.setFromRotationMatrix(look);
     g.add(m);
   }
@@ -160,7 +160,7 @@ export function floorDecal(frames: PathSample[], f0: number, f1: number, halfWid
   const uvs: number[] = [];
   const indices: number[] = [];
   const cols = 6;
-  sel.forEach((fr, j) => {
+  sel.forEach((fr) => {
     for (let i = 0; i <= cols; i += 1) {
       const x = -halfWidth + (2 * halfWidth * i) / cols;
       const y = 1 - Math.sqrt(Math.max(0, 1 - x * x)) + lift;

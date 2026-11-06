@@ -23,6 +23,10 @@ interface ThreeGameDiagnostics {
     height: number;
     dpr: number;
   };
+  screen?: string;
+  fps?: number;
+  pieces?: number;
+  raceState?: string;
 }
 
 interface ThreeGameTestHooks {

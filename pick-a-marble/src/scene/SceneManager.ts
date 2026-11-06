@@ -63,14 +63,15 @@ export class SceneManager {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 0.92;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.info.autoReset = false;
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environment = envTex;
-    this.scene.environmentIntensity = 0.55;
+    this.scene.environmentIntensity = 0.35;
     materials.envMap = envTex;
     pmrem.dispose();
 
@@ -229,12 +230,12 @@ export class SceneManager {
     (u.bottom.value as THREE.Color).set(env.skyBottom);
     (u.sunColor.value as THREE.Color).set(env.sun);
     u.night.value = env.night ? 1 : 0;
-    this.scene.fog = new THREE.Fog(env.fog, 140, 520);
+    this.scene.fog = new THREE.Fog(env.fog, 180, 620);
     this.sun.color.set(env.sun);
-    this.sun.intensity = env.sunIntensity;
+    this.sun.intensity = env.sunIntensity * 0.85;
     this.hemi.color.set(env.hemiSky);
     this.hemi.groundColor.set(env.hemiGround);
-    this.hemi.intensity = env.hemiIntensity;
+    this.hemi.intensity = env.hemiIntensity * 0.7;
     (this.platformTop.material as THREE.MeshStandardMaterial).color.set(env.platform);
     (this.platformEdge.material as THREE.MeshStandardMaterial).color.set(env.platformEdge);
     (this.underside.material as THREE.MeshStandardMaterial).color.set(env.island);
@@ -245,8 +246,11 @@ export class SceneManager {
       if (m.name === 'islandTop') m.color.set(env.islandTop);
       if (m.name === 'cloud') m.color.set(env.cloud);
     });
-    this.scene.environmentIntensity = env.night ? 0.3 : 0.55;
-    if (this.bloom) this.bloom.strength = env.night ? 0.75 : 0.45;
+    this.scene.environmentIntensity = env.night ? 0.25 : 0.35;
+    if (this.bloom) {
+      this.bloom.strength = env.night ? 0.7 : 0.32;
+      this.bloom.threshold = env.night ? 1.0 : 1.5;
+    }
   }
 
   setQuality(q: Quality): void {
@@ -268,7 +272,7 @@ export class SceneManager {
       if (!this.composer) {
         this.composer = new EffectComposer(this.renderer);
         this.composer.addPass(new RenderPass(this.scene, this.camera));
-        this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.45, 0.5, 0.86);
+        this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.35, 0.35, 1.5);
         this.composer.addPass(this.bloom);
         this.composer.addPass(new OutputPass());
       }
@@ -326,6 +330,7 @@ export class SceneManager {
 
   render(): void {
     this.resize();
+    this.renderer.info.reset();
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
   }

@@ -9,10 +9,16 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "playwright test",
     "verify:visual": "playwright test tests/visual.spec.ts",
-    "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs"
+    "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs",
+    "test:sim": "tsx tests/sim/run-sim.ts 12",
+    "test:gen": "tsx tests/sim/gen.ts 3",
+    "test:builtins": "tsx tests/sim/builtins.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
+    "@fontsource/baloo-2": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
     "lil-gui": "^0.21.0",
     "three": "^0.184.0"
   },

@@ -145,7 +145,7 @@ export class TrackView {
         let acc = 0;
         for (let i = 1; i < pts.length; i += 1) {
           acc += pts[i].distanceTo(pts[i - 1]);
-          if (acc >= 3.6 || i === Math.floor(pts.length / 2)) {
+          if (acc >= 5.5 || i === Math.floor(pts.length / 2)) {
             acc = 0;
             const p = pts[i];
             if (p.y > 1.2) cols.push({ x: p.x, z: p.z, top: p.y - 0.12 });
@@ -156,7 +156,7 @@ export class TrackView {
     // thin out columns that are too close together
     const kept: typeof cols = [];
     for (const c of cols) {
-      if (kept.some((k) => Math.hypot(k.x - c.x, k.z - c.z) < 1.6 && Math.abs(k.top - c.top) < 2)) continue;
+      if (kept.some((k) => Math.hypot(k.x - c.x, k.z - c.z) < 2.6)) continue;
       kept.push(c);
     }
     if (!kept.length) return;
