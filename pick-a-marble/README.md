@@ -3,6 +3,15 @@
 Build crazy marble tracks, pick your champion, and watch physics-driven races.
 A 3D browser game made with Three.js, Rapier and TypeScript, prepared for CrazyGames.
 
+![Main menu](docs/screenshots/menu.png)
+
+| Track builder | Race overview | Results |
+| --- | --- | --- |
+| ![Editor](docs/screenshots/editor.png) | ![Race](docs/screenshots/race-overview.png) | ![Results](docs/screenshots/results.png) |
+
+Full race sequence (countdown → gate → jumps → bounce pad → cannon → finish):
+[docs/screenshots/race-sequence.png](docs/screenshots/race-sequence.png)
+
 ## Quick start
 
 ```bash
@@ -20,10 +29,15 @@ or any static host as-is.
 
 ```bash
 npm run test:sim       # headless physics scenarios (Node, no browser)
+npm run test:builtins  # validate + race every built-in track
 npm run test:gen       # random-track generator: generate + race-verify tracks
 npm test               # Playwright browser tests (desktop + mobile)
 npm run inspect:canvas # canvas pixel inspector (see scripts/inspect-threejs-canvas.mjs)
+npx tsx tests/sim/qa.ts # QA checklist: determinism, restarts, invalid connections, save/load, long races
 ```
+
+If Playwright's bundled browser revision is not installed, point the tests at any local
+Chromium with `PW_CHROMIUM_PATH=/path/to/chrome npm test`.
 
 `tests/sim/run-sim.ts` races 12 marbles over straights, curves, ramps, loops,
 funnels, moving obstacles, jumps, splitters and vertical pieces and prints how many

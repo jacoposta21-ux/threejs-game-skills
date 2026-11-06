@@ -122,6 +122,10 @@ export class GameManager {
 
   /* -------------------------------------------------------------- boot */
 
+  private bootDone!: () => void;
+  /** Resolves when boot finished and the main menu is up (test hooks wait on it). */
+  readonly ready: Promise<void> = new Promise((r) => (this.bootDone = r));
+
   async boot(): Promise<void> {
     this.ui.loading(0.05, 'Warming up the marbles…');
     this.platform.loadingStart();
@@ -146,6 +150,7 @@ export class GameManager {
     this.loop();
     this.goMenu();
     this.ui.hideLoading();
+    this.bootDone();
   }
 
   private applySettings(): void {
@@ -584,10 +589,12 @@ export class GameManager {
 
   private installTestHooks(): void {
     window.__THREE_GAME_TEST_HOOKS__ = {
-      seed: (value: number) => {
+      seed: async (value: number) => {
+        await this.ready;
         this.rng = createSeededRandom(value);
       },
       setState: async (name: string) => {
+        await this.ready;
         this.ui.hideModal();
         if (name === 'menu') {
           this.goMenu();
@@ -602,7 +609,11 @@ export class GameManager {
             this.ui.dismissTutorial();
             this.startRace(this.defaultMarbles(8), 0, 4242);
             const target = name === 'results' ? 200 : 9;
-            for (let i = 0; i < target * 60 && this.race.state !== 'finished'; i += 1) this.race.update(1 / 60);
+            for (let i = 0; i < target * 60 && this.race.state !== 'finished'; i += 1) {
+              this.race.update(1 / 60);
+              // drive the race camera exactly like the live loop does
+              this.cams.update(1 / 60, this.race.camContext(this.selectedMarble));
+            }
             if (name === 'results') {
               this.race.update(0);
               this.setScreen('results');

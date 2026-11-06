@@ -115,10 +115,14 @@ export class SceneManager {
     const c = cv.getContext('2d') as CanvasRenderingContext2D;
     c.fillStyle = '#ffffff';
     c.fillRect(0, 0, 128, 128);
-    c.strokeStyle = 'rgba(0,0,0,0.22)';
+    // soft two-tone quarters give scale cues without visual noise
+    c.fillStyle = 'rgba(40,70,140,0.05)';
+    c.fillRect(0, 0, 64, 64);
+    c.fillRect(64, 64, 64, 64);
+    c.strokeStyle = 'rgba(30,50,110,0.3)';
     c.lineWidth = 3;
     c.strokeRect(0, 0, 128, 128);
-    c.strokeStyle = 'rgba(0,0,0,0.07)';
+    c.strokeStyle = 'rgba(30,50,110,0.09)';
     c.lineWidth = 2;
     c.beginPath();
     c.moveTo(64, 0);
