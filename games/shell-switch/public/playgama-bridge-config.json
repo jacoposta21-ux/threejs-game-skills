@@ -1,0 +1,12 @@
+{
+    "advertisement": {
+        "interstitial": {
+            "placementFallback": "mission_complete",
+            "placements": [
+                { "id": "mission_complete" },
+                { "id": "pause" },
+                { "id": "game_over" }
+            ]
+        }
+    }
+}

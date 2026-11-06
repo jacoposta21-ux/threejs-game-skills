@@ -198,7 +198,8 @@ export class Input {
       if (k === 'KeyE') this.intent.interact = true;
       if (k === 'KeyQ') this.intent.exit = true;
       if (k === 'KeyF') this.intent.ability = true;
-      if (k === 'Escape' || k === 'KeyP') this.intent.pause = true;
+      // Esc is reserved by the browser for leaving full screen; pause is P or the on-screen button.
+      if (k === 'KeyP') this.intent.pause = true;
       if (k === 'Tab' || k === 'KeyJ') this.intent.journal = true;
       if (k === 'KeyH') this.intent.hint = true;
       if (this.touchActive && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(k)) this.touchActive = false;

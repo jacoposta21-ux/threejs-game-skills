@@ -4,6 +4,7 @@ import { MISSIONS, currentStep } from '../gameplay/Missions';
 import { ACHIEVEMENTS } from '../gameplay/Achievements';
 import { AREAS, areaInfo } from '../gameplay/types';
 import { Progress, saveSettings } from '../gameplay/Progress';
+import { ICON } from './Icons';
 
 const root = () => document.querySelector<HTMLElement>('#menus')!;
 
@@ -65,7 +66,8 @@ export class Menus {
           <button class="btn" data-a="settings">Settings</button>
         </div>
       </div>
-      <div class="menu-foot">WASD move · Mouse look · E possess/use · F ability · Q hop out · Space jump · Shift run</div>`,
+      <button class="icon-btn sticker title-mute" data-a="mute" aria-label="Mute sound">${this.g.settings.muted ? 'Sound off' : 'Sound on'}</button>
+      <div class="menu-foot">WASD move · Mouse look · E possess/use · F ability · Q hop out · Space jump · H hint · P pause</div>`,
       false,
     );
     this.bind(el, '[data-a=continue]', () => this.g.startGame(false));
@@ -74,6 +76,10 @@ export class Menus {
       else this.g.startGame(true);
     });
     this.bind(el, '[data-a=collection]', () => this.collection('title'));
+    this.bind(el, '[data-a=mute]', () => {
+      this.g.toggleMute();
+      this.title();
+    });
     this.bind(el, '[data-a=settings]', () => this.settings('title'));
     el.querySelector<HTMLElement>('.btn')?.focus();
   }
@@ -133,9 +139,9 @@ export class Menus {
           const doneM = g.progress.missions.has(m.id);
           const avail = m.available(g);
           const step = currentStep(m, g);
-          const status = doneM ? '✔' : avail ? '◆' : '🔒';
+          const status = doneM ? ICON.check : avail ? ICON.open : ICON.lock;
           const tracked = g.trackedMission?.id === m.id;
-          const sub = doneM ? 'Complete' : avail ? esc(m.steps[Math.min(step, m.steps.length - 1)].text) : `🔒 ${esc(m.lockedHint)}`;
+          const sub = doneM ? 'Complete' : avail ? esc(m.steps[Math.min(step, m.steps.length - 1)].text) : `Unlock: ${esc(m.lockedHint)}`;
           return `<div class="mission-row${tracked ? ' tracked' : ''}${avail && !doneM ? '' : ' locked'}" data-m="${m.id}">
             <span class="st">${status}</span>
             <div>${esc(m.title)}<small>${esc(m.blurb)}</small><small>${sub}</small></div>
@@ -143,7 +149,7 @@ export class Menus {
         })
         .join('');
       const [bg, bt] = g.bitsCount(a.id);
-      return `<div class="mission-area"><h3><i style="background:${a.color}"></i>${esc(a.name)} <small style="opacity:.7;font-size:12px">★ ${bg}/${bt}</small></h3>${rows}</div>`;
+      return `<div class="mission-area"><h3><i style="background:${a.color}"></i>${esc(a.name)} <small style="opacity:.7;font-size:12px">★\uFE0E ${bg}/${bt}</small></h3>${rows}</div>`;
     }).join('');
     const el = this.set(
       `<div class="panel"><header><h2>Mission Journal</h2><button class="btn" data-a="back">Back</button></header>
@@ -181,7 +187,7 @@ export class Menus {
       const known = ids.filter((id) => p.extras.has(id));
       const intro = g.storyDone || back === 'title'
         ? `<p style="margin:0 0 10px;font-weight:700;opacity:.85">${g.storyDone ? 'After the finale anyone in town can be possessed. Each extra has a silly ability on F.' : 'Finish the story to possess the townsfolk.'}</p>`
-        : '<p style="margin:0 0 10px;font-weight:700;opacity:.85">🔒 Finish the story (repair your saucer) and every townsperson in Fizzwick becomes possessable.</p>';
+        : '<p style="margin:0 0 10px;font-weight:700;opacity:.85">Locked: finish the story (repair your saucer) and every townsperson in Fizzwick becomes possessable.</p>';
       body =
         intro +
         `<div class="grid-hosts">${known
@@ -254,6 +260,7 @@ export class Menus {
     const el = this.set(
       `<div class="panel" style="width:min(560px,100%)"><header><h2>Settings</h2><button class="btn" data-a="back">Back</button></header>
       <div class="body">
+        <div class="setting">Sound<button class="toggle ${s.muted ? '' : 'on'}" data-b="muted">${s.muted ? 'Off' : 'On'}</button></div>
         <label class="setting">Music volume<input type="range" min="0" max="1" step="0.05" value="${s.music}" data-k="music" /></label>
         <label class="setting">Sound effects<input type="range" min="0" max="1" step="0.05" value="${s.sfx}" data-k="sfx" /></label>
         <label class="setting">Camera sensitivity<input type="range" min="0.3" max="2.5" step="0.05" value="${s.sensitivity}" data-k="sensitivity" /></label>
@@ -264,7 +271,7 @@ export class Menus {
         <div class="controls-help">
           <div><kbd>WASD</kbd>Move</div><div><kbd>Shift</kbd>Run</div><div><kbd>Space</kbd>Jump</div>
           <div><kbd>E</kbd>Possess / use / talk</div><div><kbd>F</kbd>Host ability</div><div><kbd>Q</kbd>Hop out of host</div>
-          <div><kbd>Mouse</kbd>Camera (click to lock)</div><div><kbd>Tab</kbd>Journal</div><div><kbd>Esc</kbd>Pause</div>
+          <div><kbd>Mouse</kbd>Camera (click to lock)</div><div><kbd>Tab</kbd>Journal</div><div><kbd>P</kbd>Pause</div><div><kbd>H</kbd>Hint</div>
         </div>
       </div></div>`,
     );
@@ -280,7 +287,7 @@ export class Menus {
       b.addEventListener('click', () => {
         const k = b.dataset.b!;
         if (k === 'quality') s.quality = s.quality === 'high' ? 'low' : 'high';
-        else if (k === 'invertY' || k === 'reducedMotion' || k === 'showHints') s[k] = !s[k];
+        else if (k === 'invertY' || k === 'reducedMotion' || k === 'showHints' || k === 'muted') s[k] = !s[k];
         this.g.audio.play('uiClick');
         this.g.applySettings();
         saveSettings(s);

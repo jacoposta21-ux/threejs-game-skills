@@ -88,7 +88,7 @@ kbd {
   position: absolute;
   top: calc(12px + var(--safe-t));
   left: calc(12px + var(--safe-l));
-  width: min(330px, calc(100vw - 180px));
+  width: min(330px, calc(100vw - 380px));
   padding: 10px 12px 10px;
   transform: rotate(-0.6deg);
 }
@@ -1515,4 +1515,42 @@ body.touch #tip {
 }
 body.touch #tracker-steps li:not(.now) {
   display: grid;
+}
+
+#btn-mute .cross {
+  display: none;
+}
+#btn-mute.muted .cross {
+  display: inline;
+}
+#btn-mute.muted .wave {
+  display: none;
+}
+.title-mute {
+  position: absolute;
+  top: calc(14px + var(--safe-t));
+  right: calc(14px + var(--safe-r));
+  width: auto;
+  padding: 0 12px;
+  font: 800 14px var(--font);
+}
+/* No text selection, callouts or magnifier on long press (iOS / Android). */
+html,
+body,
+#app,
+canvas {
+  -webkit-touch-callout: none;
+}
+
+.ico {
+  flex: none;
+  vertical-align: middle;
+}
+.toast .ico {
+  margin-right: 4px;
+  vertical-align: -5px;
+}
+.mission-row .st {
+  display: grid;
+  place-items: center;
 }

@@ -21,7 +21,7 @@ import { Npc } from '../characters/Npc';
 import { HOSTS, HOST_ORDER, NAMED, civilianSpec, type ControlKind, type HostKind } from '../characters/Archetypes';
 import type { Pose } from '../characters/CharacterModel';
 import { CHAT, PICKED, POSSESS_SEEN } from '../characters/Lines';
-import { Progress, loadSettings, type Settings } from '../gameplay/Progress';
+import { Progress, loadSettings, saveSettings, type Settings } from '../gameplay/Progress';
 import { AREAS, ITEM_INFO, areaAt, areaInfo, type AreaId, type ItemId, type NpcSpawn } from '../gameplay/types';
 import { Crate, CorePickup, Plate, Postcard, Saucer, type WorldObject } from '../gameplay/Objects';
 import { StarBits, type BitDef } from '../gameplay/StarBits';
@@ -33,7 +33,8 @@ import { renderPortrait, renderPortraits } from '../ui/Portraits';
 import { extraDefFor } from '../characters/Extras';
 import type { HostDef } from '../characters/Archetypes';
 import { createSeededRandom } from '../utils/random';
-import { Portal } from '../platform/Portal';
+import { Platform } from '../platform/Platform';
+import { ICON, ITEM_ICONS } from '../ui/Icons';
 
 interface Act {
   label: string;
@@ -205,19 +206,22 @@ export class Game {
   start(): void {
     this.loop.start();
     this.hud.show(false);
-    let auto: string | null = null;
-    try {
-      auto = window.sessionStorage.getItem('shell-switch-autostart');
-      window.sessionStorage.removeItem('shell-switch-autostart');
-    } catch {
-      auto = null;
-    }
+    // A second start in one page session reloads with #new / #continue (see startGame).
+    const auto = window.location.hash === '#new' ? 'new' : window.location.hash === '#continue' ? 'continue' : null;
     if (auto) {
+      try {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      } catch {
+        /* sandboxed history */
+      }
       this.startGame(auto === 'new');
-      return;
+    } else {
+      this.menus.title();
+      this.audio.setMusic('menu');
     }
-    this.menus.title();
-    this.audio.setMusic('menu');
+    this.bindPlatform();
+    // The title (or the game) is interactive from this frame on.
+    requestAnimationFrame(() => requestAnimationFrame(() => Platform.gameReady()));
   }
 
   dispose(): void {
@@ -371,22 +375,23 @@ export class Game {
     // World objects only ever advance; a second start in one page session reloads for a pristine town.
     if (this.sessionStarted && allowReload) {
       if (fresh) Progress.clear();
-      try {
-        window.sessionStorage.setItem('shell-switch-autostart', fresh ? 'new' : 'continue');
+      this.menus.close();
+      // Give the storage request a moment to reach the platform before reloading.
+      window.setTimeout(() => {
+        window.location.hash = fresh ? 'new' : 'continue';
         window.location.reload();
-        return;
-      } catch {
-        /* sessionStorage unavailable: fall through to in-place restore */
-      }
+      }, 400);
+      return;
     }
     this.sessionStarted = true;
     this.audio.unlock();
+    Platform.levelStarted(this.currentArea);
     if (fresh) Progress.clear();
     this.progress = (!fresh && Progress.load()) || new Progress();
     this.restoreFromProgress();
     this.menus.close();
     this.state = 'play';
-    Portal.gameplay(true);
+    Platform.levelResumed(this.currentArea);
     this.hud.show(true);
     document.querySelector('#touch')!.classList.toggle('hidden', !IS_MOBILE);
     this.updateArea(true);
@@ -455,17 +460,18 @@ export class Game {
     if (this.state !== 'play') return;
     this.hadLock = false;
     this.state = 'paused';
-    Portal.gameplay(false);
+    Platform.levelPaused(this.currentArea);
     this.input.releasePointerLock();
     this.audio.setPaused(true);
     this.audio.play('uiOpen');
     this.menus.pause();
+    Platform.interstitial('pause');
   }
 
   resume(): void {
     this.menus.close();
     this.state = 'play';
-    Portal.gameplay(true);
+    Platform.levelResumed(this.currentArea);
     this.audio.setPaused(false);
   }
 
@@ -473,7 +479,7 @@ export class Game {
     this.saveNow();
     this.menus.close();
     this.state = 'title';
-    Portal.gameplay(false);
+    Platform.levelPaused(this.currentArea);
     this.hud.show(false);
     this.hud.clearBubbles();
     document.querySelector('#touch')!.classList.add('hidden');
@@ -515,9 +521,44 @@ export class Game {
     this.cam.snap(this.glim.pos);
   }
 
+  /** Platform audio state (ads, tab switches, platform mute) and our own mute button. */
+  private platformAudio = true;
+  private platformPaused = false;
+
+  private bindPlatform(): void {
+    this.platformAudio = Platform.audioEnabled;
+    this.applyVolumes();
+    Platform.onAudioState((on) => {
+      this.platformAudio = on;
+      this.applyVolumes();
+    });
+    const pause = (p: boolean) => {
+      this.platformPaused = p;
+      this.input.releasePointerLock();
+      this.audio.setPaused(p || this.state === 'paused');
+      this.applyVolumes();
+    };
+    Platform.onPauseState(pause);
+    Platform.onInterstitialState(pause);
+  }
+
+  private applyVolumes(): void {
+    const s = this.settings;
+    const on = this.platformAudio && !this.platformPaused && !s.muted;
+    this.audio.setVolumes(on ? s.music : 0, on ? s.sfx : 0);
+    document.querySelector('#btn-mute')?.classList.toggle('muted', s.muted);
+  }
+
+  toggleMute(): void {
+    this.settings.muted = !this.settings.muted;
+    saveSettings(this.settings);
+    this.applyVolumes();
+    if (!this.settings.muted) this.audio.play('uiClick');
+  }
+
   applySettings(): void {
     const s = this.settings;
-    this.audio.setVolumes(s.music, s.sfx);
+    this.applyVolumes();
     this.input.sensitivity = s.sensitivity;
     this.input.invertY = s.invertY;
     this.cam.reducedShake = s.reducedMotion;
@@ -543,6 +584,10 @@ export class Game {
     document.querySelector('#btn-pause')!.addEventListener('click', () => {
       this.audio.play('uiClick');
       this.pause();
+    });
+    document.querySelector('#btn-mute')!.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleMute();
     });
     const hintBtn = document.querySelector<HTMLElement>('#tracker-hint-btn')!;
     hintBtn.addEventListener('click', (e) => {
@@ -576,7 +621,7 @@ export class Game {
     this.progress.items.add(id);
     this.progress.dirty = true;
     this.audio.play('collect', { pitch: 0.8 });
-    this.hud.toast(`Got <b>${ITEM_INFO[id].icon} ${ITEM_INFO[id].name}</b> — ${ITEM_INFO[id].desc}`, 'mint', 3.6);
+    this.hud.toast(`${ITEM_ICONS[id]} Got <b>${ITEM_INFO[id].name}</b> — ${ITEM_INFO[id].desc}`, 'mint', 3.6);
   }
 
   takeItem(id: ItemId): void {
@@ -632,7 +677,7 @@ export class Game {
     this.progress.achievements.add(id);
     this.progress.dirty = true;
     this.audio.play('achievement');
-    this.hud.toast(`🏅 Achievement: <b>${a.name}</b><br><small>${a.desc}</small>`, 'gold', 4.5);
+    this.hud.toast(`${ICON.medal} Achievement: <b>${a.name}</b><br><small>${a.desc}</small>`, 'gold', 4.5);
   }
 
   track(id: string): void {
@@ -656,7 +701,7 @@ export class Game {
         for (const n of this.npcs) n.syncFlags(this);
         break;
       case 'power':
-        this.hud.toast('⚡ Power restored! The east wing doors hum open.', 'mint');
+        this.hud.toast(`${ICON.bolt} Power restored! The east wing doors hum open.`, 'mint');
         break;
       case 'lasersOff':
         this.hud.toast('The laser grid flickers off.', 'mint');
@@ -696,7 +741,7 @@ export class Game {
     this.progress.collected.add(pc.id);
     this.progress.dirty = true;
     this.audio.play('discover');
-    this.hud.toast(`✉ Secret postcard: <b>${pc.title}</b><br><small>${pc.text}</small>`, 'pink', 6);
+    this.hud.toast(`${ICON.envelope} Secret postcard: <b>${pc.title}</b><br><small>${pc.text}</small>`, 'pink', 6);
     const total = this.postcards.length;
     const got = this.postcards.filter((x) => this.progress.collected.has(x.id)).length;
     if (got >= total) this.achieve('postcards_all');
@@ -1430,7 +1475,8 @@ export class Game {
         p.missions.add(m.id);
         p.dirty = true;
         this.audio.play('missionComplete');
-        Portal.happy();
+        Platform.levelCompleted(m.area, m.id);
+        window.setTimeout(() => Platform.interstitial('mission_complete'), 2500);
         this.hud.showBanner('Mission complete!', `${m.title} · ${m.reward}`, '#5fe0b8');
         if (this.trackedMission?.id === m.id) this.trackedMission = null;
         this.saveSoon();
@@ -1690,6 +1736,11 @@ export class Game {
   // ===================================================================== update
   private update(rawDt: number): void {
     if (this.pausedForScreenshot) return;
+    if (this.platformPaused) {
+      this.input.poll();
+      this.input.endFrame();
+      return;
+    }
     resizeRenderer(this.renderer, this.camera, this.maxDpr);
     this.hud.resize(this.canvas.clientWidth, this.canvas.clientHeight);
     this.vfx.setScale(this.canvas.clientHeight);
@@ -1769,7 +1820,7 @@ export class Game {
     this.sun.target.position.set(cp.x, cp.y, cp.z);
 
     this.autosaveT += rawDt;
-    if (this.autosaveT > 12 && this.progress.dirty) this.saveNow();
+    if (this.autosaveT > 30 && this.progress.dirty) this.saveNow();
     this.input.endFrame();
     this.publish();
   }
@@ -2073,7 +2124,7 @@ export class Game {
     this.replayEnding = replay;
     if (this.controlled !== this.glim) this.exitHost(true);
     this.state = 'ending';
-    Portal.gameplay(false);
+    Platform.levelPaused(this.currentArea);
     this.endingT = 0;
     this.hud.show(false);
     this.input.releasePointerLock();
@@ -2106,14 +2157,17 @@ export class Game {
     this.camera.position.set(s.pos.x + Math.sin(a) * 14, 4 + t * 1.2, s.pos.z - 10 + Math.cos(a) * 6);
     this.camera.lookAt(s.pos.x, 1.5 + lift * 0.8, s.pos.z);
     this.audio.update(dt, this.camera.position, a);
-    if (t > 6.5 && this.menus.screen !== 'ending') this.menus.ending();
+    if (t > 6.5 && this.menus.screen !== 'ending') {
+      this.menus.ending();
+      Platform.interstitial('game_over');
+    }
   }
 
   endEnding(): void {
     this.menus.close();
     this.saucer.launching = 0;
     this.state = 'play';
-    Portal.gameplay(true);
+    Platform.levelResumed(this.currentArea);
     this.hud.show(true);
     document.querySelector('#touch')!.classList.toggle('hidden', !IS_MOBILE);
     this.glim.model.root.visible = true;

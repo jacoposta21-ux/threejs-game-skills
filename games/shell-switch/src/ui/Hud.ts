@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ITEM_INFO, type ItemId } from '../gameplay/types';
+import { ITEM_ICONS } from './Icons';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const v = new THREE.Vector3();
@@ -253,7 +254,7 @@ export class Hud {
     const k = items.join(',');
     if (k === this.lastInv) return;
     this.lastInv = k;
-    $('#inventory').innerHTML = items.map((i) => `<div class="inv"><i>${ITEM_INFO[i].icon}</i>${ITEM_INFO[i].name}</div>`).join('');
+    $('#inventory').innerHTML = items.map((i) => `<div class="inv">${ITEM_ICONS[i]}${ITEM_INFO[i].name}</div>`).join('');
   }
 
   setSuspicion(s: number): void {
@@ -288,7 +289,8 @@ export class Hud {
     const cls = glyph === '?' ? 'q' : glyph === '!' ? 'x' : glyph === '★' ? 's' : glyph === '♥' ? 'h' : glyph === 'zz' ? 'z' : 'n';
     const want = `icon-mark ${cls}`;
     if (el.className !== want) el.className = want;
-    if (el.textContent !== glyph) el.textContent = glyph;
+    const shown = glyph + '\uFE0E';
+    if (el.textContent !== shown) el.textContent = shown;
     el.style.display = 'block';
     el.style.transform = `translate(${Math.round(s.x)}px, ${Math.round(s.y)}px) translate(-50%, -100%)`;
   }

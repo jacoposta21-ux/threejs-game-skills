@@ -42,7 +42,23 @@ npm run build      # tsc + vite build → dist/
 npm run preview    # http://127.0.0.1:4188
 ```
 
-`dist/` is a self-contained static site with relative asset paths (`base: './'`), so it runs from any sub-path. For CrazyGames, zip the contents of `dist/`. `src/platform/Portal.ts` reports gameplay start/stop and "happy time" to the CrazyGames SDK **only if** the hosting page injected it; otherwise it does nothing. The game never loads remote scripts itself.
+`dist/` is a self-contained static site with relative asset paths (`base: './'`).
+
+### Playgama
+
+The build integrates the **Playgama Bridge SDK** (`@playgama/bridge`, bundled locally by its Vite plugin as the first `<head>` script, with `public/playgama-bridge-config.json` next to `index.html`). `src/platform/Platform.ts` is the only place that talks to it:
+
+- `bridge.initialize()` and one `storage.get([...])` finish before the game is built; saves and settings go only through Bridge storage (no `localStorage`).
+- `platform.isAudioEnabled` is applied at start; audio/pause/interstitial state events mute and freeze the game.
+- `game_ready` is sent once the title screen is interactive; `level_started/paused/resumed/completed` follow the game flow.
+- Interstitials are requested at natural pauses only: mission complete, pause menu, ending screen. Bridge decides when one actually shows.
+- Esc is not used (pause is P or the on-screen button); there is a mute button; no emoji icons; long-press callouts and text selection are disabled.
+
+```bash
+npm run build && (cd dist && zip -qr ../shell-switch-playgama.zip . -x '*.map')
+```
+
+Upload `shell-switch-playgama.zip` (index.html at the archive root).
 
 ## Project layout
 

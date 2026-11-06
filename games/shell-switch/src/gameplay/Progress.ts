@@ -1,3 +1,4 @@
+import { Platform } from '../platform/Platform';
 import type { HostKind } from '../characters/Archetypes';
 import type { AreaId, ItemId } from './types';
 
@@ -23,21 +24,9 @@ interface SaveData {
   player: number[] | null;
 }
 
-function safeGet(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function safeSet(key: string, value: string): void {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    /* storage unavailable (private mode / sandboxed iframe) */
-  }
-}
+// All persistence goes through the Playgama Bridge storage (loaded once at startup).
+const safeGet = (key: string): string | null => Platform.read(key);
+const safeSet = (key: string, value: string): void => Platform.write(key, value);
 
 /** Single source of truth for persistent game state. */
 export class Progress {
@@ -144,11 +133,7 @@ export class Progress {
   }
 
   static clear(): void {
-    try {
-      window.localStorage.removeItem(SAVE_KEY);
-    } catch {
-      /* ignore */
-    }
+    Platform.remove(SAVE_KEY);
   }
 }
 
@@ -160,10 +145,11 @@ export interface Settings {
   quality: 'high' | 'low';
   reducedMotion: boolean;
   showHints: boolean;
+  muted: boolean;
 }
 
 export function loadSettings(): Settings {
-  const def: Settings = { music: 0.7, sfx: 0.85, sensitivity: 1, invertY: false, quality: 'high', reducedMotion: false, showHints: true };
+  const def: Settings = { music: 0.7, sfx: 0.85, sensitivity: 1, invertY: false, quality: 'high', reducedMotion: false, showHints: true, muted: false };
   const raw = safeGet(SETTINGS_KEY);
   if (!raw) return def;
   try {

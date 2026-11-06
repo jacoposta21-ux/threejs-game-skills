@@ -7,6 +7,9 @@ js = open(glob.glob('dist/assets/*.js')[0]).read().replace('</script', '<\\/scri
 css = open(glob.glob('dist/assets/*.css')[0]).read()
 html = re.sub(r'<script type="module" crossorigin src="[^"]+"></script>', '', html)
 html = re.sub(r'<link rel="stylesheet" crossorigin href="[^"]+">', '', html)
+# Playgama Bridge stays the first script in <head>, inlined.
+bridge = open('dist/playgama-bridge.js').read().replace('</script', '<\\/script')
+html = html.replace('<script src="./playgama-bridge.js"></script>', f'<script>{bridge}</script>')
 html = html.replace('</head>', f'<style>{css}</style>\n</head>')
 html = html.replace('</body>', f'<script type="module">{js}</script>\n</body>')
 open('shell-switch.html', 'w').write(html)

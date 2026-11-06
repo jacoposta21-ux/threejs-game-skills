@@ -104,15 +104,15 @@ export type ItemId =
   | 'duck'
   | 'wallet';
 
-export const ITEM_INFO: Record<ItemId, { name: string; icon: string; desc: string }> = {
-  cityPass: { name: 'City Pass', icon: '🎫', desc: 'Opens the station turnstiles and the city gates.' },
-  mic: { name: "Velvet's Lucky Mic", icon: '🎤', desc: 'Velvet refuses to sing a note without it.' },
-  burger: { name: 'Mega Burger', icon: '🍔', desc: 'Seven patties. Structurally questionable.' },
-  souffle: { name: 'Triple Soufflé', icon: '🧁', desc: 'So fluffy it hovers slightly.' },
-  candy: { name: 'Cotton Candy', icon: '🍭', desc: 'A pink cloud on a stick.' },
-  keycard: { name: 'Backstage Keycard', icon: '💳', desc: "Moose's keycard for the ringmaster's trailer." },
-  fuse: { name: 'Cannon Fuse', icon: '🧨', desc: 'Makes the circus cannon go BOOM.' },
-  permit: { name: 'Stamped Permit', icon: '📜', desc: 'Form 27-B: Permission to Go Upstairs.' },
-  duck: { name: 'Rubber Duck', icon: '🦆', desc: 'Squeaks. Nobody knows whose it is.' },
-  wallet: { name: 'Lost Wallet', icon: '👛', desc: 'Contains three buttons and a coupon.' },
+export const ITEM_INFO: Record<ItemId, { name: string; desc: string }> = {
+  cityPass: { name: 'City Pass', desc: 'Opens the station turnstiles and the city gates.' },
+  mic: { name: "Velvet's Lucky Mic", desc: 'Velvet refuses to sing a note without it.' },
+  burger: { name: 'Mega Burger', desc: 'Seven patties. Structurally questionable.' },
+  souffle: { name: 'Triple Soufflé', desc: 'So fluffy it hovers slightly.' },
+  candy: { name: 'Cotton Candy', desc: 'A pink cloud on a stick.' },
+  keycard: { name: 'Backstage Keycard', desc: "Moose's keycard for the ringmaster's trailer." },
+  fuse: { name: 'Cannon Fuse', desc: 'Makes the circus cannon go BOOM.' },
+  permit: { name: 'Stamped Permit', desc: 'Form 27-B: Permission to Go Upstairs.' },
+  duck: { name: 'Rubber Duck', desc: 'Squeaks. Nobody knows whose it is.' },
+  wallet: { name: 'Lost Wallet', desc: 'Contains three buttons and a coupon.' },
 };
