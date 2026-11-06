@@ -520,9 +520,9 @@ export class UIManager {
         <button class="valid-chip" id="validChip" data-act="issues"></button>
         <div class="spacer"></div>
         <span class="coins mini">${icon('coin')}<b>${g.progress.data.coins}</b></span>
-        <button class="icon-btn" data-act="expandArea" title="Expand build area">${icon('expand')}</button>
-        <button class="icon-btn" data-act="help" title="Controls">?</button>
-        ${ch ? '' : `<button class="icon-btn" data-act="exportCurrent" title="Export JSON">${icon('export')}</button><button class="btn small blue" data-act="saveTrack" data-tut="save">${icon('save')}<span class="hide-sm">Save</span></button>`}
+        <button class="icon-btn opt" data-act="expandArea" title="Expand build area">${icon('expand')}</button>
+        <button class="icon-btn opt" data-act="help" title="Controls">?</button>
+        ${ch ? '' : `<button class="icon-btn opt" data-act="exportCurrent" title="Export JSON">${icon('export')}</button><button class="btn small blue" data-act="saveTrack" data-tut="save">${icon('save')}<span class="hide-sm">Save</span></button>`}
       </div>
       <aside class="ed-library" data-tut="library">
         <div class="lib-tabs" id="libTabs"></div>
@@ -536,7 +536,7 @@ export class UIManager {
           <button class="tool" data-act="undo" id="btnUndo" title="Undo (Ctrl+Z)">${icon('undo')}</button>
           <button class="tool" data-act="redo" id="btnRedo" title="Redo (Ctrl+Y)">${icon('redo')}</button>
         </div>
-        <div class="tool-group">
+        <div class="tool-group opt">
           <button class="tool" data-act="gridToggle" id="btnGrid" title="Grid snapping (G)">${icon('grid')}</button>
           <button class="tool" data-act="freeToggle" id="btnFree" title="Free placement (ignore connectors)">${icon('magnet')}</button>
         </div>
@@ -549,7 +549,7 @@ export class UIManager {
           <button class="tool" data-act="focus" title="Frame view (F)">${icon('focus')}</button>
           <button class="tool" data-act="clearTrack" title="Clear track">${icon('trash')}</button>
         </div>
-        <button class="btn big pink test-btn" data-act="testRace" data-tut="test">${icon('play')}TEST RACE</button>
+        <button class="btn big pink test-btn" data-act="testRace" data-tut="test">${icon('play')}<span>TEST </span>RACE</button>
       </div>
       <div class="touch-place" id="touchPlace" hidden>
         <button class="btn small ghost" data-act="cancelPlace">${icon('x')}</button>
@@ -651,7 +651,7 @@ export class UIManager {
       const errors = v.issues.filter((i) => i.level === 'error').length;
       const warns = v.issues.filter((i) => i.level === 'warn').length;
       chip.className = `valid-chip ${errors ? 'bad' : warns ? 'warn' : 'ok'}`;
-      chip.innerHTML = errors ? `${icon('warn')}${errors} problem${errors > 1 ? 's' : ''}` : warns ? `${icon('warn')}${warns} warning${warns > 1 ? 's' : ''}` : `${icon('check')}Ready to race`;
+      chip.innerHTML = errors ? `${icon('warn')}<span>${errors} problem${errors > 1 ? 's' : ''}</span>` : warns ? `${icon('warn')}<span>${warns} warning${warns > 1 ? 's' : ''}</span>` : `${icon('check')}<span>Ready to race</span>`;
     }
     $('#btnUndo')?.toggleAttribute('disabled', !b.history.canUndo);
     $('#btnRedo')?.toggleAttribute('disabled', !b.history.canRedo);
@@ -678,6 +678,7 @@ export class UIManager {
     const b = g.builder;
     const el = $('#edProps');
     if (!el) return;
+    el.classList.remove('idle');
     if (b.placing) {
       const def = getDef(b.placing.defId);
       el.innerHTML = `<div class="props-head"><img src="${g.pieceThumb(def.id)}" alt=""/><div><h3>${esc(def.name)}</h3><span class="muted">Placing · ${def.size} cells</span></div></div>
@@ -727,6 +728,7 @@ export class UIManager {
         <p class="hint">Drag any selected piece to move the whole selection.</p>`;
       return;
     }
+    el.classList.add('idle');
     const t = b.track;
     const count = t.pieces.filter((p) => !getDef(p.t).decor).length;
     const hasStart = t.pieces.some((p) => p.t === 'start');

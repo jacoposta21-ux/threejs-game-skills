@@ -1873,6 +1873,7 @@ p {
   cursor: pointer;
   min-width: 58px;
   min-height: 44px;
+  justify-content: center;
 }
 .cam.on {
   background: #fff;
@@ -2371,7 +2372,15 @@ p {
     width: 150px;
   }
   .race-top {
-    top: calc(60px + var(--safe-t));
+    top: auto;
+    bottom: calc(76px + var(--safe-b));
+  }
+  .feed {
+    top: auto;
+    bottom: calc(150px + var(--safe-b));
+  }
+  body.in-race #rotate-hint {
+    display: none;
   }
 }
 
@@ -2397,5 +2406,65 @@ p {
   body.in-editor #rotate-hint {
     bottom: auto;
     top: calc(60px + var(--safe-t));
+  }
+}
+
+/* narrow portrait phones: keep every essential control on screen */
+@media (max-width: 560px) {
+  .ed-top .opt,
+  .ed-top .coins,
+  .ed-bottom .opt,
+  .ed-bottom .tool-group.height span,
+  .test-btn span,
+  .valid-chip span {
+    display: none !important;
+  }
+  .track-name {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+  }
+  .ed-top .spacer {
+    display: none;
+  }
+  .ed-bottom {
+    left: calc(6px + var(--safe-l));
+    right: calc(6px + var(--safe-r));
+    transform: none;
+    justify-content: space-between;
+  }
+  .ed-props {
+    top: calc(60px + var(--safe-t));
+    right: calc(6px + var(--safe-r));
+    width: min(260px, calc(100vw - 12px));
+    max-height: 34vh;
+  }
+  .ed-props.idle {
+    display: none;
+  }
+  .ed-challenge {
+    width: calc(100vw - 12px);
+  }
+  body.in-editor #rotate-hint {
+    display: none;
+  }
+  .touch-place {
+    bottom: calc(212px + var(--safe-b));
+  }
+  .standings {
+    width: 132px;
+  }
+  .srow {
+    grid-template-columns: 16px 14px 1fr;
+  }
+  .srow em {
+    display: none;
+  }
+  .race-actions .icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+  .cam {
+    min-width: 40px;
   }
 }

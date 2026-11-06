@@ -141,11 +141,11 @@ export const CHALLENGES: ChallengeDef[] = [
   {
     id: 'c8',
     title: 'Speed Demon',
-    desc: 'The winner must cross the line in under 9 seconds.',
+    desc: 'The winner must cross the line in under 7 seconds.',
     stars: 3,
     marbles: 6,
     setup: startOnly('Speed Demon', [-22, 28, -18, 0]),
-    objectives: [validObj, { label: 'Winning time under 9.0 s', check: (c) => (c.result ? c.result.finished > 0 && (c.result.rows[0].time ?? 99) < 9 : null) }],
+    objectives: [validObj, { label: 'Winning time under 7.0 s', check: (c) => (c.result ? c.result.finished > 0 && (c.result.rows[0].time ?? 99) < 7 : null) }],
     reward: { xp: 220, coins: 160, skin: 'gold' },
   },
   {

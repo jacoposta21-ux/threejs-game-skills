@@ -12,6 +12,8 @@ export default defineConfig({
   },
   use: {
     baseURL: 'http://127.0.0.1:5188',
+    // Point at a preinstalled Chromium when the bundled browser revision is not downloaded.
+    launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
