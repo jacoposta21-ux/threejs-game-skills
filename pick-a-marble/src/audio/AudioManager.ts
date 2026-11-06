@@ -29,6 +29,9 @@ export class AudioManager {
   private paused = false;
   private duckUntil = 0;
 
+  /** Offset added to "now" so SFX can be scheduled at timeline positions (offline render). */
+  timeOffset = 0;
+
   /** Must be called from a user gesture. */
   unlock(): void {
     if (this.ctx) {
@@ -37,7 +40,35 @@ export class AudioManager {
     }
     const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return;
-    const ctx = new Ctor();
+    this.setup(new Ctor());
+  }
+
+  /** Render music + timed SFX into a buffer (used to score trailers). */
+  static async renderOffline(seconds: number, mood: MusicMood, cues: { t: number; fn: (a: AudioManager) => void }[]): Promise<AudioBuffer> {
+    const ctx = new OfflineAudioContext(2, Math.ceil(44100 * seconds), 44100);
+    const a = new AudioManager();
+    a.setup(ctx as unknown as AudioContext, false);
+    a.mood = mood;
+    a.nextBeat = 0.05;
+    a.beat = 0;
+    const spb = 60 / (mood === 'race' ? 124 : mood === 'editor' ? 98 : 88) / 2;
+    while (a.nextBeat < seconds) {
+      a.playStep(a.beat, a.nextBeat, spb);
+      a.nextBeat += spb;
+      a.beat += 1;
+    }
+    for (const c of cues) {
+      a.timeOffset = c.t;
+      c.fn(a);
+    }
+    a.timeOffset = 0;
+    // fade out the last second
+    a.master.gain.setValueAtTime(0.9, seconds - 1.2);
+    a.master.gain.linearRampToValueAtTime(0.0001, seconds);
+    return ctx.startRendering();
+  }
+
+  private setup(ctx: AudioContext, live = true): void {
     this.ctx = ctx;
     this.master = ctx.createGain();
     this.master.connect(ctx.destination);
@@ -83,8 +114,14 @@ export class AudioManager {
     this.windGain.gain.value = 0.035;
     wind.connect(wf).connect(this.windGain).connect(this.musicBus);
     wind.start();
-    this.applyVolumes();
-    this.timer = window.setInterval(() => this.schedule(), 60);
+    if (live) {
+      this.applyVolumes();
+      this.timer = window.setInterval(() => this.schedule(), 60);
+    } else {
+      this.master.gain.value = 0.9;
+      this.musicBus.gain.value = 0.32;
+      this.sfxBus.gain.value = 0.9;
+    }
   }
 
   setVolumes(master: number, music: number, sfx: number, muted: boolean): void {
@@ -251,7 +288,7 @@ export class AudioManager {
   /* -------------------------------------------------------------- sfx */
 
   private get now(): number {
-    return this.ctx ? this.ctx.currentTime : 0;
+    return (this.ctx ? this.ctx.currentTime : 0) + this.timeOffset;
   }
 
   private ok(): boolean {
@@ -327,7 +364,7 @@ export class AudioManager {
   clack(strength: number, glassy: boolean): void {
     if (!this.ok()) return;
     const t = this.now;
-    if (t - this.lastClack < 0.012) return;
+    if (t - this.lastClack < 0.012 && t >= this.lastClack) return;
     if (Math.floor(t * 10) !== Math.floor(this.lastClack * 10)) this.clackCount = 0;
     if (this.clackCount > 6) return;
     this.clackCount += 1;

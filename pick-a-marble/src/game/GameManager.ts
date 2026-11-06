@@ -162,10 +162,22 @@ export class GameManager {
 
   /* -------------------------------------------------------------- loop */
 
+  /** When true the RAF loop idles and frames are driven by advance() (trailer capture). */
+  manualClock = false;
+
   private loop = (): void => {
     requestAnimationFrame(this.loop);
     this.clock.update();
-    const raw = this.clock.getDelta();
+    if (this.manualClock) return;
+    this.tick(this.clock.getDelta());
+  };
+
+  /** Advance the whole game by a fixed step and render one frame. */
+  advance(dt: number): void {
+    this.tick(dt);
+  }
+
+  private tick(raw: number): void {
     const dt = Math.min(raw, 0.1);
     this.frame += 1;
     this.fpsAcc += raw;
@@ -204,7 +216,7 @@ export class GameManager {
     this.scene.render();
     if (this.screen === 'race') this.ui.updateLabels();
     this.publishDiagnostics();
-  };
+  }
 
   private updateMenuCamera(dt: number): void {
     this.menuOrbit += dt * 0.06;
