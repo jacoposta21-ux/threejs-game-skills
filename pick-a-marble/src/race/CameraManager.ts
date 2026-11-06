@@ -192,7 +192,8 @@ export class CameraManager {
     const c = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
     const r = Math.max(8, size.length() * 0.5);
-    const dist = (r / Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5))) * 0.9;
+    // extra distance: the editor panels cover the screen edges
+    const dist = (r / Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5))) * 1.25;
     const pos = c.clone().add(dirHint.clone().normalize().multiplyScalar(dist));
     if (immediate) {
       this.camera.position.copy(pos);

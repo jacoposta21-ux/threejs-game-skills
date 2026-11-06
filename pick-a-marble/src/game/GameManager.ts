@@ -218,7 +218,7 @@ export class GameManager {
 
   setScreen(s: Screen): void {
     this.screen = s;
-    if (s !== 'menu') this.scene.camera.clearViewOffset();
+    if (s !== 'menu' && s !== 'random') this.scene.camera.clearViewOffset();
     const editing = s === 'editor';
     this.builder.setActive(editing);
     this.cams.useOrbit(editing || s === 'random' || s === 'play' || s === 'challenges' || s === 'collection');
@@ -509,6 +509,10 @@ export class GameManager {
     r.track.env = this.currentEnv();
     this.loadWorld(r.track);
     this.cams.frame(trackBounds(r.track), false);
+    // the side panel covers the right of the screen: shift the view left
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    if (w > 700) this.scene.camera.setViewOffset(w, h, w * 0.14, 0, w, h);
     return r;
   }
 

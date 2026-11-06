@@ -79,10 +79,14 @@ export function analyzeConnections(pieces: PieceData[]): ConnectionReport {
   for (const p of all) {
     if (used.has(p)) continue;
     for (const q of neighbours(p)) {
-      if (q === p || q.pieceId === p.pieceId || used.has(q)) continue;
-      if (all.indexOf(q) < all.indexOf(p)) continue;
+      if (q === p || q.pieceId === p.pieceId) continue;
+      // an unused port stacked on any other port (free or already connected) can never work
+      if (!used.has(q) && all.indexOf(q) < all.indexOf(p)) continue;
       const d = q.pos.distanceTo(p.pos);
-      if (d <= EPS) mismatched.push([p, q]);
+      if (d <= EPS) {
+        mismatched.push([p, q]);
+        break;
+      }
     }
   }
   const open = all.filter((p) => !used.has(p));
