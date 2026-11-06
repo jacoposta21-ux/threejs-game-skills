@@ -19,6 +19,7 @@ npm install
 npm run dev        # http://127.0.0.1:5188
 npm run build      # production build in dist/
 npm run preview    # serve the production build on http://127.0.0.1:4188
+npm run build:single # one self-contained pick-a-marble.html (double-click to play, no server)
 ```
 
 Requires Node 18+ (developed on Node 22). The production build is a static folder
