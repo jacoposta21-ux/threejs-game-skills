@@ -51,7 +51,7 @@ Keyboard and mouse:
 - Read a recording: walk into it, then E to continue
 - Echo, to switch present and past (Chapter III+): R / U
 - Light Thread grapple (Chapter IV): F / O. Swing with ← →, climb with ↑ ↓, let go with Jump.
-- Pause: Esc / P
+- Pause: P
 
 Gamepad:
 - Move: left stick / D-pad
@@ -84,7 +84,7 @@ Tastiera e mouse:
 - Leggi una registrazione: passaci sopra, poi E per continuare
 - Eco, per passare da presente a passato (dal Capitolo III): R / U
 - Filo di Luce (Capitolo IV): F / O. Dondola con ← →, sali e scendi con ↑ ↓, lasciati andare con Salto.
-- Pausa: Esc / P
+- Pausa: P
 
 Gamepad:
 - Muoviti: levetta sinistra / croce direzionale

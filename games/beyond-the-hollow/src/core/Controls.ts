@@ -38,7 +38,7 @@ export class Controls {
     const K = Phaser.Input.Keyboard.KeyCodes;
     const map: Record<string, number> = {
       left: K.LEFT, a: K.A, right: K.RIGHT, d: K.D, up: K.UP, w: K.W, down: K.DOWN, s: K.S,
-      space: K.SPACE, z: K.Z, x: K.X, j: K.J, q: K.Q, k: K.K, e: K.E, l: K.L, esc: K.ESC, p: K.P, c: K.C, shift: K.SHIFT, r: K.R, u: K.U, f: K.F, o: K.O,
+      space: K.SPACE, z: K.Z, x: K.X, j: K.J, q: K.Q, k: K.K, e: K.E, l: K.L, p: K.P, c: K.C, shift: K.SHIFT, r: K.R, u: K.U, f: K.F, o: K.O,
     };
     for (const [n, code] of Object.entries(map)) this.keys[n] = kb.addKey(code, true, false);
     kb.addCapture([K.SPACE, K.UP, K.DOWN, K.LEFT, K.RIGHT]);
@@ -81,7 +81,8 @@ export class Controls {
     h.shoot = this.k('x', 'j') || pb(2) || pb(7) || T.shoot || this.mouseShoot;
     h.pip = this.k('q', 'k') || pb(3) || pb(6) || T.pip || this.mousePip;
     h.interact = this.k('e', 'l', 'shift') || pb(1) || T.interact;
-    h.pause = this.k('esc', 'p') || pb(9);
+    // no Esc: browsers reserve it for leaving full screen (Playgama 1.5.2)
+    h.pause = this.k('p') || pb(9);
     h.eco = this.k('r', 'u') || pb(5) || T.eco;
     h.hook = this.k('f', 'o') || pb(4) || T.hook;
     if (!this.enabled) {

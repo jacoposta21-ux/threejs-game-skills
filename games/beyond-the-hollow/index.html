@@ -7,6 +7,8 @@
   <meta name="description" content="A cinematic 2D adventure. Elias and Pip, a mechanical firefly, must find a way out of the Hollow." />
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #05070a; overflow: hidden; touch-action: none; overscroll-behavior: none; }
+    /* a long press never selects text, opens the context menu or shows the iOS magnifier */
+    * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
     #game { position: fixed; inset: 0; }
     canvas { display: block; -webkit-tap-highlight-color: transparent; outline: none; }
     #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #9fd6c9; font: 14px Georgia, serif; letter-spacing: 6px; gap: 18px; pointer-events: none; transition: opacity .6s; }

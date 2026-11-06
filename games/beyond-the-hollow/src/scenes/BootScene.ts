@@ -9,7 +9,7 @@ import { buildChapter3 } from '../art/chapter3';
 import { buildChapter4 } from '../art/chapter4';
 import { Save } from '../core/Save';
 import { Sound } from '../core/Audio';
-import { Portal } from '../core/Portal';
+import { IS_PLAYGAMA, Portal } from '../core/Portal';
 
 /** Paints every shared texture procedurally (no image downloads), then opens the title screen. */
 export class BootScene extends Phaser.Scene {
@@ -21,7 +21,7 @@ export class BootScene extends Phaser.Scene {
   create() {
     Portal.loadingStart();
     const s = Save.load();
-    applyLanguage((s.settings.lang as LangCode) || detectLanguage(Portal.language()));
+    applyLanguage((s.settings.lang as LangCode) || detectLanguage(Portal.language(), !IS_PLAYGAMA));
     Sound.setVolumes(s.settings.music, s.settings.sfx);
     const steps: (() => void)[] = [
       () => buildFx(this),

@@ -176,9 +176,9 @@ export class MenuScene extends Phaser.Scene {
     if (has) items.push({ label: t('Continue — {0}', LEVELS[Save.data.level]?.subtitle ?? ''), action: () => this.startGame(Save.data.level, Save.data.checkpoint) });
     items.push({ label: has || Save.data.completed ? t('New Journey') : t('Begin the Journey'), action: () => { Save.newGame(); this.registry.getAll && Object.keys(this.registry.getAll()).forEach((k) => k.startsWith('persist-') && this.registry.remove(k)); this.startStory(0); } });
     items.push({ label: t('Chapters'), action: () => this.showChapters() });
-    items.push({ label: t('Settings'), action: () => this.showSettings() });
+    items.push({ label: t('Settings'), icon: 'gear', action: () => this.showSettings() });
     items.push({ label: t('How to Play'), action: () => this.showControls() });
-    items.push({ label: () => `${t('Language')}  ·  ${LANGS.find((l) => l.code === lang())!.name}`, action: () => this.showLanguages('main') });
+    items.push({ label: () => `${t('Language')}  ·  ${LANGS.find((l) => l.code === lang())!.name}`, icon: 'globe', action: () => this.showLanguages('main') });
     items.push({ label: () => (this.scale.isFullscreen ? t('Exit Fullscreen') : t('Fullscreen')), action: () => toggleFullscreen(this) });
     this.setMenu(items, 360);
   }
@@ -224,7 +224,7 @@ export class MenuScene extends Phaser.Scene {
       { label: () => `${t('Music')}  ${pct(st.music)}`, action: () => { st.music = cyc(st.music); apply(); } },
       { label: () => `${t('Effects')}  ${pct(st.sfx)}`, action: () => { st.sfx = cyc(st.sfx); apply(); Sound.play('pip'); } },
       { label: () => `${t('Visual quality')}  ${st.quality === 'high' ? t('High') : t('Performance')}`, action: () => { st.quality = st.quality === 'high' ? 'low' : 'high'; apply(); } },
-      { label: () => `${t('Language')}  ·  ${LANGS.find((l) => l.code === lang())!.name}`, action: () => this.showLanguages('settings') },
+      { label: () => `${t('Language')}  ·  ${LANGS.find((l) => l.code === lang())!.name}`, icon: 'globe', action: () => this.showLanguages('settings') },
       {
         // only the boss fights change; the rest of the game stays the same
         label: () => `${t('Boss difficulty')}  ${{ story: t('Story'), normal: t('Normal'), hard: t('Hard') }[bossDiff()]}`,
@@ -279,7 +279,7 @@ export class MenuScene extends Phaser.Scene {
     this.page = 'controls';
     const lines = isTouchDevice(this)
       ? ['◀ ▶  move', 'JUMP  jump · tap again in the air: Pip-boost', '▲  climb ladders and ledges · ▼ crouch, hide', '▼ (hold)  drop through thin ledges', 'FIRE  Lumen Coil · hold to charge', 'PIP  send Pip to mechanisms or to lure creatures', 'ECO  Echo: switch present / past', 'HOOK  Light Thread: swing from glowing nodes'].map((s) => t(s))
-      : ['A D / ← →  move        SPACE / Z  jump (again in the air: Pip-boost)', 'W / ↑  climb ladders and ledges        S / ↓  crouch, crawl, hide', 'Hold S / ↓ (or ↓ + SPACE)  drop through thin ledges', 'X / J / Left-click  fire the Lumen Coil · hold to charge', 'Q / K / Right-click  send Pip to mechanisms, or to lure creatures', 'R / U  Echo: switch present / past        F / O  Light Thread', 'ESC / P  pause        Gamepad supported'].map((s) => t(s));
+      : ['A D / ← →  move        SPACE / Z  jump (again in the air: Pip-boost)', 'W / ↑  climb ladders and ledges        S / ↓  crouch, crawl, hide', 'Hold S / ↓ (or ↓ + SPACE)  drop through thin ledges', 'X / J / Left-click  fire the Lumen Coil · hold to charge', 'Q / K / Right-click  send Pip to mechanisms, or to lure creatures', 'R / U  Echo: switch present / past        F / O  Light Thread', 'P  pause        Gamepad supported'].map((s) => t(s));
     const txt = this.add.text(0, -20, lines.join('\n'), { fontFamily: FONT_BODY, fontSize: `${Math.min(18, this.scale.width / 40)}px`, color: COL.text, align: 'center', lineSpacing: 12 }).setOrigin(0.5, 0);
     this.setMenu([{ label: t('Back'), action: () => this.showMain() }], 200);
     this.menu!.container.y = txt.height + 30;

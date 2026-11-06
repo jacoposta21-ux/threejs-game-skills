@@ -1,5 +1,3 @@
-import { Portal } from './Portal';
-
 export interface SaveData {
   version: 1;
   unlocked: number; // highest level index unlocked (0-based)
@@ -11,7 +9,8 @@ export interface SaveData {
   settings: { music: number; sfx: number; quality: 'high' | 'low'; shake: boolean; lang?: string; bossDiff?: 'story' | 'normal' | 'hard' };
 }
 
-const KEY = 'beyond-the-hollow-save-v1';
+export const SAVE_KEY = 'beyond-the-hollow-save-v1';
+const KEY = SAVE_KEY;
 
 const fresh = (): SaveData => ({
   version: 1,
@@ -26,10 +25,24 @@ const fresh = (): SaveData => ({
 
 let data: SaveData = fresh();
 
+/** Where the save lives. Default: the browser's localStorage (CrazyGames / web build).
+ *  The Playgama build swaps in the Bridge storage (Portal.init), as Playgama requires. */
+export interface SaveBackend {
+  read(): string | null;
+  write(json: string): void;
+}
+let backend: SaveBackend = {
+  read: () => localStorage.getItem(KEY),
+  write: (json) => localStorage.setItem(KEY, json),
+};
+
 export const Save = {
+  useBackend(b: SaveBackend) {
+    backend = b;
+  },
   load(): SaveData {
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = backend.read();
       if (raw) {
         const parsed = JSON.parse(raw);
         data = { ...fresh(), ...parsed, settings: { ...fresh().settings, ...(parsed.settings || {}) } };
@@ -44,9 +57,7 @@ export const Save = {
   },
   write() {
     try {
-      const json = JSON.stringify(data);
-      localStorage.setItem(KEY, json);
-      Portal.persist(json);
+      backend.write(JSON.stringify(data));
     } catch {
       /* storage unavailable (private mode / sandboxed iframe) — play continues */
     }

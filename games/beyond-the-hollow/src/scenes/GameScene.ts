@@ -160,6 +160,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.reviveUsed = false;
     const def = this.levelDef;
     const th = THEMES[def.theme];
     buildTileset(this, def.theme);
@@ -1239,7 +1240,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** After a rewarded ad: Elias gets up on the last safe ground with full health (and Ilse with him). */
+  /** a rewarded revive is offered at most once per attempt (Playgama 2.2.4): a retry or a new level starts a new attempt */
+  reviveUsed = false;
   reviveHere() {
+    this.reviveUsed = true;
     const p = this.player;
     const cam = this.cameras.main;
     cam.zoomEffect.reset();

@@ -9,6 +9,7 @@
  */
 import { Crazy } from './CrazySDK';
 import { Sound } from './Audio';
+import { Save, SAVE_KEY } from './Save';
 
 export const IS_PLAYGAMA = import.meta.env.VITE_PORTAL === 'playgama';
 
@@ -20,7 +21,6 @@ let adPlaying = false;
 /** set by the game: pause/resume itself when the platform asks (e.g. an overlay opened over the game) */
 let onPlatformPause: ((paused: boolean) => void) | null = null;
 
-const SAVE_KEY = 'beyond-the-hollow-save-v1';
 
 function applyAudio() {
   Sound.setExternalMute(platformMuted || adPlaying);
@@ -32,6 +32,9 @@ export const Portal = {
       await Crazy.init();
       return;
     }
+    // Playgama build: never touch localStorage — until the Bridge storage is ready, keep the save in memory
+    let memory: string | null = null;
+    Save.useBackend({ read: () => memory, write: (json) => { memory = json; } });
     const w = window as any;
     const b = w.bridge ?? w.playgamaBridge ?? null;
     if (!b) return;
@@ -60,11 +63,30 @@ export const Portal = {
     } catch { /* older platforms: events unsupported */ }
     // have a rewarded ad ready for the game-over screen
     try { if (bridge.advertisement.isRewardedSupported) bridge.advertisement.preloadRewarded(); } catch { /* */ }
-    // cloud save → local cache, so the synchronous Save module sees the player's progress
+    // progress lives only in the Bridge storage (cloud saves where the platform has them):
+    // read every key once at startup, then write back only when the game saves meaningful progress
+    let saved: string | null = null;
     try {
-      const v = await bridge.storage.get(SAVE_KEY, false);
-      if (typeof v === 'string' && v.length > 2) localStorage.setItem(SAVE_KEY, v);
-    } catch { /* keep the local copy */ }
+      const values = await bridge.storage.get([SAVE_KEY], false);
+      const v = Array.isArray(values) ? values[0] : values;
+      saved = typeof v === 'string' ? v : v ? JSON.stringify(v) : null;
+    } catch { /* first launch or storage unavailable: start fresh */ }
+    let pending: string | null = null;
+    let timer: number | null = null;
+    Save.useBackend({
+      read: () => saved,
+      write: (json) => {
+        saved = json;
+        pending = json;
+        // several saves in a row (e.g. a checkpoint and a recording) go out as one write
+        if (timer === null) timer = window.setTimeout(() => {
+          timer = null;
+          const out = pending;
+          pending = null;
+          if (out !== null) bridge.storage.set([SAVE_KEY], [out]).catch(() => { /* keep playing */ });
+        }, 400);
+      },
+    });
     applyAudio();
   },
   get name() {
@@ -193,10 +215,5 @@ export const Portal = {
         finish();
       }
     });
-  },
-  /** mirror the save to the platform's storage (cloud saves where available) */
-  persist(json: string) {
-    if (!bridge) return;
-    try { bridge.storage.set(SAVE_KEY, json); } catch { /* */ }
   },
 };

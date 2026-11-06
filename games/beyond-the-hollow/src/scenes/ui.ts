@@ -9,13 +9,15 @@ export interface MenuItem {
   label: string | (() => string);
   action: () => void;
   enabled?: () => boolean;
+  /** a universal icon drawn before the label (language selector, settings) */
+  icon?: 'globe' | 'gear';
 }
 
 /** Keyboard / mouse / touch navigable vertical menu with painted pill buttons. */
 export class Menu {
   container: Phaser.GameObjects.Container;
   index = 0;
-  private rows: { bg: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text; item: MenuItem; w: number; h: number }[] = [];
+  private rows: { bg: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text; item: MenuItem; w: number; h: number; icon?: Phaser.GameObjects.Graphics }[] = [];
   private keys: Phaser.Input.Keyboard.Key[] = [];
   private active = true;
   private padPrev = { up: false, down: false, a: false };
@@ -32,8 +34,10 @@ export class Menu {
         this.select(i);
         this.fire();
       });
-      this.container.add([bg, text, zone]);
-      this.rows.push({ bg, text, item, w, h: gap - 10 });
+      const icon = item.icon ? scene.add.graphics() : undefined;
+      if (icon) icon.y = i * gap;
+      this.container.add(icon ? [bg, text, icon, zone] : [bg, text, zone]);
+      this.rows.push({ bg, text, item, w, h: gap - 10, icon });
       bg.y = i * gap;
     });
     const kb = scene.input.keyboard!;
@@ -68,7 +72,13 @@ export class Menu {
       const sel = i === this.index;
       r.text.setText(typeof r.item.label === 'function' ? r.item.label() : r.item.label);
       // longer translations shrink to stay inside the pill
-      r.text.setScale(Math.min(1, (r.w - 48) / Math.max(1, r.text.width)));
+      r.text.setScale(Math.min(1, (r.w - (r.icon ? 84 : 48)) / Math.max(1, r.text.width)));
+      if (r.icon) {
+        // shift the label right to make room for the icon, then draw it just before the text
+        const tw = r.text.width * r.text.scaleX;
+        r.text.x = 14;
+        drawMenuIcon(r.icon, r.item.icon!, 14 - tw / 2 - 20, 0, !en ? 0x4d555a : sel ? 0xffffff : 0xefe6d2);
+      }
       r.text.setColor(!en ? '#4d555a' : sel ? '#ffffff' : COL.text);
       r.bg.clear();
       if (sel && en) {
@@ -138,5 +148,31 @@ export function toggleFullscreen(scene: Phaser.Scene) {
     else scene.scale.startFullscreen();
   } catch {
     /* fullscreen not permitted in this frame */
+  }
+}
+
+/** Small line icons (no emoji): a globe for languages, a gear for settings. */
+export function drawMenuIcon(g: Phaser.GameObjects.Graphics, kind: 'globe' | 'gear', x: number, y: number, color: number) {
+  g.clear();
+  g.lineStyle(2, color, 1);
+  if (kind === 'globe') {
+    const r = 9;
+    g.strokeCircle(x, y, r);
+    g.strokeEllipse(x, y, r * 0.9, r * 2);
+    g.lineBetween(x - r, y, x + r, y);
+    g.beginPath();
+    g.arc(x, y + r * 1.25, r * 1.05, Phaser.Math.DegToRad(-125), Phaser.Math.DegToRad(-55));
+    g.strokePath();
+    g.beginPath();
+    g.arc(x, y - r * 1.25, r * 1.05, Phaser.Math.DegToRad(55), Phaser.Math.DegToRad(125));
+    g.strokePath();
+  } else {
+    const r = 6.5;
+    g.strokeCircle(x, y, r * 0.45);
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      g.lineBetween(x + Math.cos(a) * r * 0.75, y + Math.sin(a) * r * 0.75, x + Math.cos(a) * r * 1.35, y + Math.sin(a) * r * 1.35);
+    }
+    g.strokeCircle(x, y, r * 0.8);
   }
 }

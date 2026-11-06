@@ -5,7 +5,7 @@ import { Sound } from '../core/Audio';
 import { Save } from '../core/Save';
 import { TouchState } from '../core/Controls';
 import { Portal } from '../core/Portal';
-import { COL, FONT_BODY, FONT_TITLE, Menu, isTouchDevice, ornament, toggleFullscreen } from './ui';
+import { COL, FONT_BODY, FONT_TITLE, Menu, MenuItem, isTouchDevice, ornament, toggleFullscreen } from './ui';
 import type { GameScene } from './GameScene';
 
 /** HUD and every overlay that sits above the game: menus, cinematics, captions, touch controls. */
@@ -32,7 +32,6 @@ export class UIScene extends Phaser.Scene {
   private logOpen = false;
   private letterboxOn = false;
   private t = 0;
-  private escKey!: Phaser.Input.Keyboard.Key;
 
   constructor() {
     super('UI');
@@ -60,7 +59,6 @@ export class UIScene extends Phaser.Scene {
     });
     this.scale.on('resize', this.layout, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
-    this.escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.input.keyboard!.on('keydown', (e: KeyboardEvent) => {
       if (this.logOpen && ['KeyE', 'Enter', 'Space', 'Escape', 'KeyL'].includes(e.code)) this.closeLog();
       else if (this.overlay && (e.code === 'Escape' || e.code === 'KeyP') && this.gs && this.gs.scene.isPaused() && !this.logOpen && this.overlay.getData('kind') === 'pause') this.closePause();
@@ -213,7 +211,6 @@ export class UIScene extends Phaser.Scene {
       this.pipIcon.setVisible(false);
       return;
     }
-    if (this.escKey.isDown && this.logOpen) this.closeLog();
     const p = gs.player;
     const g = this.hud;
     const x0 = 26, y0 = 26;
@@ -365,6 +362,15 @@ export class UIScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------- overlays
+  /** A panel menu that always fits under the title, down to small and square windows (Playgama 1.6.2 / 1.6.8). */
+  private fittedMenu(items: MenuItem[], bottomReserve: number) {
+    const w = this.scale.width, h = this.scale.height;
+    const top = h * 0.24 + Math.min(120, Math.max(102, h * 0.2));
+    const room = h - top - bottomReserve;
+    const gap = Phaser.Math.Clamp(room / Math.max(1, items.length - 0.4), 32, 52);
+    return new Menu(this, w / 2, top, items, { width: Math.min(340, w - 40), gap, size: gap < 42 ? 18 : 22 });
+  }
+
   private panel(kind: string, title: string, subtitle?: string) {
     this.closeOverlay();
     const w = this.scale.width, h = this.scale.height;
@@ -397,14 +403,15 @@ export class UIScene extends Phaser.Scene {
     Sound.stopCharge();
     const c = this.panel('pause', t('Paused'), gs.levelDef.subtitle + ' · ' + gs.levelDef.name);
     const h = this.scale.height;
-    this.menu = new Menu(this, this.scale.width / 2, h * 0.24 + 120, [
+    const pauseItems: MenuItem[] = [
       { label: t('Resume'), action: () => this.closePause() },
       { label: t('Restart from checkpoint'), action: () => this.restart(true) },
       { label: t('Restart chapter'), action: () => this.restart(false) },
       { label: () => (this.scale.isFullscreen ? t('Exit Fullscreen') : t('Fullscreen')), action: () => toggleFullscreen(this) },
       { label: () => `${t('Sound')}: ${Sound.muted ? t('Off') : t('On')}`, action: () => Sound.setMuted(!Sound.muted) },
       { label: t('Quit to title'), action: () => this.quit() },
-    ], { width: 340, gap: Math.min(52, (h * 0.6) / 6) });
+    ];
+    this.menu = this.fittedMenu(pauseItems, h < 520 ? 24 : 70);
     c.add(this.menu.container);
     this.controlsLegend(c);
   }
@@ -414,7 +421,7 @@ export class UIScene extends Phaser.Scene {
     if (h < 520) return;
     const txt = isTouchDevice(this)
       ? t('Touch: ◀ ▶ move · JUMP (tap again to boost) · FIRE (hold to charge) · PIP · ▲ climb · ▼ crouch')
-      : t('Move A/D ←→ · Jump SPACE · Crouch S ↓ · Climb W ↑ · Fire X/J/Click (hold = charge) · Pip Q/K/Right-click · Pause ESC · Fullscreen in menu');
+      : t('Move A/D ←→ · Jump SPACE · Crouch S ↓ · Climb W ↑ · Fire X/J/Click (hold = charge) · Pip Q/K/Right-click · Pause P · Fullscreen in menu');
     c.add(this.add.text(w / 2, h - 40, txt, { fontFamily: FONT_BODY, fontSize: '14px', color: COL.dim, align: 'center', wordWrap: { width: w - 60 } }).setOrigin(0.5, 1));
   }
 
@@ -431,14 +438,15 @@ export class UIScene extends Phaser.Scene {
     const lines = ['The Hollow is patient.', 'Pip will not leave you.', 'Not like this. Not yet.', 'The dark remembers your name.'].map((s) => t(s));
     const c = this.panel('gameover', t('Elias has fallen'), lines[Save.data.deaths % lines.length]);
     const h = this.scale.height;
-    this.menu = new Menu(this, this.scale.width / 2, h * 0.24 + 130, [
-      ...(Portal.rewardedAvailable() ? [{ label: t('Revive here (watch an ad)'), action: () => this.reviveWithAd() }] : []),
+    const overItems: MenuItem[] = [
+      ...(Portal.rewardedAvailable() && !gs.reviveUsed ? [{ label: t('Revive here (watch an ad)'), action: () => this.reviveWithAd() }] : []),
       { label: t('Retry from checkpoint'), action: () => this.restart(true) },
       ...(gs.canEaseBoss() ? [{ label: t('Make boss fights easier (Story)'), action: () => this.easeBoss() }] : []),
       ...(gs.canSkipBoss() ? [{ label: t('Skip this fight'), action: () => this.skipBoss() }] : []),
       { label: t('Restart chapter'), action: () => this.restart(false) },
       { label: t('Quit to title'), action: () => this.quit() },
-    ], { width: 340 });
+    ];
+    this.menu = this.fittedMenu(overItems, gs.canSkipBoss() ? 80 : 24);
     if (gs.canSkipBoss()) c.add(this.add.text(this.scale.width / 2, h - 70, t('Too hard? You can skip this fight and carry on with the story.'), { fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: '15px', color: COL.dim, align: 'center', wordWrap: { width: this.scale.width - 60 } }).setOrigin(0.5, 1));
     c.add(this.menu.container);
     gs.scene.pause();
