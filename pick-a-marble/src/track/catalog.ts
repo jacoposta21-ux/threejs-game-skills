@@ -91,7 +91,7 @@ function curve(id: string, name: string, radius: number, right: boolean, dy: num
     build: () => {
       const t = new Turtle(0.2).yaw(radius, (s * PI) / 2);
       const frames = shear(applyDrop(t.pts, dy), (f) => s * bank * Math.sin(PI * f));
-      const lip = THREE.MathUtils.degToRad(radius < 4 ? 112 : 92);
+      const lip = THREE.MathUtils.degToRad(radius < 4 ? 120 : 112);
       const ch = channel(frames, (f) => ({ rho: 1, flat: 0, alpha: STD_ALPHA + (lip - STD_ALPHA) * Math.sin(PI * f) ** 2 }));
       return { ...emptyBuild(group(ch.mesh)), surfaces: [ch.surface], lanes: [laneFrom(frames, 0, 1)] };
     },
@@ -304,12 +304,13 @@ const spiralRamp: PieceDef = {
 
 function funnel(id: string, name: string, kind: 'large' | 'small' | 'vortex'): PieceDef {
   const big = kind !== 'small';
-  const R = big ? 5 : 3;
+  const R = big ? 5.6 : 3.6;
   const c = big ? V(4, 0, 4) : V(2, 0, 2);
-  const lipTop = -0.35;
-  const rimY = -0.85;
+  const lipTop = -1.35;
+  const wallTop = lipTop + 0.93;
+  const rimY = -1.85;
   const holeR = 0.85;
-  const holeY = kind === 'small' ? -2.8 : kind === 'large' ? -3.3 : -3.8;
+  const holeY = kind === 'small' ? -3.8 : kind === 'large' ? -4.3 : -4.8;
   const exit = big ? V(8, holeY - 2.7, 4) : V(2, holeY - 2.7, 6);
   return {
     id,
@@ -329,7 +330,8 @@ function funnel(id: string, name: string, kind: 'large' | 'small' | 'vortex'): P
     build: () => {
       // entry channel
       const entryLen = c.x + 0.4;
-      const entryFrames = shear(straightPoints(entryLen, -0.25));
+      const entryY = (x: number): number => -0.2 * smooth(x / 1.3) - 0.8 * smooth((x - 1.3) / (entryLen - 1.3));
+      const entryFrames = shear(sampleFn((f) => V(entryLen * f, entryY(entryLen * f), 0), Math.ceil(entryLen / 0.2) + 1));
       const entry = channel(entryFrames);
       // funnel bowl profile (r, y)
       const prof: V2[] = [];
@@ -347,8 +349,10 @@ function funnel(id: string, name: string, kind: 'large' | 'small' | 'vortex'): P
         prof.push([r, y]);
       }
       prof.push([R, lipTop]);
+      const colliderProf: V2[] = [...prof, [R, wallTop], [R + 0.18, wallTop]];
       prof.push([R + 0.18, lipTop]);
       const bowl = latheSurface(c, prof, 48);
+      const bowlCollider = latheSurface(c, colliderProf, 48);
       // vertex colour stripes for the visual
       const bowlGeo = new THREE.BufferGeometry();
       bowlGeo.setAttribute('position', new THREE.Float32BufferAttribute(bowl.positions, 3));
@@ -373,9 +377,12 @@ function funnel(id: string, name: string, kind: 'large' | 'small' | 'vortex'): P
       underGeo.setIndex(under.indices);
       underGeo.computeVertexNormals();
       const underMesh = tagMesh(underGeo, ['body']);
-      const rim = tagMesh(new THREE.TorusGeometry(R + 0.1, 0.12, 8, 64), ['accent']);
+      const rim = tagMesh(new THREE.TorusGeometry(R + 0.1, 0.1, 8, 64), ['accent']);
       rim.rotation.x = PI / 2;
-      rim.position.set(c.x, lipTop, c.z);
+      rim.position.set(c.x, wallTop, c.z);
+      const band = tagMesh(new THREE.CylinderGeometry(R + 0.04, R + 0.04, wallTop - lipTop, 56, 1, true), ['glass']);
+      band.position.set(c.x, (wallTop + lipTop) / 2, c.z);
+      band.castShadow = false;
       // exit chute: start below hole, vertical, bend to horizontal
       const t = new Turtle(0.12);
       if (big) {
@@ -406,7 +413,7 @@ function funnel(id: string, name: string, kind: 'large' | 'small' | 'vortex'): P
       const legs = new THREE.Group();
       for (let i = 0; i < 4; i += 1) {
         const a = (i / 4) * PI * 2 + PI / 4;
-        legs.add(cyl(0.1, 1.2, ['white'], V(c.x + Math.cos(a) * R * 0.75, rimY - 0.9, c.z + Math.sin(a) * R * 0.75)));
+        legs.add(cyl(0.1, 1.0, ['white'], V(c.x + Math.cos(a) * R * 0.75, rimY - 0.75, c.z + Math.sin(a) * R * 0.75)));
       }
       // progress lane: entry → spiral → chute
       const spiral: THREE.Vector3[] = [];
@@ -423,12 +430,12 @@ function funnel(id: string, name: string, kind: 'large' | 'small' | 'vortex'): P
       const lanePoints = [...entryFrames.map((f) => f.p), ...spiral, ...chuteFrames.map((f) => f.p)];
       const lanes: LaneDef[] = [lanePts(lanePoints, 0, 1)];
       return {
-        ...emptyBuild(group(entry.mesh, bowlMesh, underMesh, rim, chute.mesh, legs)),
-        surfaces: [entry.surface, bowl, chute.surface],
+        ...emptyBuild(group(entry.mesh, bowlMesh, underMesh, rim, band, chute.mesh, legs)),
+        surfaces: [entry.surface, bowlCollider, chute.surface],
         lanes,
         zones: [
           zone(V(c.x - 1.5, holeY - 0.6, c.z - 1.5), V(c.x + 1.5, holeY + 0.4, c.z + 1.5), { type: 'tag', tag: 'funnel' }),
-          zone(V(c.x - R, holeY - 0.2, c.z - R), V(c.x + R, lipTop + 0.3, c.z + R), { type: 'drag', k: kind === 'vortex' ? 0.22 : kind === 'large' ? 0.18 : 0.12 }),
+          zone(V(c.x - R, holeY - 0.2, c.z - R), V(c.x + R, wallTop, c.z + R), { type: 'drag', k: kind === 'vortex' ? 0.22 : kind === 'large' ? 0.18 : 0.12 }),
         ],
       };
     },
@@ -516,7 +523,7 @@ const booster: PieceDef = {
       ...emptyBuild(group(ch.mesh, chev, strips)),
       surfaces: [ch.surface],
       lanes: [laneFrom(frames, 0, 1)],
-      zones: [zone(V(0.15, -1, -1.2), V(3.85, 1.6, 1.2), { type: 'boost', dir: X.clone(), speed: 17, accel: 55 })],
+      zones: [zone(V(0.15, -1, -1.2), V(3.85, 1.6, 1.2), { type: 'boost', dir: X.clone(), speed: 14, accel: 50 })],
     };
   },
 };
@@ -560,6 +567,7 @@ const jumpPlatform: PieceDef = {
       colliders: [{ type: 'cuboid', center: V(5.94, landY(6) + 0.4, 0), half: V(0.06, 0.45, 2.2) }],
       lanes: [lanePts([...kFrames.map((f) => f.p), ...arc, ...lFrames.map((f) => f.p)], 0, 1)],
       zones: [
+        zone(V(0.15, -0.6, -1.3), V(1.1, 1.5, 1.3), { type: 'kick', dir: X.clone(), speed: 7.5 }),
         zone(V(lip - 0.55, -0.6, -1.3), V(lip + 0.15, 1.5, 1.3), { type: 'launch', target, time: 0.55, sfx: 'jump' }),
         zone(V(7, -2.5, -2.5), V(10, 0.5, 2.5), { type: 'tag', tag: 'jump' }),
       ],
@@ -1047,8 +1055,8 @@ export const PIECES: PieceDef[] = [
   straight('straight', 'Straight', 2, 'A classic straight run with a gentle downhill slope.'),
   straight('straight_short', 'Short Straight', 1, 'One cell long. Great for fine-tuning a layout.'),
   straight('straight_long', 'Long Straight', 4, 'Four cells of open track to build speed.'),
-  curve('curve_gentle_l', 'Gentle Left', 6, false, -0.5, 0.2, 'A wide, sweeping left turn.'),
-  curve('curve_gentle_r', 'Gentle Right', 6, true, -0.5, 0.2, 'A wide, sweeping right turn.'),
+  curve('curve_gentle_l', 'Gentle Left', 6, false, -0.5, 0.3, 'A wide, sweeping left turn.'),
+  curve('curve_gentle_r', 'Gentle Right', 6, true, -0.5, 0.3, 'A wide, sweeping right turn.'),
   curve('curve_sharp_l', 'Sharp Left', 2, false, -0.25, 0.35, 'A tight banked left turn.'),
   curve('curve_sharp_r', 'Sharp Right', 2, true, -0.25, 0.35, 'A tight banked right turn.'),
   sCurve,
@@ -1086,7 +1094,7 @@ export const PIECES: PieceDef[] = [
 
 const EXTENTS: Record<string, number> = {
   start: 2.2,
-  finish: 2.5,
+  finish: 1.2,
   wide_curve: 1.8,
   moving_platform: 2.1,
   rotator: 2.3,

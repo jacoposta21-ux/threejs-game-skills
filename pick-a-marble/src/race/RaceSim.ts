@@ -27,6 +27,7 @@ export interface MarbleRaceState {
   funnels: number;
   boosts: number;
   pieces: Set<number>;
+  lanes: Set<number>;
   lastGood: { lane: number; sample: number };
   rank: number;
 }
@@ -101,6 +102,7 @@ export class RaceSim {
         funnels: 0,
         boosts: 0,
         pieces: new Set(),
+        lanes: new Set(),
         lastGood: { lane: this.graph.startLane, sample: 0 },
         rank: i,
       });
@@ -163,6 +165,7 @@ export class RaceSim {
       if (loc.dist < 1.4) {
         s.lastGood = { lane: loc.lane, sample: loc.sample };
         s.pieces.add(this.graph.lanes[loc.lane].pieceId);
+        s.lanes.add(loc.lane);
         s.offTrackTime = 0;
       }
       if (this.phase === 'running' && !s.finished && s.remaining < s.bestRemaining - 0.4) {

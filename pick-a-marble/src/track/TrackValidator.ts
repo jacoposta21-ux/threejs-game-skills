@@ -100,21 +100,29 @@ export function validateTrack(pieces: PieceData[]): ValidationResult {
   const hash = new Map<string, { id: number; p: THREE.Vector3; e: number }[]>();
   const lanesById = new Map<number, THREE.Vector3[]>();
   const extentById = new Map<number, number>();
+  const ptExt = new Map<THREE.Vector3, number>();
   for (const pd of track) {
     const pts: THREE.Vector3[] = [];
+    const es: number[] = [];
+    const ext = getDef(pd.t).extent ?? 1.1;
     for (const l of worldLanes(pd)) {
       const step = Math.max(1, Math.floor(l.points.length / 24));
-      for (let i = 2; i < l.points.length - 2; i += step) pts.push(l.points[i]);
+      for (let i = 2; i < l.points.length - 2; i += step) {
+        pts.push(l.points[i]);
+        const f = i / (l.points.length - 1);
+        es.push(f > 0.18 && f < 0.82 ? ext : Math.min(ext, 1.1));
+      }
     }
     lanesById.set(pd.id, pts);
-    const e = getDef(pd.t).extent ?? 1.1;
-    extentById.set(pd.id, e);
-    for (const p of pts) {
-      const k = `${Math.floor(p.x / cell)},${Math.floor(p.y / cell)},${Math.floor(p.z / cell)}`;
-      const list = hash.get(k);
+    extentById.set(pd.id, ext);
+    pts.forEach((p, k) => {
+      const e = es[k];
+      const key = `${Math.floor(p.x / cell)},${Math.floor(p.y / cell)},${Math.floor(p.z / cell)}`;
+      const list = hash.get(key);
       if (list) list.push({ id: pd.id, p, e });
-      else hash.set(k, [{ id: pd.id, p, e }]);
-    }
+      else hash.set(key, [{ id: pd.id, p, e }]);
+      ptExt.set(p, e);
+    });
   }
   const clashes = new Set<string>();
   const joints = new Map<string, THREE.Vector3[]>();
@@ -131,8 +139,8 @@ export function validateTrack(pieces: PieceData[]): ValidationResult {
     return list.some((j) => j.distanceTo(p) < 3.2 || j.distanceTo(q) < 3.2);
   };
   for (const [id, pts] of lanesById) {
-    const ea = extentById.get(id) ?? 1.1;
     for (const p of pts) {
+      const ea = ptExt.get(p) ?? 1.1;
       const bx = Math.floor(p.x / cell);
       const by = Math.floor(p.y / cell);
       const bz = Math.floor(p.z / cell);
