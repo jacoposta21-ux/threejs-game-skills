@@ -1,8 +1,10 @@
 node_modules/
 dist/
+dist-crazygames/
 test-results/
 artifacts/
 *.log
 .DS_Store
 *.zip
 trailers/
+crazygames/

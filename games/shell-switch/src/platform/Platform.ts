@@ -1,5 +1,8 @@
+import { createCrazyPlatform } from './CrazyGames';
+
 /**
- * Playgama Bridge integration. Every platform call goes through here so the
+ * Playgama Bridge integration (default build). `npm run build:crazygames`
+ * swaps in the CrazyGames SDK backend instead (see CrazyGames.ts). Every platform call goes through here so the
  * rest of the game never touches the SDK (or browser storage) directly.
  * Without the SDK (e.g. a bare dev server) every call degrades to a safe no-op
  * and storage lives in memory for the session.
@@ -46,7 +49,7 @@ function safe<T>(fn: () => T, fallback: T): T {
 
 export const STORAGE_KEYS = ['shell-switch-save-v1', 'shell-switch-settings-v1'] as const;
 
-export const Platform = {
+const BridgePlatform = {
   /** Initialize the SDK and load every saved key in one call, before the game starts. */
   async init(): Promise<void> {
     const b = sdk();
@@ -150,3 +153,8 @@ export const Platform = {
     if (ready) safe(() => sdk()!.storage.delete([key]).catch(() => undefined), undefined);
   },
 };
+
+
+/** Chosen at build time: `vite build --mode crazygames` uses the CrazyGames SDK. */
+export const Platform: typeof BridgePlatform =
+  import.meta.env.MODE === 'crazygames' ? createCrazyPlatform(STORAGE_KEYS) : BridgePlatform;

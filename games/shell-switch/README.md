@@ -60,6 +60,21 @@ npm run build && (cd dist && zip -qr ../shell-switch-playgama.zip . -x '*.map')
 
 Upload `shell-switch-playgama.zip` (index.html at the archive root).
 
+### CrazyGames
+
+`npm run build:crazygames` builds `dist-crazygames/` with the **CrazyGames SDK v3** instead of Playgama Bridge (`vite build --mode crazygames`; `src/platform/CrazyGames.ts` is the backend, the game code is unchanged):
+
+- the SDK script loads from `sdk.crazygames.com` first in `<head>`; `SDK.init()` runs before the game is built;
+- `loadingStart` at init, `loadingStop` once the title screen is interactive; `gameplayStart/Stop` on play, pause menu and ads; `happytime` on mission complete;
+- midgame ads only after a mission and on the ending screen (never from the pause menu); the game pauses and mutes while one plays;
+- the platform mute setting (`game.settings.muteAudio`) is honoured live;
+- saves go through `SDK.data` (throttled, flushed when the tab hides), with localStorage as a fallback when the SDK is unavailable.
+
+```bash
+npm run build:crazygames && (cd dist-crazygames && zip -qr ../shell-switch-crazygames.zip .)
+node scripts/crazygames-smoke.mjs http://127.0.0.1:4190/   # mock-SDK smoke test (serve dist-crazygames on 4190)
+```
+
 ## Project layout
 
 ```
