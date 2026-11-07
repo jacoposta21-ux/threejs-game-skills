@@ -73,11 +73,7 @@ export function bakeStatic(gltf, { size = 1, axis = 'y', groundAlign = true, cen
   root.traverse((o) => {
     if (!o.isMesh) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
-    const g = o.geometry.clone().applyMatrix4(o.matrixWorld);
-    // strip to the attributes we need so merges are compatible
-    for (const name of Object.keys(g.attributes)) {
-      if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
-    }
+    const g = toFloatGeometry(o.geometry).applyMatrix4(o.matrixWorld);
     if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
     if (!g.attributes.normal) g.computeVertexNormals();
     const ng = g.index ? g.toNonIndexed() : g;
@@ -129,5 +125,29 @@ function extractGroup(geo, grp) {
     const arr = a.array.slice(grp.start * a.itemSize, (grp.start + grp.count) * a.itemSize);
     out.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize));
   }
+  return out;
+}
+
+/**
+ * Copy of a geometry with position/normal/uv as plain Float32 attributes.
+ * Meshopt/KHR_mesh_quantization models store normalised integers; transforming
+ * those in place would wrap around, so dequantise first (getX honours `normalized`).
+ */
+export function toFloatGeometry(src) {
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv']) {
+    const a = src.attributes[name];
+    if (!a) continue;
+    const n = a.count, size = a.itemSize;
+    const arr = new Float32Array(n * size);
+    for (let i = 0; i < n; i++) {
+      arr[i * size] = a.getX(i);
+      if (size > 1) arr[i * size + 1] = a.getY(i);
+      if (size > 2) arr[i * size + 2] = a.getZ(i);
+    }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, size));
+  }
+  if (src.index) out.setIndex(src.index.clone());
+  for (const g of src.groups) out.addGroup(g.start, g.count, g.materialIndex);
   return out;
 }

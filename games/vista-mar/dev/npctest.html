@@ -1,0 +1,16 @@
+<!doctype html><html><body style="margin:0"><script type="module">
+import * as THREE from 'three';
+import { loadAssets, bakeStatic } from '/src/core/AssetLoader.js';
+import { NPCSystem } from '/src/npc/NPCSystem.js';
+const r = new THREE.WebGLRenderer({antialias:true}); r.setSize(1000,500); document.body.appendChild(r.domElement);
+const s = new THREE.Scene(); s.background=new THREE.Color(0x8899aa);
+s.add(new THREE.HemisphereLight(0xffffff,0x444444,2)); const d=new THREE.DirectionalLight(0xffffff,2); d.position.set(3,5,4); s.add(d);
+const cam = new THREE.PerspectiveCamera(40,2,0.1,100); cam.position.set(0,2.2,11); cam.lookAt(0,1.6,0);
+const A = await loadAssets();
+const fake = { scene: s, world: { timeOfDay: 12 }, collision: null };
+const sys = new NPCSystem(fake, A);
+sys.baked.forEach((b, i) => { const n = sys.create(b); n.root.position.x = (i - 4) * 1.1; s.add(n.root); n.mixer.clipAction(b.clips.Walk_Loop).play(); n.mixer.update(0.4); });
+const palm = bakeStatic(A.palm2, { size: 6 }); const pm = new THREE.Mesh(palm.geometry, palm.materials); pm.position.set(5.5, 0, -2); s.add(pm);
+const car = bakeStatic(A.sedan, { size: 1.95, axis: 'x' }); const cm = new THREE.Mesh(car.geometry, car.materials); cm.position.set(-6, 0, -1); s.add(cm);
+r.render(s, cam); window.done = true; window.info = { outfits: sys.baked.length };
+</script></body></html>
