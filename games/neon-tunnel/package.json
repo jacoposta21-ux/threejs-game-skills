@@ -1,0 +1,25 @@
+{
+  "name": "neon-tunnel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "NEON TUNNEL — a 3D endless neon tunnel arcade game built with Three.js",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "playwright test",
+    "verify:visual": "playwright test tests/visual.spec.js",
+    "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs",
+    "test:fairness": "node scripts/fairness-check.mjs"
+  },
+  "dependencies": {
+    "@fontsource/orbitron": "^5.2.8",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "pngjs": "^7.0.0",
+    "vite": "^8.0.13"
+  }
+}

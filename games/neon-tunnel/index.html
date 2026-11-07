@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#03030a" />
+    <meta name="description" content="NEON TUNNEL — survive the speed in an endless neon tunnel." />
+    <title>NEON TUNNEL</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2303030a'/%3E%3Ccircle cx='32' cy='32' r='24' fill='none' stroke='%2300f5ff' stroke-width='4'/%3E%3Ccircle cx='32' cy='32' r='12' fill='none' stroke='%23ff00e5' stroke-width='3'/%3E%3Ccircle cx='32' cy='46' r='5' fill='%2300f5ff'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas" aria-label="NEON TUNNEL game"></canvas>
+      <div id="vignette"></div>
+      <div id="flash"></div>
+      <div id="touch-layer" aria-hidden="true"></div>
+
+      <!-- ===================== HUD ===================== -->
+      <div id="hud" class="hidden">
+        <div class="hud-top">
+          <div class="hud-score">
+            <div class="label">SCORE</div>
+            <div id="hud-score" class="value">0</div>
+            <div class="sub">BEST <span id="hud-best">0</span></div>
+          </div>
+          <div class="hud-right">
+            <div class="hud-mult" id="hud-mult-wrap">
+              <svg viewBox="0 0 64 64" class="mult-ring" aria-hidden="true">
+                <circle cx="32" cy="32" r="27" class="ring-bg" />
+                <circle cx="32" cy="32" r="27" class="ring-fg" id="hud-combo-ring" />
+              </svg>
+              <div class="mult-value"><span class="x">×</span><span id="hud-mult">1</span></div>
+            </div>
+            <button class="icon-btn" id="btn-pause" data-action="pause" aria-label="Pause">
+              <svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+            </button>
+          </div>
+        </div>
+        <div id="hud-center">
+          <div id="banner"><div class="banner-kicker" id="banner-kicker"></div><div class="banner-title" id="banner-title"></div></div>
+          <div id="popups"></div>
+        </div>
+        <div class="hud-bottom">
+          <div id="hud-meters">
+            <div class="hud-distance"><span id="hud-distance">0</span> m</div>
+            <div class="hud-speed"><span id="hud-speed">0</span> km/h</div>
+          </div>
+          <div id="powerups">
+            <div class="pu" data-pu="boost"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" class="pu-bg" /><circle cx="20" cy="20" r="17" class="pu-fg" /></svg><span class="pu-icon">⚡</span><span class="pu-label">BOOST</span></div>
+            <div class="pu" data-pu="shield"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" class="pu-bg" /><circle cx="20" cy="20" r="17" class="pu-fg" /></svg><span class="pu-icon">🛡️</span><span class="pu-label">SHIELD</span></div>
+            <div class="pu" data-pu="magnet"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" class="pu-bg" /><circle cx="20" cy="20" r="17" class="pu-fg" /></svg><span class="pu-icon">🧲</span><span class="pu-label">MAGNET</span></div>
+          </div>
+        </div>
+        <div id="touch-hint">
+          <div class="th th-left"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg><span>HOLD</span></div>
+          <div class="th th-right"><span>HOLD</span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg></div>
+        </div>
+      </div>
+
+      <!-- ===================== SCREENS ===================== -->
+      <div id="screens">
+        <section id="screen-loading" class="screen active">
+          <div class="loader"><div class="loader-ring"></div><div class="loader-text">INITIALISING</div></div>
+        </section>
+
+        <section id="screen-menu" class="screen menu-screen">
+          <div class="menu-panel">
+            <h1 class="logo" aria-label="NEON TUNNEL"><span class="logo-neon">NEON</span><span class="logo-tunnel">TUNNEL</span></h1>
+            <p class="tagline">SURVIVE THE SPEED</p>
+            <nav class="menu-buttons">
+              <button class="btn btn-primary" data-action="play"><span>PLAY</span></button>
+              <button class="btn" data-action="skins"><span>SKINS</span></button>
+              <button class="btn" data-action="settings"><span>SETTINGS</span></button>
+              <button class="btn" data-action="howto"><span>HOW TO PLAY</span></button>
+            </nav>
+            <div class="menu-stats">
+              <div><span class="k">BEST</span><span class="v" id="menu-best">0</span></div>
+              <div><span class="k">ENERGY</span><span class="v energy" id="menu-energy">0</span></div>
+            </div>
+          </div>
+          <div class="menu-foot">A / D · ← / → · or hold either half of the screen</div>
+        </section>
+
+        <section id="screen-skins" class="screen panel-screen">
+          <div class="panel wide">
+            <header class="panel-head">
+              <h2>SKINS</h2>
+              <div class="bank">⬢ <span id="skins-energy">0</span></div>
+            </header>
+            <div class="skin-grid" id="skin-grid"></div>
+            <p class="panel-note">Collect energy shards during runs to unlock skins. Skins are cosmetic only.</p>
+            <div class="panel-actions"><button class="btn" data-action="back"><span>BACK</span></button></div>
+          </div>
+        </section>
+
+        <section id="screen-settings" class="screen panel-screen">
+          <div class="panel">
+            <header class="panel-head"><h2>SETTINGS</h2></header>
+            <div class="settings">
+              <label class="row"><span>MASTER</span><input type="range" min="0" max="1" step="0.05" data-setting="master" /></label>
+              <label class="row"><span>MUSIC</span><input type="range" min="0" max="1" step="0.05" data-setting="music" /></label>
+              <label class="row"><span>EFFECTS</span><input type="range" min="0" max="1" step="0.05" data-setting="sfx" /></label>
+              <div class="row"><span>SOUND</span><button class="toggle" data-toggle="muted" data-on="MUTED" data-off="ON"></button></div>
+              <div class="row"><span>SCREEN SHAKE</span><button class="toggle" data-toggle="shake" data-on="ON" data-off="OFF"></button></div>
+              <div class="row"><span>GRAPHICS</span>
+                <div class="seg" data-setting-seg="quality">
+                  <button data-value="auto">AUTO</button><button data-value="high">HIGH</button><button data-value="medium">MED</button><button data-value="low">LOW</button>
+                </div>
+              </div>
+              <div class="row small"><span>RENDER</span><span id="settings-quality-info" class="muted">—</span></div>
+              <div class="row"><span>PROGRESS</span><button class="btn btn-small btn-danger" data-action="reset-progress"><span>RESET</span></button></div>
+            </div>
+            <div class="panel-actions"><button class="btn" data-action="back"><span>BACK</span></button></div>
+          </div>
+        </section>
+
+        <section id="screen-howto" class="screen panel-screen">
+          <div class="panel wide">
+            <header class="panel-head"><h2>HOW TO PLAY</h2></header>
+            <div class="howto">
+              <div class="howto-controls">
+                <div class="ctl"><div class="keys"><kbd>A</kbd><kbd>←</kbd></div><span>Rotate left</span></div>
+                <div class="ctl"><div class="keys"><kbd>D</kbd><kbd>→</kbd></div><span>Rotate right</span></div>
+                <div class="ctl"><div class="keys"><kbd class="wide">SPACE</kbd></div><span>Pause / resume</span></div>
+                <div class="ctl"><div class="keys"><span class="touch-ic">◐</span></div><span>Touch / mouse: hold the left or right half</span></div>
+              </div>
+              <h3>HAZARDS</h3>
+              <div class="legend">
+                <div class="lg"><i class="sw spikes"></i><b>NEON SPIKES</b><span>Wall spikes. Steer around them.</span></div>
+                <div class="lg"><i class="sw laser"></i><b>LASERS</b><span>Beams across the tunnel. Some rotate.</span></div>
+                <div class="lg"><i class="sw blades"></i><b>BLADES</b><span>Spinning blades. Slip through the gaps.</span></div>
+                <div class="lg"><i class="sw wall"></i><b>MOVING WALLS</b><span>Metal barriers that slide around.</span></div>
+                <div class="lg"><i class="sw gate"></i><b>ENERGY GATES</b><span>Rings. Line up with the bright opening.</span></div>
+              </div>
+              <h3>PICKUPS</h3>
+              <div class="legend">
+                <div class="lg"><i class="sw energy"></i><b>ENERGY</b><span>Points + skin currency. Chains grow the multiplier.</span></div>
+                <div class="lg"><i class="sw boost">⚡</i><b>BOOST</b><span>Overdrive speed. Smash through obstacles.</span></div>
+                <div class="lg"><i class="sw shield">🛡️</i><b>SHIELD</b><span>Absorbs one collision.</span></div>
+                <div class="lg"><i class="sw magnet">🧲</i><b>MAGNET</b><span>Pulls in nearby energy.</span></div>
+              </div>
+              <p class="panel-note">Pass close to hazards for <b>NEAR MISS</b> bonuses. Every pattern can be survived.</p>
+            </div>
+            <div class="panel-actions"><button class="btn" data-action="back"><span>BACK</span></button></div>
+          </div>
+        </section>
+
+        <section id="screen-pause" class="screen panel-screen">
+          <div class="panel narrow">
+            <header class="panel-head center"><h2>PAUSED</h2></header>
+            <nav class="menu-buttons">
+              <button class="btn btn-primary" data-action="resume"><span>RESUME</span></button>
+              <button class="btn" data-action="retry"><span>RESTART</span></button>
+              <button class="btn" data-action="settings"><span>SETTINGS</span></button>
+              <button class="btn" data-action="menu"><span>MAIN MENU</span></button>
+            </nav>
+          </div>
+        </section>
+
+        <section id="screen-countdown" class="screen">
+          <div id="countdown-num">3</div>
+        </section>
+
+        <section id="screen-gameover" class="screen panel-screen">
+          <div class="panel narrow gameover">
+            <h2 class="go-title">GAME OVER</h2>
+            <div class="go-new" id="go-new">NEW BEST!</div>
+            <div class="go-score-label">FINAL SCORE</div>
+            <div class="go-score" id="go-score">0</div>
+            <div class="go-grid">
+              <div><span class="k">BEST</span><span class="v" id="go-best">0</span></div>
+              <div><span class="k">DISTANCE</span><span class="v" id="go-distance">0 m</span></div>
+              <div><span class="k">ENERGY</span><span class="v energy" id="go-energy">+0</span></div>
+              <div><span class="k">TIME</span><span class="v" id="go-time">0s</span></div>
+            </div>
+            <div class="go-unlock" id="go-unlock"></div>
+            <nav class="menu-buttons">
+              <button class="btn btn-primary" data-action="retry"><span>RETRY</span></button>
+              <button class="btn" data-action="menu"><span>MAIN MENU</span></button>
+            </nav>
+            <div class="go-hint">ENTER / R to retry</div>
+          </div>
+        </section>
+
+        <div id="confirm" class="confirm hidden">
+          <div class="panel narrow">
+            <p id="confirm-text">Are you sure?</p>
+            <nav class="menu-buttons row">
+              <button class="btn btn-danger" data-confirm="yes"><span>YES</span></button>
+              <button class="btn" data-confirm="no"><span>NO</span></button>
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <button class="icon-btn" id="btn-mute" data-action="mute" aria-label="Toggle sound">
+        <svg viewBox="0 0 24 24" class="ic-on"><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="M16 8.5a5 5 0 010 7M18.5 6a8.5 8.5 0 010 12" fill="none" stroke-width="2" /></svg>
+        <svg viewBox="0 0 24 24" class="ic-off"><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="M16 9l5 6M21 9l-5 6" fill="none" stroke-width="2" /></svg>
+      </button>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
