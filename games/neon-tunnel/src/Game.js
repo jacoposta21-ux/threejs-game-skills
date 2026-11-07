@@ -7,7 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { AudioManager } from './AudioManager.js';
 import { CollisionSystem } from './CollisionSystem.js';
-import { COLORS, POWERUPS, QUALITY, SCORE, SKINS, SPEED, THEMES, TIERS } from './Config.js';
+import { COLORS, PLAYER, POWERUPS, QUALITY, SCORE, SKINS, SPEED, THEMES, TIERS } from './Config.js';
 import { difficultyAt, speedAt, tierAt } from './Difficulty.js';
 import { InputManager } from './InputManager.js';
 import { Obstacles } from './Obstacles.js';
@@ -58,6 +58,14 @@ const FinalShader = {
 const TMP = new THREE.Vector3();
 const TMP2 = new THREE.Vector3();
 const COLOR_WHITE = new THREE.Color(2.5, 2.5, 2.5);
+const TYPE_COLORS = {
+  spikes: new THREE.Color(0xff00e5).multiplyScalar(2.5),
+  laser: new THREE.Color(0xff1f3d).multiplyScalar(2.5),
+  blades: new THREE.Color(0xff9500).multiplyScalar(2.5),
+  wall: new THREE.Color(0x7ffcff).multiplyScalar(2.2),
+  gate: new THREE.Color(0x4d8dff).multiplyScalar(2.5),
+};
+const IGNITE_COLOR = new THREE.Color(3, 0.3, 0.4);
 
 export class Game {
   constructor(canvas) {
@@ -368,6 +376,9 @@ export class Game {
     this.boostGrace = 0;
     this.dyingTimer = 0;
     this.countdownTimer = 0;
+    this.hitstop = 0;
+    this.killer = null;
+    this.nearMisses = 0;
   }
 
   goMenu() {
@@ -412,6 +423,11 @@ export class Game {
     this.ui.banner('ZONE 1', THEMES[0].name, '#00f5ff');
     this.showHintUntil = this.isTouch ? 3.5 : 0;
     this.ui.showTouchHint(this.isTouch);
+    this.tutorialStep = this.save.data.seenTutorial ? -1 : 0;
+    this.tutorialTimer = 0;
+    this.tutorialTurn = 0;
+    this.generator.forceOrbRows = this.tutorialStep === 0 ? 5 : 0;
+    this.ui.tutorial(this.tutorialStep === 0 ? this.tutorialText(0) : null);
     this.audio.setMode('game');
     this.audio.setIntensity(0);
     this.platform.gameplayStart();
@@ -447,6 +463,9 @@ export class Game {
 
   die(obstacle) {
     this.state = 'dying';
+    this.killer = obstacle ?? null;
+    this.obstacles.killer = obstacle ?? null;
+    this.ui.tutorial(null);
     this.dyingTimer = 0;
     this.timeScale = 0.12;
     this.input.setEnabled(false);
@@ -474,7 +493,57 @@ export class Game {
     if (isBest) this.platform.celebrate();
     this.ui.setHud(false);
     this.ui.showTouchHint(false);
-    this.ui.showGameOver({ score, best: this.save.data.best, distance: this.distance, energy: this.runEnergy, time: this.elapsed, isBest });
+    this.ui.showGameOver({ score, best: this.save.data.best, distance: this.distance, energy: this.runEnergy, time: this.elapsed, isBest, cause: this.causeOf(this.killer) });
+  }
+
+  causeOf(o) {
+    if (!o) return null;
+    const moving = o.motion !== 'static';
+    switch (o.type) {
+      case 'spikes':
+        return { name: 'NEON SPIKES', color: '#ff00e5', tip: 'Spikes never move: pick your side early.' };
+      case 'laser':
+        return { name: moving ? 'ROTATING LASER' : 'LASER BARRIER', color: '#ff1f3d', tip: 'Dashed red lines are lasers charging. Choose your gap before they ignite.' };
+      case 'blades':
+        return { name: 'ENERGY BLADES', color: '#ff9500', tip: 'Watch the dashed orange ring and slip through as a gap sweeps past.' };
+      case 'wall':
+        return { name: moving ? 'MOVING WALL' : 'METAL WALL', color: '#7ffcff', tip: moving ? 'Walls slide: aim for where the gap will be, not where it is.' : 'Steer early: big walls need a long turn.' };
+      case 'gate':
+        return { name: 'ENERGY GATE', color: '#4d8dff', tip: 'Aim for the opening framed by the bright pylons.' };
+      default:
+        return null;
+    }
+  }
+
+  tutorialText(step) {
+    if (step === 0) return this.isTouch ? 'HOLD THE <b>LEFT</b> OR <b>RIGHT</b> SIDE TO ROTATE' : 'HOLD <b>A / D</b> OR <b>← / →</b> TO ROTATE';
+    if (step === 1) return 'FOLLOW THE <b class="gold">ENERGY</b> TRAIL';
+    return 'SKIM PAST HAZARDS FOR A <b class="pink">NEAR MISS</b> BONUS';
+  }
+
+  updateTutorial(dt) {
+    if (this.tutorialStep < 0) return;
+    this.tutorialTimer += dt;
+    let next = false;
+    if (this.tutorialStep === 0) {
+      this.tutorialTurn += Math.abs(this.player.angle - this.player.prevAngle);
+      next = this.tutorialTurn > 1.2 || this.tutorialTimer > 12;
+    } else if (this.tutorialStep === 1) {
+      next = this.runEnergy >= 4 || this.tutorialTimer > 7;
+    } else {
+      next = this.nearMisses > 0 || this.tutorialTimer > 5;
+    }
+    if (!next) return;
+    this.tutorialStep += 1;
+    this.tutorialTimer = 0;
+    if (this.tutorialStep > 2) {
+      this.tutorialStep = -1;
+      this.ui.tutorial(null);
+      this.save.data.seenTutorial = true;
+      this.save.save();
+    } else {
+      this.ui.tutorial(this.tutorialText(this.tutorialStep));
+    }
   }
 
   // ================================================================ loop
@@ -520,8 +589,7 @@ export class Game {
       this.timeScale = Math.min(0.7, 0.12 + this.dyingTimer * this.dyingTimer * 0.35);
       const dt = realDt * this.timeScale;
       this.prevDistance = this.distance;
-      this.distance += this.speed * dt * 0.6;
-      this.updateWorld(dt, this.speed * dt * 0.6);
+      this.updateWorld(dt, 0);
       if (this.dyingTimer > 1.35) this.finishRun();
     } else {
       // menu / game over attract mode: gentle cruise through the tunnel
@@ -540,7 +608,12 @@ export class Game {
   }
 
   updatePlay(realDt) {
-    const dt = realDt;
+    let dt = realDt;
+    if (this.hitstop > 0) {
+      // brief slow-motion punch on near misses
+      this.hitstop -= realDt;
+      dt = realDt * 0.25;
+    }
     this.elapsed += dt;
     const base = speedAt(this.elapsed);
     const boosting = this.powerups.isActive('boost');
@@ -623,6 +696,7 @@ export class Game {
       this.particles.ring(TMP.set(0, 0, -20), new THREE.Color(a[0], a[1], a[2]), 90, 4, 0.7, 2.2);
     }
 
+    this.updateTutorial(dt);
     if (this.showHintUntil > 0 && this.elapsed > this.showHintUntil) {
       this.showHintUntil = 0;
       this.ui.showTouchHint(false);
@@ -661,7 +735,18 @@ export class Game {
     const playing = this.state === 'playing';
     const menuMode = this.state === 'menu';
     this.obstacles.prune(this.distance);
-    this.obstacles.update(dt, this.distance, this.time);
+    this.obstacles.update(dt, this.distance, this.time, Math.max(this.speed, 16));
+    const ev = this.obstacles.events;
+    for (let i = 0; i < ev.length; i += 1) {
+      const e = ev[i];
+      TMP.set(e.x, e.y, e.z);
+      this.particles.burst(TMP, IGNITE_COLOR, 16, 5, 0.35, 0.5, { drag: 3 });
+    }
+    if (ev.length && playing && this.time - (this.lastChargeSfx ?? -1) > 0.25) {
+      this.lastChargeSfx = this.time;
+      this.audio.laserCharge();
+    }
+    ev.length = 0;
     this.powerups.update(
       dt,
       this.prevDistance,
@@ -695,6 +780,7 @@ export class Game {
     this.menuSpin += 0.01;
     this.player.visual.rotation.y = this.menuSpin;
     this.player.visual.rotation.x = Math.sin(this.menuSpin * 0.7) * 0.3;
+    this.player.belt.scale.copy(this.player.visual.scale);
   }
 
   onNearMiss(o, clearanceWorld) {
@@ -706,12 +792,35 @@ export class Game {
     this.comboTimer = 0;
     this.trauma = Math.min(1, this.trauma + 0.18);
     this.ui.popup(`NEAR MISS <b>+${pts}</b>`, 'near');
+    this.ui.bumpMultiplier();
     this.audio.nearMiss();
-    const pp = this.player.position;
-    for (let i = 0; i < 18 * this.quality.particles; i += 1) {
-      this.particles.spawn(pp.x, pp.y, pp.z, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, Math.random() * 6, COLOR_WHITE, 0.18, 0.4, 3, 1);
+    this.hitstop = 0.07;
+    // sparks fly off the exact edge the sphere skimmed
+    const rot = rotationAt(o, 0);
+    const pa = this.player.angle;
+    let edge = pa;
+    let best = Infinity;
+    for (const arc of o.arcs) {
+      for (const sgn of [-1, 1]) {
+        const e = rot + arc.a + sgn * arc.h;
+        const d = Math.abs(angleDiff(pa, e));
+        if (d < best) {
+          best = d;
+          edge = pa + angleDiff(e, pa);
+        }
+      }
     }
-    void o;
+    const rp = PLAYER.orbitRadius;
+    const ex = Math.sin(edge) * rp;
+    const ey = -Math.cos(edge) * rp;
+    const ez = -(o.s - this.distance);
+    const typeColor = TYPE_COLORS[o.type] ?? COLOR_WHITE;
+    const n = Math.round(26 * this.quality.particles);
+    for (let i = 0; i < n; i += 1) {
+      const t = Math.cos(edge) * (Math.random() - 0.5) * 14;
+      const u = Math.sin(edge) * (Math.random() - 0.5) * 14;
+      this.particles.spawn(ex, ey, ez, t + (Math.random() - 0.5) * 3, u + (Math.random() - 0.5) * 3, 2 + Math.random() * 8, i % 3 === 0 ? COLOR_WHITE : typeColor, 0.16, 0.45, 3, 1);
+    }
     void clearanceWorld;
   }
 
@@ -791,7 +900,8 @@ export class Game {
     const dx = Math.sin(a);
     const dy = -Math.cos(a);
     const camR = 2.55;
-    cam.position.set(dx * camR + sx, dy * camR + sy, 7.4);
+    const pull = this.state === 'dying' ? Math.min(1, this.dyingTimer * 1.5) * 2.2 : 0;
+    cam.position.set(dx * (camR - pull * 0.4) + sx, dy * (camR - pull * 0.4) + sy, 7.4 + pull);
     const ra = this.camRoll + sr;
     cam.up.set(-dx, -dy, 0);
     cam.up.applyAxisAngle(TMP2.set(0, 0, 1), ra);
@@ -953,6 +1063,30 @@ export class Game {
             this.powerups.activate('shield');
             this.fastForward(4);
             break;
+          case 'theme-1':
+          case 'theme-2':
+          case 'theme-3':
+          case 'theme-4': {
+            const n = Number(name.slice(-1));
+            this.startRun();
+            this.elapsed = 40 + n * 20;
+            this.speed = speedAt(this.elapsed);
+            this.distance = 1800 * n + 40;
+            this.generator.lastRowS = this.distance + 30;
+            this.generator.feasible.fill(1);
+            this.tunnel.setTheme(n, true);
+            this.dust.setColor(THEMES[n].dust);
+            this.fastForward(3);
+            break;
+          }
+          case 'portal':
+            this.startRun();
+            this.distance = 1800 - 70;
+            this.elapsed = 45;
+            this.speed = speedAt(45);
+            this.generator.lastRowS = this.distance + 60;
+            this.fastForward(0.5);
+            break;
           case 'boost':
             this.startRun();
             this.fastForward(5);
@@ -967,7 +1101,16 @@ export class Game {
           case 'game-over':
             this.startRun();
             this.fastForward(6);
-            this.die(null);
+            {
+              // die against the next real obstacle so the cause UI is exercised
+              let next = null;
+              for (const o of this.obstacles.active) if (!o.passed && !o.smashed && (!next || o.s < next.s)) next = o;
+              if (next) {
+                this.distance = next.s;
+                this.player.angle = rotationAt(next, 0) + next.arcs[0].a;
+              }
+              this.die(next);
+            }
             for (let i = 0; i < 120 && this.state === 'dying'; i += 1) this.update(1 / 60);
             break;
           default:

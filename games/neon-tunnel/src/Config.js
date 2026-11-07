@@ -38,7 +38,7 @@ export const GEN = {
   bins: 180, // angular resolution of the fairness solver (2° per bin)
   spawnAhead: 190, // world units ahead of the player where rows are generated
   despawnBehind: 14,
-  firstRowDistance: 95,
+  firstRowDistance: 62,
   rowGapSecondsStart: 1.35,
   rowGapSecondsEnd: 0.62,
   reachSafety: 0.78, // fraction of the theoretical angular reach the solver assumes

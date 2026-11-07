@@ -84,6 +84,7 @@ export class ProceduralGenerator {
     this.idCounter = 0;
     this.out = { obstacles: [], pickups: [] };
     this.log = null; // set to [] to record rows (tests)
+    this.forceOrbRows = 0; // tutorial: guarantee energy trails on the first rows
   }
 
   range(a, b) {
@@ -456,7 +457,9 @@ export class ProceduralGenerator {
       this.nextPowerUpT = tA + this.range(GEN.powerUpEvery[0], GEN.powerUpEvery[1]);
     }
 
-    if (this.rng() < GEN.orbChainChance && usable > 8) {
+    const forced = this.forceOrbRows > 0;
+    if (forced) this.forceOrbRows -= 1;
+    if ((forced || this.rng() < GEN.orbChainChance) && usable > 8) {
       const step = 3.1;
       for (let os = start + 3; os < toS - 3; os += step) {
         if (powerUpS > 0 && Math.abs(os - powerUpS) < 2.5) continue;

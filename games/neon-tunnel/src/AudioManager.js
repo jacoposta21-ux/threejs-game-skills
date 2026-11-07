@@ -363,7 +363,12 @@ export class AudioManager {
     [0, 7, 12].forEach((iv, i) => this.tone('sawtooth', mtof(69 + iv), mtof(69 + iv), 0.16, 0.05, i * 0.08));
   }
 
-  countdown(final) {
+  laserCharge() {
+    this.tone('sawtooth', 180, 900, 0.18, 0.035);
+    this.noiseSweep(2000, 6000, 0.12, 0.05, 'highpass', 0.7);
+  }
+
+    countdown(final) {
     this.tone('square', final ? 1320 : 880, final ? 1320 : 880, final ? 0.25 : 0.1, 0.08);
   }
 

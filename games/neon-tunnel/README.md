@@ -53,6 +53,14 @@ If both directions are held, the most recent press wins. The game pauses itself 
   - Moving metallic walls (cyan rims)
   - Energy gates (blue, with bright gap edges)
   - Combination patterns: spike spirals, wall zigzags, gate trains, laser fans, gate+laser and blade+gate pairs
+- **Readable hazards.**
+  - Lasers appear as dashed "charging" lines and ignite with a spark burst 1.7 s before they reach you.
+  - Rotating blades and lasers show a dashed sweep ring at your lane.
+  - Gate openings are framed by bright pylons.
+- **Learning from failure.** After a crash the world freezes on the obstacle, which pulses, while the camera pulls back. The Game Over screen names what hit you and gives a tip.
+- **First-run tutorial.** Rotate, follow the energy, then go for a near miss. The first obstacle now arrives sooner.
+- **Near-miss juice.** A short slow-motion punch, sparks off the exact edge you skimmed, and a multiplier pulse.
+- **Theme-specific surfaces.** Each theme has its own wall detail: circuit traces, hex cells, heat vents, star windows, clean scan tiles. Glowing portal rings mark every zone change.
 - **Fairness guarantee.** The generator runs a reachability solver over 180 angular bins. A row is accepted only if *every* angle the player could be in can reach a safe angle in time. If not, it re-rolls the row or adds distance. `npm run test:fairness` re-checks thousands of rows independently with the exact collision maths.
 - **Smooth difficulty.** Speed and difficulty are continuous curves (`src/Difficulty.js`). Obstacle families unlock gradually: Beginner 0–30 s, Intermediate 30–60 s, Advanced 60–120 s, Expert 120 s+.
 - **Accurate collision.** Collision is swept per frame using the sphere's real radius and cross-section, so nothing tunnels through at low frame rates or at boost speed.

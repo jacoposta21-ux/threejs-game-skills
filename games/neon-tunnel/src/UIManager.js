@@ -151,6 +151,27 @@ export class UIManager {
     this.el.thRight.classList.toggle('held', held.r);
   }
 
+  tutorial(html) {
+    const el = this.$('tutorial');
+    if (!html) {
+      el.classList.add('hidden');
+      return;
+    }
+    this.$('tutorial-text').innerHTML = html;
+    el.classList.remove('hidden');
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+  }
+
+  bumpMultiplier() {
+    const w = this.el.multWrap;
+    w.classList.remove('bump');
+    void w.offsetWidth;
+    w.classList.add('bump');
+    setTimeout(() => w.classList.remove('bump'), 160);
+  }
+
   showTouchHint(v) {
     this.el.touchHint.classList.toggle('show', v);
   }
@@ -201,6 +222,13 @@ export class UIManager {
   showGameOver(r) {
     this.show('gameover');
     this.$('go-new').classList.toggle('show', r.isBest);
+    const cause = this.$('go-cause');
+    cause.classList.toggle('show', !!r.cause);
+    if (r.cause) {
+      cause.style.setProperty('--cause', r.cause.color);
+      this.$('go-cause-name').textContent = r.cause.name;
+      this.$('go-tip').textContent = r.cause.tip;
+    }
     this.$('go-best').textContent = fmt(r.best);
     this.$('go-distance').textContent = `${fmt(r.distance)} m`;
     this.$('go-energy').textContent = `+${fmt(r.energy)}`;

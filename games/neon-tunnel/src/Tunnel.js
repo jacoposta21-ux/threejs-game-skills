@@ -33,12 +33,63 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uPlayerPos;
   uniform vec3 uPlayerColor;
   uniform float uFlash;
+  uniform float uStyleFrom;
+  uniform float uStyleTo;
+  uniform float uStyleMix;
   uniform vec3 uFlashColor;
 
   float hash21(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
     p += dot(p, p + 45.32);
     return fract(p.x * p.y);
+  }
+
+  // Theme-specific surface detail. p = (around, along) in world units.
+  // 0 circuit traces · 1 hex cells · 2 heat vents · 3 star windows · 4 clean tiles
+  vec3 styleLayer(float id, vec2 p, vec2 pid, vec2 f, float ph, vec3 metal) {
+    vec3 c = vec3(0.0);
+    if (id < 0.5) {
+      vec2 q = p / 1.5;
+      vec2 cell = floor(q);
+      vec2 g = fract(q) - 0.5;
+      float h = hash21(cell + 11.0);
+      float w = 0.04 / 1.5;
+      float lineX = (1.0 - smoothstep(w, w * 2.0, abs(g.y))) * step(h, 0.4);
+      float lineY = (1.0 - smoothstep(w, w * 2.0, abs(g.x))) * step(0.4, h) * step(h, 0.75);
+      float node = (1.0 - smoothstep(0.07, 0.11, length(g))) * step(0.82, h);
+      float pulse = pow(fract(p.y / 18.0 - uTime * 0.9 + h), 6.0);
+      c = uNeonB * (lineX + lineY) * (0.06 + 0.45 * pulse) + uNeonA * node * 0.3;
+    } else if (id < 1.5) {
+      vec2 q = p * vec2(1.0, 0.8);
+      vec2 r = vec2(1.0, 1.732);
+      vec2 a = mod(q, r) - r * 0.5;
+      vec2 b = mod(q - r * 0.5, r) - r * 0.5;
+      vec2 gv = dot(a, a) < dot(b, b) ? a : b;
+      vec2 id2 = q - gv;
+      float hx = max(dot(abs(gv), vec2(0.5, 0.866)), abs(gv.x));
+      float edge = smoothstep(0.42, 0.48, hx);
+      float hh = hash21(floor(id2 * 10.0));
+      float ooze = step(0.94, hh) * (0.5 + 0.5 * sin(uTime * 3.0 + hh * 30.0));
+      c = uNeonA * (edge * 0.026 + ooze * (1.0 - edge) * 0.07);
+    } else if (id < 2.5) {
+      float vent = step(0.45, ph) * step(abs(f.x - 0.5), 0.36) * step(abs(f.y - 0.5), 0.3);
+      float slat = smoothstep(0.35, 0.5, abs(fract(p.y * 3.2) - 0.5));
+      float heat = 0.6 + 0.4 * sin(uTime * 4.0 + p.y * 0.7 + ph * 20.0);
+      c = mix(uAccent, uNeonB, 0.5) * vent * slat * heat * 0.18;
+    } else if (id < 3.5) {
+      float win = step(0.72, ph) * step(abs(f.x - 0.5), 0.34) * step(abs(f.y - 0.5), 0.3);
+      float frame = step(0.72, ph) * (1.0 - win) * step(abs(f.x - 0.5), 0.38) * step(abs(f.y - 0.5), 0.34);
+      vec2 sp = vec2(p.x * 2.2, (p.y - uDistance * 0.7) * 2.2);
+      float star = step(0.985, hash21(floor(sp))) * (0.5 + 0.5 * sin(uTime * 3.0 + hash21(floor(sp) + 3.0) * 20.0));
+      vec3 deep = mix(vec3(0.004, 0.0, 0.012), uNeonA * 0.02, f.y);
+      c = win * (deep + vec3(1.2, 1.1, 1.6) * star - metal * 0.4) + frame * uNeonA * 0.12;
+    } else {
+      vec2 t = abs(fract(p * 2.0) - 0.5);
+      float grid = 1.0 - smoothstep(0.46, 0.5, max(t.x, t.y));
+      float scan = exp(-abs(fract((p.y + uTime * 22.0) / 60.0) - 0.5) * 60.0);
+      c = uNeonA * (grid * 0.018 + scan * 0.25) + uNeonB * grid * scan * 0.4;
+    }
+    return c;
   }
 
   void main() {
@@ -97,14 +148,20 @@ const fragmentShader = /* glsl */ `
     col += mix(uNeonB, uAccent, bigRing) * ring * (0.45 + 0.4 * uBeat);
     col += mix(uNeonB, uAccent, bigRing) * exp(-ringD * 2.0) * 0.02;
 
+    // ---- theme surface detail (cross-fades during theme transitions)
+    vec2 sp = vec2(u * circ, s);
+    vec3 styleCol = styleLayer(uStyleTo, sp, pid, f, ph, metal);
+    if (uStyleMix < 0.999) styleCol = mix(styleLayer(uStyleFrom, sp, pid, f, ph, metal), styleCol, uStyleMix);
+    col += styleCol * bevel;
+
     // ---- small inset lights on rare panels (accent colour, gentle flicker)
     float lamp = step(0.93, hash21(pid * 1.7 + 3.1)) * step(max(inset.x * 2.2, inset.y * 1.0), 0.2);
     float flicker = 0.75 + 0.25 * sin(uTime * 9.0 + ph * 40.0);
-    col += uNeonB * lamp * flicker * 0.35;
+    col += mix(uNeonA, vec3(1.0), 0.35) * lamp * flicker * 0.16;
 
     // ---- glow pool cast by the energy sphere onto the wall
     float pd = length(vWorld - uPlayerPos);
-    col += uPlayerColor * (0.32 / (1.0 + pd * pd * 1.2)) * (0.5 + 0.5 * bevel);
+    col += uPlayerColor * (0.22 / (1.0 + pd * pd * 1.4)) * (0.5 + 0.5 * bevel);
 
     // ---- speed streak shimmer during boost
     col += uNeonA * uSpeedFx * 0.12 * step(0.985, hash21(vec2(floor(u * 140.0), floor(s * 0.25))));
@@ -149,6 +206,9 @@ export class Tunnel {
       uPlayerPos: { value: new THREE.Vector3() },
       uPlayerColor: { value: new THREE.Vector3(0, 0.6, 0.7) },
       uFlash: { value: 0 },
+      uStyleFrom: { value: 0 },
+      uStyleTo: { value: 0 },
+      uStyleMix: { value: 1 },
       uFlashColor: { value: new THREE.Vector3(1, 1, 1) },
     };
 
@@ -189,6 +249,17 @@ export class Tunnel {
     this.core.position.set(0, 0, -TUNNEL.length + 30);
     this.group.add(this.core);
 
+    // ---- zone portals: triple ring of light at every theme boundary
+    this.portalMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2, 2, 2) });
+    this.portalGlowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.6, 0.6, 0.6), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    this.portals = new THREE.InstancedMesh(new THREE.TorusGeometry(R - 0.08, 0.1, 8, 96), this.portalMat, 6);
+    this.portalGlow = new THREE.InstancedMesh(new THREE.RingGeometry(R - 0.32, R - 0.02, 96, 1), this.portalGlowMat, 6);
+    for (const m of [this.portals, this.portalGlow]) {
+      m.frustumCulled = false;
+      m.count = 0;
+      this.group.add(m);
+    }
+
     this.dummy = new THREE.Object3D();
     this.themeIndex = 0;
     this.targetTheme = THEMES[0];
@@ -222,6 +293,8 @@ export class Tunnel {
   setTheme(index, instant = false) {
     if (index === this.themeIndex && !instant) return false;
     this.fromTheme = this.currentThemeSnapshot();
+    this.uniforms.uStyleFrom.value = this.themeBlend >= 0.5 ? this.themeIndex : this.uniforms.uStyleFrom.value;
+    this.uniforms.uStyleTo.value = index;
     this.themeIndex = index;
     this.targetTheme = THEMES[index];
     this.themeBlend = instant ? 1 : 0;
@@ -242,6 +315,7 @@ export class Tunnel {
     const to = this.targetTheme;
     const u = this.uniforms;
     const e = t * t * (3 - 2 * t);
+    u.uStyleMix.value = e;
     for (const key of ['wall', 'panel', 'neonA', 'neonB', 'accent', 'fog']) {
       const uniform = u[`u${key[0].toUpperCase()}${key.slice(1)}`].value;
       uniform.set(
@@ -310,6 +384,29 @@ export class Tunnel {
       }
     }
     this.rotors.instanceMatrix.needsUpdate = true;
+
+    // zone portal ahead (or just passed)
+    const nextBoundary = Math.ceil((distance - 10) / THEME_DISTANCE) * THEME_DISTANCE;
+    const ahead = nextBoundary - distance;
+    let pc = 0;
+    if (nextBoundary > 0 && ahead < 260) {
+      const next = THEMES[Math.round(nextBoundary / THEME_DISTANCE) % THEMES.length];
+      this.portalMat.color.setRGB(next.neonA[0] * 1.1, next.neonA[1] * 1.1, next.neonA[2] * 1.1);
+      this.portalGlowMat.color.setRGB(next.neonA[0] * 0.35, next.neonA[1] * 0.35, next.neonA[2] * 0.35);
+      for (let k = 0; k < 3; k += 1) {
+        d.position.set(0, 0, -(ahead + k * 5));
+        d.rotation.set(0, 0, time * (k % 2 ? -0.5 : 0.5));
+        d.scale.setScalar(1 + 0.01 * Math.sin(time * 6 + k));
+        d.updateMatrix();
+        this.portals.setMatrixAt(pc, d.matrix);
+        this.portalGlow.setMatrixAt(pc, d.matrix);
+        pc += 1;
+      }
+    }
+    this.portals.count = pc;
+    this.portalGlow.count = pc;
+    this.portals.instanceMatrix.needsUpdate = true;
+    this.portalGlow.instanceMatrix.needsUpdate = true;
   }
 
   flash(color, strength = 1) {

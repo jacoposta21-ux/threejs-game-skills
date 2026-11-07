@@ -106,7 +106,7 @@ export class Player {
 
     const r = PLAYER.radius;
     this.coreMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 3, 3) });
-    this.core = new THREE.Mesh(new THREE.IcosahedronGeometry(r * 0.38, 2), this.coreMat);
+    this.core = new THREE.Mesh(new THREE.IcosahedronGeometry(r * 0.28, 2), this.coreMat);
     this.visual.add(this.core);
 
     this.plasmaUniforms = {
@@ -127,9 +127,24 @@ export class Player {
     this.visual.add(this.lattice);
 
     this.ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 2, 2), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
-    this.ringA = new THREE.Mesh(new THREE.TorusGeometry(r * 1.08, 0.018, 4, 48), this.ringMat);
-    this.ringB = new THREE.Mesh(new THREE.TorusGeometry(r * 1.16, 0.012, 4, 48), this.ringMat);
+    this.ringA = new THREE.Mesh(new THREE.TorusGeometry(r * 1.08, 0.03, 4, 48), this.ringMat);
+    this.ringB = new THREE.Mesh(new THREE.TorusGeometry(r * 1.17, 0.022, 4, 48), this.ringMat);
     this.visual.add(this.ringA, this.ringB);
+    // Saturn-style belt parallel to the wall: gives the sphere a readable
+    // silhouette from the chase camera and banks with lateral motion.
+    this.beltMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 2, 2) });
+    this.belt = new THREE.Group();
+    const beltRing = new THREE.Mesh(new THREE.TorusGeometry(r * 1.42, 0.035, 4, 64).rotateX(Math.PI / 2), this.beltMat);
+    const notchGeo = new THREE.BoxGeometry(0.09, 0.05, 0.16);
+    this.belt.add(beltRing);
+    for (let i = 0; i < 4; i += 1) {
+      const notch = new THREE.Mesh(notchGeo, this.beltMat);
+      const a = (i * Math.PI) / 2;
+      notch.position.set(Math.cos(a) * r * 1.42, 0, Math.sin(a) * r * 1.42);
+      notch.rotation.y = -a;
+      this.belt.add(notch);
+    }
+    this.visual.parent.add(this.belt);
 
     this.shellUniforms = { uTime: { value: 0 }, uColor: { value: new THREE.Vector3() }, uOpacity: { value: 0.9 } };
     this.shell = new THREE.Mesh(
@@ -194,14 +209,15 @@ export class Player {
     const core = new THREE.Color(skin.core);
     const shell = new THREE.Color(skin.shell);
     const dark = skin.dark ? 1 : 0;
-    this.coreMat.color.setRGB(core.r * 1.3 + 0.35, core.g * 1.3 + 0.35, core.b * 1.3 + 0.35);
+    this.coreMat.color.setRGB(core.r * 1.0 + 0.25, core.g * 1.0 + 0.25, core.b * 1.0 + 0.25);
     if (dark) this.coreMat.color.setRGB(0.05, 0, 0.05);
     this.plasmaUniforms.uColor.value.set(core.r * 0.55, core.g * 0.55, core.b * 0.55);
     this.plasmaUniforms.uColor2.value.set(shell.r * 0.7 + core.r * 0.3, shell.g * 0.7 + core.g * 0.3, shell.b * 0.7 + core.b * 0.3);
     this.plasmaUniforms.uDark.value = dark;
-    this.latticeMat.color.setRGB(core.r * 1.4 + 0.2, core.g * 1.4 + 0.2, core.b * 1.4 + 0.2);
+    this.latticeMat.color.setRGB(core.r * 1.9 + 0.3, core.g * 1.9 + 0.3, core.b * 1.9 + 0.3);
+    this.beltMat.color.setRGB(core.r * 1.6 + 0.4, core.g * 1.6 + 0.4, core.b * 1.6 + 0.4);
     this.ringMat.color.setRGB(core.r * 1.8, core.g * 1.8, core.b * 1.8);
-    this.shellUniforms.uColor.value.set(core.r * 0.7, core.g * 0.7, core.b * 0.7);
+    this.shellUniforms.uColor.value.set(core.r * 0.5, core.g * 0.5, core.b * 0.5);
     this.light.color.set(skin.core);
     const ta = new THREE.Color(skin.trailA);
     const tb = new THREE.Color(skin.trailB);
@@ -259,7 +275,12 @@ export class Player {
     this.plasma.rotation.x -= dt * 5;
     this.plasma.rotation.z -= this.omega * dt * 2;
     this.plasmaUniforms.uTime.value = time;
-    this.plasmaUniforms.uIntensity.value = boostOn ? 1.5 : menuMode ? 0.75 : 1;
+    this.plasmaUniforms.uIntensity.value = boostOn ? 1.3 : menuMode ? 0.65 : 0.72;
+    // align the belt with the wall and bank it into turns
+    this.group.rotation.z = menuMode ? 0 : a;
+    this.belt.rotation.set(menuMode ? 0.5 : 0, menuMode ? time * 0.6 : time * 1.5, menuMode ? 0.3 : -this.omega * 0.09);
+    this.belt.scale.setScalar(menuMode ? 1.7 : 1);
+    this.belt.visible = this.visible;
     this.shellUniforms.uTime.value = time;
 
     this.shieldVisual += ((shieldOn ? 1 : 0) - this.shieldVisual) * (1 - Math.exp(-10 * dt));
@@ -295,8 +316,8 @@ export class Player {
     this.trailFilled = Math.min(TRAIL_POINTS, this.trailFilled + 1);
 
     const r = PLAYER.orbitRadius;
-    const width = PLAYER.radius * (boostOn ? 0.8 : 0.55);
-    const maxLen = boostOn ? 7 : 4.5;
+    const width = PLAYER.radius * (boostOn ? 0.7 : 0.45);
+    const maxLen = boostOn ? 6 : 3.2;
     const pos = this.trailPos;
     for (let i = 0; i < TRAIL_POINTS; i += 1) {
       const smp = this.trailSamples[(this.trailHead - i + TRAIL_POINTS) % TRAIL_POINTS];
