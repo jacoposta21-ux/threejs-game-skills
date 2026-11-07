@@ -125,4 +125,4 @@ export function terrainHeight(x, z) {
   return CURB_H;
 }
 
-export const PLAYER_START = { x: 26, z: -18, heading: Math.PI / 2 };
+export const PLAYER_START = { x: 28, z: -15.4, heading: Math.PI / 2 };

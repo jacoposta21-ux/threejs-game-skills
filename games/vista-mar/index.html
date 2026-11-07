@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vista Mar</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,700;1,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <!-- In-game HUD -->
+    <div id="hud" class="hidden">
+      <div id="objective" class="panel">
+        <div class="obj-kicker">EXPLORE · VISTA MAR</div>
+        <div class="obj-title" id="obj-title">Find the lost tapes</div>
+        <div class="obj-sub" id="obj-sub"></div>
+      </div>
+
+      <div id="topright">
+        <div id="clock">17:20</div>
+        <div id="money">$0</div>
+        <div id="wanted" title="Wanted level">
+          <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
+        </div>
+      </div>
+
+      <div id="radar">
+        <canvas id="minimap" width="220" height="220"></canvas>
+        <div id="radar-bars">
+          <div class="bar"><div id="bar-health" class="fill health"></div></div>
+          <div class="bar"><div id="bar-stamina" class="fill stamina"></div></div>
+        </div>
+        <div id="street"></div>
+      </div>
+
+      <div id="district"><div id="district-name"></div><div id="district-sub"></div></div>
+      <div id="prompt" class="hidden"><kbd>E</kbd><span id="prompt-text"></span></div>
+      <div id="toasts"></div>
+      <div id="look-hint" class="hidden">Click the game to look around with the mouse</div>
+      <div id="stance"></div>
+      <div id="fps" class="hidden"></div>
+    </div>
+
+    <!-- Full-screen map -->
+    <div id="mapview" class="overlay hidden">
+      <div class="map-frame">
+        <canvas id="bigmap"></canvas>
+        <div class="map-legend">
+          <div class="map-title">VISTA MAR</div>
+          <div><i style="background:#ffd23f"></i>You</div>
+          <div><i style="background:#ff4fa3"></i>Lost tape</div>
+          <div><i style="background:#5b6170"></i>Downtown</div>
+          <div><i style="background:#9b4d8f"></i>Neon Mile</div>
+          <div><i style="background:#6f8f63"></i>Residential</div>
+          <div><i style="background:#7a7466"></i>Industrial</div>
+          <div class="map-help"><kbd>M</kbd> / <kbd>Esc</kbd> close</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Start screen -->
+    <div id="start" class="overlay">
+      <div class="start-card">
+        <div class="logo">VISTA&nbsp;MAR</div>
+        <div class="tagline">Coastal Nights · Open World</div>
+        <div id="loading">
+          <div class="load-bar"><div id="load-fill"></div></div>
+          <div id="load-text">Loading…</div>
+        </div>
+        <button id="play" class="btn primary hidden">Play</button>
+        <div class="start-controls">
+          <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span>
+          <span><kbd>Mouse</kbd> look</span>
+          <span><kbd>Shift</kbd> sprint</span>
+          <span><kbd>Space</kbd> jump</span>
+          <span><kbd>C</kbd> crouch</span>
+          <span><kbd>E</kbd> interact</span>
+          <span><kbd>M</kbd> map</span>
+          <span><kbd>Esc</kbd> pause</span>
+        </div>
+        <div class="credits">3D models: Quaternius &amp; Kenney (CC0)</div>
+      </div>
+    </div>
+
+    <!-- Pause menu -->
+    <div id="pause" class="overlay hidden">
+      <div class="menu">
+        <div class="menu-side">
+          <div class="logo small">VISTA&nbsp;MAR</div>
+          <button class="btn menu-btn" data-action="resume">Resume</button>
+          <button class="btn menu-btn" data-action="settings">Settings</button>
+          <button class="btn menu-btn" data-action="controls">Controls</button>
+          <button class="btn menu-btn" data-action="restart">Restart</button>
+        </div>
+        <div class="menu-body">
+          <section id="panel-settings" class="panel-page hidden">
+            <h2>Settings</h2>
+            <label>Graphics quality
+              <select id="set-quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+            </label>
+            <label>Mouse sensitivity <span id="val-sens"></span><input id="set-sens" type="range" min="0.2" max="3" step="0.05" /></label>
+            <label class="check"><input id="set-invert" type="checkbox" /> Invert vertical look</label>
+            <label>Camera distance <span id="val-dist"></span><input id="set-dist" type="range" min="2.2" max="9" step="0.1" /></label>
+            <label>Field of view <span id="val-fov"></span><input id="set-fov" type="range" min="55" max="90" step="1" /></label>
+            <label>Volume <span id="val-vol"></span><input id="set-vol" type="range" min="0" max="1" step="0.05" /></label>
+            <label>Day length
+              <select id="set-day"><option value="0">Frozen</option><option value="32">32 min</option><option value="16">16 min</option><option value="6">6 min</option></select>
+            </label>
+            <label>Time of day <span id="val-time"></span><input id="set-time" type="range" min="0" max="23.9" step="0.1" /></label>
+            <label class="check"><input id="set-fps" type="checkbox" /> Show FPS</label>
+          </section>
+          <section id="panel-controls" class="panel-page hidden">
+            <h2>Controls</h2>
+            <table class="keys">
+              <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Move (relative to camera)</td></tr>
+              <tr><td><kbd>Mouse</kbd> / <kbd>Arrows</kbd></td><td>Rotate camera</td></tr>
+              <tr><td><kbd>Wheel</kbd></td><td>Camera distance</td></tr>
+              <tr><td><kbd>Shift</kbd></td><td>Sprint (uses stamina)</td></tr>
+              <tr><td><kbd>Q</kbd></td><td>Toggle walk / run</td></tr>
+              <tr><td><kbd>Space</kbd></td><td>Jump</td></tr>
+              <tr><td><kbd>C</kbd></td><td>Crouch</td></tr>
+              <tr><td><kbd>E</kbd></td><td>Interact / pick up</td></tr>
+              <tr><td><kbd>M</kbd></td><td>City map</td></tr>
+              <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
+            </table>
+            <p class="note">If the mouse cannot be captured (some embedded previews), hold the left mouse button and drag to look.</p>
+          </section>
+          <section id="panel-home" class="panel-page">
+            <h2>Paused</h2>
+            <div id="pause-stats"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="fatal" class="overlay hidden"><div class="start-card"><div class="logo small">VISTA MAR</div><p id="fatal-text"></p></div></div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
