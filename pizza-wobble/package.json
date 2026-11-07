@@ -1,0 +1,28 @@
+{
+  "name": "pizza-wobble",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "levels": "node tools/generate-levels.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "shots": "node tools/screenshots.mjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "postprocessing": "^6.39.6",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "typescript": "5.9",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}
