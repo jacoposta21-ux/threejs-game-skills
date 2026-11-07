@@ -55,6 +55,7 @@ export class PlayerController {
     this.speed = 0;
     this.interactCooldown = 0;
     this.vehicle = null;
+    this.knocked = 0;
     this.respawn();
   }
 
@@ -74,8 +75,22 @@ export class PlayerController {
     this.vel.set(0, 0, 0);
   }
 
+  hitByVehicle(v, speed, push) {
+    if (this.knocked > 0) { this.pos.x = push.x; this.pos.z = push.z; return; }
+    this.pos.x = push.x; this.pos.z = push.z;
+    if (speed < 4) return;
+    this.game.damagePlayer(speed * 2.6);
+    this.knocked = 2.2;
+    this.vel.set(v.vel.x * 0.6, 3, v.vel.y * 0.6);
+    this.grounded = false;
+    this.game.audio.thud(Math.min(1, speed / 15));
+    this.game.camera3p.kick(0.3);
+    if (v.police) this.game.police.lastKnown = { x: this.pos.x, z: this.pos.z };
+  }
+
   update(dt, cameraYaw) {
     const inp = this.input;
+    if (this.knocked > 0) return this.updateKnocked(dt);
     // --- intent
     let ix = 0, iz = 0;
     if (inp.down('KeyW')) iz += 1;
@@ -235,6 +250,26 @@ export class PlayerController {
         this.game.audio.footstep(this.surface, hs / SPEED.sprint);
       }
     }
+  }
+
+  updateKnocked(dt) {
+    this.knocked -= dt;
+    this.vel.y -= GRAVITY * dt;
+    this.vel.x *= Math.exp(-3 * dt); this.vel.z *= Math.exp(-3 * dt);
+    let nx = this.pos.x + this.vel.x * dt, nz = this.pos.z + this.vel.z * dt;
+    const res = this.collision.resolveCharacter(nx, nz, RADIUS, this.pos.y, STEP, terrainHeight(nx, nz));
+    nx = res.x; nz = res.z;
+    const gy = Math.max(res.ground, terrainHeight(nx, nz));
+    let ny = this.pos.y + this.vel.y * dt;
+    if (ny <= gy) { ny = gy; this.vel.y = 0; this.grounded = true; }
+    this.pos.set(nx, ny, nz);
+    this.speed = 0;
+    this.group.position.copy(this.pos);
+    if (this.rig) {
+      this.rig.play(this.knocked > 0.5 ? 'Death01' : 'Idle_Loop', { fade: 0.1, once: this.knocked > 0.5 });
+      this.rig.update(dt);
+    }
+    if (this.knocked <= 0) this.knocked = 0;
   }
 
   get eyeHeight() {

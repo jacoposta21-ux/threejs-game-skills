@@ -128,6 +128,25 @@ kbd { display: inline-block; min-width: 1.7em; padding: 0.12em 0.45em; margin: 0
 .vh-ind span.alert { color: #fff; background: var(--accent); border-color: var(--accent); }
 #hud.driving #district { bottom: 330px; }
 
+/* ---------- phase 4: banners, timer, wanted ---------- */
+.obj-timer { font: italic 800 30px var(--display); color: var(--gold); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.obj-timer.low { color: #ff5a4f; }
+.obj-hint { font: 500 11px var(--body); color: rgba(246,243,238,0.5); margin-top: 6px; }
+#banner { position: absolute; top: 34%; left: 0; right: 0; text-align: center; animation: bannerIn 0.5s ease-out; }
+#banner-title { font: italic 800 clamp(44px, 8vw, 86px)/1 var(--display); letter-spacing: 0.03em; color: var(--gold); text-shadow: 0 4px 24px rgba(0,0,0,0.7); }
+#banner.failed #banner-title { color: #ff5a4f; }
+#banner.mission #banner-title { font-size: clamp(30px, 5vw, 54px); color: var(--ink); }
+#banner-sub { font: 600 15px var(--body); letter-spacing: 0.08em; color: var(--ink); margin-top: 10px; text-shadow: 0 2px 8px rgba(0,0,0,0.8); }
+@keyframes bannerIn { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
+#damage { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.5s; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(200,20,20,0.55) 100%); }
+#damage.hit { opacity: 1; transition: none; }
+#fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.9s; z-index: 5; }
+#fade.on { opacity: 1; }
+#wanted.flash .star.on { animation: starFlash 0.5s steps(2) infinite; }
+@keyframes starFlash { 50% { color: #3b7bff; text-shadow: 0 0 8px rgba(59,123,255,0.8); } }
+.toast.alert { border-left-color: #ff3b3b; }
+.toast.alert b { color: #ff6b5b; }
+
 @media (max-width: 760px) {
   #vehicle-hud { right: 14px; bottom: 14px; transform: scale(0.75); transform-origin: bottom right; }
   #radar { width: 150px; left: 14px; bottom: 14px; }

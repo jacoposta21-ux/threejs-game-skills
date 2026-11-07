@@ -20,6 +20,12 @@ import { VehicleSystem } from '../vehicles/VehicleSystem.js';
 import { VehicleController } from '../vehicles/VehicleController.js';
 import { TrafficSystem } from '../traffic/TrafficSystem.js';
 import { NPCSystem } from '../npc/NPCSystem.js';
+import { PoliceSystem } from '../systems/PoliceSystem.js';
+import { MissionManager } from '../missions/MissionManager.js';
+import { MISSIONS } from '../missions/missions.js';
+import { Locations, POLICE_STATION, HOSPITAL } from '../systems/Locations.js';
+import { route } from '../systems/RoadGraph.js';
+import { terrainHeight } from '../world/Layout.js';
 import { classify, BEACH } from '../world/Layout.js';
 import { lerp } from '../utils/random.js';
 
@@ -53,6 +59,15 @@ export class Game {
     this.audio = new AudioManager();
     this.audio.volume = this.settings.volume;
     this.timer = new THREE.Timer();
+    // tiny event bus: gameplay systems announce crimes and mission events
+    const handlers = {};
+    this.events = {
+      on: (n, f) => (handlers[n] = handlers[n] || []).push(f),
+      emit: (n, d) => (handlers[n] || []).forEach((f) => f(d)),
+    };
+    this.lastDamage = -99;
+    this.routeTimer = 0;
+    this.route = null;
     this.renderer.info.autoReset = false;
 
     window.addEventListener('resize', () => this.resize());
@@ -88,6 +103,9 @@ export class Game {
     this.minimap = new Minimap(this.city);
     this.missions = new MissionSystem(this);
     this.tapes = this.missions.add(new LostTapes(this));
+    this.police = new PoliceSystem(this);
+    this.story = new MissionManager(this, MISSIONS);
+    this.locations = new Locations(this);
     this.setupComposer();
     this.applyQuality();
     this.applyDaySpeed();
@@ -160,6 +178,7 @@ export class Game {
     this.state = 'playing';
     this.traffic.prefill(this.player.pos);
     this.npcs.prefill(this.player.pos);
+    if (this.loadSave()) setTimeout(() => this.hud.toast('SAVE LOADED', 'Progress restored from your last safehouse visit.', 'reward'), 1200);
     this.input.requestLock();
     this.hud.toast('WELCOME TO VISTA MAR', 'Twelve lost mixtapes are hidden around the city. Follow the pink beams.');
     setTimeout(() => this.state === 'playing' && this.hud.toast('NEED A RIDE?', 'A sports car is parked on Palm Boulevard right ahead. Walk up and press E.'), 4500);
@@ -196,6 +215,8 @@ export class Game {
 
   restart() {
     if (this.driver.vehicle) this.driver.exit();
+    this.story.reset();
+    this.police.reset();
     this.traffic.reset();
     this.npcs.reset();
     this.vehicles.reset();
@@ -228,8 +249,80 @@ export class Game {
     v.vel.set(0, 0);
     const door = v.doorPoint(1);
     this.npcs.spawnAt(door.x, door.z, this.player.pos);
+    this.events.emit('carjack', v);
     this.audio.grunt();
     this.driver.enter(v);
+  }
+
+  /** Player was hurt (vehicle impacts, being run over). */
+  damagePlayer(amount) {
+    const p = this.player;
+    if (this.respawning || amount <= 0) return;
+    p.health = Math.max(0, p.health - amount);
+    this.lastDamage = this.playTime;
+    this.hud.flashDamage();
+  }
+
+  busted() {
+    if (this.respawning) return;
+    const fine = Math.min(this.money, Math.max(100, Math.round(this.money * 0.1)));
+    this.endLife('BUSTED', `Fine: -$${fine.toLocaleString('en-US')} · released at VMPD headquarters`, POLICE_STATION, fine);
+    this.audio.busted();
+  }
+
+  wasted() {
+    if (this.respawning) return;
+    const bill = Math.min(this.money, 250);
+    this.endLife('WASTED', `Hospital bill: -$${bill}`, HOSPITAL, bill);
+    this.audio.busted();
+  }
+
+  endLife(title, sub, spawn, cost) {
+    this.respawning = true;
+    this.story.abort(title === 'BUSTED' ? 'You were busted.' : 'You were wasted.');
+    this.hud.banner(title, sub, 'failed');
+    this.hud.fade(true);
+    setTimeout(() => {
+      if (this.driver.vehicle) this.driver.exit();
+      this.police.reset();
+      this.money = Math.max(0, this.money - cost);
+      const pl = this.player;
+      pl.teleport(spawn.x, spawn.z);
+      pl.health = 100;
+      pl.knocked = 0;
+      pl.heading = 0;
+      this.camera3p.reset(0);
+      this.world.setTime((this.world.timeOfDay + 4) % 24);
+      this.hud.fade(false);
+      this.respawning = false;
+    }, 2600);
+  }
+
+  sleepUntil(hour) {
+    this.hud.fade(true);
+    setTimeout(() => {
+      this.world.setTime(hour);
+      this.player.health = 100;
+      this.hud.fade(false);
+      this.hud.toast('GAME SAVED', `Rested until ${String(hour).padStart(2, '0')}:00 at the safehouse.`, 'reward');
+    }, 1400);
+  }
+
+  save() {
+    const data = { v: 1, money: this.money, tapes: this.tapes.tapes.map((t) => t.collected), missions: [...this.story.done], time: this.world.timeOfDay };
+    try { localStorage.setItem('vistamar.save', JSON.stringify(data)); } catch { this.hud.toast('SAVE FAILED', 'This browser blocks local storage.'); }
+  }
+
+  loadSave() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem('vistamar.save') || 'null'); } catch { data = null; }
+    if (!data || data.v !== 1) return false;
+    this.money = data.money ?? this.money;
+    this.hud.shownMoney = this.money;
+    (data.tapes || []).forEach((c, i) => { const t = this.tapes.tapes[i]; if (t && c) { t.collected = true; t.mesh.visible = false; } });
+    for (const id of data.missions || []) this.story.done.add(id);
+    this.story.refreshStartMarkers();
+    return true;
   }
 
   addMoney(v) {
@@ -237,7 +330,10 @@ export class Game {
   }
 
   markers() {
-    return [...this.vehicles.markers(this.player.pos), ...this.missions.markers()];
+    const out = [...this.locations.markers(), ...this.vehicles.markers(this.player.pos), ...this.missions.markers(), ...this.story.startMarkers(), ...this.police.markers()];
+    const obj = this.story.objective();
+    if (obj && obj.target) out.push({ x: obj.target.x, z: obj.target.z, color: '#ffd23f', shape: 'diamond', size: 8, edge: true });
+    return out;
   }
 
   // ------------------------------------------------------------- loop
@@ -271,23 +367,45 @@ export class Game {
     if (this.driver.vehicle) this.driver.update(dt);
     else this.player.update(dt, this.camera3p.yaw);
     this.vehicles.update(dt, this.driver.vehicle);
+    this.police.update(dt);
     this.traffic.update(dt);
     this.npcs.update(dt);
     this.camera3p.update(dt);
     this.world.update(dt, p.pos);
     this.missions.update(dt);
-    // interaction: pickups first, then the nearest vehicle
+    this.story.update(dt);
+    this.locations.update(dt);
+    // interaction: places first, then pickups, then the nearest vehicle
+    const place = this.locations.current();
     if (!this.driver.vehicle) {
-      const it = this.missions.nearestInteractable(p.pos);
-      const car = it ? null : this.vehicles.nearest(p.pos, 1.6);
-      const jack = it || car ? null : this.traffic.nearest(p.pos, 1.6);
-      this.hud.prompt(it ? it.label : car ? `Enter ${car.spec.label}${car.wrecked ? ' (wrecked)' : ''}` : jack ? 'Take this car' : '');
-      if (this.input.hit('KeyE')) {
-        if (it) it.action();
+      const it = place ? null : this.missions.nearestInteractable(p.pos);
+      const car = place || it ? null : this.vehicles.nearest(p.pos, 1.6);
+      const jack = place || it || car ? null : this.traffic.nearest(p.pos, 1.6);
+      this.hud.prompt(place ? place.label : it ? it.label : car ? `Enter ${car.spec.label}${car.wrecked ? ' (wrecked)' : ''}` : jack ? 'Take this car' : '');
+      if (this.input.hit('KeyE') && !p.knocked) {
+        if (place) this.locations.use(place);
+        else if (it) it.action();
         else if (car) this.driver.enter(car);
         else if (jack) this.carjack(jack);
       }
-    } else this.hud.prompt('');
+    } else {
+      this.hud.prompt(place ? place.label : '');
+      if (place && this.input.hit('KeyE')) this.locations.use(place);
+    }
+    // objective: an active mission overrides the free-roam activity
+    const obj = this.story.objective();
+    if (obj) this.hud.setObjective(obj.text, obj.title, obj.timer);
+    else this.hud.setObjective(this.tapes.objectiveTitle, this.tapes.objectiveSub, null, this.story.available().length ? 'Yellow markers on the radar start story missions.' : '');
+    // GPS route to the mission target
+    this.routeTimer -= dt;
+    if (this.routeTimer <= 0) {
+      this.routeTimer = 0.5;
+      const tg = obj && obj.target;
+      this.route = tg ? route({ x: p.pos.x, z: p.pos.z }, tg) : null;
+    }
+    // health: slow regeneration out of danger, wasted at zero
+    if (p.health > 0 && p.health < 100 && this.playTime - this.lastDamage > 8 && this.police.level === 0) p.health = Math.min(100, p.health + dt * 1.5);
+    if (p.health <= 0 && !this.respawning) this.wasted();
     // bloom by time of day
     this.bloom.strength = lerp(0.22, 0.85, this.world.night);
     this.bloom.threshold = lerp(0.95, 0.82, this.world.night);
@@ -297,7 +415,10 @@ export class Game {
     const dense = { downtown: 1, nightlife: 0.9, midtown: 0.8, apartments: 0.5, beach: 0.6, industrial: 0.55, residential: 0.25, park: 0.3, sand: 0.2 }[c.district] ?? 0.4;
     this.audio.update(dt, { oceanProximity: oceanProx, cityDensity: dense, night: this.world.night, park: c.type === 'grass' ? 1 : 0 });
     this.hud.update(dt);
-    this.minimap.drawRadar(p, this.camera3p.yaw, this.markers(), p.vehicle ? Math.max(0.45, 1.05 - p.speed * 0.012) : p.speed > 6 ? 0.85 : 1.1);
+    this.minimap.drawRadar(p, this.camera3p.yaw, this.markers(), p.vehicle ? Math.max(0.45, 1.05 - p.speed * 0.012) : p.speed > 6 ? 0.85 : 1.1, {
+      route: this.route,
+      search: this.police.level > 0 && !this.police.seen && this.police.lastKnown ? { ...this.police.lastKnown, r: this.police.searchRadius } : null,
+    });
   }
 
   updateChunkVisibility() {
@@ -317,6 +438,8 @@ export class Game {
     const states = {
       start: () => { game.menus.showStart(true); game.hud.show(false); game.state = 'ready'; },
       'explore-golden': () => game.stage(17.6, 28, -15.4, Math.PI / 2),
+      'wanted-3': () => { game.stageDrive(14, 'sports', 60, -8, Math.PI / 2); game.police.setLevel(3); for (let i = 0; i < 3; i++) game.police.spawnUnit('pursue'); },
+      'mission-01': () => { game.stage(16.5, 46, -15.5, Math.PI / 2); game.story.start(game.story.defs[0]); for (let i = 0; i < 20; i++) game.update(1 / 60); },
       'drive-golden': () => game.stageDrive(17.6, 'sports', 60, -8, Math.PI / 2),
       'drive-night': () => game.stageDrive(21.8, 'police', 300, 60, Math.PI, true),
       'drive-day-ocean': () => game.stageDrive(12, 'sports', 400, 120, Math.PI),
@@ -427,6 +550,10 @@ export class Game {
       money: this.money,
       tapes: this.tapes.count,
       npcs: this.npcs ? this.npcs.stats() : null,
+      wanted: this.police ? { log: this.police.log, level: this.police.level, seen: this.police.seen, units: this.police.units.length, roadblocks: this.police.roadblocks.length, evade: this.police.evade } : null,
+      mission: this.story && this.story.active ? { id: this.story.active.id, step: this.story.stepIndex, timer: this.story.stepTimer } : null,
+      missionsDone: this.story ? [...this.story.done] : [],
+      health: this.player.health,
       traffic: this.traffic ? { cars: this.traffic.cars.length, stopped: this.traffic.cars.filter((c) => c.speed < 0.3).length, turning: this.traffic.cars.filter((c) => c.turn).length } : null,
       vehicle: this.driver.vehicle ? { label: this.driver.vehicle.spec.label, kmh: this.driver.vehicle.kmh, health: this.driver.vehicle.health, heading: this.driver.vehicle.heading, slip: this.driver.vehicle.slip, gear: this.driver.vehicle.gear } : null,
       player: { x: this.player.pos.x, y: this.player.pos.y, z: this.player.pos.z, speed: this.player.speed, grounded: this.player.grounded, stamina: this.player.stamina, crouched: this.player.crouched, anim: this.player.rig?.currentName },

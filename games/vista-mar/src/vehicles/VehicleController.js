@@ -19,6 +19,8 @@ export class VehicleController {
     if (this.vehicle || v.driver) return;
     this.vehicle = v;
     v.driver = p;
+    v.aiDriven = false;
+    this.game.events.emit('enterVehicle', v);
     v.headlights = this.game.world.night > 0.35;
     p.vehicle = v;
     p.crouched = false;

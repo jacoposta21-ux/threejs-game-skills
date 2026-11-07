@@ -249,6 +249,33 @@ export class AudioManager {
     this.tone(415, 0.5, { type: 'square', gain: 0.045 * k }); this.tone(523, 0.5, { type: 'square', gain: 0.035 * k });
   }
 
+  wantedUp() { [880, 660].forEach((f, i) => this.tone(f, 0.18, { type: 'square', gain: 0.05, when: i * 0.16 })); }
+  missionStart() { [392, 523, 659].forEach((f, i) => this.tone(f, 0.35, { type: 'triangle', gain: 0.09, when: i * 0.12 })); }
+  missionPassed() { [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.38, { type: 'triangle', gain: 0.1, when: i * 0.11 })); }
+  missionFailed() { [392, 330, 262, 196].forEach((f, i) => this.tone(f, 0.45, { type: 'sawtooth', gain: 0.05, when: i * 0.18 })); }
+  busted() { this.burst({ freq: 120, type: 'lowpass', dur: 1.2, gain: 0.4, pitchDrop: 0.4 }); [220, 175].forEach((f, i) => this.tone(f, 0.8, { type: 'sawtooth', gain: 0.06, when: i * 0.35 })); }
+
+  /** Distant police sirens: one shared wailing voice, volume from the nearest unit. */
+  policeSirens(k) {
+    if (!this.ctx) return;
+    if (k > 0.01 && !this.copSiren) {
+      const c = this.ctx;
+      const o = c.createOscillator(); o.type = 'triangle';
+      const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.35;
+      const lg = c.createGain(); lg.gain.value = 260;
+      lfo.connect(lg).connect(o.frequency);
+      o.frequency.value = 900;
+      const g = c.createGain(); g.gain.value = 0;
+      o.connect(g).connect(this.master);
+      o.start(); lfo.start();
+      this.copSiren = { o, lfo, g };
+    }
+    if (this.copSiren) {
+      this.copSiren.g.gain.setTargetAtTime(k * k * 0.05, this.ctx.currentTime, 0.2);
+      if (k <= 0.01 && this.copSiren.g.gain.value < 0.001) { this.copSiren.o.stop(); this.copSiren.lfo.stop(); this.copSiren = null; }
+    }
+  }
+
   suspend() { this.ctx && this.ctx.suspend(); }
   resume() { this.ctx && this.ctx.resume(); }
 }

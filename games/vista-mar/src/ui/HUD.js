@@ -13,7 +13,7 @@ export class HUD {
       health: $('bar-health'), stamina: $('bar-stamina'), district: $('district'), districtName: $('district-name'), districtSub: $('district-sub'),
       vehicle: $('vehicle-hud'), vhName: $('vh-name'), vhSpeed: $('vh-speed'), vhArc: $('vh-arc'), vhGear: $('vh-gear'), vhHealth: $('vh-health'),
       indLights: $('ind-lights'), indBrake: $('ind-brake'), indDrift: $('ind-drift'), indSiren: $('ind-siren'),
-      prompt: $('prompt'), promptText: $('prompt-text'), toasts: $('toasts'), street: $('street'), lookHint: $('look-hint'), stance: $('stance'), fps: $('fps'),
+      prompt: $('prompt'), banner: $('banner'), bannerTitle: $('banner-title'), bannerSub: $('banner-sub'), objTimer: $('obj-timer'), objHint: $('obj-hint'), damage: $('damage'), fade: $('fade'), wantedBox: $('wanted'), promptText: $('prompt-text'), toasts: $('toasts'), street: $('street'), lookHint: $('look-hint'), stance: $('stance'), fps: $('fps'),
     };
     this.shownMoney = 0;
     this.lastDistrict = null;
@@ -24,9 +24,39 @@ export class HUD {
 
   show(v) { this.root.classList.toggle('hidden', !v); }
 
-  setObjective(title, sub = '') {
+  setObjective(title, sub = '', timer = null, hint = '') {
     if (this.el.objTitle.textContent !== title) this.el.objTitle.textContent = title;
     if (this.el.objSub.textContent !== sub) this.el.objSub.textContent = sub;
+    const t = this.el.objTimer;
+    if (timer === null || timer === undefined) t.classList.add('hidden');
+    else {
+      t.classList.remove('hidden');
+      const s = Math.max(0, Math.ceil(timer));
+      t.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      t.classList.toggle('low', s <= 20);
+    }
+    if (this.el.objHint.textContent !== hint) this.el.objHint.textContent = hint;
+  }
+
+  banner(title, sub = '', kind = '') {
+    const b = this.el.banner;
+    this.el.bannerTitle.textContent = title;
+    this.el.bannerSub.textContent = sub;
+    b.className = kind;
+    void b.offsetWidth;
+    clearTimeout(this.bannerTimer);
+    this.bannerTimer = setTimeout(() => b.classList.add('hidden'), kind === 'mission' ? 3200 : 4200);
+  }
+
+  flashDamage() {
+    const d = this.el.damage;
+    d.classList.add('hit');
+    clearTimeout(this.dmgTimer);
+    this.dmgTimer = setTimeout(() => d.classList.remove('hit'), 90);
+  }
+
+  fade(on) {
+    this.el.fade.classList.toggle('on', on);
   }
 
   setWanted(level) {
@@ -71,6 +101,9 @@ export class HUD {
     } else this.el.money.classList.remove('bump');
     this.el.money.textContent = '$' + Math.round(this.shownMoney).toLocaleString('en-US');
     this.el.health.style.width = `${p.health}%`;
+    this.el.health.classList.toggle('low', p.health < 30);
+    this.setWanted(g.police.level);
+    this.el.wantedBox.classList.toggle('flash', g.police.level > 0 && !g.police.seen);
     this.el.stamina.style.width = `${p.stamina}%`;
     this.el.stamina.classList.toggle('low', p.staminaLock);
     this.el.stance.textContent = p.crouched ? 'CROUCH' : p.walkMode ? 'WALK' : '';

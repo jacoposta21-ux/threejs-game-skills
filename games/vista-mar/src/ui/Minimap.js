@@ -70,7 +70,7 @@ export class Minimap {
   }
 
   /** Radar: rotates so the camera's forward direction points up. */
-  drawRadar(player, cameraYaw, markers, zoom = 1.1) {
+  drawRadar(player, cameraYaw, markers, zoom = 1.1, extras = {}) {
     const c = this.rctx, S = this.radar.width, R = S / 2;
     c.save();
     c.clearRect(0, 0, S, S);
@@ -84,6 +84,22 @@ export class Minimap {
     c.translate(-(player.pos.x - MAP.x0), -(player.pos.z - MAP.z0));
     c.imageSmoothingEnabled = true;
     c.drawImage(this.base, 0, 0);
+    // police search area
+    if (extras.search) {
+      const s = extras.search;
+      const blink = Math.floor(performance.now() / 400) % 2 === 0;
+      c.fillStyle = blink ? 'rgba(255,59,59,0.22)' : 'rgba(59,123,255,0.22)';
+      c.beginPath(); c.arc(s.x - MAP.x0, s.z - MAP.z0, s.r, 0, Math.PI * 2); c.fill();
+    }
+    // GPS route
+    if (extras.route && extras.route.length > 1) {
+      c.strokeStyle = 'rgba(255,210,63,0.95)';
+      c.lineWidth = 4 / zoom;
+      c.lineJoin = 'round'; c.lineCap = 'round';
+      c.beginPath();
+      extras.route.forEach((pt, k) => (k ? c.lineTo(pt.x - MAP.x0, pt.z - MAP.z0) : c.moveTo(pt.x - MAP.x0, pt.z - MAP.z0)));
+      c.stroke();
+    }
     c.restore();
 
     // markers (clamped to the rim when off-radar)

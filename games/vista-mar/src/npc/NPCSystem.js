@@ -201,7 +201,7 @@ export class NPCSystem {
     this.play(npc, 'Sprint_Loop', { fade: 0.15 });
   }
 
-  knock(npc, vx, vz, speed) {
+  knock(npc, vx, vz, speed, byPlayer = false) {
     if (npc.state === NPC_STATE.KNOCKED) return;
     npc.state = NPC_STATE.KNOCKED;
     npc.timer = 3.6;
@@ -214,7 +214,7 @@ export class NPCSystem {
       if (o === npc || o.state === NPC_STATE.KNOCKED) continue;
       if ((o.pos.x - npc.pos.x) ** 2 + (o.pos.z - npc.pos.z) ** 2 < 900) this.flee(o, npc.pos, 7 + Math.random() * 4);
     }
-    this.game.events?.emit?.('pedestrianHit', { npc, speed });
+    if (byPlayer) this.game.events.emit('pedestrianHit', { npc, speed });
   }
 
   // ------------------------------------------------------------ per frame
@@ -442,7 +442,7 @@ export class NPCSystem {
       if (Math.abs(npc.pos.x - v.pos.x) > 6 || Math.abs(npc.pos.z - v.pos.z) > 6) continue;
       const p = v.pushCircle(npc.pos.x, npc.pos.z, RADIUS + 0.05);
       if (!p) continue;
-      if (vs > 4) this.knock(npc, v.vel.x, v.vel.y, vs);
+      if (vs > 4) this.knock(npc, v.vel.x, v.vel.y, vs, !!v.driver);
       else { npc.pos.x = p.x; npc.pos.z = p.z; if (npc.state !== NPC_STATE.FLEEING) this.flee(npc, v.pos, 3); }
     }
   }

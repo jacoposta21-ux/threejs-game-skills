@@ -179,8 +179,8 @@ export class LostTapes {
     }
     const n = this.count, total = this.tapes.length;
     const near = this.nearest(this.game.player.pos);
-    if (near) this.game.hud.setObjective(`Find the lost tapes  ${n}/${total}`, `Nearest: ${Math.round(near.dist)} m — follow the pink beam`);
-    else this.game.hud.setObjective('All tapes found', 'Vista Mar is yours to explore. More missions arrive in the next update.');
+    if (near) { this.objectiveTitle = `Find the lost tapes  ${n}/${total}`; this.objectiveSub = `Nearest: ${Math.round(near.dist)} m. Follow the pink beam.`; }
+    else { this.objectiveTitle = 'All tapes found'; this.objectiveSub = 'Vista Mar is yours to explore.'; }
   }
 
   reset() {

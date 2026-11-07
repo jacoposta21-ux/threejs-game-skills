@@ -17,6 +17,8 @@
         <div class="obj-kicker">EXPLORE · VISTA MAR</div>
         <div class="obj-title" id="obj-title">Find the lost tapes</div>
         <div class="obj-sub" id="obj-sub"></div>
+        <div class="obj-timer hidden" id="obj-timer"></div>
+        <div class="obj-hint" id="obj-hint"></div>
       </div>
 
       <div id="topright">
@@ -52,6 +54,8 @@
           <span id="ind-lights">LIGHTS</span><span id="ind-brake">BRAKE</span><span id="ind-drift">DRIFT</span><span id="ind-siren">SIREN</span>
         </div>
       </div>
+      <div id="banner" class="hidden"><div id="banner-title"></div><div id="banner-sub"></div></div>
+      <div id="damage"></div>
       <div id="prompt" class="hidden"><kbd>E</kbd><span id="prompt-text"></span></div>
       <div id="toasts"></div>
       <div id="look-hint" class="hidden">Click the game to look around with the mouse</div>
@@ -157,6 +161,7 @@
       </div>
     </div>
 
+    <div id="fade"></div>
     <div id="fatal" class="overlay hidden"><div class="start-card"><div class="logo small">VISTA MAR</div><p id="fatal-text"></p></div></div>
 
     <script type="module" src="./src/main.js"></script>

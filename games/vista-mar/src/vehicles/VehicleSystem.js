@@ -53,7 +53,7 @@ export class VehicleSystem {
   update(dt, driven) {
     this.night = this.game.world.night;
     for (const v of this.vehicles) {
-      if (v === driven) continue;
+      if (v === driven || v.aiDriven) continue;
       v.idle(dt);
     }
     // smoke from damaged cars
@@ -112,6 +112,39 @@ export class VehicleSystem {
     return v;
   }
 
+  spawnPolice(x, z, heading) {
+    const spec = VEHICLE_TYPES.police;
+    const gltf = this.assets[spec.asset];
+    if (!gltf) return null;
+    const v = new Vehicle(this, spec, gltf, { x, z, h: heading });
+    v.police = true;
+    v.aiDriven = true;
+    v.headlights = true;
+    this.vehicles.push(v);
+    return v;
+  }
+
+  removePolice(v) {
+    if (v.driver) return;
+    this.scene.remove(v.root);
+    const i = this.vehicles.indexOf(v);
+    if (i >= 0) this.vehicles.splice(i, 1);
+  }
+
+  spawnMissionVehicle(type, x, z, heading) {
+    const spec = VEHICLE_TYPES[type];
+    const v = new Vehicle(this, spec, this.assets[spec.asset], { x, z, h: heading });
+    v.missionVehicle = true;
+    this.vehicles.push(v);
+    return v;
+  }
+
+  removeMission(v) {
+    this.scene.remove(v.root);
+    const i = this.vehicles.indexOf(v);
+    if (i >= 0) this.vehicles.splice(i, 1);
+  }
+
   removeVehicle(v) {
     this.scene.remove(v.root);
     this.vehicles.splice(this.vehicles.indexOf(v), 1);
@@ -145,6 +178,7 @@ export class VehicleSystem {
 
   onVehicleImpact(v, impact) {
     if (v.driver) {
+      if (impact > 13) this.game.damagePlayer((impact - 13) * 1.6);
       this.game.audio.crash(Math.min(1, impact / 18));
       this.game.camera3p.kick(Math.min(0.35, impact * 0.02));
       this.game.camera3p.shake = Math.min(1, impact / 15);
@@ -163,7 +197,7 @@ export class VehicleSystem {
   markers(playerPos) {
     const out = [];
     for (const v of this.vehicles) {
-      if (v.driver) continue;
+      if (v.driver || v.police) continue;
       if (Math.abs(v.pos.x - playerPos.x) > 220 || Math.abs(v.pos.z - playerPos.z) > 220) continue;
       out.push({ x: v.pos.x, z: v.pos.z, color: v.spec.siren ? '#4f7cff' : '#7fd8ff', shape: 'car', size: 5 });
     }

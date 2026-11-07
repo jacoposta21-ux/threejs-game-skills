@@ -220,6 +220,7 @@ export class Vehicle {
           px += (dx / dd) * push; pz += (dz / dd) * push;
           // transfer some momentum to the other car
           const rel = this.vel.x * (-dx / dd) + this.vel.y * (-dz / dd);
+          if (rel > 4 && this.driver && o.police) this.system.game.events.emit('policeHit', o);
           if (rel > 0) { o.vel.x += (-dx / dd) * rel * 0.5 * (this.spec.mass / o.spec.mass); o.vel.y += (-dz / dd) * rel * 0.5 * (this.spec.mass / o.spec.mass); o.yawRate += (Math.random() - 0.5) * rel * 0.08; }
           hitK += a.k; hits++;
         }
@@ -239,6 +240,7 @@ export class Vehicle {
             if (rel > 3) {
               const k = (this.spec.mass / 1500) * 0.6;
               tr.toVehicle(c, { x: -dx / dd * rel * k, z: -dz / dd * rel * k });
+              if (this.driver) this.system.game.events.emit('trafficCrash', c);
             }
             px += (dx / dd) * (rr - dd); pz += (dz / dd) * (rr - dd);
             hitK += a.k; hits++;
@@ -247,6 +249,12 @@ export class Vehicle {
       }
     }
     if (this.system.game.npcs && Math.hypot(this.vel.x, this.vel.y) > 0.5) this.system.game.npcs.vehicleSweep(this);
+    // an AI or runaway car hitting the player on foot
+    const pl = this.system.game.player;
+    if (!this.driver && pl && !pl.vehicle && Math.hypot(this.vel.x, this.vel.y) > 1) {
+      const hitP = this.pushCircle(pl.pos.x, pl.pos.z, 0.4);
+      if (hitP) pl.hitByVehicle(this, Math.hypot(this.vel.x, this.vel.y), hitP);
+    }
     if (!hits) return;
     this.pos.x += px; this.pos.z += pz;
     const n = Math.hypot(px, pz);
@@ -362,6 +370,17 @@ export class Vehicle {
     const rx = -fz, rz = fx;
     const off = (this.halfW + 0.7) * side;
     return { x: this.pos.x - rx * off + fx * 0.2, z: this.pos.z - rz * off + fz * 0.2 };
+  }
+
+  repair() {
+    this.health = 100;
+    this.wrecked = false;
+    for (const m of this.materials) m.color.setScalar(1);
+  }
+
+  respray() {
+    const h = Math.random();
+    for (const m of this.materials) m.color.setHSL(h, 0.35, 0.82);
   }
 
   get kmh() {
