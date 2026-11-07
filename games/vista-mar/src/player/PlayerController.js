@@ -144,6 +144,8 @@ export class PlayerController {
       const pv = this.game.vehicles.pushPedestrian(nx, nz, RADIUS);
       if (pv.x !== nx || pv.z !== nz) { nx = pv.x; nz = pv.z; res.hit = true; }
     }
+    if (this.game.traffic) { const pt = this.game.traffic.pushPedestrian(nx, nz, RADIUS); if (pt.x !== nx || pt.z !== nz) { nx = pt.x; nz = pt.z; res.hit = true; } }
+    if (this.game.npcs) { const pn = this.game.npcs.pushPlayer(nx, nz, RADIUS); nx = pn.x; nz = pn.z; }
     let groundY = Math.max(res.ground, terrainHeight(nx, nz));
     // keep out of deep water: treat below-sea sand as a soft wall
     if (groundY < WATER_LEVEL - 0.25) {

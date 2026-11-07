@@ -207,6 +207,20 @@ export class World {
     return axis === 'ns' ? ns : ew;
   }
 
+  /** Same per-intersection phase offset the city generator gives each signal. */
+  signalOffset(i, j) {
+    return ((i * 3 + j * 5) % 4) * 4;
+  }
+
+  /**
+   * Walk signal for pedestrians crossing a road whose traffic runs along `roadAxis`
+   * ('ns' or 'ew'): only early in that road's red phase, so they clear it in time.
+   */
+  pedestrianWalk(roadAxis, offset = 0) {
+    const t = (this.signalClock + offset) % 26;
+    return roadAxis === 'ns' ? t > 13.3 && t < 19 : t > 0.3 && t < 6;
+  }
+
   setTime(h) {
     this.timeOfDay = ((h % 24) + 24) % 24;
     this.envTimer = 999;

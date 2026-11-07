@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 // Loads the CC0 model set. Every entry is optional: a failed load is recorded
 // and the game falls back to procedural geometry for that slot.
 const BASE = (import.meta.env && import.meta.env.BASE_URL) || './';
 
 export const MANIFEST = {
-  anim: 'assets/anim/AnimationLibrary_Godot_Standard.gltf',
+  anim: 'assets/anim/AnimationLibrary.glb',
   player: 'assets/characters/M_Beach.glb',
   palm1: 'assets/props/PalmTree_1.glb',
   palm2: 'assets/props/PalmTree_2.glb',
@@ -21,6 +22,15 @@ export const MANIFEST = {
   van: 'assets/vehicles/van.glb',
   police: 'assets/vehicles/police.glb',
   delivery: 'assets/vehicles/delivery.glb',
+  npc_m_casual: 'assets/characters/M_Casual.glb',
+  npc_m_casual2: 'assets/characters/M_Casual2.glb',
+  npc_m_suit: 'assets/characters/M_Suit.glb',
+  npc_m_worker: 'assets/characters/M_Worker.glb',
+  npc_m_punk: 'assets/characters/M_Punk.glb',
+  npc_w_casual: 'assets/characters/W_Casual.glb',
+  npc_w_formal: 'assets/characters/W_Formal.glb',
+  npc_w_suit: 'assets/characters/W_Suit.glb',
+  npc_w_punk: 'assets/characters/W_Punk.glb',
   hatch: 'assets/vehicles/hatchback-sports.glb',
 };
 
@@ -34,6 +44,7 @@ export async function loadAssets(onProgress) {
     manager.setURLModifier((url) => (url.startsWith('data:') ? url : byName[url.split('/').pop()] || url));
   }
   const loader = new GLTFLoader(manager);
+  loader.setMeshoptDecoder(MeshoptDecoder);
   const out = {};
   const keys = Object.keys(MANIFEST);
   let done = 0;

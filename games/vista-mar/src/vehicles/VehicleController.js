@@ -85,7 +85,7 @@ export class VehicleController {
     if (inp.hit('KeyL')) v.headlights = !v.headlights;
     if (inp.hit('KeyH')) {
       if (v.spec.siren) { v.siren = !v.siren; this.game.audio.setSiren(v.siren); }
-      else this.game.audio.horn();
+      else { this.game.audio.horn(); this.game.vehicles.hornAt = this.game.playTime; }
     }
     v.update(dt, { throttle, steer, handbrake });
     // character follows the car (for minimap, interactions, audio)

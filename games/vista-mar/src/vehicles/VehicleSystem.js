@@ -8,6 +8,9 @@ import { radialGlowTexture } from '../world/textures.js';
 export class VehicleSystem {
   constructor(game, assets) {
     this.game = game;
+    this.assets = assets;
+    this.dynamic = [];
+    this.hornAt = -10;
     this.scene = game.scene;
     this.collision = game.collision;
     this.vehicles = [];
@@ -88,6 +91,33 @@ export class VehicleSystem {
     } else this.beam.intensity = 0;
   }
 
+  /** Creates a physical vehicle from a traffic model key (crash or carjack). */
+  spawnDynamic(modelKey, x, z, heading) {
+    const typeFor = { sedan: 'sedan', suv: 'suv', taxi: 'taxi', sports: 'sports', hatch: 'sedan', van: 'delivery' };
+    const assetFor = { hatch: 'hatch', van: 'van' };
+    const base = VEHICLE_TYPES[typeFor[modelKey] || 'sedan'];
+    const spec = { ...base, asset: assetFor[modelKey] || base.asset, label: modelKey === 'hatch' ? 'Hatchback' : modelKey === 'van' ? 'Minivan' : base.label, maxSpeed: modelKey === 'van' ? 38 : base.maxSpeed };
+    const gltf = this.assets[spec.asset];
+    if (!gltf) return null;
+    // keep the number of extra physical cars bounded
+    if (this.dynamic.length >= 6) {
+      const p = this.game.player.pos;
+      const far = this.dynamic.filter((v) => !v.driver).sort((a, b) => Math.hypot(b.pos.x - p.x, b.pos.z - p.z) - Math.hypot(a.pos.x - p.x, a.pos.z - p.z))[0];
+      if (far) this.removeVehicle(far);
+    }
+    const v = new Vehicle(this, spec, gltf, { x, z, h: heading });
+    v.dynamic = true;
+    this.vehicles.push(v);
+    this.dynamic.push(v);
+    return v;
+  }
+
+  removeVehicle(v) {
+    this.scene.remove(v.root);
+    this.vehicles.splice(this.vehicles.indexOf(v), 1);
+    this.dynamic.splice(this.dynamic.indexOf(v), 1);
+  }
+
   nearest(pos, maxDist = 3.5) {
     let best = null, bd = maxDist;
     for (const v of this.vehicles) {
@@ -126,6 +156,7 @@ export class VehicleSystem {
   }
 
   reset() {
+    for (const v of [...this.dynamic]) this.removeVehicle(v);
     for (const v of this.vehicles) v.reset();
   }
 

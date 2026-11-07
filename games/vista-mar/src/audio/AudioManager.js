@@ -241,6 +241,14 @@ export class AudioManager {
     }
   }
 
+  thud(k) { this.burst({ freq: 180, type: 'lowpass', dur: 0.25, gain: 0.25 + k * 0.4, pitchDrop: 0.5 }); }
+  grunt() { this.tone(170 + Math.random() * 60, 0.12, { type: 'sawtooth', gain: 0.03, slide: 0.7 }); }
+  hornAt(dist) {
+    const k = Math.max(0, 1 - dist / 90);
+    if (k <= 0) return;
+    this.tone(415, 0.5, { type: 'square', gain: 0.045 * k }); this.tone(523, 0.5, { type: 'square', gain: 0.035 * k });
+  }
+
   suspend() { this.ctx && this.ctx.suspend(); }
   resume() { this.ctx && this.ctx.resume(); }
 }

@@ -6,7 +6,7 @@ const r = new THREE.WebGLRenderer({antialias:true}); r.setSize(900,500); documen
 const s = new THREE.Scene(); s.background=new THREE.Color(0x8899aa);
 s.add(new THREE.HemisphereLight(0xffffff,0x444444,2)); const d=new THREE.DirectionalLight(0xffffff,2); d.position.set(3,5,4); s.add(d);
 const cam = new THREE.PerspectiveCamera(40,900/500,0.1,100); cam.position.set(0,1.4,6); cam.lookAt(0,0.9,0);
-const L=new GLTFLoader(); const anim=await L.loadAsync('/assets/anim/AnimationLibrary_Godot_Standard.gltf'); const ch=await L.loadAsync('/assets/characters/M_Beach.glb');
+const L=new GLTFLoader(); const anim=await L.loadAsync('/assets/anim/AnimationLibrary.glb'); const ch=await L.loadAsync('/assets/characters/M_Beach.glb');
 const clips = (new URLSearchParams(location.search).get('c')||'A_TPose,Walk_Loop,Sprint_Loop,Crouch_Idle_Loop').split(',');
 const rigs = clips.map((c,i)=>{const rig=new CharacterRig(anim,ch,1.8); rig.root.position.x=(i-(clips.length-1)/2)*1.6; s.add(rig.root); rig.play(c,{fade:0}); return rig;});
 const src = anim.scene.clone(); src.position.set(3.5,0,0); s.add(src);

@@ -18,6 +18,8 @@ import { Menus, loadSettings } from '../ui/Menus.js';
 import { MissionSystem, LostTapes } from '../systems/MissionSystem.js';
 import { VehicleSystem } from '../vehicles/VehicleSystem.js';
 import { VehicleController } from '../vehicles/VehicleController.js';
+import { TrafficSystem } from '../traffic/TrafficSystem.js';
+import { NPCSystem } from '../npc/NPCSystem.js';
 import { classify, BEACH } from '../world/Layout.js';
 import { lerp } from '../utils/random.js';
 
@@ -76,6 +78,10 @@ export class Game {
     this.vehicles = new VehicleSystem(this, assets);
     this.driver = new VehicleController(this);
     this.player = new PlayerController(this, assets);
+    this.menus.setLoading(0.93, 'Filling the streets…');
+    await nextFrame();
+    this.traffic = new TrafficSystem(this, this.city.carModels);
+    this.npcs = new NPCSystem(this, assets);
     this.camera3p = new CameraController(this);
     this.camera3p.reset(this.player.heading);
     this.hud = new HUD(this);
@@ -152,6 +158,8 @@ export class Game {
     this.menus.showStart(false);
     this.hud.show(true);
     this.state = 'playing';
+    this.traffic.prefill(this.player.pos);
+    this.npcs.prefill(this.player.pos);
     this.input.requestLock();
     this.hud.toast('WELCOME TO VISTA MAR', 'Twelve lost mixtapes are hidden around the city. Follow the pink beams.');
     setTimeout(() => this.state === 'playing' && this.hud.toast('NEED A RIDE?', 'A sports car is parked on Palm Boulevard right ahead. Walk up and press E.'), 4500);
@@ -188,6 +196,8 @@ export class Game {
 
   restart() {
     if (this.driver.vehicle) this.driver.exit();
+    this.traffic.reset();
+    this.npcs.reset();
     this.vehicles.reset();
     this.player.respawn();
     this.camera3p.reset(this.player.heading);
@@ -209,6 +219,17 @@ export class Game {
       if (this.state === 'playing') this.openMap();
       else if (this.state === 'map') this.resume();
     }
+  }
+
+  /** Pull the driver out of a traffic car and take it. */
+  carjack(c) {
+    const v = this.traffic.toVehicle(c);
+    if (!v) return;
+    v.vel.set(0, 0);
+    const door = v.doorPoint(1);
+    this.npcs.spawnAt(door.x, door.z, this.player.pos);
+    this.audio.grunt();
+    this.driver.enter(v);
   }
 
   addMoney(v) {
@@ -250,6 +271,8 @@ export class Game {
     if (this.driver.vehicle) this.driver.update(dt);
     else this.player.update(dt, this.camera3p.yaw);
     this.vehicles.update(dt, this.driver.vehicle);
+    this.traffic.update(dt);
+    this.npcs.update(dt);
     this.camera3p.update(dt);
     this.world.update(dt, p.pos);
     this.missions.update(dt);
@@ -257,10 +280,12 @@ export class Game {
     if (!this.driver.vehicle) {
       const it = this.missions.nearestInteractable(p.pos);
       const car = it ? null : this.vehicles.nearest(p.pos, 1.6);
-      this.hud.prompt(it ? it.label : car ? `Enter ${car.spec.label}${car.wrecked ? ' (wrecked)' : ''}` : '');
+      const jack = it || car ? null : this.traffic.nearest(p.pos, 1.6);
+      this.hud.prompt(it ? it.label : car ? `Enter ${car.spec.label}${car.wrecked ? ' (wrecked)' : ''}` : jack ? 'Take this car' : '');
       if (this.input.hit('KeyE')) {
         if (it) it.action();
         else if (car) this.driver.enter(car);
+        else if (jack) this.carjack(jack);
       }
     } else this.hud.prompt('');
     // bloom by time of day
@@ -384,6 +409,8 @@ export class Game {
     this.player.teleport(x, z);
     this.player.heading = heading;
     this.camera3p.reset(heading);
+    this.traffic.reset(); this.npcs.reset();
+    this.traffic.prefill(this.player.pos); this.npcs.prefill(this.player.pos);
     // settle a few frames so camera, env map and HUD are current
     for (let i = 0; i < 30; i++) this.update(1 / 60);
     this.world.envTimer = 999;
@@ -399,6 +426,8 @@ export class Game {
       time: this.world.timeOfDay,
       money: this.money,
       tapes: this.tapes.count,
+      npcs: this.npcs ? this.npcs.stats() : null,
+      traffic: this.traffic ? { cars: this.traffic.cars.length, stopped: this.traffic.cars.filter((c) => c.speed < 0.3).length, turning: this.traffic.cars.filter((c) => c.turn).length } : null,
       vehicle: this.driver.vehicle ? { label: this.driver.vehicle.spec.label, kmh: this.driver.vehicle.kmh, health: this.driver.vehicle.health, heading: this.driver.vehicle.heading, slip: this.driver.vehicle.slip, gear: this.driver.vehicle.gear } : null,
       player: { x: this.player.pos.x, y: this.player.pos.y, z: this.player.pos.z, speed: this.player.speed, grounded: this.player.grounded, stamina: this.player.stamina, crouched: this.player.crouched, anim: this.player.rig?.currentName },
       camera: { yaw: this.camera3p.yaw, pitch: this.camera3p.pitch, dist: this.camera3p.currentDist },

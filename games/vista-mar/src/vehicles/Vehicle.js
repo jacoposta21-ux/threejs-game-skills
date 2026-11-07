@@ -225,6 +225,28 @@ export class Vehicle {
         }
       }
     }
+    // traffic cars: a real hit turns them into physical vehicles, a nudge just pushes us
+    const tr = this.system.game.traffic;
+    if (tr) {
+      for (const c of [...tr.cars]) {
+        if (Math.abs(c.x - this.pos.x) > 8 || Math.abs(c.z - this.pos.z) > 8) continue;
+        let hit = false;
+        for (const a of this.circles()) for (const b of tr.carCircles(c)) {
+          const dx = a.x - b.x, dz = a.z - b.z, dd = Math.hypot(dx, dz), rr = a.r + b.r;
+          if (dd < rr && dd > 1e-4 && !hit) {
+            hit = true;
+            const rel = Math.hypot(this.vel.x - Math.sin(c.heading) * c.speed, this.vel.y - Math.cos(c.heading) * c.speed);
+            if (rel > 3) {
+              const k = (this.spec.mass / 1500) * 0.6;
+              tr.toVehicle(c, { x: -dx / dd * rel * k, z: -dz / dd * rel * k });
+            }
+            px += (dx / dd) * (rr - dd); pz += (dz / dd) * (rr - dd);
+            hitK += a.k; hits++;
+          }
+        }
+      }
+    }
+    if (this.system.game.npcs && Math.hypot(this.vel.x, this.vel.y) > 0.5) this.system.game.npcs.vehicleSweep(this);
     if (!hits) return;
     this.pos.x += px; this.pos.z += pz;
     const n = Math.hypot(px, pz);
@@ -248,7 +270,7 @@ export class Vehicle {
     const now = this.system.game.playTime;
     if (impact > 2.5 && now - this.lastImpact > 0.18) {
       this.lastImpact = now;
-      const dmg = (impact - 2.5) * (impact > 12 ? 3.2 : 2) * (1500 / this.spec.mass) ** 0.3;
+      const dmg = (impact - 2.5) * (impact > 12 ? 2.4 : 1.8) * (1500 / this.spec.mass) ** 0.3;
       this.health = Math.max(0, this.health - dmg);
       const k = 1 - this.health / 100;
       for (const m of this.materials) m.color.setScalar(lerp(1, 0.42, k));
