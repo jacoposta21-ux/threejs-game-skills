@@ -50,7 +50,7 @@ void main() {
   col += sunColor * smoothstep(0.9995, 0.9998, sd) * 3.0 * step(-0.05, sunDir.y);
   // moon
   float md = max(dot(d, moonDir), 0.0);
-  float moonVis = step(0.0, moonDir.y) * clamp(stars * 1.5 + 0.15, 0.0, 1.0);
+  float moonVis = step(0.0, moonDir.y) * clamp(stars * 1.5, 0.0, 1.0);
   col += vec3(0.85, 0.9, 1.0) * smoothstep(0.99988, 0.99993, md) * 1.4 * moonVis;
   col += vec3(0.2, 0.25, 0.4) * pow(md, 60.0) * 0.3 * moonVis;
   // stars

@@ -123,6 +123,7 @@ export class Game {
     this.menus.setLoading(1, 'Ready');
     this.menus.ready();
     this.renderer.setAnimationLoop(() => this.tick());
+    if (this.onReady) this.onReady();
   }
 
   setupComposer() {

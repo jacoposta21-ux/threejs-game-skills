@@ -44,10 +44,10 @@ export class CityGenerator {
     const std = (o) => new THREE.MeshStandardMaterial(o);
     const rep = (t, x = 1, y = 1) => { t.repeat.set(x, y); return t; };
     switch (key) {
-      case 'road14': m = std({ map: T.roadTexture(14, { lanesEachWay: 2 }), roughness: 0.82, normalMap: T.grainNormalTexture() }); this.wetMaterials.push(m); break;
-      case 'road16': m = std({ map: T.roadTexture(16, { lanesEachWay: 2 }), roughness: 0.82, normalMap: T.grainNormalTexture() }); this.wetMaterials.push(m); break;
-      case 'blvd': m = std({ map: T.roadTexture(11, { oneWay: true, lanes: 3 }), roughness: 0.82, normalMap: T.grainNormalTexture() }); this.wetMaterials.push(m); break;
-      case 'inter': m = std({ map: T.intersectionTexture(), roughness: 0.82, normalMap: T.grainNormalTexture() }); this.wetMaterials.push(m); break;
+      case 'road14': m = std({ map: T.roadTexture(14, { lanesEachWay: 2 }), roughness: 0.82, normalMap: T.grainNormalTexture(), normalScale: new THREE.Vector2(0.18, 0.18) }); this.wetMaterials.push(m); break;
+      case 'road16': m = std({ map: T.roadTexture(16, { lanesEachWay: 2 }), roughness: 0.82, normalMap: T.grainNormalTexture(), normalScale: new THREE.Vector2(0.18, 0.18) }); this.wetMaterials.push(m); break;
+      case 'blvd': m = std({ map: T.roadTexture(11, { oneWay: true, lanes: 3 }), roughness: 0.82, normalMap: T.grainNormalTexture(), normalScale: new THREE.Vector2(0.18, 0.18) }); this.wetMaterials.push(m); break;
+      case 'inter': m = std({ map: T.intersectionTexture(), roughness: 0.82, normalMap: T.grainNormalTexture(), normalScale: new THREE.Vector2(0.18, 0.18) }); this.wetMaterials.push(m); break;
       case 'sidewalk': m = std({ map: T.sidewalkTexture(), roughness: 0.85, normalMap: T.grainNormalTexture(), normalScale: new THREE.Vector2(0.5, 0.5) }); break;
       case 'curb': m = std({ color: 0xb8b2a8, roughness: 0.85 }); break;
       case 'grass': m = std({ map: T.grassTexture(), roughness: 1 }); break;
