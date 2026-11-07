@@ -743,7 +743,7 @@ export function buildCity(map: MapData, rapier: R | null, world: RAPIER_NS.World
     lh.cyl(lx, 11.2, lz, 0.9, 0.4, PAL.iron, 10);
     lh.cone(lx, 12.9, lz, 1.0, 1.0, 0xd7262c, 10);
     add(new Mesh(lh.build(), mats.world));
-    const lamp = new Mesh(new CylinderGeometry(0.6, 0.6, 1.0, 10), mats.glow);
+    const lamp = new Mesh(new CylinderGeometry(0.6, 0.6, 1.0, 10), mats.lamp);
     lamp.position.set(lx, 11.9, lz);
     add(lamp);
   }

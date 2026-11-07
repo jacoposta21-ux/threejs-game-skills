@@ -62,7 +62,7 @@ export class ScooterView {
     this.wheelB.position.set(0, 0.2, -0.62);
     this.wheelF.castShadow = this.wheelB.castShadow = true;
     this.body.add(this.wheelF, this.wheelB);
-    this.headlight = new Mesh(new CircleGeometry(0.07, 12), mats.glow);
+    this.headlight = new Mesh(new CircleGeometry(0.07, 12), mats.lamp);
     this.headlight.position.set(0, 1.12, 0.745);
     this.body.add(this.headlight);
     this.rackMesh = new Mesh(rackGeometry(0), mats.world);

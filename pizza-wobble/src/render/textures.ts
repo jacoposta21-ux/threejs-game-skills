@@ -248,3 +248,18 @@ export function beamTexture(): Texture {
   g.fillRect(0, 0, 4, 128);
   return new CanvasTexture(c);
 }
+
+/** Cardboard side: cream with a red band so the stack reads at a glance. */
+export function boxSideTexture(): Texture {
+  const [c, g] = canvas(128, 32);
+  g.fillStyle = '#f6efe2';
+  g.fillRect(0, 0, 128, 32);
+  g.fillStyle = '#d7262c';
+  g.fillRect(0, 11, 128, 10);
+  g.fillStyle = '#e9dcc6';
+  g.fillRect(0, 0, 128, 2);
+  g.fillRect(0, 30, 128, 2);
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}

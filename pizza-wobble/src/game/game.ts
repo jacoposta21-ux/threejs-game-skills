@@ -868,9 +868,9 @@ export class Game {
       const sw = Math.sin(this.orbit) * (close ? 0.35 : 0.5);
       const rx = -fz;
       const rz = fx;
-      const dF = close ? 3.4 : 4.6;
+      const dF = close ? 4.3 : 4.6;
       const dS = close ? -0.6 + sw : 1.6 + sw;
-      _v.set(sc.x + fx * dF + rx * dS, sc.y + (close ? 1.25 : 1.55), sc.z + fz * dF + rz * dS);
+      _v.set(sc.x + fx * dF + rx * dS, sc.y + (close ? 1.5 : 1.55), sc.z + fz * dF + rz * dS);
       if (close) _v2.set(sc.x - fx * 0.2 - rx * 1.7, sc.y + 0.95, sc.z - fz * 0.2 - rz * 1.7);
       else _v2.set(sc.x - fx * 1.2 - rx * 1.6, sc.y + 1.4, sc.z - fz * 1.2 - rz * 1.6);
       if (snap) {
@@ -1056,7 +1056,7 @@ export class Game {
     const sc = this.sim.scooter;
     // guide arrow
     const next = this.nextStopIndex();
-    if (next >= 0 && !sh.ended) {
+    if (next >= 0 && !sh.ended && this.zoom < 0.2) {
       const cols = this.level.map.cols;
       let tx: number;
       let tz: number;
@@ -1101,11 +1101,19 @@ export class Game {
     hs.speed = sc.speed;
     hs.pile = top.length;
     hs.pileMax = this.level.spec.pizzas;
-    hs.stops.length = this.level.stops.length;
-    this.stopsView.length = this.level.stops.length;
-    this.level.stops.forEach((s, i) => {
-      hs.stops[i] = { count: s.count, done: sh.done[i], next: i === next };
-      this.stopsView[i] = { x: s.address.x, z: s.address.z, done: sh.done[i], next: i === next };
+    if (hs.stops.length > this.level.stops.length) hs.stops.length = this.level.stops.length;
+    if (this.stopsView.length > this.level.stops.length) this.stopsView.length = this.level.stops.length;
+    for (let i = 0; i < this.level.stops.length; i++) {
+      const s = this.level.stops[i];
+      const hv = (hs.stops[i] ??= { count: 0, done: false, next: false });
+      hv.count = s.count;
+      hv.done = sh.done[i];
+      hv.next = i === next;
+      const sv = (this.stopsView[i] ??= { x: 0, z: 0, done: false, next: false });
+      sv.x = s.address.x;
+      sv.z = s.address.z;
+      sv.done = sh.done[i];
+      sv.next = i === next;
       // 3D labels
       const lab = this.ui.labels[i];
       if (lab) {
@@ -1123,7 +1131,7 @@ export class Game {
           }
         }
       }
-    });
+    }
     this.ui.updateHud(hs);
     this.carsView.length = 0;
     if (this.traffic) for (const c of this.traffic.cars) this.carsView.push(c);
@@ -1227,6 +1235,16 @@ export class Game {
         this.snapCamera();
       },
       level: () => this.level,
+      setQuality: (q: 'auto' | 'high' | 'low') => {
+        this.save.quality = q;
+        this.applyQuality();
+      },
+      /** CPU cost of the simulation: ms per fixed step over n steps */
+      bench: (n: number) => {
+        const t0 = performance.now();
+        for (let i = 0; i < n; i++) this.fixedStep();
+        return (performance.now() - t0) / n;
+      },
       /** run the fixed-step simulation faster than real time (for slow headless browsers) */
       simulate: (seconds: number) => {
         const n = Math.round(seconds / FIXED_DT);

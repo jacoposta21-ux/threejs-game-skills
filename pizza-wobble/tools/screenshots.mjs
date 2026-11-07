@@ -41,6 +41,22 @@ await shot(page, 'title');
 await page.evaluate(() => { window.__pw.startTurn(1); window.__pw.autopilot(true); window.__pw.simulate(5); });
 await shot(page, 'centro');
 
+// near miss: brake hard at speed until the stack slides, capture the WHOA slow-mo
+const whoa = await page.evaluate(() => {
+  window.__pw.startTurn(3); window.__pw.autopilot(false);
+  const g = window.__pw.game; g.input.keys.add('KeyW'); window.__pw.simulate(4); g.input.keys.clear();
+  g.input.keys.add('Space');
+  for (let i = 0; i < 90; i++) { g.fixedStep(); if (g.slowmo > 0) break; }
+  g.input.keys.clear();
+  g.snapCamera();
+  return g.slowmo > 0;
+});
+console.log('whoa triggered', whoa);
+await page.evaluate(() => { const g = window.__pw.game; g.paused = true; document.querySelectorAll('.pop').forEach((p) => (p.style.animation = 'none')); });
+await page.screenshot({ path: `${dir}/${prefix}whoa.png` });
+metrics.whoa = await page.evaluate(() => window.__pw.stats());
+await page.evaluate(() => { window.__pw.game.paused = false; });
+
 // piazza: place the scooter at the edge of a plaza looking at the fountain
 await page.evaluate(() => {
   window.__pw.startTurn(2);
@@ -87,6 +103,12 @@ await shot(page, 'fine-turno');
 await page.evaluate(() => { window.__pw.setCoins(600); window.__pw.go('garage'); });
 await page.waitForTimeout(1500);
 await shot(page, 'garage');
+
+await page.evaluate(() => { window.__pw.setQuality('low'); window.__pw.startTurn(1); window.__pw.autopilot(true); window.__pw.simulate(5); });
+await shot(page, 'centro-low');
+metrics.cpuMsPerStep = await page.evaluate(() => window.__pw.bench(300));
+console.log('cpu ms/step', metrics.cpuMsPerStep);
+await page.evaluate(() => window.__pw.setQuality('auto'));
 
 const m = await open({ width: 844, height: 390 }, true);
 await m.page.evaluate(() => { window.__pw.startTurn(1); window.__pw.autopilot(true); window.__pw.simulate(4); });

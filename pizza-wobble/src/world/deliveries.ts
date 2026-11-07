@@ -1,5 +1,5 @@
 /** Delivery circles, light beams, waiting customers and their reactions; the 3D guide arrow. */
-import { ConeGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial, RingGeometry, Shape, ExtrudeGeometry, Vector3 } from 'three';
+import { CylinderGeometry, Group, Mesh, MeshStandardMaterial, RingGeometry, Shape, ExtrudeGeometry, Vector3 } from 'three';
 import type { DeliveryStop } from '../levels/types.ts';
 import { materials } from '../render/materials.ts';
 import { makeCustomer } from './models.ts';
@@ -141,8 +141,4 @@ export function makeArrow(): Mesh {
   const m = new Mesh(g, new MeshStandardMaterial({ color: 0xffc83a, emissive: 0xff9a1a, emissiveIntensity: 0.55, roughness: 0.4 }));
   m.castShadow = false;
   return m;
-}
-
-export function makeConeMarker(): Mesh {
-  return new Mesh(new ConeGeometry(0.3, 0.6, 8), materials().glow);
 }

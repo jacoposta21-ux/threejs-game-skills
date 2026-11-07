@@ -7,7 +7,7 @@ import {
   type Texture,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
-import { boxLidTexture, groundAtlas, pizzaTexture, roofTexture, softDot, beamTexture } from './textures.ts';
+import { boxLidTexture, boxSideTexture, groundAtlas, pizzaTexture, roofTexture, softDot, beamTexture } from './textures.ts';
 
 export const timeUniform = { value: 0 };
 
@@ -16,6 +16,7 @@ export interface Materials {
   terrain: MeshStandardMaterial;
   roof: MeshStandardMaterial;
   glow: MeshBasicMaterial;
+  lamp: MeshBasicMaterial;
   puddle: MeshStandardMaterial;
   laundry: MeshStandardMaterial;
   water: MeshStandardMaterial;
@@ -37,6 +38,7 @@ export function materials(): Materials {
   const terrain = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, map: groundAtlas() });
   const roof = new MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0, map: roofTexture() });
   const glow = new MeshBasicMaterial({ vertexColors: true, color: new Color(2.4, 2.0, 1.5), toneMapped: false });
+  const lamp = new MeshBasicMaterial({ color: new Color(2.6, 2.3, 1.7), toneMapped: false });
   const puddle = new MeshStandardMaterial({ color: 0x6f8fa8, roughness: 0.04, metalness: 0.6, transparent: true, opacity: 0.75 });
 
   const laundry = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: DoubleSide });
@@ -87,11 +89,11 @@ export function materials(): Materials {
 
   const lid = boxLidTexture();
   const boxLid = new MeshStandardMaterial({ map: lid, roughness: 0.85 });
-  const boxSide = new MeshStandardMaterial({ color: 0xf2ece0, roughness: 0.9 });
+  const boxSide = new MeshStandardMaterial({ map: boxSideTexture(), roughness: 0.9 });
   const pizza = new MeshStandardMaterial({ map: pizzaTexture(), roughness: 0.7, side: DoubleSide });
   const beam = new MeshBasicMaterial({ map: beamTexture(), transparent: true, depthWrite: false, color: 0xffd36b, side: DoubleSide, toneMapped: false });
   const ring = new MeshBasicMaterial({ color: new Color(2.2, 1.6, 0.5), transparent: true, opacity: 0.95, toneMapped: false, depthWrite: false });
   const vehicle = new MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.05 });
-  mats = { world, terrain, roof, glow, puddle, laundry, water, fountainWater, boxLid, boxSide, pizza, beam, ring, dot: softDot(), vehicle };
+  mats = { world, terrain, roof, glow, lamp, puddle, laundry, water, fountainWater, boxLid, boxSide, pizza, beam, ring, dot: softDot(), vehicle };
   return mats;
 }

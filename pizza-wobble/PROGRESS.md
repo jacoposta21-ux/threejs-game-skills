@@ -30,3 +30,33 @@
 ## M3 — Full game ✅
 - 30 shifts from `levels.json`, district unlocks at 18/40 stars, sequential shift unlocks, traffic (cars + Ape on fixed loops, pause at intersections, stop behind the player/other cars, honk), garage with 4 upgrades, title/select/pause/end/garage/settings, save `pw_save_v1` (sanitised, try/catch), WHOA near-miss slow-mo (0.3 s at 0.3×, camera push-in), lost box flies open and the pizza spins out, delivery toss + coins to HUD + confetti, sparks/dust/steam/puddle splashes, synthesised audio with persisted mute, ads/analytics stubs with all events.
 - `npm run smoke` (tools/smoke.mjs): 25/25 checks pass through real clicks/keys (menus, Escape/blur pause, corrupted save, rewarded double tips, garage purchase, next shift, F1 debug + teleport, analytics events, no console errors).
+
+## M4 — Build & polish ✅
+- Self-review round 2 (final `screenshots/*.png` vs round-1 `screenshots/r1-*.png`):
+  1. Pile hard to read from the chase cam → box sides painted cream with a red band; chase camera closer (4.7 m, 2.35 m high).
+  2. Scooter headlight and harbour lighthouse lamp rendered black (emissive material relied on vertex colours absent from those geometries) → dedicated HDR lamp material (blooms).
+  3. Guide arrow covered the scene during the WHOA push-in → hidden while zoomed.
+  4. Garage showroom still too tight → camera pulled back/up, scooter framed left of the panel with a full stack.
+  5. Per-frame HUD allocations removed (stop views are mutated in place).
+- Auto quality: average FPS of the first 5 s of the first shift; < 45 → Low (no post, DPR 1, 1024 shadows, no balconies/laundry). Settings: Auto/High/Low.
+- `npm run build`: 5.1 MB total (`index.js` 5.2 MB incl. ~2 MB Rapier WASM inlined; gzip 1.9 MB), relative paths, no runtime network requests, loading screen with progress bar.
+- `npm run preview` + Playwright at 1280×720 and 844×390 (mobile, touch): no console errors.
+- Measured (headless Chromium with SwiftShader software GL — no GPU in this environment, so FPS here (~1) is not representative): draw calls 57–106 (High peak 106 in the harbour, Low 57), triangles 297k–466k High (incl. shadow pass), 197k Low; simulation CPU 0.49 ms per fixed step (scooter + pile + traffic + rules).
+
+## Open questions — defaults taken
+- **Name**: web search found no "Pizza Wobble" on CrazyGames (closest: "Pizza Challenge", "Pizza Car", "Where's my Pizza?"; the tray-balancing "Woozy Waiter" on Kiz10 is the nearest concept). Kept "Pizza Wobble". Alternatives if needed: **Stack & Scoot**, **Wobbly Delivery**, **Piazza Dash**.
+- **Language**: English, all text in `src/strings.ts`.
+- **Customers**: faceless, varied shirts/skin tones and hats (cap, straw hat, beret, hair).
+- **Music**: none; synthesised SFX + soft ambience only.
+- **SDK**: not integrated; `Ads`/`Analytics` interfaces + stubs in `src/services/`.
+- **Tips**: computed per pizza (`10 × heat/100 × time bonus`) summed per stop, +5 once per stop if perfect (no hits/hard landings since the previous delivery).
+- **Stars "100% without losses"**: a pizza recovered with the rewarded ad no longer counts as lost.
+- **Shift unlocks**: inside a district, shift n+1 unlocks after ≥ 1 star on shift n; districts by total stars (18 / 40).
+- **Interstitial**: offered on Next/Retry from the end screen, never before shift 4, max once per 3 minutes.
+
+## Known issues / limits
+- 60 fps (laptop) and ≥ 30 fps (budget Android, Low) are not verified on real hardware here; only software-GL captures and renderer counters were possible.
+- Rapier's JS API returns small wrapper objects (`translation()`, `rotation()`), so a few allocations per frame remain inside the physics bindings; game code itself reuses buffers (particles pooled).
+- Difficulty is intentionally physical: holding Space at top speed or a head-on hit above ~5 km/h slides the upper boxes off; normal brake/accel stay below the friction limit. Needs human playtesting for tuning.
+- The hill district reads mostly through slopes, stairs, cypresses and lighter facades; there are no long-distance valley vistas.
+- Bundle is one 5 MB JS file (Rapier WASM inlined by the compat package).
