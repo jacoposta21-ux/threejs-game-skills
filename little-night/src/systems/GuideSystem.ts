@@ -87,8 +87,15 @@ export class GuideSystem {
     this.time += dt;
     let next: GuideStep | null = null;
     for (const s of this.steps) {
+      // Once a step has been completed it stays completed (e.g. LUMO charged once
+      // must not ask again when its energy later drops). Stored in the save flags.
+      const key = `guide:${s.id}`;
+      if (ctx.flags.has(key)) continue;
       if (s.when && !s.when(ctx)) continue;
-      if (s.done(ctx)) continue;
+      if (s.done(ctx)) {
+        ctx.flags.set(key);
+        continue;
+      }
       next = s;
       break;
     }
