@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { terrainHeight } from '../world/Layout.js';
 import { clamp, damp, lerp } from '../utils/random.js';
+import { carPaint } from '../world/Effects.js';
 
 // One drivable vehicle: CC0 Kenney model with separate wheels, arcade physics
 // (bicycle-model steering, longitudinal engine/brake/reverse, lateral grip with
@@ -32,10 +33,7 @@ export class Vehicle {
       if (o.isMesh) {
         o.castShadow = true;
         o.receiveShadow = true;
-        o.material = o.material.clone();
-        o.material.roughness = 0.35;
-        o.material.metalness = 0.25;
-        if (o.material.map) o.material.map.colorSpace = THREE.SRGBColorSpace;
+        o.material = carPaint(o.material);
         this.materials.push(o.material);
       }
       if (/^wheel-(front|back)-(left|right)$/.test(o.name)) {

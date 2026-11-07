@@ -4,6 +4,7 @@ import * as T from './textures.js';
 import { createRng } from '../utils/random.js';
 import { bakeStatic } from '../core/AssetLoader.js';
 import { PropInstancer } from './PropInstancer.js';
+import { addWind, carPaint } from './Effects.js';
 import {
   LINES, xWidths, zWidths, SIDEWALK, CURB_H, BOULEVARD_MEDIAN, BEACH, WATER_LEVEL, BOUNDS,
   allBlocks, terrainHeight,
@@ -22,6 +23,7 @@ export class CityGenerator {
     this.buckets = new Map();
     this.materials = {};
     this.nightMaterials = { windows: [], neon: [], lamps: [], shops: [] };
+    this.wetMaterials = [];
     this.footprints = []; // {x0,z0,x1,z1,h,kind}
     this.props = {
       palms: [], trees: [], lamps: [], benches: [], bins: [], hydrants: [], umbrellas: [], loungers: [],
@@ -42,11 +44,11 @@ export class CityGenerator {
     const std = (o) => new THREE.MeshStandardMaterial(o);
     const rep = (t, x = 1, y = 1) => { t.repeat.set(x, y); return t; };
     switch (key) {
-      case 'road14': m = std({ map: T.roadTexture(14, { lanesEachWay: 2 }), roughness: 0.92 }); break;
-      case 'road16': m = std({ map: T.roadTexture(16, { lanesEachWay: 2 }), roughness: 0.92 }); break;
-      case 'blvd': m = std({ map: T.roadTexture(11, { oneWay: true, lanes: 3 }), roughness: 0.92 }); break;
-      case 'inter': m = std({ map: T.intersectionTexture(), roughness: 0.92 }); break;
-      case 'sidewalk': m = std({ map: T.sidewalkTexture(), roughness: 0.88 }); break;
+      case 'road14': m = std({ map: T.roadTexture(14, { lanesEachWay: 2 }), roughness: 0.82, normalMap: T.grainNormalTexture() }); this.wetMaterials.push(m); break;
+      case 'road16': m = std({ map: T.roadTexture(16, { lanesEachWay: 2 }), roughness: 0.82, normalMap: T.grainNormalTexture() }); this.wetMaterials.push(m); break;
+      case 'blvd': m = std({ map: T.roadTexture(11, { oneWay: true, lanes: 3 }), roughness: 0.82, normalMap: T.grainNormalTexture() }); this.wetMaterials.push(m); break;
+      case 'inter': m = std({ map: T.intersectionTexture(), roughness: 0.82, normalMap: T.grainNormalTexture() }); this.wetMaterials.push(m); break;
+      case 'sidewalk': m = std({ map: T.sidewalkTexture(), roughness: 0.85, normalMap: T.grainNormalTexture(), normalScale: new THREE.Vector2(0.5, 0.5) }); break;
       case 'curb': m = std({ color: 0xb8b2a8, roughness: 0.85 }); break;
       case 'grass': m = std({ map: T.grassTexture(), roughness: 1 }); break;
       case 'sand': m = std({ map: T.sandTexture(), roughness: 1 }); break;
@@ -103,6 +105,7 @@ export class CityGenerator {
           m = std({
             map: f.map, emissiveMap: f.emissiveMap, emissive: 0xffffff, emissiveIntensity: 0,
             roughnessMap: f.ormMap, metalnessMap: f.ormMap, roughness: 1, metalness: 1, envMapIntensity: 1,
+            normalMap: f.normalMap, normalScale: new THREE.Vector2(0.9, 0.9),
           });
           m.userData.tile = [f.tileW, f.tileH];
           this.nightMaterials.windows.push(m);
@@ -864,6 +867,25 @@ export class CityGenerator {
         }
       }
     }
+    // bus stops on the main avenues (shelter faces the road)
+    const busLines = [{ ori: 'x', k: 4 }, { ori: 'x', k: 6 }, { ori: 'z', k: 4 }, { ori: 'z', k: 2 }, { ori: 'z', k: 6 }];
+    this.props.busStops = [];
+    for (const bl of busLines) {
+      const L = LINES[bl.k];
+      const hw = (bl.ori === 'x' ? xWidths[bl.k] : zWidths[bl.k]) / 2;
+      for (let s = -340; s <= 340; s += 170) {
+        for (const side of [-1, 1]) {
+          const along = s + side * 40 + 25;
+          const off = L + side * (hw + 2.6);
+          const x = bl.ori === 'x' ? off : along, z = bl.ori === 'x' ? along : off;
+          if (this.collision.blockedCircle(x, z, 2.2)) continue;
+          const rot = bl.ori === 'x' ? (side > 0 ? -Math.PI / 2 : Math.PI / 2) : (side > 0 ? Math.PI : 0);
+          this.props.busStops.push({ x, z, y: CURB_H, rot });
+          const ex = bl.ori === 'x' ? 0.9 : 2.2, ez = bl.ori === 'x' ? 2.2 : 0.9;
+          this.collision.addBox(x - ex, z - ez, x + ex, z + ez, CURB_H + 2.6, 'busstop');
+        }
+      }
+    }
     // Ocean Drive promenade lamps facing the beach side as well
     for (let z = -400; z <= 400; z += 24) this.props.lamps.push({ x: BEACH.promenadeEnd - 0.6, z: z + 12, y: CURB_H, facing: [-1, 0] });
   }
@@ -958,8 +980,9 @@ export class CityGenerator {
     const palmsByVar = [[], []];
     for (const p of this.props.palms) palmsByVar[palmModels.length ? p.v % palmModels.length : 0].push(p);
     const palmPlace = (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(it.s); };
+    const palmDepth = addWind([...palmModels.flatMap((m) => m.materials), ...palmLow.materials], { height: 9.5, amp: 0.45, freq: 1.1 });
     palmsByVar.forEach((list, v) => {
-      this.instancer.add({ near: palmModels[v] || palmLow, far: palmModels[v] ? palmLow : null, items: list, place: palmPlace, nearDist: 70, farDist: 900 });
+      this.instancer.add({ near: palmModels[v] || palmLow, far: palmModels[v] ? palmLow : null, items: list, place: palmPlace, nearDist: 70, farDist: 900, depthMaterial: palmDepth });
     });
 
     // ---- broadleaf trees (procedural)
@@ -967,12 +990,15 @@ export class CityGenerator {
     const treePlace = (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.x * 7.1, 0); d.scale.setScalar(it.s); };
     const treeColor = (it) => new THREE.Color().setHSL(0.27 + ((it.x * 13.7) % 0.06), 0.45, 0.28 + ((it.z * 7.3) % 0.08));
     this.instancer.add({ near: tree.trunk, items: this.props.trees, place: treePlace, nearDist: 200, farDist: 700 });
-    this.instancer.add({ near: tree.crown, far: tree.crownLow, items: this.props.trees, place: treePlace, color: treeColor, nearDist: 90, farDist: 900 });
+    const treeDepth = addWind(tree.crown.materials, { height: 6, amp: 0.22, freq: 1.4 });
+    this.instancer.add({ near: tree.crown, far: tree.crownLow, items: this.props.trees, place: treePlace, color: treeColor, nearDist: 90, farDist: 900, depthMaterial: treeDepth });
     for (const t of this.props.trees) this.collision.addCircle(t.x, t.z, 0.4 * t.s);
 
     // ---- bushes
     const bush = bakeStatic(A.bush, { size: 1.6 }) || { geometry: new THREE.IcosahedronGeometry(1, 1).translate(0, 0.8, 0), materials: [new THREE.MeshStandardMaterial({ color: 0x3d6b2e })] };
-    addInst(bush, this.props.bushes, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(it.s); });
+    const bushDepth = addWind(bush.materials, { height: 1.6, amp: 0.06, freq: 1.8 });
+    const bushMesh = addInst(bush, this.props.bushes, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(it.s); });
+    if (bushMesh) bushMesh.customDepthMaterial = bushDepth;
 
     // ---- streetlights
     const lampModel = bakeStatic(A.streetlight, { size: 7.5, centerXZ: false });
@@ -1041,6 +1067,17 @@ export class CityGenerator {
     const loungerGeo = mergeBoxes([[-0.35, 0.3, -0.95, 0.35, 0.38, 0.6], [-0.35, 0.35, 0.55, 0.35, 0.95, 0.68], [-0.32, 0, -0.9, -0.26, 0.3, 0.6], [0.26, 0, -0.9, 0.32, 0.3, 0.6]]);
     addInst({ geometry: loungerGeo, materials: [new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.7 })] }, this.props.loungers, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); });
 
+    // ---- bus stop shelters: frame + glass + illuminated ad panel
+    if (this.props.busStops.length) {
+      const frame = mergeBoxes([[-2.1, 2.4, -0.9, 2.1, 2.55, 0.9], [-2.05, 0, -0.75, -1.95, 2.4, -0.65], [1.95, 0, -0.75, 2.05, 2.4, -0.65], [-1.6, 0.45, -0.55, 1.6, 0.52, -0.1]]);
+      const glass = mergeBoxes([[-1.95, 0.3, -0.76, 1.95, 2.35, -0.72]]);
+      const ad = mergeBoxes([[2.0, 0.3, -0.7, 2.06, 2.3, 0.6]]);
+      const place = (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); };
+      addInst({ geometry: frame, materials: [this.mat('trimDark')] }, this.props.busStops, place);
+      addInst({ geometry: glass, materials: [new THREE.MeshPhysicalMaterial({ color: 0x9fc6d6, transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.1 })] }, this.props.busStops, place, { castShadow: false });
+      addInst({ geometry: ad, materials: [this.mat('billboard')] }, this.props.busStops, place, { castShadow: false });
+    }
+
     // ---- shipping containers
     const contGeo = new THREE.BoxGeometry(6.1, 2.6, 2.5).translate(0, 1.3, 0);
     const contMat = new THREE.MeshStandardMaterial({ map: T.containerTexture(), roughness: 0.6, metalness: 0.3 });
@@ -1052,7 +1089,7 @@ export class CityGenerator {
     for (const k of new Set(carKeys)) {
       const baked = bakeStatic(A[k], { size: 1.95, axis: 'x' });
       if (baked) {
-        for (const m of baked.materials) { m.roughness = 0.4; m.metalness = 0.2; }
+        baked.materials = baked.materials.map((m) => carPaint(m));
         carModels[k] = baked;
       }
     }

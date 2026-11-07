@@ -3,6 +3,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { createGradePass, Seagulls, SunFlare, windUniforms } from '../world/Effects.js';
 import { InputManager } from './InputManager.js';
 import { loadAssets } from './AssetLoader.js';
 import { CollisionSystem } from '../systems/CollisionSystem.js';
@@ -106,6 +108,8 @@ export class Game {
     this.police = new PoliceSystem(this);
     this.story = new MissionManager(this, MISSIONS);
     this.locations = new Locations(this);
+    this.seagulls = new Seagulls(this.scene);
+    this.sunFlare = new SunFlare(this.scene);
     this.setupComposer();
     this.applyQuality();
     this.applyDaySpeed();
@@ -129,6 +133,10 @@ export class Game {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.4, 0.55, 0.92);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    this.grade = createGradePass();
+    this.composer.addPass(this.grade);
+    this.smaa = new SMAAPass();
+    this.composer.addPass(this.smaa);
     this.composerSamples = q.samples;
   }
 
@@ -139,6 +147,7 @@ export class Game {
     this.renderer.setPixelRatio(dpr);
     this.composer.setPixelRatio(dpr);
     this.bloom.enabled = q.bloom;
+    if (this.smaa) this.smaa.enabled = q.samples === 0;
     if (this.composerSamples !== q.samples) {
       this.composer.renderTarget1.samples = q.samples;
       this.composer.renderTarget2.samples = q.samples;
@@ -409,6 +418,12 @@ export class Game {
     if (p.health <= 0 && !this.respawning) this.wasted();
     // bloom by time of day
     this.bloom.strength = lerp(0.22, 0.85, this.world.night);
+    const e = this.world.sunDir.y;
+    this.grade.uniforms.uNight.value = this.world.night;
+    this.grade.uniforms.uGolden.value = e > 0 ? Math.max(0, 1 - Math.abs(e - 0.1) / 0.14) : 0;
+    windUniforms.uTime.value = this.world.elapsed;
+    this.seagulls.update(dt);
+    this.sunFlare.update(this.camera, this.world.sunDir);
     this.bloom.threshold = lerp(0.95, 0.82, this.world.night);
     // audio environment
     const c = classify(p.pos.x, p.pos.z);

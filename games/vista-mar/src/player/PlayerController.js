@@ -201,7 +201,14 @@ export class PlayerController {
     // --- facing: turn toward movement direction
     const hs = Math.hypot(this.vel.x, this.vel.z);
     this.speed = hs;
+    const prevHeading = this.heading;
     if (hs > 0.3 && moving) this.heading = dampAngle(this.heading, Math.atan2(dx, dz), this.grounded ? 11 : 4, dt);
+    let turn = this.heading - prevHeading;
+    while (turn > Math.PI) turn -= Math.PI * 2;
+    while (turn < -Math.PI) turn += Math.PI * 2;
+    const leanTarget = this.grounded ? clamp(-(turn / Math.max(dt, 1e-3)) * hs * 0.035, -0.28, 0.28) : 0;
+    this.lean = damp(this.lean || 0, leanTarget, 8, dt);
+    if (this.rig) this.rig.root.rotation.z = this.lean;
 
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.heading;

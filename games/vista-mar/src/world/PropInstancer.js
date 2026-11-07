@@ -20,7 +20,7 @@ export class PropInstancer {
    *  color(item) optional instance colour
    *  nearDist / farDist in metres
    */
-  add({ near, far = null, items, place, placeFar = null, color = null, nearDist = 170, farDist = 900, castShadow = true }) {
+  add({ near, far = null, items, place, placeFar = null, color = null, nearDist = 170, farDist = 900, castShadow = true, depthMaterial = null }) {
     if (!near || !items.length) return;
     const byChunk = new Map();
     for (const it of items) {
@@ -41,6 +41,7 @@ export class PropInstancer {
         if (color) im.setColorAt(i, col.set(color(it)));
       });
       im.castShadow = shadow;
+      if (depthMaterial) im.customDepthMaterial = depthMaterial;
       im.receiveShadow = true;
       im.computeBoundingSphere();
       im.matrixAutoUpdate = false;

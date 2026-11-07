@@ -141,7 +141,7 @@ export class World {
     this.waterNormal = wn;
     this.water = new THREE.Mesh(
       new THREE.PlaneGeometry(8000, 8000, 1, 1).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: 0x1b5a6e, roughness: 0.08, metalness: 0.15, normalMap: wn, normalScale: new THREE.Vector2(0.55, 0.55), envMapIntensity: 1.1 }),
+      new THREE.MeshPhysicalMaterial({ color: 0x1b5a6e, roughness: 0.16, metalness: 0.05, normalMap: wn, normalScale: new THREE.Vector2(0.6, 0.6), envMapIntensity: 1.1, clearcoat: 1, clearcoatRoughness: 0.04, clearcoatNormalMap: this.waterNormal2 = wn.clone(), clearcoatNormalScale: new THREE.Vector2(0.35, 0.35) }),
     );
     this.water.position.set(4440, WATER_LEVEL, 0);
     this.water.receiveShadow = true;
@@ -294,6 +294,7 @@ export class World {
     // water
     this.waterNormal.offset.x = (this.elapsed * 0.004) % 1;
     this.waterNormal.offset.y = (this.elapsed * 0.0025) % 1;
+    if (this.waterNormal2) { this.waterNormal2.repeat.set(530, 530); this.waterNormal2.offset.set((-this.elapsed * 0.0031) % 1, (this.elapsed * 0.0047) % 1); }
     this.water.material.color.setRGB(lerp(0.1, 0.02, this.night), lerp(0.36, 0.06, this.night), lerp(0.44, 0.1, this.night));
     this.foam.material.opacity = 0.18 + Math.sin(this.elapsed * 0.8) * 0.08;
     this.foam.position.x = 466 + Math.sin(this.elapsed * 0.5) * 1.2;
@@ -306,6 +307,8 @@ export class World {
       for (const m of nm.shops) m.emissiveIntensity = lerp(0.03, 0.7, n);
       for (const m of nm.neon) m.emissiveIntensity = lerp(0.35, 3.2, n);
       for (const m of nm.lamps) m.emissiveIntensity = lerp(0, 4, smoothstep(0.3, 0.8, n));
+      // evening humidity: streets get a slight sheen after dark
+      for (const m of this.city.wetMaterials) m.roughness = lerp(0.82, 0.48, smoothstep(0.4, 1, n));
       this.glowMat.opacity = smoothstep(0.3, 0.9, n) * 0.32;
       this.beaconMat.color.setRGB(4 * (0.5 + 0.5 * Math.sin(this.elapsed * 3)) * (0.2 + n), 0.15, 0.1);
       this.updateSignals(dt);

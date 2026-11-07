@@ -328,6 +328,8 @@ export function facadeMaterialMaps(styleName) {
     const [c, ctx] = canvas(S, S);
     const [ce, ectx] = canvas(S, S);
     const [co, octx] = canvas(S, S);
+    const [ch, hctx] = canvas(S, S); // height field -> normal map (recessed windows, frames, bands)
+    hctx.fillStyle = 'rgb(170,170,170)'; hctx.fillRect(0, 0, S, S);
     const rng = createRng(styleName.length * 97 + styleName.charCodeAt(0));
     const bw = S / st.bays, fh = S / st.floors;
     // wall
@@ -346,6 +348,7 @@ export function facadeMaterialMaps(styleName) {
       // full glass with mullions and spandrels
       for (let f = 0; f < st.floors; f++) {
         ctx.fillStyle = st.frame; ctx.fillRect(0, f * fh, S, fh * 0.12);
+        hctx.fillStyle = 'rgb(225,225,225)'; hctx.fillRect(0, f * fh, S, fh * 0.12);
         octx.fillStyle = 'rgb(0,150,40)'; octx.fillRect(0, f * fh, S, fh * 0.12);
       }
     }
@@ -362,6 +365,10 @@ export function facadeMaterialMaps(styleName) {
         // frame
         ctx.fillStyle = st.frame;
         ctx.fillRect(x - 2, y - 2, ww + 4, wh + 4);
+        hctx.fillStyle = 'rgb(235,235,235)'; hctx.fillRect(x - 3, y - 3, ww + 6, wh + 6);
+        hctx.fillStyle = 'rgb(60,60,60)'; hctx.fillRect(x, y, ww, wh);
+        hctx.fillStyle = 'rgb(200,200,200)'; if (!st.curtain) hctx.fillRect(x + ww / 2 - 1, y, 2, wh); else hctx.fillRect(x + ww - 1, y, 2, wh);
+        hctx.fillStyle = 'rgb(250,250,250)'; hctx.fillRect(x - 5, y + wh + 1, ww + 10, 4); // sill
         // glass with sky-ish gradient
         const g = ctx.createLinearGradient(x, y, x + ww * 0.3, y + wh);
         const gc = rng.pick(st.glass);
@@ -380,6 +387,7 @@ export function facadeMaterialMaps(styleName) {
         if (st.balcony) {
           ctx.fillStyle = 'rgba(255,255,255,0.85)';
           ctx.fillRect(x - 6, y + wh * 0.62, ww + 12, 3);
+          hctx.fillStyle = 'rgb(255,255,255)'; hctx.fillRect(x - 6, y + wh * 0.62, ww + 12, 4);
           ctx.fillStyle = 'rgba(60,70,80,0.45)';
           for (let k = x - 6; k < x + ww + 6; k += 4) ctx.fillRect(k, y + wh * 0.62, 1, wh * 0.38);
         }
@@ -406,7 +414,10 @@ export function facadeMaterialMaps(styleName) {
     const map = tex(c);
     const emissiveMap = tex(ce);
     const ormMap = tex(co, { srgb: false });
-    return { map, emissiveMap, ormMap, tileW: st.bays * st.bayM, tileH: st.floors * st.floorM, style: st };
+    if (st.brick) { hctx.globalAlpha = 0.5; for (let y = 0; y < S; y += 6) { hctx.fillStyle = 'rgb(120,120,120)'; hctx.fillRect(0, y, S, 1); } hctx.globalAlpha = 1; }
+    if (st.bands) for (let f = 0; f < st.floors; f++) { hctx.fillStyle = 'rgb(240,240,240)'; hctx.fillRect(0, f * fh + fh * 0.86, S, fh * 0.08); }
+    const normalMap = tex(heightToNormal(ch, 2.5), { srgb: false });
+    return { map, emissiveMap, ormMap, normalMap, tileW: st.bays * st.bayM, tileH: st.floors * st.floorM, style: st };
   });
 }
 
@@ -612,5 +623,42 @@ export function containerTexture() {
     ctx.fillRect(0, 0, W, 5); ctx.fillRect(0, H - 5, W, 5); ctx.fillRect(0, 0, 5, H); ctx.fillRect(W - 5, 0, 5, H);
     ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = 'bold 18px Arial'; ctx.fillText('VMCU 204871', 18, 30);
     return tex(c);
+  });
+}
+
+/** Sobel normal map from a greyscale height canvas (tileable: wraps at edges). */
+export function heightToNormal(src, strength = 2) {
+  const W = src.width, H = src.height;
+  const sd = src.getContext('2d').getImageData(0, 0, W, H).data;
+  const [c, ctx] = canvas(W, H);
+  const out = ctx.createImageData(W, H);
+  const h = (x, y) => sd[(((y + H) % H) * W + ((x + W) % W)) * 4] / 255;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const dx = (h(x + 1, y - 1) + 2 * h(x + 1, y) + h(x + 1, y + 1)) - (h(x - 1, y - 1) + 2 * h(x - 1, y) + h(x - 1, y + 1));
+    const dy = (h(x - 1, y + 1) + 2 * h(x, y + 1) + h(x + 1, y + 1)) - (h(x - 1, y - 1) + 2 * h(x, y - 1) + h(x + 1, y - 1));
+    let nx = -dx * strength, ny = dy * strength, nz = 1;
+    const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+    const i = (y * W + x) * 4;
+    out.data[i] = (nx * 0.5 + 0.5) * 255; out.data[i + 1] = (ny * 0.5 + 0.5) * 255; out.data[i + 2] = (nz * 0.5 + 0.5) * 255; out.data[i + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  return c;
+}
+
+/** Fine grain normal map for asphalt / concrete (tileable noise). */
+export function grainNormalTexture() {
+  return cached('grainnormal', () => {
+    const S = 256;
+    const [c, ctx] = canvas(S, S);
+    const rng = createRng(909);
+    ctx.fillStyle = 'rgb(128,128,128)'; ctx.fillRect(0, 0, S, S);
+    for (let i = 0; i < 9000; i++) {
+      const v = (rng.next() * 255) | 0;
+      ctx.fillStyle = `rgb(${v},${v},${v})`;
+      ctx.globalAlpha = 0.35;
+      ctx.fillRect(rng.next() * S, rng.next() * S, 1 + rng.next() * 2, 1 + rng.next() * 2);
+    }
+    ctx.globalAlpha = 1;
+    return tex(heightToNormal(c, 1.4), { srgb: false });
   });
 }

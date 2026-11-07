@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Vehicle } from './Vehicle.js';
 import { VEHICLE_TYPES, VEHICLE_SPAWNS } from './VehicleTypes.js';
 import { radialGlowTexture } from '../world/textures.js';
+import { SkidMarks } from '../world/Effects.js';
 
 // Owns every drivable vehicle: spawning, per-frame physics, pedestrian push-out,
 // nearest-vehicle queries, damage smoke, and the player's headlight beam.
@@ -40,6 +41,8 @@ export class VehicleSystem {
       this.smoke.push({ s, life: 0, vy: 0 });
     }
     this.smokeIdx = 0;
+    this.skids = new SkidMarks(this.scene);
+    this.skidId = 0;
   }
 
   findFreeSpot(sp) {
@@ -55,6 +58,26 @@ export class VehicleSystem {
     for (const v of this.vehicles) {
       if (v === driven || v.aiDriven) continue;
       v.idle(dt);
+    }
+    // skid marks + tyre smoke from sliding or hard-braking cars
+    for (const v of this.vehicles) {
+      if (!v.skidKey) v.skidKey = `v${this.skidId++}`;
+      const sp = Math.abs(v.speed);
+      const sliding = (v.slip > 3.2 && sp > 4) || (v.braking && sp > 11 && (v.driver || v.police));
+      const fx = Math.sin(v.heading), fz = Math.cos(v.heading), rx = -fz, rz = fx;
+      for (const side of [-1, 1]) {
+        const key = v.skidKey + side;
+        if (!sliding) { this.skids.lift(key); continue; }
+        const wx = v.pos.x - fx * v.halfL * 0.62 + rx * side * v.halfW * 0.78;
+        const wz = v.pos.z - fz * v.halfL * 0.62 + rz * side * v.halfW * 0.78;
+        this.skids.add(key, wx, wz);
+        if (v.slip > 5 && Math.random() < dt * 10) {
+          const p = this.smoke[this.smokeIdx++ % this.smoke.length];
+          p.s.position.set(wx, v.pos.y + 0.3, wz);
+          p.s.visible = true; p.life = 0.8; p.vy = 0.6;
+          p.s.material.color.setHex(0xd8d8d8);
+        }
+      }
     }
     // smoke from damaged cars
     for (const v of this.vehicles) {
