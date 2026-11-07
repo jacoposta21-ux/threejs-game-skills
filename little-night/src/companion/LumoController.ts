@@ -13,8 +13,8 @@ export interface LumoAnchor {
   onLeave?(ctx: GameContext): void;
 }
 
-const DRAIN_GLOW = 0.9;
-const DRAIN_PERCH = 0.55;
+const DRAIN_GLOW = 0.6;
+const DRAIN_PERCH = 0.4;
 const CHARGE_RATE = 30;
 
 /**

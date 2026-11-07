@@ -96,6 +96,7 @@ export class Throwable extends Interactable {
     this.root.rotation.set(0, this.root.rotation.y, Math.PI / 2 * Math.round(this.root.rotation.z / (Math.PI / 2)));
     ctx.audio.play(this.sound, { pos });
     ctx.noise.emit(pos, 11, 'throw');
+    ctx.flags.set('g-threw');
     this.enabled = true;
     ctx.interactions.markDirty();
     this.onLand?.(ctx, pos);

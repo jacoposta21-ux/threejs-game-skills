@@ -20,7 +20,7 @@ export interface StaticLight {
   active: () => boolean;
 }
 
-const GRAB_TIME = 1.5;
+const GRAB_TIME = 2.2;
 
 /** Unlit floor is dangerous: shadow hands reach for the child and drag them back. */
 export class DarkHazardSystem {

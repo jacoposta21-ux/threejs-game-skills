@@ -13,6 +13,7 @@ import { HideSpot, HideVolume } from '../objects/HideSpot';
 import { Perch, Nest, Examinable, Trigger } from '../objects/Fixtures';
 import { NavGrid } from '../enemies/NavGrid';
 import { Throwable } from '../objects/Throwable';
+import type { GuideStep } from '../systems/GuideSystem';
 
 /**
  * Chapter 1: tutorial. Bedroom x[-2.8,2.8] z[-3.2,3.2], hallway x[-6,5.6] z[3.34,5.6].
@@ -450,6 +451,53 @@ export class Bedroom extends Level {
     hush.leaveAfterSearch = true;
   }
 
+  guideSteps(ctx: GameContext): GuideStep[] {
+    const f = ctx.flags;
+    const doorOpen = () => f.has('door:bedroom-door');
+    const charged = () => ctx.lumo.energy >= 99 || doorOpen();
+    const chestAtDoor = () => {
+      const b = this.chest.base;
+      return b.x > 1.2 && b.x < 2.1 && b.z > 2.55;
+    };
+    const p = ctx.player.position;
+    return [
+      { id: 'bed', text: 'Climb down from the bed', keys: ['W', 'A', 'S', 'D'], target: () => v3(-0.9, 0.05, -1.1), done: () => p.y < 0.1 || ctx.lumo.found },
+      { id: 'drawer', text: 'Something is glowing in the dresser. Open the bottom drawer', keys: ['E'], target: () => this.at('dresser-0'), done: () => f.has('drawer:dresser-0') || ctx.lumo.found },
+      { id: 'lumo', text: 'Pick up the little firefly', keys: ['E'], target: () => this.at('lumo'), done: () => ctx.lumo.found },
+      { id: 'box', text: 'LUMO is weak. Climb onto the toy box', keys: ['Space'], target: () => v3(-2.05, 0.45, 1.2), done: () => charged() || p.y > 0.35 },
+      { id: 'shelf', text: 'Now climb onto the shelf', keys: ['Space'], target: () => v3(-2.55, 1.18, 1.0), done: () => charged() || p.y > 1.0 },
+      { id: 'nest', text: 'Wind the Nest to charge LUMO', keys: ['E'], target: () => this.at('nest-bedroom'), done: charged },
+      { id: 'chest', text: 'The door handle is too high. Push the toy chest to the door (grab, then walk)', keys: ['E', 'W'], target: () => this.chest.center(), done: () => chestAtDoor() || doorOpen() },
+      { id: 'onchest', text: 'Climb onto the chest', keys: ['Space'], target: () => this.chest.center().add(v3(0, 0.3, 0)), done: () => p.y > 0.4 || doorOpen() },
+      { id: 'door', text: 'Open the door', keys: ['E'], target: () => v3(2.0, 1.12, 3.25), done: doorOpen },
+      { id: 'perch-a', text: 'The hallway is pitch dark. Put LUMO on the brass perch', keys: ['E'], target: () => this.perchA.anchor, done: () => f.has('ch1-hall-lit') },
+      {
+        id: 'hide',
+        text: 'Something is coming up the stairs! Hide in the linen closet',
+        keys: ['E'],
+        target: () => this.at('linen-closet'),
+        when: () => f.has('ch1-encounter') && !f.has('ch1-encounter-done'),
+        done: () => ctx.player.mode === 'hidden' || f.has('ch1-encounter-done'),
+      },
+      {
+        id: 'stay',
+        text: 'Stay hidden until it leaves. Press E to come out afterwards',
+        when: () => f.has('ch1-encounter') && !f.has('ch1-encounter-done'),
+        done: () => f.has('ch1-encounter-done'),
+      },
+      {
+        id: 'relight',
+        text: 'Put LUMO back on the first perch',
+        keys: ['E'],
+        target: () => this.perchA.anchor,
+        when: () => f.has('ch1-encounter-done'),
+        done: () => ctx.lumo.anchor === this.perchA || ctx.lumo.anchor === this.perchB || p.x < -2.4,
+      },
+      { id: 'perch-b', text: 'Walk into the light, then send LUMO to the next perch', keys: ['E'], target: () => this.perchB.anchor, done: () => ctx.lumo.anchor === this.perchB || p.x < -3.6 },
+      { id: 'chute', text: 'Follow the melody: crawl into the laundry chute', keys: ['E'], target: () => this.at('chute'), done: () => f.has('ch1-complete') },
+    ];
+  }
+
   private wakeLumo(ctx: GameContext): void {
     ctx.inventory.remove('lumo');
     ctx.flags.set('lumo-found');
@@ -520,6 +568,7 @@ export class Bedroom extends Level {
   private startEncounter(ctx: GameContext): void {
     if (this.encounterTimer >= 0) return;
     this.encounterTimer = 0;
+    ctx.flags.set('ch1-encounter');
     this.melody?.stop(1.2);
     ctx.ui.subtitle('[the melody stops]', 2.5);
     ctx.lumo.frighten(3);

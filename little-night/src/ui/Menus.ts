@@ -117,6 +117,7 @@ export class Menus {
         const q = (v: Quality, label: string) => `<button data-q="${v}" class="seg ${s.quality === v ? 'on' : ''}" aria-pressed="${s.quality === v}">${label}</button>`;
         const range = (key: keyof SettingsData, label: string, min: number, max: number, step: number) =>
           `<label class="row"><span>${label}</span><input type="range" data-key="${key}" min="${min}" max="${max}" step="${step}" value="${s[key]}"><output>${Math.round(Number(s[key]) * 100)}</output></label>`;
+        const g = (v: string, label: string) => `<button data-g="${v}" class="seg ${(s.guidance ?? 'stuck') === v ? 'on' : ''}" aria-pressed="${(s.guidance ?? 'stuck') === v}">${label}</button>`;
         const toggle = (key: keyof SettingsData, label: string) =>
           `<label class="row"><span>${label}</span><button class="toggle ${s[key] ? 'on' : ''}" data-toggle="${key}" aria-pressed="${s[key]}"><i></i></button></label>`;
         return `
@@ -128,6 +129,7 @@ export class Menus {
             ${range('sensitivity', 'Look sensitivity', 0.3, 2.5, 0.05)}
             ${toggle('invertY', 'Invert vertical look')}
             ${toggle('subtitles', 'Subtitles')}
+            <div class="row"><span>Guidance</span><div class="segs">${g('always', 'Always')}${g('stuck', 'When stuck')}${g('off', 'Off')}</div></div>
             <div class="row"><span>Graphics quality</span><div class="segs">${q('low', 'Low')}${q('medium', 'Medium')}${q('high', 'High')}</div></div>
             <nav class="menu-list"><button data-act="back" class="primary">${icon('firefly')}<span>Back</span></button></nav>
           </div>`;
@@ -199,6 +201,14 @@ export class Menus {
         rec[key] = !rec[key];
         b.classList.toggle('on', rec[key]);
         b.setAttribute('aria-pressed', String(rec[key]));
+        this.cb.uiSound('click');
+        this.cb.settingsChanged({ ...this.settings });
+      }),
+    );
+    this.root.querySelectorAll<HTMLButtonElement>('button[data-g]').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.settings.guidance = b.dataset.g as SettingsData['guidance'];
+        this.root.querySelectorAll('button[data-g]').forEach((o) => o.classList.toggle('on', o === b));
         this.cb.uiSound('click');
         this.cb.settingsChanged({ ...this.settings });
       }),

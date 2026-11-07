@@ -9,6 +9,8 @@ export interface SettingsData {
   invertY: boolean;
   quality: Quality;
   subtitles: boolean;
+  /** Step-by-step help: always shown, shown when stuck, or off (chapter 1 shows it unless off). */
+  guidance: 'always' | 'stuck' | 'off';
 }
 
 const KEY = 'littlenight.settings.v1';
@@ -24,6 +26,7 @@ export function defaultSettings(): SettingsData {
     invertY: false,
     quality: coarse ? 'low' : 'medium',
     subtitles: true,
+    guidance: 'stuck',
   };
 }
 

@@ -6,6 +6,7 @@ import { Builder, animateDust, inZone, stormUniforms, type Zone } from './LevelK
 import type { MelodySource } from '../audio/AudioManager';
 import { lumoUniforms } from '../art/Materials';
 import { batchStatic, batchSiblings } from './StaticBatcher';
+import type { GuideStep } from '../systems/GuideSystem';
 
 export interface Checkpoint {
   pos: THREE.Vector3;
@@ -76,6 +77,17 @@ export abstract class Level {
   /** Called after saved flags were applied; set up encounter state for the checkpoint. */
   abstract begin(ctx: GameContext, checkpoint: string): void;
   protected tick(_dt: number, _ctx: GameContext): void {}
+  /** World position of an interactable's hit volume (for guide markers). */
+  protected at(id: string, dy = 0): THREE.Vector3 | null {
+    const it = this.items.find((i) => i.id === id);
+    if (!it || !it.hit[0]) return null;
+    return it.hit[0].getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, dy, 0));
+  }
+
+  /** Ordered step-by-step guidance for this chapter. */
+  guideSteps(_ctx: GameContext): GuideStep[] {
+    return [];
+  }
 
   build(ctx: GameContext, configureShadow: (l: THREE.DirectionalLight) => void): void {
     this.ctx = ctx;

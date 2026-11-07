@@ -17,6 +17,7 @@ import { InventorySystem } from '../systems/InventorySystem';
 import { DarkHazardSystem } from '../systems/DarkHazardSystem';
 import { CinematicSystem } from '../systems/CinematicSystem';
 import { FearSystem } from '../systems/FearSystem';
+import { GuideSystem } from '../systems/GuideSystem';
 import { EnemyManager } from '../enemies/EnemyManager';
 import { HUD } from '../ui/HUD';
 import { Menus } from '../ui/Menus';
@@ -49,6 +50,7 @@ export class Game {
   readonly cinematics = new CinematicSystem();
   readonly enemies: EnemyManager;
   readonly fear = new FearSystem();
+  readonly guide: GuideSystem;
   readonly saves = new SaveManager();
   readonly hud: HUD;
   readonly menus: Menus;
@@ -74,6 +76,7 @@ export class Game {
   private loading = false;
   /** Simulation steps per frame (test harness fast-forward only). */
   testSteps = 1;
+  private guideView: ReturnType<GuideSystem['update']> = null;
 
   constructor(private readonly canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.settings = loadSettings();
@@ -87,6 +90,7 @@ export class Game {
     this.hazards = new DarkHazardSystem(scene);
     this.enemies = new EnemyManager(scene);
     this.lumo = new LumoController(scene);
+    this.guide = new GuideSystem(scene);
     this.hands = new Hands(camera);
     this.hud = new HUD(uiRoot);
     this.player = new PlayerController(this.world, camera, {
@@ -245,6 +249,7 @@ export class Game {
       this.ctx.particleScale = QUALITY[s.quality].particles;
     }
     if (persist) saveSettings(s);
+    if (this.level && this.state !== 'menu') this.applyGuide();
   }
 
   private loadProgress(): void {
@@ -347,6 +352,7 @@ export class Game {
       this.lumo.restore(save.lumoFound, save.lumoEnergy, this.pipeline.camera);
       if (save.lumoFound) this.audio.startTrackedLoop('lumo-wings', 'lumo', this.lumo.model.root, 0.05);
       this.level!.begin(this.ctx, save.checkpoint);
+      this.applyGuide();
       if (save.checkpoint === 'start') {
         const c = CHAPTERS.find((x) => x.id === save.chapter)!;
         this.hud.chapterCard(c.numeral, c.title);
@@ -363,6 +369,7 @@ export class Game {
     this.world.clear();
     this.noise.clear();
     this.cinematics.stop();
+    this.guide.clear();
     this.fear.floor = 0;
     this.fear.value = 0;
     this.audio.stopAll();
@@ -413,6 +420,13 @@ export class Game {
       };
       step();
     });
+  }
+
+  private applyGuide(): void {
+    if (!this.level) return;
+    const pref = this.settings.guidance ?? 'stuck';
+    const mode = pref === 'off' ? 'off' : this.chapter === 'bedroom' ? 'always' : pref;
+    this.guide.setSteps(this.level.guideSteps(this.ctx), mode);
   }
 
   saveCheckpoint(id: string, silent = false): void {
@@ -516,50 +530,104 @@ export class Game {
     this.catching = true;
     const hush = this.enemies.hush!;
     const p = this.player;
+    const cam = this.pipeline.camera;
     if (p.mode === 'hidden') p.exitHide();
     p.stopPush();
     p.mode = 'locked';
-    this.audio.play('stinger', { volume: 0.9 });
-    this.audio.play('hushWhisper', { volume: 1.3 });
     this.fear.addSpike(1);
     const head = new THREE.Vector3();
+    const baseFov = cam.fov;
+    const trackHead = (w: number) => {
+      hush.model.head.getWorldPosition(head);
+      head.y += 0.14;
+      p.lookOverride = { target: head.clone(), weight: w };
+    };
+    // Pin its face right in front of the child's eyes, body trailing behind.
+    const placeClose = (dist: number) => {
+      const fwd = p.forward();
+      const eye = cam.getWorldPosition(new THREE.Vector3());
+      const at = eye.clone().addScaledVector(fwd, dist);
+      at.y = eye.y - 0.14;
+      hush.yaw = Math.atan2(-fwd.x, -fwd.z);
+      hush.model.pinHead = at;
+      hush.model.faceTarget = eye;
+    };
     this.cinematics.play(
       [
         {
-          dur: 0.45,
+          // A breath of total silence; the head snaps toward it.
+          dur: 0.22,
           start: () => {
-            hush.model.headTop.getWorldPosition(head);
-            p.lookOverride = { target: head.clone(), weight: 0 };
-            this.hands.set('cover', 2);
+            this.audio.duck(0, 0.02);
+            this.hands.set('recoil', 3);
+            trackHead(0);
+          },
+          update: (t) => trackHead(Math.min(1, t * 3)),
+        },
+        { dur: 0.09, start: () => (this.fadeAmount = 1) },
+        {
+          // Flicker: it is suddenly *right there*.
+          dur: 0.1,
+          start: () => {
+            this.fadeAmount = 0;
+            placeClose(0.62);
+            hush.model.pose = 'lunge';
+            hush.model.stoop = 1;
+            hush.model.setReveal(0.15);
+            hush.model.setFaceOpen(0.15);
+            trackHead(1);
+            this.hurt = 0.4;
+          },
+        },
+        { dur: 0.07, start: () => (this.fadeAmount = 1) },
+        {
+          dur: 0.95,
+          start: () => {
+            this.fadeAmount = 0;
+            this.audio.duck(1, 0.005);
+            this.audio.play('scream', { volume: 1 });
+            this.audio.play('stinger', { volume: 0.8 });
           },
           update: (t) => {
-            hush.model.headTop.getWorldPosition(head);
-            p.lookOverride!.target.copy(head);
-            p.lookOverride!.weight = Math.min(1, t * 2.5);
-            hush.model.setReveal(t);
+            placeClose(0.62 - t * 0.38);
+            hush.model.setFaceOpen(0.15 + Math.min(1, t * 1.6) * 0.85);
+            trackHead(1);
+            p.catchShake = Math.min(1, t * 3);
+            cam.fov = THREE.MathUtils.lerp(baseFov, baseFov * 0.62, t * t);
+            cam.updateProjectionMatrix();
+            this.hurt = 0.4 + t * 0.6;
+            this.flash = Math.random() < 0.12 ? 0.6 : 0;
           },
         },
         {
-          dur: 0.7,
-          update: (t) => {
-            // It leans in, close.
-            const toPlayer = p.position.clone().sub(hush.position).setY(0).normalize();
-            hush.position.addScaledVector(toPlayer, 0.012);
-            hush.model.lean = t * 0.5;
-            hush.model.headTop.getWorldPosition(head);
-            p.lookOverride!.target.copy(head);
-            this.hurt = t;
+          // Hard cut. Ringing ears in the dark.
+          dur: 1.1,
+          start: () => {
+            this.fadeAmount = 1;
+            p.catchShake = 0;
+            this.flash = 0;
+            this.audio.duck(0, 0.01);
+            window.setTimeout(() => {
+              this.audio.duck(1, 0.01);
+              this.audio.play('ring', { volume: 1 });
+            }, 120);
+            this.hud.subtitle('[Shhhh\u2026]', 2);
           },
         },
-        { dur: 0.5, update: (t) => (this.fadeAmount = t) },
-        { dur: 0.6 },
       ],
       () => {
         hush.model.lean = 0;
+        hush.model.stoop = 0;
         hush.model.setReveal(0);
+        hush.model.setFaceOpen(0);
+        hush.model.pinHead = null;
+        hush.model.faceTarget = null;
+        hush.model.root.position.y = 0;
         p.lookOverride = null;
+        p.catchShake = 0;
+        cam.fov = baseFov;
+        this.pipeline.resize(true);
         this.hurt = 0;
-        this.hud.subtitle('[Shhhh…]', 2);
         if (this.snapshot) this.loadFromSave(this.snapshot);
       },
     );
@@ -643,12 +711,13 @@ export class Game {
     // Hands pose
     let pose: HandPose = 'hidden';
     if (this.player.mode === 'pushing') pose = 'push';
-    else if (this.player.mode === 'climbing') pose = 'climb';
+    else if (this.player.mode === 'climbing') pose = this.player.climbKind === 'down' || this.player.climbProgress > 0.45 ? 'press' : 'climb';
     else if (this.player.mode === 'hidden') pose = 'hide';
     else if (this.interactions.held) pose = 'hold';
     else if (this.player.crawling && this.player.speed > 0.2) pose = 'crawl';
     this.hands.update(dt, pose, this.player.speed);
 
+    this.guideView = this.guide.update(dt, this.ctx, this.pipeline.camera, playing && !this.cinematics.active && this.player.mode !== 'hidden');
     this.hud.update(this.hudState(playing && !this.cinematics.active));
     const pr = this.interactions.prompt;
     this.touch.setInteract(pr && !pr.disabled ? pr.verb : pr?.verb ?? null, Boolean(pr?.disabled), Boolean(this.interactions.held));
@@ -682,6 +751,8 @@ export class Game {
       fear: this.fear.value,
       visible: visible && this.state === 'playing',
       touch: this.input.isTouchDevice(),
+      guide: visible ? this.guideView : null,
+      guideOpacity: this.guide.opacity,
       needsClick: visible && this.state === 'playing' && !this.input.isTouchDevice() && !this.input.pointerLocked && !this.cinematics.active,
     };
   }

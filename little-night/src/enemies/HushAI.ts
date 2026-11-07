@@ -29,7 +29,7 @@ export interface HushTuning {
 export const DEFAULT_TUNING: HushTuning = {
   patrolSpeed: 0.9,
   investigateSpeed: 1.3,
-  chaseSpeed: 1.85,
+  chaseSpeed: 1.75,
   sight: 7.5,
   hearing: 1,
 };
@@ -249,7 +249,7 @@ export class HushAI {
     const d = Math.hypot(playerPos.x - this.position.x, playerPos.z - this.position.z);
     if (this.seesPlayer) {
       const near = 1 - Math.min(1, d / this.tuning.sight);
-      this.suspicion = Math.min(1, this.suspicion + dt * (0.9 + near * 3.2));
+      this.suspicion = Math.min(1, this.suspicion + dt * (0.6 + near * 2.4));
       this.lastKnown.copy(playerPos);
       this.unseenTime = 0;
     } else {

@@ -13,6 +13,8 @@ import { HideSpot, HideVolume } from '../objects/HideSpot';
 import { Perch, Examinable, Trigger } from '../objects/Fixtures';
 import { Throwable } from '../objects/Throwable';
 import { NavGrid } from '../enemies/NavGrid';
+import type { GuideStep } from '../systems/GuideSystem';
+import type { PushableObject as PO } from '../objects/PushableObject';
 
 /**
  * Chapter 2. Kitchen x[-4.5,4.5] z[-3.75,3.75]; utility room west; pantry east;
@@ -535,6 +537,44 @@ export class Kitchen extends Level {
         this.hallChaseTimer = 0.5;
         break;
     }
+  }
+
+  guideSteps(ctx: GameContext): GuideStep[] {
+    const f = ctx.flags;
+    const p = ctx.player.position;
+    const hasKey = () => ctx.inventory.has('pantry-key') || f.has('k-pantry-open');
+    const open = () => f.has('k-pantry-open');
+    const tin = () => this.item<PO>('bread-tin').base;
+    return [
+      { id: 'enter', text: 'Follow the melody into the kitchen. Crawl to stay quiet', keys: ['C'], target: () => v3(-4.4, 0.4, 1.9), done: () => p.x > -4.2 || hasKey() },
+      { id: 'chair', text: 'The pantry is locked. Push a chair to the counter, below the bread tin', keys: ['E', 'W'], target: () => this.item<PO>('chair-e').center(), done: () => f.has('k-chair-placed') || hasKey() },
+      { id: 'climb', text: 'Climb onto the chair, then onto the counter', keys: ['Space'], target: () => v3(-0.3, 0.95, -3.3), done: () => p.y > 0.85 || hasKey() },
+      { id: 'tin', text: 'Push the bread tin aside', keys: ['E', 'W'], target: () => tin().clone().add(v3(0, 0.15, 0)), done: () => tin().x > 0.55 || hasKey() },
+      { id: 'key', text: 'Take the key', keys: ['E'], target: () => this.at('pantry-key'), done: hasKey },
+      {
+        id: 'grab',
+        text: 'It is guarding the pantry. Pick up a spoon or a toy block',
+        keys: ['E'],
+        target: () => this.at('spoon-a') ?? this.at('k-block'),
+        when: () => hasKey() && !open() && !ctx.interactions.held && !f.has('g-threw'),
+        done: () => Boolean(ctx.interactions.held) || f.has('g-threw') || open(),
+      },
+      {
+        id: 'throw',
+        text: 'Throw it far away, toward the utility room',
+        keys: ['E'],
+        target: () => v3(-5.0, 0.6, 2.2),
+        when: () => Boolean(ctx.interactions.held) && !open(),
+        done: () => !ctx.interactions.held || open(),
+      },
+      { id: 'unlock', text: 'While it is away: unlock the pantry door', keys: ['E'], target: () => v3(4.57, 0.95, -1.75), done: open },
+      { id: 'pa', text: 'The pantry is deep dark. From the doorway, put LUMO on the first perch', keys: ['E'], target: () => this.at('pantry-a'), done: () => f.has('perch:pantry-a') || f.has('k-wind-key') },
+      { id: 'pb', text: 'Walk in and send LUMO to the far perch', keys: ['E'], target: () => this.at('pantry-b'), done: () => f.has('perch:pantry-b') || f.has('k-wind-key') },
+      { id: 'sack', text: 'Grab the flour sack and pull it away from the wall', keys: ['E', 'S'], target: () => this.sack.center(), done: () => f.has('k-hole-found') },
+      { id: 'wkey', text: 'Take Grandpa\u2019s wind key from the shelf', keys: ['E'], target: () => this.at('wind-key'), done: () => f.has('k-wind-key') },
+      { id: 'hole', text: 'RUN! Crawl through the hole behind the sack', keys: ['C'], target: () => v3(8.95, 0.25, -3.85), done: () => f.has('k-hall') },
+      { id: 'ladder', text: 'Climb the ladder to the attic', keys: ['E'], target: () => this.at('ladder'), done: () => this.climbing },
+    ];
   }
 
   private setGuard(ctx: GameContext, instant: boolean): void {

@@ -1,6 +1,7 @@
 import type { UIBridge } from '../core/Context';
 import type { Prompt } from '../objects/Interactable';
 import { icon } from './Icons';
+import type { GuideView } from '../systems/GuideSystem';
 
 export interface HudState {
   prompt: Prompt | null;
@@ -15,6 +16,8 @@ export interface HudState {
   visible: boolean;
   touch: boolean;
   needsClick?: boolean;
+  guide?: GuideView | null;
+  guideOpacity?: number;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, html = ''): HTMLElementTagNameMap[K] {
@@ -45,6 +48,9 @@ export class HUD implements UIBridge {
   private slats: HTMLElement;
   private fadeEl: HTMLElement;
   private clickEl: HTMLElement;
+  private guideEl: HTMLElement;
+  private arrowEl: HTMLElement;
+  private lastGuide = '';
   private timers = new Map<HTMLElement, number>();
   subtitlesEnabled = true;
   examineOpen = false;
@@ -66,6 +72,8 @@ export class HUD implements UIBridge {
     this.itemEl = el('div', 'hud-item', this.root);
     this.cardEl = el('div', 'hud-card', this.root);
     this.clickEl = el('div', 'hud-click', this.root, 'Click to look around');
+    this.guideEl = el('div', 'hud-guide', this.root);
+    this.arrowEl = el('div', 'hud-arrow', this.root, '<svg viewBox="0 0 32 32"><path d="M6 16h18M17 8l8 8-8 8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>');
 
     // LUMO energy: a little firefly whose lantern fills, ringed by ten segments.
     this.energyEl = el('div', 'hud-energy', this.root);
@@ -190,6 +198,26 @@ export class HUD implements UIBridge {
       }
     }
     this.clickEl.classList.toggle('show', Boolean(s.needsClick));
+    const g = s.guide;
+    const gText = g ? `${g.text}|${g.keys.join(',')}|${s.touch}` : '';
+    if (gText !== this.lastGuide) {
+      this.lastGuide = gText;
+      if (g) {
+        const keys = s.touch ? '' : g.keys.map((k) => `<span class="hud-key">${k}</span>`).join('');
+        this.guideEl.innerHTML = `<span class="mark">${icon('firefly')}</span><span class="txt">${g.text}</span>${keys ? `<span class="keys">${keys}</span>` : ''}`;
+      }
+    }
+    this.guideEl.style.opacity = String(g ? (s.guideOpacity ?? 1) : 0);
+    if (g?.arrow) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const x = w / 2 + g.arrow.x * (w / 2 - 44);
+      const y = h / 2 - g.arrow.y * (h / 2 - 44);
+      this.arrowEl.style.opacity = String(s.guideOpacity ?? 1);
+      this.arrowEl.style.transform = `translate(${x - 18}px, ${y - 18}px) rotate(${-g.arrow.angle}rad)`;
+    } else {
+      this.arrowEl.style.opacity = '0';
+    }
     this.crosshair.classList.toggle('target', s.targeting);
     this.crosshair.classList.toggle('crawl', s.crawling);
     this.slats.classList.toggle('show', s.hidden);

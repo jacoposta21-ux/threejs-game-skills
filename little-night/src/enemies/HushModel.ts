@@ -94,6 +94,18 @@ export class HushModel {
   private smokeData: { life: Float32Array; vel: Float32Array };
   private lipMat: THREE.MeshBasicMaterial;
   lean = 0;
+  /** Catch: bend down to the child's eye level (0..1). */
+  stoop = 0;
+  /** Catch: keep the head pinned at this world point, facing `faceTarget`. */
+  pinHead: THREE.Vector3 | null = null;
+  faceTarget: THREE.Vector3 | null = null;
+  private mouth!: THREE.Group;
+  private mouthVoid!: THREE.Mesh;
+  private eyes: THREE.Mesh[] = [];
+  private eyeMat!: THREE.MeshBasicMaterial;
+  private faceOpen = 0;
+  private lip!: THREE.Mesh;
+  private mask!: THREE.Mesh;
   pose: HushPose = 'walk';
   private poseBlend = { search: 0, lunge: 0, kneel: 0, shush: 1 };
 
@@ -213,6 +225,67 @@ export class HushModel {
     lip.position.set(0, 0.03, 0.098);
     lip.rotation.set(0, 0, Math.PI);
     this.head.add(lip);
+    this.lip = lip;
+    // Hidden face, only seen up close: hollow eye pits with pinprick lights, and a
+    // mouth that opens far too wide.
+    const pitMat = new THREE.MeshBasicMaterial({ color: '#000000', fog: false });
+    this.eyeMat = new THREE.MeshBasicMaterial({ color: '#e8e2ff', transparent: true, opacity: 0, fog: false });
+    for (const sx of [-1, 1]) {
+      const pit = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 8), pitMat);
+      pit.scale.set(1, 1.5, 0.35);
+      pit.position.set(sx * 0.036, 0.175, 0.105);
+      pit.visible = false;
+      this.head.add(pit);
+      this.eyes.push(pit);
+      const glint = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 8, 6), this.eyeMat);
+      glint.position.set(sx * 0.035, 0.17, 0.112);
+      this.head.add(glint);
+    }
+    // Pale, cracked face that surfaces from the shadow only when it catches you.
+    const maskGeo = new THREE.SphereGeometry(0.113, 24, 18, Math.PI * 0.12, Math.PI * 0.76, Math.PI * 0.1, Math.PI * 0.72);
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = maskCanvas.height = 128;
+    const mc = maskCanvas.getContext('2d')!;
+    mc.fillStyle = '#b9b3c4';
+    mc.fillRect(0, 0, 128, 128);
+    mc.strokeStyle = 'rgba(20,16,28,0.75)';
+    mc.lineWidth = 1.2;
+    for (let i = 0; i < 9; i++) {
+      mc.beginPath();
+      let x = 20 + ((i * 37) % 90);
+      let y = (i * 53) % 128;
+      mc.moveTo(x, y);
+      for (let k = 0; k < 6; k++) {
+        x += ((k * 13 + i * 7) % 17) - 8;
+        y += 9 + (k % 3) * 4;
+        mc.lineTo(x, y);
+      }
+      mc.stroke();
+    }
+    const maskTex = new THREE.CanvasTexture(maskCanvas);
+    maskTex.colorSpace = THREE.SRGBColorSpace;
+    this.mask = new THREE.Mesh(maskGeo, new THREE.MeshStandardMaterial({ map: maskTex, roughness: 0.85, emissive: '#26222e', emissiveIntensity: 0.9, transparent: true, opacity: 0 }));
+    this.mask.scale.set(0.82, 1.75, 0.95);
+    this.mask.position.y = 0.14;
+    this.mask.visible = false;
+    this.head.add(this.mask);
+    this.mouth = new THREE.Group();
+    this.mouth.position.set(0, 0.04, 0.109);
+    // A ragged, too-long tear of black where a mouth should be.
+    const tear = new THREE.Shape();
+    for (let i = 0; i <= 40; i++) {
+      const a = (i / 40) * Math.PI * 2;
+      const r = 0.04 * (1 + 0.22 * Math.sin(a * 7) * Math.sin(a * 3 + 1) + (i % 2 ? 0.12 : -0.04));
+      const x = Math.cos(a) * r * 0.75;
+      const y = Math.sin(a) * r * (Math.sin(a) < 0 ? 1.6 : 1);
+      if (i === 0) tear.moveTo(x, y);
+      else tear.lineTo(x, y);
+    }
+    this.mouthVoid = new THREE.Mesh(new THREE.ShapeGeometry(tear), new THREE.MeshBasicMaterial({ color: '#000000', fog: false }));
+    this.mouth.add(this.mouthVoid);
+    this.mouth.scale.set(0.6, 0.05, 1);
+    this.mouth.visible = false;
+    this.head.add(this.mouth);
 
     // Smoke wisps shed from the body.
     const count = 70;
@@ -258,6 +331,20 @@ export class HushModel {
     this.root.visible = f > 0.02;
   }
 
+  /** 0 = sealed seam, 1 = the face fully open (catch scare). */
+  setFaceOpen(v: number): void {
+    this.faceOpen = v;
+    const on = v > 0.01;
+    this.mouth.visible = on;
+    this.mask.visible = on;
+    (this.mask.material as THREE.MeshStandardMaterial).opacity = Math.min(1, v * 3);
+    this.lip.visible = !on;
+    for (const e of this.eyes) e.visible = on;
+    this.mouth.scale.set(0.7 + v * 1.1, 0.05 + v * 3.2, 1);
+    this.mouth.position.y = 0.04 - v * 0.09;
+    this.eyeMat.opacity = Math.min(1, v * 2);
+  }
+
   setReveal(r: number): void {
     this.material.uniforms.uReveal.value = r;
     this.shroudMat.uniforms.uReveal.value = r;
@@ -293,12 +380,12 @@ export class HushModel {
       leg.end.rotation.x = -lift * 0.4;
     }
     const bob = Math.abs(Math.sin(g)) * 0.05 * stride;
-    this.hips.position.y = 1.16 - bob - kneel * 0.62 + hitch * 0.1 * stride;
+    this.hips.position.y = 1.16 - bob - kneel * 0.62 + hitch * 0.1 * stride - this.stoop * 0.72;
     this.hips.rotation.y = Math.sin(g) * 0.12 * stride;
     this.hips.rotation.z = Math.sin(g) * 0.04 * stride;
 
     // Hunch, plus searching lean and lunge.
-    this.spine.rotation.x = 0.32 + search * 0.45 + lunge * 0.7 + kneel * 0.3 + this.lean;
+    this.spine.rotation.x = 0.32 + search * 0.45 + lunge * 0.7 + kneel * 0.3 + this.lean + this.stoop * 0.55;
     this.spine.rotation.z = Math.sin(this.time * 0.6) * 0.04;
 
     // Head: tilted, with occasional sharp jerks.
@@ -308,7 +395,8 @@ export class HushModel {
       this.headJerkTarget = (Math.random() - 0.5) * 1.1;
     }
     this.headJerk += (this.headJerkTarget - this.headJerk) * Math.min(1, dt * 18);
-    this.neck.rotation.x = -0.5 - search * 0.3 - lunge * 0.4;
+    this.neck.rotation.x = -0.5 - search * 0.3 - lunge * 0.4 - this.stoop * 0.5;
+    if (this.faceOpen > 0) this.head.rotation.z = Math.sin(this.time * 47) * 0.05 * this.faceOpen;
     this.head.rotation.z = 0.35 + this.headJerk * 0.4;
     this.head.rotation.y = this.headJerk * (1 - lunge) * 0.6;
     this.head.rotation.x = -0.15 + search * 0.2;
@@ -330,6 +418,17 @@ export class HushModel {
         f.rotation.z = (i - 1.5) * 0.08 * (1 + lunge * 2);
       });
     });
+    if (this.pinHead) {
+      // Move the whole body so the head lands exactly where the scare needs it.
+      this.root.updateMatrixWorld(true);
+      const hp = this.head.getWorldPosition(new THREE.Vector3());
+      this.root.position.add(this.pinHead.clone().sub(hp));
+      this.root.updateMatrixWorld(true);
+    }
+    if (this.faceTarget) {
+      this.head.lookAt(this.faceTarget);
+      this.head.rotateZ(Math.sin(this.time * 47) * 0.05 * this.faceOpen);
+    }
     this.updateSmoke(dt, smokeScale);
   }
 

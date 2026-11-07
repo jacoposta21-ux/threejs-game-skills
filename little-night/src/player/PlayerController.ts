@@ -67,11 +67,24 @@ export class PlayerController {
   private bobPhase = 0;
   private landDip = 0;
   private fallStart = 0;
-  private climb: { from: THREE.Vector3; to: THREE.Vector3; t: number; dur: number; endCrawl: boolean } | null = null;
+  private climb: {
+    kind: 'up' | 'down';
+    from: THREE.Vector3;
+    to: THREE.Vector3;
+    t: number;
+    dur: number;
+    endCrawl: boolean;
+    eye0: number;
+  } | null = null;
+  /** Absolute camera height during a climb (scripted, not physics). */
+  private climbEye = 0;
+  private bounceT = 0;
   private hintCooldown = 0;
   /** External camera look override for cinematics/catches. */
   lookOverride: { target: THREE.Vector3; weight: number } | null = null;
   fear = 0;
+  /** Violent shake during a catch (0..1). */
+  catchShake = 0;
   reducedMotion = false;
   moveScale = 1;
   readonly cameraOffset = new THREE.Vector3();
@@ -116,6 +129,8 @@ export class PlayerController {
     this.hideSpot = null;
     this.pushTarget = null;
     this.climb = null;
+    this.bounceT = 0;
+    this.catchShake = 0;
     this.lookOverride = null;
     this.landDip = 0;
     const g = this.world.groundAt(pos.x, pos.z, PLAYER.radius, pos.y + 0.3, PLAYER.stepUp);
@@ -176,6 +191,16 @@ export class PlayerController {
       }
     }
 
+    // Stepping off furniture: a short, controlled climb down instead of a drop.
+    if (this.grounded && this.mode === 'normal' && this.speed > 0.2) {
+      const g = this.world.groundAt(this.position.x, this.position.z, PLAYER.radius, this.position.y, PLAYER.stepUp);
+      const drop = this.position.y - g.height;
+      if (drop > 0.3 && drop < 1.0) {
+        this.startDescend(new THREE.Vector3(this.velocity.x, 0, this.velocity.z).normalize());
+        this.syncCamera(dt);
+        return;
+      }
+    }
     this.integrateVertical(dt);
     if (this.forcedCrawl && this.grounded && this.crawling) {
       const ceiling = this.world.ceilingAt(this.position.x, this.position.z, PLAYER.radius, this.position.y);
@@ -264,7 +289,7 @@ export class PlayerController {
     this.hooks.onHint(text);
   }
 
-  /** Space: climb a ledge in front if possible, else a small hop. */
+  /** Space: climb a ledge in front if possible; otherwise a little tiptoe bob (toddlers don't really jump). */
   tryJumpOrClimb(): boolean {
     if (!this.grounded) return false;
     const target = this.findClimb();
@@ -272,11 +297,7 @@ export class PlayerController {
       this.startClimb(target.to, target.endCrawl);
       return true;
     }
-    if (!this.crawling) {
-      this.velocity.y = PLAYER.hopVelocity;
-      this.grounded = false;
-      this.fallStart = this.position.y;
-    }
+    if (!this.crawling && this.bounceT <= 0) this.bounceT = 0.45;
     return false;
   }
 
@@ -311,35 +332,83 @@ export class PlayerController {
 
   private startClimb(to: THREE.Vector3, endCrawl: boolean): void {
     const rise = to.y - this.position.y;
-    this.climb = { from: this.position.clone(), to, t: 0, dur: 0.45 + rise * 0.55, endCrawl };
+    const eye0 = this.position.y + this.eyeHeight;
+    this.climb = { kind: 'up', from: this.position.clone(), to, t: 0, dur: 0.95 + rise * 0.9, endCrawl, eye0 };
+    this.climbEye = eye0;
     this.mode = 'climbing';
     this.velocity.set(0, 0, 0);
     this.hooks.onClimb(to);
+  }
+
+  private startDescend(dir: THREE.Vector3): void {
+    const from = this.position.clone();
+    const tx = from.x + dir.x * 0.3;
+    const tz = from.z + dir.z * 0.3;
+    const g = this.world.groundAt(tx, tz, PLAYER.radius, from.y - 0.25, 0.05);
+    const to = new THREE.Vector3(tx, Math.max(g.height, -5), tz);
+    const drop = from.y - to.y;
+    const eye0 = from.y + this.eyeHeight;
+    this.climb = { kind: 'down', from, to, t: 0, dur: 0.6 + drop * 0.55, endCrawl: this.crawling, eye0 };
+    this.climbEye = eye0;
+    this.mode = 'climbing';
+    this.velocity.set(0, 0, 0);
   }
 
   get climbProgress(): number {
     return this.climb ? this.climb.t / this.climb.dur : -1;
   }
 
+  get climbKind(): 'up' | 'down' | null {
+    return this.climb?.kind ?? null;
+  }
+
   private updateClimb(dt: number): void {
     const c = this.climb!;
     c.t += dt;
     const k = Math.min(1, c.t / c.dur);
-    const rise = THREE.MathUtils.smoothstep(k, 0, 0.6);
-    const along = THREE.MathUtils.smoothstep(k, 0.35, 1);
-    this.position.x = THREE.MathUtils.lerp(c.from.x, c.to.x, along);
-    this.position.z = THREE.MathUtils.lerp(c.from.z, c.to.z, along);
-    // Rise slightly above the top then settle, like hauling yourself up.
-    this.position.y = THREE.MathUtils.lerp(c.from.y, c.to.y, rise) + Math.sin(k * Math.PI) * 0.06;
-    if (c.endCrawl && !this.crawling) {
-      this.crawling = true;
-      this.forcedCrawl = true;
+    const ease = (a: number, b: number) => THREE.MathUtils.smootherstep(k, a, b);
+    if (c.kind === 'up') {
+      // Reach & grip, haul the body up, get a knee over the edge, settle.
+      const peek = c.to.y + 0.22;
+      const kneel = c.to.y + PLAYER.eyeCrawl;
+      const lift = ease(0.18, 0.66);
+      const along = 0.35 * ease(0.2, 0.62) + 0.5 * ease(0.62, 0.86) + 0.15 * ease(0.86, 1);
+      this.position.x = THREE.MathUtils.lerp(c.from.x, c.to.x, along);
+      this.position.z = THREE.MathUtils.lerp(c.from.z, c.to.z, along);
+      this.position.y = THREE.MathUtils.lerp(c.from.y, c.to.y, lift);
+      if (k < 0.18) this.climbEye = c.eye0 - 0.035 * ease(0, 0.18);
+      else if (k < 0.66) this.climbEye = THREE.MathUtils.lerp(c.eye0 - 0.035, peek, ease(0.18, 0.66));
+      else if (k < 0.86) this.climbEye = THREE.MathUtils.lerp(peek, kneel, ease(0.66, 0.86));
+      else this.climbEye = kneel;
+      // Effortful little tugs while pulling up.
+      if (k > 0.18 && k < 0.66) this.climbEye += Math.sin((k - 0.18) * 40) * 0.006;
+    } else {
+      // Sit on the edge, slide a leg down, lower yourself, feet touch.
+      const along = ease(0, 0.55);
+      const low = ease(0.15, 0.9);
+      this.position.x = THREE.MathUtils.lerp(c.from.x, c.to.x, along);
+      this.position.z = THREE.MathUtils.lerp(c.from.z, c.to.z, along);
+      this.position.y = THREE.MathUtils.lerp(c.from.y, c.to.y, low);
+      const sit = c.from.y + 0.42;
+      const land = c.to.y + PLAYER.eyeCrawl + 0.08;
+      if (k < 0.35) this.climbEye = THREE.MathUtils.lerp(c.eye0, Math.min(c.eye0, sit), ease(0, 0.35));
+      else this.climbEye = THREE.MathUtils.lerp(Math.min(c.eye0, sit), land, ease(0.35, 0.95));
     }
     if (k >= 1) {
       this.position.copy(c.to);
       this.mode = 'normal';
-      this.climb = null;
       this.grounded = true;
+      this.velocity.set(0, 0, 0);
+      // Continue from the scripted eye height: standing up happens smoothly afterwards.
+      this.eyeHeight = this.climbEye - this.position.y;
+      if (c.endCrawl && !this.crawling) {
+        this.crawling = true;
+        this.forcedCrawl = c.kind === 'up';
+      } else if (!c.endCrawl) {
+        this.crawling = false;
+      }
+      if (c.kind === 'down') this.hooks.onLand(this.position, 0.3, this.surface);
+      this.climb = null;
     }
   }
 
@@ -447,12 +516,22 @@ export class PlayerController {
 
     const fwd = this.forward();
     const right = new THREE.Vector3().crossVectors(fwd, up);
-    cam.position.set(this.position.x, this.position.y + this.eyeHeight - this.landDip + bobY + idle, this.position.z);
+    this.bounceT = Math.max(0, this.bounceT - dt);
+    const bounce = this.bounceT > 0 ? Math.sin((1 - this.bounceT / 0.45) * Math.PI) * 0.035 : 0;
+    const baseY = this.climb ? this.climbEye : this.position.y + this.eyeHeight - this.landDip + bobY + bounce;
+    cam.position.set(this.position.x, baseY + idle, this.position.z);
     cam.position.addScaledVector(right, bobX);
 
     let yaw = this.yaw + shakeX;
     let pitch = this.pitch + shakeY;
-    if (this.mode === 'climbing') pitch = THREE.MathUtils.lerp(pitch, -0.35, Math.sin(Math.max(0, this.climbProgress) * Math.PI) * 0.6);
+    let climbRoll = 0;
+    if (this.climb) {
+      const k = Math.max(0, this.climbProgress);
+      // Look down at the hands/top surface while hauling up (or at the floor when climbing down).
+      const look = this.climb.kind === 'up' ? -0.5 : -0.6;
+      pitch = THREE.MathUtils.lerp(pitch, look, Math.sin(Math.min(1, k / 0.92) * Math.PI) * 0.75);
+      climbRoll = Math.sin(k * Math.PI * 3) * 0.03 * (1 - k) * motion;
+    }
     if (this.lookOverride) {
       const dir = new THREE.Vector3().subVectors(this.lookOverride.target, cam.position);
       const ty = Math.atan2(-dir.x, -dir.z);
@@ -467,6 +546,7 @@ export class PlayerController {
         this.pitch = pitch;
       }
     }
-    cam.rotation.set(pitch, yaw, roll + shakeX * 0.6, 'YXZ');
+    cam.rotation.set(pitch, yaw, roll + climbRoll + shakeX * 0.6 + this.catchShake * (Math.random() - 0.5) * 0.06, 'YXZ');
+    if (this.catchShake > 0) cam.position.add(new THREE.Vector3((Math.random() - 0.5) * 0.02, (Math.random() - 0.5) * 0.02, 0).multiplyScalar(this.catchShake));
   }
 }

@@ -32,7 +32,9 @@ export type Sfx =
   | 'dial'
   | 'chute'
   | 'note'
-  | 'glimmer';
+  | 'glimmer'
+  | 'scream'
+  | 'ring';
 
 export interface PlayOptions {
   pos?: THREE.Vector3;
@@ -224,6 +226,14 @@ export class AudioManager {
     this.master.gain.setTargetAtTime(m, t, 0.05);
     this.musicBus!.gain.setTargetAtTime(this.volumes.music, t, 0.05);
     this.sfxBus!.gain.setTargetAtTime(this.volumes.sfx, t, 0.05);
+  }
+
+  /** Temporarily scale everything (catch scare: sudden silence, then the scream). */
+  duck(level: number, time = 0.05): void {
+    if (!this.ctx || !this.master) return;
+    const m = this.muted || this.platformMuted ? 0 : this.volumes.master;
+    this.master.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.master.gain.setTargetAtTime(m * level, this.ctx.currentTime, time);
   }
 
   suspend(): void {
@@ -883,6 +893,30 @@ export class AudioManager {
         break;
       case 'note':
         this.noiseHit(dest, t, 0.3, 'highpass', 3000, 0.8, 0.07 * v, 0.05);
+        break;
+      case 'scream': {
+        // Distorted, rising wail layered over a roaring whisper.
+        const ctx = this.ctx;
+        for (const n of [49, 50, 55.5, 61, 62]) {
+          const o = ctx.createOscillator();
+          o.type = 'sawtooth';
+          o.frequency.setValueAtTime(midi(n), t);
+          o.frequency.exponentialRampToValueAtTime(midi(n) * 1.9, t + 0.9);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.11 * v, t + 0.08);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+          o.connect(g).connect(dest);
+          o.start(t);
+          o.stop(t + 1.05);
+        }
+        this.noiseHit(dest, t, 1.0, 'bandpass', 1700, 0.6, 0.9 * v, 0.05);
+        this.noiseHit(dest, t, 0.9, 'highpass', 3500, 0.7, 0.5 * v, 0.02);
+        this.tone(dest, t, 'sine', 70, 28, 1.1, 0.8 * v, 0.01);
+        break;
+      }
+      case 'ring':
+        this.tone(dest, t, 'sine', 3150, 3100, 2.4, 0.05 * v, 0.02);
         break;
       case 'glimmer':
         [86, 90, 93].forEach((n, i) => this.tone(dest, t + i * 0.07, 'sine', midi(n), midi(n), 0.6, 0.035 * v));

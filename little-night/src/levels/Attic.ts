@@ -16,6 +16,7 @@ import { Perch, Nest, Examinable, Socket, Dial, Trigger } from '../objects/Fixtu
 import { Throwable } from '../objects/Throwable';
 import { NavGrid } from '../enemies/NavGrid';
 import type { LumoAnchor } from '../companion/LumoController';
+import type { GuideStep } from '../systems/GuideSystem';
 
 const SOLUTION: GlyphKind[] = ['bird', 'moon', 'heart'];
 
@@ -598,6 +599,31 @@ export class Attic extends Level {
         ctx.ui.objective('Wind the music box');
         break;
     }
+  }
+
+  guideSteps(ctx: GameContext): GuideStep[] {
+    const f = ctx.flags;
+    const p = ctx.player.position;
+    const has = (item: string, socket: string) => ctx.inventory.has(item) || f.has(`socket:${socket}`);
+    const gate = () => f.has('attic-gate-open');
+    const trunk = () => this.item<PushableObject>('big-trunk').base;
+    return [
+      { id: 'pa', text: 'The toys lie in deep darkness. Put LUMO on the brass perch', keys: ['E'], target: () => this.at('attic-a'), done: () => f.has('perch:attic-a') || has('spring', 'gate-spring') },
+      { id: 'trunk', text: 'Open the toy trunk', keys: ['E'], target: () => this.at('toy-trunk'), done: () => f.has('a-trunk-open') || has('spring', 'gate-spring') },
+      { id: 'spring', text: 'Take the spring', keys: ['E'], target: () => this.at('spring'), done: () => has('spring', 'gate-spring') },
+      { id: 'pb', text: 'Send LUMO to the next perch and leave the dark', keys: ['E'], target: () => this.at('attic-b'), done: () => p.x > -0.9 || f.has('perch:attic-b') },
+      { id: 'drawer', text: 'Open the workbench drawer', keys: ['E'], target: () => this.at('bench-drawer'), done: () => f.has('drawer:bench-drawer') || has('gear', 'gate-gear') },
+      { id: 'gear', text: 'Take the brass gear', keys: ['E'], target: () => this.at('gear'), done: () => has('gear', 'gate-gear') },
+      { id: 'tower', text: 'Climb the crates up to the top of the wardrobe', keys: ['Space'], target: () => v3(2.9, 1.25, 1.05), done: () => p.y > 1.1 || has('crank', 'gate-crank') },
+      { id: 'crank', text: 'Take the crank handle', keys: ['E'], target: () => this.at('crank'), done: () => has('crank', 'gate-crank') },
+      { id: 'fit', text: 'Fit the gear, the spring and the crank into the box by the gate', keys: ['E'], target: () => v3(2.7, 0.6, -1.7), done: () => ['gate-gear', 'gate-spring', 'gate-crank'].every((s) => f.has(`socket:${s}`)) || gate() },
+      { id: 'turn', text: 'Turn the crank', keys: ['E'], target: () => v3(2.7, 0.8, -1.7), done: gate },
+      { id: 'push', text: 'Push the old trunk under the magic lantern', keys: ['E', 'W'], target: () => trunk().clone().add(v3(0, 0.3, 0)), done: () => trunk().z < -1.6 || f.has('a-projected') },
+      { id: 'lantern', text: 'Climb onto the trunk and put LUMO inside the lantern', keys: ['Space', 'E'], target: () => this.at('lantern'), done: () => f.has('a-projected') },
+      { id: 'dials', text: 'Turn the three dials to match the shapes on the far wall', keys: ['E'], target: () => this.at('dial-1'), done: () => f.has('attic-cage-open') },
+      { id: 'wind', text: 'Wind the music box with Grandpa\u2019s key', keys: ['E'], target: () => this.at('wind-box'), done: () => f.has('a-wound') },
+      { id: 'crown', text: 'Quick! Give LUMO\u2019s light to the music box', keys: ['E'], target: () => this.at('crown'), done: () => this.ending },
+    ];
   }
 
   private onPartInstalled(ctx: GameContext): void {

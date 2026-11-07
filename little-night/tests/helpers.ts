@@ -83,7 +83,7 @@ export async function installDriver(page: Page): Promise<void> {
       },
       async jump() {
         L.press('jump');
-        await wait(1300);
+        await wait(2400);
         return L.state().pos;
       },
       async push(dirYaw: number, forward: number, until: () => boolean, timeout = 9000) {
