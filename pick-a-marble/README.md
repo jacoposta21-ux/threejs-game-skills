@@ -76,6 +76,20 @@ finish, how many fell, and where marbles needed recovery.
 Race: `1`–`6` switch cameras (cinematic, leader, follow, overview, finish, free),
 `Esc` pauses, `R` restarts; click a marble in the standings to follow it.
 
+## Playgama build
+
+```bash
+npm run build:playgama   # → dist-playgama/ and pick-a-marble-playgama.zip
+```
+
+Uses the official `@playgama/bridge` Vite plugin (CDN script with the bundled
+runtime as fallback) and `src/platform/PlaygamaPlatform.ts`: `initialize`,
+loading progress, `game_ready`, `gameplay_started/stopped`, platform pause and
+audio events, and an interstitial only between races (at most every 3 minutes,
+`playgama/playgama-bridge-config.json`). Upload the ZIP in the Playgama developer
+cabinet (developer.playgama.com). The default `npm run build` stays the
+CrazyGames build.
+
 ## Online rooms
 
 Menu → **ONLINE**: create a private room (5-letter code + invite link) or join one.

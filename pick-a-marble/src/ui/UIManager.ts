@@ -102,6 +102,7 @@ export class UIManager {
   }
 
   loading(frac: number, text: string): void {
+    this.game.platform.loadingProgress(frac);
     const bar = $('.load-fill', this.loadingEl);
     const t = $('.load-text', this.loadingEl);
     if (bar) bar.style.width = `${Math.round(frac * 100)}%`;

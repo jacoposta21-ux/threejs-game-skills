@@ -14,7 +14,8 @@
     "test:gen": "tsx tests/sim/gen.ts 3",
     "test:builtins": "tsx tests/sim/builtins.ts",
     "typecheck": "tsc --noEmit",
-    "build:single": "vite build -c vite.single.config.ts && cp dist-single/index.html pick-a-marble.html"
+    "build:single": "vite build -c vite.single.config.ts && cp dist-single/index.html pick-a-marble.html",
+    "build:playgama": "vite build -c vite.playgama.config.ts && cp playgama/playgama-bridge-config.json dist-playgama/ && rm -f pick-a-marble-playgama.zip && cd dist-playgama && zip -qr ../pick-a-marble-playgama.zip ."
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
@@ -25,6 +26,7 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@playgama/bridge": "^2.4.1",
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.9.0",
     "@types/pngjs": "^6.0.5",

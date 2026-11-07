@@ -12,7 +12,7 @@ import { CHALLENGES, evaluate, type ChallengeDef } from '../modes/ChallengeManag
 import { RandomTrackGenerator, type Difficulty } from '../modes/RandomTrackGenerator';
 import { BUILTIN_TRACKS, menuTrack } from '../modes/builtinTracks';
 import { initPhysics } from '../physics/PhysicsWorld';
-import { CrazyGamesPlatform } from '../platform/CrazyGames';
+import { createPlatform } from '../platform/GamePlatform';
 import { CameraManager, type CamMode } from '../race/CameraManager';
 import { Effects } from '../race/Effects';
 import { RaceManager, type RaceResult } from '../race/RaceManager';
@@ -50,7 +50,7 @@ export class GameManager {
   readonly settings = new Settings();
   readonly progress = new ProgressionManager();
   readonly saves = new SaveManager();
-  readonly platform = new CrazyGamesPlatform();
+  readonly platform = createPlatform();
   readonly builder: TrackBuilder;
   readonly race: RaceManager;
   readonly thumbs: ThumbnailRenderer;

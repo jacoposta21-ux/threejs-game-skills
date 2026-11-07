@@ -42,7 +42,9 @@ declare global {
 
 const SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
 
-export class CrazyGamesPlatform {
+import type { GamePlatform } from './GamePlatform';
+
+export class CrazyGamesPlatform implements GamePlatform {
   private sdk: CGSDK | null = null;
   private inGameplay = false;
   private lastAd = 0;
@@ -83,6 +85,10 @@ export class CrazyGamesPlatform {
 
   loadingStart(): void {
     this.safe(() => this.sdk?.game?.loadingStart?.());
+  }
+
+  loadingProgress(): void {
+    /* CrazyGames has no progress API */
   }
 
   loadingStop(): void {
