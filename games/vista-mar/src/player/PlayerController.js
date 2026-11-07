@@ -32,7 +32,7 @@ export class PlayerController {
         this.rig = null;
       }
     }
-    if (this.rig) this.group.add(this.rig.root);
+    if (this.rig) { this.group.add(this.rig.root); this.rig.play('Idle_Loop', { fade: 0 }); }
     else this.group.add(fallbackBody());
 
     this.pos = new THREE.Vector3();

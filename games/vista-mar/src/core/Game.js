@@ -263,10 +263,10 @@ export class Game {
   updateChunkVisibility() {
     const cam = this.camera.position;
     const far = (this.scene.fog ? this.scene.fog.far : 1000) + 160;
+    this.city.instancer.update(cam, this.scene.fog ? this.scene.fog.far : 1000);
     for (const m of this.city.chunkMeshes) {
-      const [cx, cz] = m.userData.chunk;
-      const x = cx * 200 - 1000 + 100, z = cz * 200 - 1000 + 100;
-      const d = Math.max(Math.abs(cam.x - x), Math.abs(cam.z - z)) - 100;
+      const bs = m.geometry.boundingSphere;
+      const d = Math.hypot(cam.x - bs.center.x, cam.z - bs.center.z) - bs.radius;
       m.visible = d < far;
     }
   }
@@ -304,6 +304,23 @@ export class Game {
       look(dx, dy) { game.input.mouseDX += dx; game.input.mouseDY += dy; },
       teleport(x, z) { game.player.teleport(x, z); },
       setTime(h) { game.world.setTime(h); },
+      breakdown() {
+        game.updateChunkVisibility();
+        const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(game.camera.projectionMatrix, game.camera.matrixWorldInverse));
+        const out = {};
+        game.scene.traverseVisible((o) => {
+          if (!o.isMesh) return;
+          if (o.frustumCulled && o.geometry.boundingSphere) {
+            const bs = (o.isInstancedMesh ? o.boundingSphere : o.geometry.boundingSphere).clone().applyMatrix4(o.matrixWorld);
+            if (!fr.intersectsSphere(bs)) return;
+          }
+          const t = (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1);
+          const key = (o.isInstancedMesh ? 'inst:' : 'mesh:') + (Array.isArray(o.material) ? o.material.map((m) => m.name || m.type).join('+') : (o.material.name || o.material.type)) + ':' + Math.round(o.geometry.attributes.position.count);
+          out[key] = out[key] || { n: 0, tris: 0 };
+          out[key].n++; out[key].tris += Math.round(t);
+        });
+        return Object.entries(out).sort((a, b) => b[1].tris - a[1].tris).slice(0, 15);
+      },
       tapes() { return game.tapes.tapes.map((t) => ({ x: t.x, z: t.z, collected: t.collected })); },
     };
   }

@@ -3,12 +3,13 @@ import { GeoBuilder } from './GeoBuilder.js';
 import * as T from './textures.js';
 import { createRng } from '../utils/random.js';
 import { bakeStatic } from '../core/AssetLoader.js';
+import { PropInstancer } from './PropInstancer.js';
 import {
   LINES, xWidths, zWidths, SIDEWALK, CURB_H, BOULEVARD_MEDIAN, BEACH, WATER_LEVEL, BOUNDS,
   allBlocks, terrainHeight,
 } from './Layout.js';
 
-const CHUNK = 200;
+const CHUNK = 300;
 
 // Builds the whole city: merged static geometry per (chunk, material), instanced
 // props, collision volumes, minimap footprints and points of interest.
@@ -828,8 +829,8 @@ export class CityGenerator {
         // parallel parked cars on some streets
         if (k !== 8 && k !== 0) {
           for (let z = z0 + 4; z < z1 - 4; z += 7) {
-            if (rng.chance(0.3)) this.props.cars.push({ x: x - hw + 1.2, z, y: 0, rot: Math.PI, street: true });
-            if (rng.chance(0.3)) this.props.cars.push({ x: x + hw - 1.2, z: z + 3, y: 0, rot: 0, street: true });
+            if (rng.chance(0.18)) this.props.cars.push({ x: x - hw + 1.2, z, y: 0, rot: Math.PI, street: true });
+            if (rng.chance(0.18)) this.props.cars.push({ x: x + hw - 1.2, z: z + 3, y: 0, rot: 0, street: true });
           }
         }
       }
@@ -848,8 +849,8 @@ export class CityGenerator {
             if (k < 8) this.addPalm(x + 6, z + hw + 1.6, CURB_H, rng.range(0.95, 1.2));
           }
           for (let x = x0 + 4; x < x1 - 4; x += 7) {
-            if (rng.chance(0.25)) this.props.cars.push({ x, z: z - hw + 1.2, y: 0, rot: -Math.PI / 2, street: true });
-            if (rng.chance(0.25)) this.props.cars.push({ x: x + 3, z: z + hw - 1.2, y: 0, rot: Math.PI / 2, street: true });
+            if (rng.chance(0.15)) this.props.cars.push({ x, z: z - hw + 1.2, y: 0, rot: -Math.PI / 2, street: true });
+            if (rng.chance(0.15)) this.props.cars.push({ x: x + 3, z: z + hw - 1.2, y: 0, rot: Math.PI / 2, street: true });
           }
         } else {
           for (let x = x0 + 4; x < x1 - 4; x += 12) {
@@ -949,24 +950,24 @@ export class CityGenerator {
       return im;
     };
 
-    // ---- palms (CC0 Quaternius models, procedural fallback)
-    const palmModels = [A.palm1, A.palm2, A.palm3].map((g) => bakeStatic(g, { size: 9.5 })).filter(Boolean);
-    const palmFallback = palmModels.length ? null : proceduralPalm();
-    const palmsByVar = [[], [], []];
-    for (const p of this.props.palms) palmsByVar[palmModels.length ? p.v % palmModels.length : 0].push(p);
-    palmsByVar.forEach((list, v) => {
-      const model = palmModels[v] || palmFallback;
-      addInst(model, list, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(it.s); });
-    });
+    // ---- palms (CC0 Quaternius models near, cheap procedural palm far)
+    this.instancer = new PropInstancer(this.group);
+    const palmModels = [A.palm2, A.palm3].map((g) => bakeStatic(g, { size: 9.5 })).filter(Boolean);
     for (const m of palmModels) for (const mat of m.materials) { mat.roughness = 0.85; mat.metalness = 0; mat.side = THREE.DoubleSide; }
+    const palmLow = proceduralPalm();
+    const palmsByVar = [[], []];
+    for (const p of this.props.palms) palmsByVar[palmModels.length ? p.v % palmModels.length : 0].push(p);
+    const palmPlace = (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(it.s); };
+    palmsByVar.forEach((list, v) => {
+      this.instancer.add({ near: palmModels[v] || palmLow, far: palmModels[v] ? palmLow : null, items: list, place: palmPlace, nearDist: 70, farDist: 900 });
+    });
 
     // ---- broadleaf trees (procedural)
     const tree = proceduralTree();
-    addInst(tree.trunk, this.props.trees, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.x * 7.1, 0); d.scale.setScalar(it.s); });
-    const crowns = addInst(tree.crown, this.props.trees, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.z * 3.3, 0); d.scale.setScalar(it.s); }, {
-      color: (it) => new THREE.Color().setHSL(0.27 + ((it.x * 13.7) % 0.06), 0.45, 0.28 + ((it.z * 7.3) % 0.08)),
-    });
-    void crowns;
+    const treePlace = (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.x * 7.1, 0); d.scale.setScalar(it.s); };
+    const treeColor = (it) => new THREE.Color().setHSL(0.27 + ((it.x * 13.7) % 0.06), 0.45, 0.28 + ((it.z * 7.3) % 0.08));
+    this.instancer.add({ near: tree.trunk, items: this.props.trees, place: treePlace, nearDist: 200, farDist: 700 });
+    this.instancer.add({ near: tree.crown, far: tree.crownLow, items: this.props.trees, place: treePlace, color: treeColor, nearDist: 90, farDist: 900 });
     for (const t of this.props.trees) this.collision.addCircle(t.x, t.z, 0.4 * t.s);
 
     // ---- bushes
@@ -996,8 +997,8 @@ export class CityGenerator {
       }
       for (const m of lampModel.materials) { m.metalness = Math.min(m.metalness ?? 0, 0.5); }
     }
-    const lampProc = lampModel || proceduralLamp(this.nightMaterials.lamps);
-    if (!lampModel) headOffset.set(0, 7.2, 1.6);
+    const lampProc = proceduralLamp(this.nightMaterials.lamps);
+    if (!lampModel) { headOffset.set(0, 7.15, 1.7); armAngle = 0; }
     for (const L of this.props.lamps) {
       const f = L.facing || [Math.sin(L.rot || 0), Math.cos(L.rot || 0)];
       L.rotY = Math.atan2(f[0], f[1]) - armAngle;
@@ -1010,7 +1011,11 @@ export class CityGenerator {
       this.collision.addCircle(L.x, L.z, 0.2);
       this.props.glows.push({ x: L.head.x, y: 0.03 + (L.y === 0 ? 0 : CURB_H), z: L.head.z, ground: true, color: 0xffd9a0, radius: 9 });
     }
-    addInst(lampProc, this.props.lamps, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rotY, 0); d.scale.setScalar(1); });
+    this.instancer.add({
+      near: lampModel || lampProc, far: lampModel ? lampProc : null, items: this.props.lamps, nearDist: 35, farDist: 700,
+      place: (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rotY, 0); d.scale.setScalar(1); },
+      placeFar: (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rotY + armAngle, 0); d.scale.setScalar(1); },
+    });
 
     // ---- benches, bins, hydrants (procedural, shared geometry)
     const benchGeo = mergeBoxes([[-0.9, 0.42, -0.25, 0.9, 0.5, 0.25], [-0.9, 0.5, 0.2, 0.9, 0.95, 0.28], [-0.85, 0, -0.2, -0.75, 0.42, 0.2], [0.75, 0, -0.2, 0.85, 0.42, 0.2]]);
@@ -1060,7 +1065,7 @@ export class CityGenerator {
       this.footprints.push({ x0: c.x - ex, z0: c.z - ez, x1: c.x + ex, z1: c.z + ez, h: 1.5, kind: 'car' });
     });
     for (const [k, list] of Object.entries(carLists)) {
-      addInst(carModels[k], list, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); });
+      this.instancer.add({ near: carModels[k], far: carProxy(carModels[k]), items: list, nearDist: 60, farDist: 600, place: (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); } });
     }
     this.carModels = carModels;
   }
@@ -1107,9 +1112,12 @@ function proceduralTree() {
     g.computeVertexNormals();
     blobs.push(g);
   }
+  const low = new THREE.IcosahedronGeometry(1.9, 0).scale(1, 0.85, 1).translate(0, 4.3, 0);
+  const crownMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true });
   return {
+    crownLow: { geometry: mergeGeometriesSafe([low]), materials: [crownMat] },
     trunk: { geometry: trunk, materials: [new THREE.MeshStandardMaterial({ color: 0x5b4532, roughness: 1 })] },
-    crown: { geometry: mergeGeometriesSafe(blobs), materials: [new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true })] },
+    crown: { geometry: mergeGeometriesSafe(blobs), materials: [crownMat] },
   };
 }
 
@@ -1138,7 +1146,11 @@ function proceduralPalm() {
 }
 
 function proceduralLamp(lampList) {
-  const pole = mergeBoxes([[-0.1, 0, -0.1, 0.1, 7.4, 0.1], [-0.06, 7.2, 0, 0.06, 7.35, 1.8]]);
+  const pole = mergeGeometriesSafe([
+    new THREE.CylinderGeometry(0.07, 0.12, 7.4, 8).translate(0, 3.7, 0),
+    new THREE.CylinderGeometry(0.2, 0.22, 0.6, 8).translate(0, 0.3, 0),
+    mergeBoxes([[-0.05, 7.22, 0, 0.05, 7.34, 1.75]]),
+  ]);
   const head = new THREE.BoxGeometry(0.4, 0.15, 0.7).translate(0, 7.15, 1.7).toNonIndexed();
   const geo = mergeGeometriesSafe([pole, head]);
   geo.addGroup(0, pole.attributes.position.count, 0);
@@ -1146,4 +1158,15 @@ function proceduralLamp(lampList) {
   const lm = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe2b0, emissiveIntensity: 0 });
   lampList.push(lm);
   return { geometry: geo, materials: [new THREE.MeshStandardMaterial({ color: 0x3a3d42, metalness: 0.6, roughness: 0.5 }), lm] };
+}
+
+// Far-distance stand-in for a parked car: body + cabin boxes in a neutral paint.
+const proxyCache = new Map();
+function carProxy(model) {
+  if (proxyCache.has(model)) return proxyCache.get(model);
+  const { x: w, y: h, z: l } = model.size;
+  const geo = mergeBoxes([[-w / 2, 0.25, -l / 2, w / 2, h * 0.55, l / 2], [-w * 0.42, h * 0.55, -l * 0.25, w * 0.42, h * 0.92, l * 0.2]]);
+  const out = { geometry: geo, materials: [new THREE.MeshStandardMaterial({ color: 0x8b95a1, roughness: 0.5, metalness: 0.3 })] };
+  proxyCache.set(model, out);
+  return out;
 }

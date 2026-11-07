@@ -182,7 +182,7 @@ export class World {
 
     // traffic signal lamps: 3 bulbs per head, colour set every phase change
     const sig = city.props.signals;
-    const bulbGeo = new THREE.SphereGeometry(0.13, 8, 6);
+    const bulbGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
     this.signalMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
     this.signalMesh = new THREE.InstancedMesh(bulbGeo, this.signalMat, sig.length * 3);
     sig.forEach((s, i) => {
