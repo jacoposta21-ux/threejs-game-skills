@@ -1,6 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { Game } from './game/game.ts';
 import type { LevelsFile } from './levels/progression.ts';
+import levelsData from '../public/levels/levels.json';
 
 const fill = document.getElementById('load-fill')!;
 const text = document.getElementById('load-text')!;
@@ -17,8 +18,7 @@ async function boot() {
     setProgress(0.2, 'Heating the physics oven…');
     await RAPIER.init();
     setProgress(0.45, 'Mapping the streets…');
-    const res = await fetch('levels/levels.json');
-    const levels = (await res.json()) as LevelsFile;
+    const levels = levelsData as unknown as LevelsFile; // bundled: works from file:// too
     setProgress(0.6, 'Building the town…');
     await tick();
     const game = new Game(RAPIER, document.getElementById('game') as HTMLCanvasElement, document.getElementById('ui')!, levels);

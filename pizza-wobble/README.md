@@ -19,3 +19,7 @@ Controls: W/↑ gas · S/↓ brake/reverse · A/D or ←/→ steer · Space hard
 Touch: ◀ ▶ bottom-left, brake/gas bottom-right.
 
 See `PROGRESS.md` for status and decisions, `CREDITS.md` for assets.
+
+## Play without a server
+`npm run single` writes `dist/pizza-wobble.html`: one self-contained file (JS, CSS, fonts and levels inlined)
+that opens directly in Chrome with a double click. A prebuilt copy is in `play/pizza-wobble.html`.

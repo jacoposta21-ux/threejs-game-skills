@@ -11,7 +11,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "shots": "node tools/screenshots.mjs",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "single": "npm run build && node tools/single-file.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
