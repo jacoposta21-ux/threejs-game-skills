@@ -7,6 +7,7 @@ import type { Quality } from '../meta/Settings';
 import { CHALLENGES, challengeUnlocked, evaluate, type ChallengeDef } from '../modes/ChallengeManager';
 import { BUILTIN_TRACKS } from '../modes/builtinTracks';
 import type { Difficulty } from '../modes/RandomTrackGenerator';
+import { ART_SKINS } from '../marbles/ArtSkins';
 import { CAM_LABEL, type CamMode } from '../race/CameraManager';
 import type { RaceResult } from '../race/RaceManager';
 import { ENVIRONMENTS } from '../scene/Environments';
@@ -180,7 +181,48 @@ export class UIManager {
         this.showCollection();
       },
       settings: () => this.showSettings(),
-      menu: () => g.goMenu(),
+      menu: () => {
+        if (g.screen === 'online' && g.online.active) {
+          this.confirm('Leave the room?', g.online.isHost ? 'The room closes for everyone.' : 'You can rejoin with the same code.', 'Leave', () => {
+            g.online.leave();
+            g.goMenu();
+          }, true);
+          return;
+        }
+        g.goMenu();
+      },
+      online: () => g.openOnline(),
+      onlineCreate: () => {
+        this.saveOnlineName();
+        g.online.createRoom(g.settings.data.playerName, g.settings.data.onlineSkin);
+      },
+      onlineJoin: () => {
+        this.saveOnlineName();
+        const code = ($<HTMLInputElement>('#codeIn')?.value ?? '').trim();
+        g.online.joinRoom(code, g.settings.data.playerName, g.settings.data.onlineSkin);
+      },
+      onlineLeave: () => g.online.leave(),
+      onlineStart: () => {
+        this.hideModal();
+        g.online.startRace();
+      },
+      onlineLobby: () => {
+        this.hideModal();
+        g.race.stop();
+        g.openOnline();
+      },
+      onlineSkin: (el) => {
+        const id = el.dataset.skin as string;
+        g.settings.set('onlineSkin', id);
+        if (g.online.active) g.online.setSkin(id);
+        else this.showOnline();
+      },
+      onlineCopy: () => this.copy(g.online.code, 'Room code copied'),
+      onlineCopyLink: () => {
+        const link = g.online.inviteLink();
+        if (link) this.copy(link, 'Invite link copied');
+        else this.copy(g.online.code, 'Room code copied (links need the online version)');
+      },
       newTrack: () => {
         this.hideModal();
         g.newCreativeTrack();
@@ -440,6 +482,7 @@ export class UIManager {
         <nav class="menu-buttons">
           <button class="btn big pink" data-act="play">${icon('play')}PLAY</button>
           <button class="btn blue" data-act="builder">${icon('layers')}TRACK BUILDER</button>
+          <button class="btn orange" data-act="online">${icon('online')}ONLINE</button>
           <button class="btn yellow" data-act="challenges">${icon('trophy')}CHALLENGES</button>
           <button class="btn green" data-act="random">${icon('dice')}RANDOM TRACK</button>
           <button class="btn purple" data-act="collection">${icon('star')}COLLECTION</button>
@@ -995,12 +1038,14 @@ export class UIManager {
       <div class="race-top">
         <div class="timer-box"><span id="rTimer">0:00.00</span><div class="prog"><div id="rProg"></div></div></div>
       </div>
-      <div class="race-actions">
-        <button class="icon-btn" data-act="speed" id="rSpeed" title="Simulation speed">1×</button>
+      <div class="race-actions">${
+        this.game.race.config?.online
+          ? `<span class="online-chip">${icon('online')}Room ${esc(this.game.online.code)} · Round ${this.game.online.round}</span>${this.game.race.config.online === 'guest' ? `<button class="icon-btn" data-act="onlineLobby" title="Back to the lobby">${icon('x')}</button>` : ''}`
+          : `<button class="icon-btn" data-act="speed" id="rSpeed" title="Simulation speed">1×</button>
         <button class="icon-btn" data-act="restartRace" title="Restart (R)">${icon('restart')}</button>
         <button class="icon-btn" data-act="pause" title="Pause (Esc)">${icon('pause')}</button>
-        <button class="icon-btn" data-act="exitRace" title="Back to editor">${icon('x')}</button>
-      </div>
+        <button class="icon-btn" data-act="exitRace" title="Back to editor">${icon('x')}</button>`
+      }</div>
       <div class="standings" id="rStand"></div>
       <div class="feed" id="rFeed"></div>
       <div class="follow-card" id="rFollow"></div>
@@ -1056,7 +1101,7 @@ export class UIManager {
       const r = rows.find((x) => x.index === i);
       if (r) {
         const kmh = r.speed * 3.6 * 2.5;
-        follow.innerHTML = `<span class="ball sm" style="background:${skinCss(getSkin(r.skin))}"></span><div><b>${esc(r.name)}</b><span>${g.selectedMarble >= 0 ? 'Following' : 'Your pick'} · P${r.place}</span></div><div class="kmh"><b>${kmh.toFixed(0)}</b><span>km/h</span></div>`;
+        follow.innerHTML = `<span class="ball sm" style="background:${skinCss(getSkin(r.skin))}"></span><div><b>${esc(r.name)}</b><span>${g.selectedMarble >= 0 ? 'Following' : cfg.online ? 'You' : 'Your pick'} · P${r.place}</span></div><div class="kmh"><b>${kmh.toFixed(0)}</b><span>km/h</span></div>`;
       }
     }
   }
@@ -1136,8 +1181,9 @@ export class UIManager {
     if (!cfg) return;
     const win = result.rows[0];
     const pickRow = result.rows.find((r) => r.index === result.picked);
+    const yours = cfg.online ? 'Your marble' : 'Your pick';
     const pickMsg =
-      result.pickedPlace === 1 ? `<div class="pick-res good">${icon('star')}Your pick <b>${esc(pickRow?.name ?? '')}</b> won!</div>` : pickRow ? `<div class="pick-res">${icon('star')}Your pick <b>${esc(pickRow.name)}</b> finished ${pickRow.dnf ? 'DNF' : `#${pickRow.place}`}</div>` : '';
+      result.pickedPlace === 1 ? `<div class="pick-res good">${icon('star')}${yours} <b>${esc(pickRow?.name ?? '')}</b> won!</div>` : pickRow ? `<div class="pick-res">${icon('star')}${yours} <b>${esc(pickRow.name)}</b> finished ${pickRow.dnf ? 'DNF' : `#${pickRow.place}`}</div>` : '';
     const chHtml =
       ch && chEval
         ? `<div class="ch-res ${chEval.passed ? 'pass' : 'fail'}"><h3>${icon('trophy')}${esc(ch.title)} — ${chEval.passed ? 'COMPLETE!' : 'Not yet'}</h3><ul class="objectives">${ch.objectives
@@ -1145,6 +1191,13 @@ export class UIManager {
             .join('')}</ul></div>`
         : '';
     const nextCh = ch && chEval?.passed && CHALLENGES[CHALLENGES.indexOf(ch) + 1];
+    const online = !!cfg.online;
+    const localButtons = `<div class="row end wrap">
+        <button class="btn ghost" data-act="resultsMenu">${icon('home')}Menu</button>
+        <button class="btn ghost" data-act="replayRace" title="Same seed, same result">${icon('restart')}Replay</button>
+        <button class="btn blue" data-act="exitRace">${icon('edit')}Edit track</button>
+        <button class="btn pink" data-act="raceAgain">${icon('play')}Race again</button>
+        ${nextCh ? `<button class="btn yellow" data-act="nextChallenge">${icon('trophy')}Next challenge</button>` : ''}</div>`;
     this.modal(`<div class="res-head"><span class="ball xl bounce" style="background:${skinCss(getSkin(win.skin))}"></span><div><h2>${esc(win.name)} wins!</h2><p>${win.time !== null ? `${win.time.toFixed(2)} s` : ''} · Race ${result.duration.toFixed(1)} s · seed ${result.seed}</p></div></div>
       ${pickMsg}${chHtml}
       <div class="res-body">
@@ -1159,13 +1212,12 @@ export class UIManager {
           ${reward.unlocked.length ? `<ul class="unlocks">${reward.unlocked.map((u) => `<li>${icon('star')}${esc(u)}</li>`).join('')}</ul>` : ''}
         </div>
       </div>
-      <div class="row end wrap">
-        <button class="btn ghost" data-act="resultsMenu">${icon('home')}Menu</button>
-        <button class="btn ghost" data-act="replayRace" title="Same seed, same result">${icon('restart')}Replay</button>
-        <button class="btn blue" data-act="exitRace">${icon('edit')}Edit track</button>
-        <button class="btn pink" data-act="raceAgain">${icon('play')}Race again</button>
-        ${nextCh ? `<button class="btn yellow" data-act="nextChallenge">${icon('trophy')}Next challenge</button>` : ''}
-      </div>`, 'results sticky');
+      ${online ? this.onlineScoreHtml() : ''}
+      ${
+        online
+          ? `<div class="row end wrap"><button class="btn ghost" data-act="onlineLobby">${icon('online')}Back to lobby</button>${g.online.isHost ? `<button class="btn pink" data-act="onlineStart">${icon('play')}Next race</button>` : '<span class="muted">Waiting for the host to start the next race…</span>'}</div>`
+          : localButtons
+      }`, 'results sticky');
   }
 
   /* -------------------------------------------------------- challenges */
@@ -1240,7 +1292,7 @@ export class UIManager {
             : buyable
               ? `<button class="btn small yellow" data-act="buy" data-kind="skin" data-id="${s.id}">${icon('coin')}${s.price}</button>`
               : `<span class="req">${icon('lock')}Level ${s.level}</span>`;
-        return `<div class="card col-card ${owned ? '' : 'locked'}"><span class="ball xl" style="background:${skinCss(s)}"></span><h4>${esc(s.name)}</h4><span class="muted">${KIND_LABEL[s.kind]}</span>${status}</div>`;
+        return `<div class="card col-card ${owned ? '' : 'locked'}"><span class="ball xl" style="background:${skinCss(s)}"></span><h4>${esc(s.name)}</h4><span class="muted">${s.theme ?? KIND_LABEL[s.kind]}</span>${status}</div>`;
       }).join('');
     } else if (this.collectionTab === 'pieces') {
       body = PIECES.filter((d) => d.category !== 'gates')
@@ -1271,6 +1323,123 @@ export class UIManager {
         <button class="tab ${this.collectionTab === 'envs' ? 'on' : ''}" data-act="colTab" data-tab="envs">Environments</button>
       </div>
       <div class="card-grid dense">${body}</div></div>`;
+  }
+
+  /* ------------------------------------------------------------ online */
+
+  private copy(text: string, msg: string): void {
+    const done = (): void => this.toast(msg, 'good');
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, () => this.toast(text, 'info'));
+    else this.toast(text, 'info');
+  }
+
+  private saveOnlineName(): void {
+    const v = ($<HTMLInputElement>('#nameIn')?.value ?? '').replace(/[<>&"']/g, '').trim().slice(0, 14);
+    if (v) this.game.settings.set('playerName', v);
+  }
+
+  onlineChanged(): void {
+    if (this.game.screen === 'online') this.showOnline();
+    else if (this.game.screen === 'results' && this.modalEl.querySelector('.room-scores')) {
+      const box = this.modalEl.querySelector('.room-scores');
+      if (box) box.outerHTML = this.onlineScoreHtml();
+    }
+  }
+
+  private onlineScoreHtml(): string {
+    const o = this.game.online;
+    const rows = o.players
+      .slice()
+      .sort((a, b) => b.score - a.score)
+      .map((p) => `<li class="${p.id === o.selfId ? 'me' : ''}"><span class="ball xs" style="background:${skinCss(getSkin(p.skin))}"></span><span class="nm">${esc(p.name)}</span>${p.host ? `<span class="crown">${icon('crown')}</span>` : ''}<span class="pts">${p.score} pts</span></li>`)
+      .join('');
+    return `<div class="room-scores"><h3>${icon('trophy')}Room ${esc(o.code)} — after round ${o.round}</h3><ul class="players">${rows}</ul></div>`;
+  }
+
+  private skinPicker(current: string): string {
+    const owned = this.game.progress.ownedSkins();
+    const art = new Set(ART_SKINS.map((a) => a.id));
+    const list = [...owned.filter((s) => art.has(s)), ...owned.filter((s) => !art.has(s))];
+    return `<div class="skin-row">${list.map((s) => `<button class="ball ${s === current ? 'on' : ''}" data-act="onlineSkin" data-skin="${s}" title="${esc(getSkin(s).name)}" style="background:${skinCss(getSkin(s))}"></button>`).join('')}</div>`;
+  }
+
+  showOnline(): void {
+    const g = this.game;
+    const o = g.online;
+    const prevName = $<HTMLInputElement>('#nameIn')?.value;
+    const prevCode = $<HTMLInputElement>('#codeIn')?.value;
+    const focused = document.activeElement?.id;
+    this.clearLayers();
+    this.screenEl.className = 'panel-screen';
+    const skin = g.settings.data.onlineSkin;
+    let body = '';
+    if (o.state === 'idle') {
+      body = `<div class="online-grid">
+        <div class="online-box">
+          <h3>${icon('star')}You</h3>
+          <label class="muted">Name</label><input class="text-in" id="nameIn" maxlength="14" value="${esc(prevName ?? g.settings.data.playerName)}"/>
+          <label class="muted">Your marble</label>${this.skinPicker(skin)}
+        </div>
+        <div class="online-box">
+          <h3>${icon('crown')}Host a room</h3>
+          <p class="muted">Create a private room and invite up to 11 friends with a code or link. Empty slots are filled with bots.</p>
+          <button class="btn big green" data-act="onlineCreate">${icon('plus')}Create room</button>
+          <h3>${icon('link')}Join a room</h3>
+          <input class="text-in code-in" id="codeIn" maxlength="5" placeholder="CODE" value="${esc(prevCode ?? '')}"/>
+          <button class="btn blue" data-act="onlineJoin">${icon('play')}Join</button>
+          ${o.error ? `<p class="err-line">${icon('warn')} ${esc(o.error)}</p>` : ''}
+        </div>
+      </div>
+      <p class="muted">Online play connects browsers directly (WebRTC). Everyone sees the same race; each player owns one marble and scores points by finishing well.</p>`;
+    } else if (o.state === 'connecting') {
+      body = `<div class="online-box" style="align-items:center;padding:40px"><span class="spinner"></span><h3>${o.role === 'host' ? 'Creating room…' : `Joining room ${esc(o.code)}…`}</h3><button class="btn ghost" data-act="onlineLeave">Cancel</button></div>`;
+    } else {
+      const opts = o.trackOptions();
+      const racing = o.state === 'racing';
+      body = `<div class="online-grid">
+        <div class="online-box">
+          <h3>${icon('online')}Room code</h3>
+          <div class="room-code">${esc(o.code)}</div>
+          <div class="row wrap"><button class="btn small ghost" data-act="onlineCopy">${icon('copy')}Copy code</button><button class="btn small ghost" data-act="onlineCopyLink">${icon('link')}Copy invite link</button></div>
+          <h3>Players (${o.players.length}/12)</h3>
+          <ul class="players">${o.players
+            .map((p) => `<li class="${p.id === o.selfId ? 'me' : ''}"><span class="ball sm" style="background:${skinCss(getSkin(p.skin))}"></span><span class="nm">${esc(p.name)}${p.id === o.selfId ? ' (you)' : ''}</span>${p.host ? `<span class="crown" title="Host">${icon('crown')}</span>` : ''}<span class="pts">${p.score} pts</span></li>`)
+            .join('')}</ul>
+        </div>
+        <div class="online-box">
+          <h3>${icon('star')}Your marble</h3>${this.skinPicker(o.players.find((p) => p.id === o.selfId)?.skin ?? skin)}
+          <h3>${icon('layers')}Race</h3>
+          ${
+            o.isHost
+              ? `<label class="muted">Track</label><select class="sel-in" id="trackSel">${opts.map((t) => `<option value="${esc(t.id)}" ${t.id === o.settings.track ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
+                 <label class="count">Marbles <input type="range" id="cntIn" min="${Math.max(2, o.players.length)}" max="12" value="${o.settings.count}"/><b>${o.settings.count}</b></label>
+                 <button class="btn big pink" data-act="onlineStart" ${racing ? 'disabled' : ''}>${icon('play')}${o.round ? 'NEXT RACE' : 'START RACE'}</button>`
+              : `<p>Track: <b>${esc(opts.find((t) => t.id === o.settings.track)?.name ?? 'chosen by host')}</b> · ${o.settings.count} marbles</p>
+                 <p class="muted">${racing ? 'A race is running — you will join the next one.' : 'Waiting for the host to start…'}</p>`
+          }
+          <button class="btn small ghost" data-act="onlineLeave">${icon('x')}Leave room</button>
+        </div>
+      </div>`;
+    }
+    this.screenEl.innerHTML = `${this.hud()}<div class="panel online">
+      <header class="panel-head"><button class="icon-btn" data-act="menu" aria-label="Back">${icon('back')}</button><h2>${icon('online')}Online</h2><span class="muted">Private rooms with friends</span></header>
+      ${body}</div>`;
+    const sel = $<HTMLSelectElement>('#trackSel');
+    sel?.addEventListener('change', () => o.setTrack(sel.value));
+    const cnt = $<HTMLInputElement>('#cntIn');
+    cnt?.addEventListener('change', () => o.setCount(Number(cnt.value)));
+    cnt?.addEventListener('input', () => {
+      const b = cnt.parentElement?.querySelector('b');
+      if (b) b.textContent = cnt.value;
+    });
+    for (const id of ['nameIn', 'codeIn']) {
+      const el = $<HTMLInputElement>(`#${id}`);
+      el?.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') (id === 'codeIn' ? this.actions.onlineJoin : this.actions.onlineCreate)(el, e);
+      });
+    }
+    if (focused) $<HTMLInputElement>(`#${focused}`)?.focus();
   }
 
   /* ---------------------------------------------------------- settings */

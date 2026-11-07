@@ -17,6 +17,8 @@ export interface RaceConfig {
   seed: number;
   picked: number;
   demo?: boolean;
+  /** Online role: guests follow host snapshots. */
+  online?: 'host' | 'guest';
 }
 
 export interface RankRow {
@@ -87,6 +89,7 @@ export class RaceManager {
     this.config = cfg;
     const pieces = cfg.track.pieces;
     this.sim = new RaceSim(pieces, { seed: cfg.seed, marbles: cfg.marbles.length });
+    this.sim.follower = cfg.online === 'guest';
     this.marbles.build(cfg.marbles);
     this.marbles.picked = cfg.picked;
     this.marbles.selected = -1;
@@ -197,6 +200,31 @@ export class RaceManager {
     }
     return null;
   };
+
+  /** Guest: apply authoritative host state. */
+  applyRemote(snap: { t: number; m: number[] }): void {
+    if (!this.sim || this.config?.online !== 'guest') return;
+    if (this.state === 'countdown') {
+      // host already released the marbles: catch up now
+      this.countdownT = 0;
+      this.update(0);
+    }
+    this.sim.applySnapshot(snap);
+    this.time = this.sim.time;
+  }
+
+  /** Guest: finish with the host's official result. */
+  finishRemote(result: RaceResult): void {
+    if (!this.sim || this.doneFired) return;
+    this.sim.forceDone();
+    this.doneFired = true;
+    this.state = 'finished';
+    this.result = { ...result, picked: this.config?.picked ?? result.picked, pickedPlace: (() => {
+      const row = result.rows.find((r) => r.index === this.config?.picked);
+      return row && !row.dnf ? row.place : null;
+    })() };
+    this.callbacks.done?.(this.result);
+  }
 
   get gateOpen(): number {
     return this.sim?.physics.gateOpen ?? 0;

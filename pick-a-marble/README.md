@@ -76,6 +76,26 @@ finish, how many fell, and where marbles needed recovery.
 Race: `1`–`6` switch cameras (cinematic, leader, follow, overview, finish, free),
 `Esc` pauses, `R` restarts; click a marble in the standings to follow it.
 
+## Online rooms
+
+Menu → **ONLINE**: create a private room (5-letter code + invite link) or join one.
+Up to 12 players; each owns one marble (their chosen skin and name), empty slots
+are bots. The host picks the track (featured, random or their saved tracks) and
+the number of marbles; points per round: 10/7/5/3/2/1.
+
+- Networking is browser-to-browser WebRTC via [PeerJS](https://peerjs.com/), no
+  game server. Signalling uses the free public PeerJS broker; override with
+  `?peerhost=…&peerport=…&peerpath=…&peersecure=0` (a local broker:
+  `node tests/online/peer-server.cjs 9000`).
+- The host simulates the race and streams snapshots 10×/s; guests simulate locally
+  and re-align, and the host's finish order is the official result.
+- On CrazyGames the room code travels through the SDK invite link and Instant
+  Multiplayer opens a room directly (`src/platform/CrazyGames.ts`).
+- Test: `node tests/online/two-players.cjs <shots-dir>` (host + guest browsers).
+
+Illustrated skins (sport balls, animals, food, planets, faces…) are painted per
+pixel in sphere space in `src/marbles/ArtSkins.ts`.
+
 ## Architecture
 
 ```

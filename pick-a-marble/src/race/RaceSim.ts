@@ -54,6 +54,8 @@ export class RaceSim {
   readonly states: MarbleRaceState[] = [];
   readonly events: RaceEvent[] = [];
   phase: 'ready' | 'running' | 'done' = 'ready';
+  /** Online guest: physics runs locally for smoothness, but rules/finishes come from the host. */
+  follower = false;
   time = 0;
   steps = 0;
   finishOrder: number[] = [];
@@ -140,7 +142,65 @@ export class RaceSim {
     this.time += DT;
     this.syncStates();
     if (this.steps % 6 === 0) this.locateAll();
-    this.checkRules();
+    if (!this.follower) this.checkRules();
+  }
+
+  /** Compact authoritative state for network sync (host). */
+  snapshot(): { t: number; m: number[] } {
+    const m: number[] = [];
+    const r = (v: number): number => Math.round(v * 1000) / 1000;
+    this.physics.marbles.forEach((b, i) => {
+      const s = this.states[i];
+      const p = b.translation();
+      const q = b.rotation();
+      const v = b.linvel();
+      const w = b.angvel();
+      const flags = (s.finished ? 1 : 0) | (s.dnf ? 2 : 0);
+      m.push(r(p.x), r(p.y), r(p.z), r(q.x), r(q.y), r(q.z), r(q.w), r(v.x), r(v.y), r(v.z), r(w.x), r(w.y), r(w.z), flags, r(s.finishTime), s.falls);
+    });
+    return { t: Math.round(this.time * 1000) / 1000, m };
+  }
+
+  /** Apply host state (guest). Returns marbles that newly finished. */
+  applySnapshot(snap: { t: number; m: number[] }): number[] {
+    const K = 16;
+    const newly: number[] = [];
+    this.physics.marbles.forEach((b, i) => {
+      const o = i * K;
+      if (o + K > snap.m.length) return;
+      const a = snap.m;
+      const s = this.states[i];
+      b.setTranslation({ x: a[o], y: a[o + 1], z: a[o + 2] }, true);
+      b.setRotation({ x: a[o + 3], y: a[o + 4], z: a[o + 5], w: a[o + 6] }, true);
+      b.setLinvel({ x: a[o + 7], y: a[o + 8], z: a[o + 9] }, true);
+      b.setAngvel({ x: a[o + 10], y: a[o + 11], z: a[o + 12] }, true);
+      const flags = a[o + 13];
+      s.falls = a[o + 15];
+      if (flags & 2 && !s.dnf) {
+        s.dnf = true;
+        b.setEnabled(false);
+      }
+      if (flags & 1 && !s.finished) {
+        s.finished = true;
+        s.finishTime = a[o + 14];
+        s.remaining = 0;
+        this.finishOrder.push(i);
+        newly.push(i);
+        this.events.push({ type: 'finish', marble: i, time: s.finishTime, place: this.finishOrder.length });
+      }
+    });
+    this.time = snap.t;
+    this.syncStates();
+    this.rank();
+    return newly;
+  }
+
+  /** Host declared the race over (guest). */
+  forceDone(): void {
+    if (this.phase === 'done') return;
+    for (const s of this.states) if (!s.finished) s.dnf = true;
+    this.phase = 'done';
+    this.rank();
   }
 
   private syncStates(): void {
@@ -193,7 +253,7 @@ export class RaceSim {
     const eff = e.zone.zone.effect;
     const pos = s.pos.clone();
     if (eff.type === 'finish') {
-      if (!s.finished && this.phase === 'running') {
+      if (!s.finished && this.phase === 'running' && !this.follower) {
         s.finished = true;
         s.finishTime = this.time;
         s.remaining = 0;

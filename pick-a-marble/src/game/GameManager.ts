@@ -25,8 +25,10 @@ import { cloneTrack, newTrack, trackBounds } from '../track/Track';
 import { validateTrack } from '../track/TrackValidator';
 import type { TrackData } from '../track/types';
 import { UIManager } from '../ui/UIManager';
+import { OnlineManager } from '../net/OnlineManager';
+import type { RaceMarble as NetMarble } from '../marbles/MarbleManager';
 
-export type Screen = 'loading' | 'menu' | 'play' | 'editor' | 'race' | 'results' | 'challenges' | 'random' | 'collection';
+export type Screen = 'loading' | 'menu' | 'play' | 'editor' | 'race' | 'results' | 'challenges' | 'random' | 'collection' | 'online';
 export type EditMode = 'creative' | 'challenge' | 'random' | 'saved';
 
 export interface Session {
@@ -54,6 +56,7 @@ export class GameManager {
   readonly thumbs: ThumbnailRenderer;
   readonly ui: UIManager;
   readonly generator = new RandomTrackGenerator(44);
+  readonly online: OnlineManager;
   screen: Screen = 'loading';
   session: Session = { mode: 'creative', returnTo: 'menu' };
   /** Track currently shown in the world (editor / race / preview). */
@@ -83,6 +86,7 @@ export class GameManager {
     this.race = new RaceManager(this.marbles, this.view, this.effects, this.cams, this.audio);
     this.thumbs = new ThumbnailRenderer(this.scene.renderer);
     this.ui = new UIManager(this);
+    this.online = new OnlineManager(this);
     this.applySettings();
     this.settings.onChange(() => this.applySettings());
     this.platform.onAudioMute = (m) => this.audio.setVolumes(this.settings.data.master, this.settings.data.music, this.settings.data.sfx, m || this.settings.data.muted);
@@ -151,6 +155,14 @@ export class GameManager {
     this.goMenu();
     this.ui.hideLoading();
     this.bootDone();
+    const room = this.platform.inviteRoom();
+    if (room) {
+      this.openOnline();
+      this.online.joinRoom(room, this.settings.data.playerName, this.settings.data.onlineSkin);
+    } else if (this.platform.instantMultiplayer) {
+      this.openOnline();
+      this.online.createRoom(this.settings.data.playerName, this.settings.data.onlineSkin);
+    }
   }
 
   private applySettings(): void {
@@ -194,13 +206,15 @@ export class GameManager {
     if (!frozen) this.elapsed += dt;
     const t = this.reducedMotion ? 0 : this.elapsed;
     this.scene.update(simDt, t);
-    if (this.screen === 'race' || this.screen === 'results' || this.screen === 'menu') {
+    this.online.update(simDt);
+    const demoBg = this.screen === 'menu' || (this.screen === 'online' && !!this.race.config?.demo);
+    if (this.screen === 'race' || this.screen === 'results' || demoBg) {
       if (!frozen) this.race.update(simDt);
       this.view.animate(this.race.sim ? this.race.sim.physics.time : t, simDt, this.race.sim ? this.race.moverPose : undefined, this.race.gateOpen);
     } else {
       this.view.animate(t, simDt, undefined, 0);
     }
-    if (this.screen === 'menu') this.updateMenuCamera(simDt);
+    if (demoBg) this.updateMenuCamera(simDt);
     else if (this.screen === 'race' || this.screen === 'results') {
       if (this.cams.mode === 'free') this.cams.update(simDt, null);
       else this.cams.update(simDt, this.race.camContext(this.selectedMarble));
@@ -239,7 +253,7 @@ export class GameManager {
     const editing = s === 'editor';
     this.builder.setActive(editing);
     this.cams.useOrbit(editing || s === 'random' || s === 'play' || s === 'challenges' || s === 'collection');
-    if (s === 'editor' || s === 'race') this.platform.gameplayStart();
+    if (s === 'editor' || s === 'race' || (s === 'online' && this.online?.active)) this.platform.gameplayStart();
     else this.platform.gameplayStop();
     this.audio.setMood(s === 'race' ? 'race' : s === 'editor' ? 'editor' : 'menu');
   }
@@ -434,18 +448,19 @@ export class GameManager {
   }
 
   togglePause(): void {
-    if (this.screen !== 'race') return;
+    if (this.screen !== 'race' || this.race.config?.online) return;
     this.paused = !this.paused;
     this.race.paused = this.paused;
     this.ui.showPause(this.paused);
   }
 
   private onRaceDone(result: RaceResult): void {
+    if (this.race.config?.online === 'host') this.online.hostRaceDone(result);
     const track = this.track;
     const v = validateTrack(track.pieces);
     let reward: Reward | null = null;
     let chEval: { states: (boolean | null)[]; passed: boolean } | null = null;
-    const ch = this.session.challenge;
+    const ch = this.race.config?.online ? undefined : this.session.challenge;
     if (ch) {
       chEval = evaluate(ch, { track, validation: v, result, marbles: result.rows.length });
       if (chEval.passed) {
@@ -475,6 +490,38 @@ export class GameManager {
       if (merged.levelUps.length) this.audio.levelUp();
       else this.audio.coin();
     }, 1800);
+  }
+
+  /* ----------------------------------------------------------- online */
+
+  openOnline(): void {
+    if (!this.race.config?.demo) {
+      this.race.stop();
+      this.loadWorld(menuTrack());
+      this.race.start({ track: this.track, marbles: this.defaultMarbles(8), seed: 11, picked: -1, demo: true });
+    }
+    this.paused = false;
+    this.setScreen('online');
+    this.cams.useOrbit(false);
+    this.ui.showOnline();
+  }
+
+  startOnlineRace(track: TrackData, marbles: NetMarble[], picked: number, seed: number, role: 'host' | 'guest'): void {
+    this.ui.hideModal();
+    this.race.stop();
+    this.paused = false;
+    this.race.paused = false;
+    this.race.speed = 1;
+    this.loadWorld(track);
+    this.session = { mode: 'saved', returnTo: 'online' };
+    this.track = cloneTrack(track);
+    this.selectedMarble = -1;
+    this.setScreen('race');
+    this.cams.setMode('cinematic');
+    this.race.start({ track: this.track, marbles, seed, picked, online: role });
+    const box = trackBounds(this.track);
+    this.scene.focusShadows(box.getCenter(new THREE.Vector3()), box.getSize(new THREE.Vector3()).length() * 0.6);
+    this.ui.showRaceHud();
   }
 
   /** Natural break between races: optional midgame ad, never during a race. */
@@ -591,6 +638,10 @@ export class GameManager {
         this.testRace();
       }
     } else if (this.screen === 'race') {
+      if (this.race.config?.online) {
+        if (e.key >= '1' && e.key <= '6') this.setCamera((['cinematic', 'leader', 'selected', 'overview', 'finish', 'free'] as CamMode[])[Number(e.key) - 1]);
+        return;
+      }
       if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') this.togglePause();
       else if (e.key >= '1' && e.key <= '6') this.setCamera((['cinematic', 'leader', 'selected', 'overview', 'finish', 'free'] as CamMode[])[Number(e.key) - 1]);
       else if (e.key === 'r' || e.key === 'R') this.restartRace(false);

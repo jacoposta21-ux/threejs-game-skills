@@ -24,6 +24,11 @@ interface CGSDK {
     gameplayStop?: () => void;
     happytime?: () => void;
     settings?: { muteAudio?: boolean };
+    isInstantMultiplayer?: boolean;
+    inviteLink?: (params: Record<string, string>) => string;
+    showInviteButton?: (params: Record<string, string>) => string;
+    hideInviteButton?: () => void;
+    getInviteParam?: (name: string) => string | null;
     addSettingsChangeListener?: (fn: (s: { muteAudio?: boolean }) => void) => void;
   };
   ad?: { requestAd?: (type: 'midgame' | 'rewarded', cb: CGAdCallbacks) => void };
@@ -94,6 +99,43 @@ export class CrazyGamesPlatform {
     if (!this.inGameplay) return;
     this.inGameplay = false;
     this.safe(() => this.sdk?.game?.gameplayStop?.());
+  }
+
+  /** Invite link for a multiplayer room (CrazyGames link when available, else this page with ?room=). */
+  inviteLink(room: string): string {
+    try {
+      const l = this.sdk?.game?.inviteLink?.({ roomId: room });
+      if (l) return l;
+    } catch {
+      /* fall through */
+    }
+    if (location.protocol === 'file:') return '';
+    const u = new URL(location.href);
+    u.searchParams.set('room', room);
+    return u.toString();
+  }
+
+  showInviteButton(room: string): void {
+    this.safe(() => this.sdk?.game?.showInviteButton?.({ roomId: room }));
+  }
+
+  hideInviteButton(): void {
+    this.safe(() => this.sdk?.game?.hideInviteButton?.());
+  }
+
+  /** Room code from an invite (CrazyGames invite param or ?room=). */
+  inviteRoom(): string | null {
+    try {
+      const v = this.sdk?.game?.getInviteParam?.('roomId');
+      if (v) return v;
+    } catch {
+      /* ignore */
+    }
+    return new URLSearchParams(location.search).get('room');
+  }
+
+  get instantMultiplayer(): boolean {
+    return !!this.sdk?.game?.isInstantMultiplayer;
   }
 
   happytime(): void {

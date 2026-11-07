@@ -45,6 +45,9 @@ export const ICONS: Record<string, string> = {
   layers: p('<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>'),
   menu: p('<path d="M4 6h16M4 12h16M4 18h16"/>'),
   back: p('<path d="m15 18-6-6 6-6"/>'),
+  online: p('<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"/>'),
+  crown: p('<path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/>'),
+  link: p('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
   target: p('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>'),
 };
 

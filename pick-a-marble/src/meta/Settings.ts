@@ -13,6 +13,8 @@ export interface SettingsData {
   lastSkins: string[];
   lastNames: Record<string, string>;
   marbleCount: number;
+  playerName: string;
+  onlineSkin: string;
 }
 
 const DEFAULTS: SettingsData = {
@@ -26,6 +28,8 @@ const DEFAULTS: SettingsData = {
   lastSkins: [],
   lastNames: {},
   marbleCount: 8,
+  playerName: '',
+  onlineSkin: 'art_soccer',
 };
 
 export class Settings {
@@ -36,6 +40,7 @@ export class Settings {
     const stored = readJSON<Partial<SettingsData>>(STORAGE_KEYS.settings, {});
     this.data = { ...DEFAULTS, ...stored, tutorials: { ...(stored.tutorials ?? {}) }, lastNames: { ...(stored.lastNames ?? {}) } };
     if (!stored.quality) this.data.quality = guessQuality();
+    if (!this.data.playerName) this.data.playerName = `Player${Math.floor(1000 + Math.random() * 9000)}`;
   }
 
   set<K extends keyof SettingsData>(key: K, value: SettingsData[K]): void {

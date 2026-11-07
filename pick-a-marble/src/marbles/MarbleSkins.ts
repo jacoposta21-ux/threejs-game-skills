@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import { ART_MAP, ART_SKINS, paintPreview, paintTexture } from './ArtSkins';
 
-export type SkinKind = 'solid' | 'metal' | 'glass' | 'neon' | 'pattern' | 'gradient' | 'special';
+export type SkinKind = 'solid' | 'metal' | 'glass' | 'neon' | 'pattern' | 'gradient' | 'special' | 'art';
 
 export interface MarbleSkin {
   id: string;
@@ -12,6 +13,8 @@ export interface MarbleSkin {
   /** Extra requirement: player level, or a challenge reward. */
   level?: number;
   challenge?: string;
+  /** Illustrated skins: theme label. */
+  theme?: string;
   pattern?: 'swirl' | 'stripes' | 'dots' | 'cateye' | 'galaxy' | 'lava' | 'rainbow' | 'earth' | 'checker';
 }
 
@@ -23,6 +26,7 @@ export const KIND_LABEL: Record<SkinKind, string> = {
   pattern: 'Pattern',
   gradient: 'Gradient',
   special: 'Special',
+  art: 'Illustrated',
 };
 
 export const SKINS: MarbleSkin[] = [
@@ -60,6 +64,12 @@ export const SKINS: MarbleSkin[] = [
   { id: 'rainbow', name: 'Rainbow', kind: 'special', colors: ['#ff0000'], price: 500, level: 6, pattern: 'rainbow' },
   { id: 'earth', name: 'Tiny Planet', kind: 'special', colors: ['#1e6fd9', '#3cb043', '#ffffff'], price: 0, challenge: 'c12', pattern: 'earth' },
 ];
+
+for (const a of ART_SKINS) SKINS.push({ id: a.id, name: a.name, kind: 'art', colors: [rgbHex(a.paint(0, 0, 1))], price: a.price, level: a.level, theme: a.theme });
+
+function rgbHex(c: [number, number, number]): string {
+  return `#${c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')}`;
+}
 
 export const SKIN_MAP = new Map(SKINS.map((s) => [s.id, s]));
 
@@ -221,6 +231,32 @@ export function skinMaterial(skin: MarbleSkin): THREE.Material {
   const base = new THREE.Color(skin.colors[0]);
   let mat: THREE.Material;
   switch (skin.kind) {
+    case 'art': {
+      const def = ART_MAP.get(skin.id);
+      if (!def) {
+        mat = new THREE.MeshStandardMaterial({ color: base });
+        break;
+      }
+      const map = new THREE.CanvasTexture(paintTexture(def));
+      map.colorSpace = THREE.SRGBColorSpace;
+      map.anisotropy = 4;
+      const f = def.finish;
+      const pm = new THREE.MeshPhysicalMaterial({
+        map,
+        roughness: f === 'matte' ? 0.75 : f === 'satin' ? 0.38 : f === 'metal' ? 0.12 : 0.14,
+        metalness: f === 'metal' ? 0.95 : 0.04,
+        clearcoat: f === 'matte' ? 0 : f === 'satin' ? 0.35 : 1,
+        clearcoatRoughness: 0.06,
+        envMapIntensity: f === 'metal' ? 1.8 : 1,
+      });
+      if (f === 'glow') {
+        pm.emissiveMap = map;
+        pm.emissive = new THREE.Color('#ffffff');
+        pm.emissiveIntensity = 1.4;
+      }
+      mat = pm;
+      break;
+    }
     case 'metal':
       mat = new THREE.MeshPhysicalMaterial({ color: base, metalness: 1, roughness: 0.16, clearcoat: 0.6, envMapIntensity: 1.5 });
       break;
@@ -272,9 +308,21 @@ export function skinCoreMaterial(skin: MarbleSkin): THREE.Material | null {
 }
 
 /** CSS preview for UI swatches. */
+const previewCache = new Map<string, string>();
+
 export function skinCss(skin: MarbleSkin): string {
   const [a, b, c] = skin.colors;
   switch (skin.kind) {
+    case 'art': {
+      const def = ART_MAP.get(skin.id);
+      if (!def) return a;
+      let url = previewCache.get(skin.id);
+      if (!url) {
+        url = paintPreview(def);
+        previewCache.set(skin.id, url);
+      }
+      return `url(${url}) center/cover no-repeat`;
+    }
     case 'metal':
       return `radial-gradient(circle at 32% 28%, #fff 0 8%, ${a} 30%, #1d1f26 95%)`;
     case 'glass':
