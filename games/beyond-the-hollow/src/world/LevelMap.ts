@@ -155,7 +155,41 @@ export class LevelMap {
         t.setCollision(false, false, true, false);
       }
     });
+    this.shadeDepth();
     this.decorate(r);
+  }
+
+  /**
+   * Darken solid rock with its distance from open air, so big masses read as deep stone fading
+   * into shadow instead of a flat repeating tile pattern (tile tint: free at runtime in WebGL).
+   */
+  private shadeDepth() {
+    const W = this.W, H = this.H;
+    const dist = new Int16Array(W * H).fill(-1);
+    const q: number[] = [];
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++)
+        if (!this.isSolidCh(this.grid[y][x])) {
+          dist[y * W + x] = 0;
+          q.push(y * W + x);
+        }
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h], x = i % W, y = (i - x) / W, d = dist[i];
+      if (d >= 7) continue;
+      const nb = [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1];
+      for (const n of nb) if (n >= 0 && dist[n] < 0) { dist[n] = d + 1; q.push(n); }
+    }
+    // brightness by depth: the lit rim stays as painted, the core sinks to ~38%
+    const LEVELS = [1, 1, 0.82, 0.66, 0.54, 0.46, 0.41, 0.38];
+    this.ground.forEachTile((t) => {
+      if (t.index < 0 || t.index > 31) return;
+      const d = dist[t.y * W + t.x];
+      const k = LEVELS[d < 0 ? 7 : Math.min(7, d)];
+      if (k >= 1) return;
+      const c = Math.round(255 * k);
+      // slight cool shift in the deep shadow
+      t.tint = (Math.round(c * 0.94) << 16) | (Math.round(c * 0.97) << 8) | c;
+    });
   }
 
   /** Scatter painted decor on surfaces and ceilings so the tile grid disappears. */
