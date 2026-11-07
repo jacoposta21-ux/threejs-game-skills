@@ -126,7 +126,7 @@ kbd { display: inline-block; min-width: 1.7em; padding: 0.12em 0.45em; margin: 0
 .vh-ind span { font: 700 10px var(--body); letter-spacing: 0.14em; padding: 3px 7px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.18); color: rgba(255,255,255,0.32); }
 .vh-ind span.on { color: #10131a; background: var(--gold); border-color: var(--gold); }
 .vh-ind span.alert { color: #fff; background: var(--accent); border-color: var(--accent); }
-#hud.driving #district { bottom: 290px; }
+#hud.driving #district { bottom: 330px; }
 
 @media (max-width: 760px) {
   #vehicle-hud { right: 14px; bottom: 14px; transform: scale(0.75); transform-origin: bottom right; }

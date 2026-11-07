@@ -1,7 +1,7 @@
 # Vista Mar — Coastal Nights
 
 An original third-person open-world game about a fictional tropical coastal city. It runs in the browser with Three.js and WebGL.
-**Phase 1 (playable foundation)** is complete. Vehicles, traffic, police and missions are the next phases.
+**Phase 1 (playable foundation)** and **Phase 2 (vehicles)** are complete. Traffic, pedestrians, police and missions are the next phases.
 
 ## Run it
 
@@ -31,7 +31,12 @@ Append `?quality=low|medium|high` to the URL to force a graphics preset.
 | Q | Toggle walk / run |
 | Space | Jump |
 | C | Crouch |
-| E | Interact (pick up tapes) |
+| E | Interact (pick up tapes) / enter vehicle |
+| F | Exit vehicle |
+| W / S (driving) | Accelerate · brake, then reverse |
+| A / D (driving) | Steer |
+| Space (driving) | Handbrake (drift) |
+| L / H (driving) | Headlights · horn (siren toggle in police cars) |
 | M | City map |
 | Esc | Pause menu (Resume, Settings, Controls, Restart) |
 
@@ -47,6 +52,18 @@ If the browser frame can't capture the mouse (some embedded previews), hold the 
 - **HUD:** circular minimap that rotates with the camera and shows roads, buildings, the nearest objective at its edge and north. Health and stamina bars, money counter, clock, wanted stars, objective panel, district banner, street names, interaction prompt and notifications. There's a full city map (M) and a pause menu with working settings: quality, sensitivity, invert Y, camera distance, FOV, volume, day length, time of day and an FPS counter.
 - **Activity:** *Lost Tapes*. Twelve mixtapes are hidden around the districts, each marked by a pink light beam. Each is worth $500, with a $5,000 bonus for finding them all. It runs on `MissionSystem`, which Phase 4 missions will reuse.
 - **Audio:** all procedural Web Audio, with no files. It covers city ambience, ocean surf by distance, distant traffic, night crickets in green areas, footsteps per surface, jump and land sounds, pickup and reward chimes and UI clicks.
+
+## What's in Phase 2
+
+- **Vehicles:** ten drivable cars across six classes: Vapor GT sports car, Coastline Sedan, Ranger SUV, VMPD Interceptor police car, Sunshine Cab and a Box Delivery Truck. They use the CC0 Kenney models, with wheels that spin and steer.
+- **Driving physics:** arcade physics with an engine curve, top speed, braking then reverse, steering that needs less lock at speed, and a yaw rate capped by tyre grip. Lateral grip lets the car slide, so the handbrake drifts. Suspension follows the terrain and the body dips, squats and rolls with acceleration, braking and cornering.
+- **Collisions and damage:** cars collide with buildings, palms, poles, parked cars and other drivable cars, with momentum transfer between cars. Impact damage darkens the body and makes it smoke. At 0% the car is wrecked and the engine dies.
+- **Lights:** headlights with a real spot beam on the player's car, brake lights, reverse lights, and a police light bar with siren.
+- **Getting in and out:** press E near a car and the driver sits in it, playing the Driving_Loop clip. Press F to get out on the driver's side, or the other side if that one is blocked.
+- **Driving camera:** a chase camera that recentres behind the car when you stop moving the mouse, pulls back and widens the FOV with speed, avoids walls and shakes on impacts.
+- **Vehicle HUD:** speedometer dial, gear, condition bar and lights, brake, drift and siren indicators. Nearby cars appear on the minimap.
+- **Audio:** procedural engine with a gearbox model, tyre skid, crash, door, horn and siren sounds.
+- Tapes are collected automatically when you drive through them.
 
 ## Architecture
 
@@ -66,6 +83,10 @@ src/
   camera/CameraController.js third-person camera
   systems/CollisionSystem.js spatial hash collision + camera ray cast
   systems/MissionSystem.js   activity/mission framework + Lost Tapes
+  vehicles/Vehicle.js           vehicle model, physics, collisions, damage, lights
+  vehicles/VehicleSystem.js     spawning, idle physics, pedestrian push-out, smoke, headlight beam
+  vehicles/VehicleController.js enter/exit and player driving input
+  vehicles/VehicleTypes.js      handling specs and spawn points
   ui/HUD.js, ui/Minimap.js, ui/Menus.js
   audio/AudioManager.js
 ```
