@@ -1,0 +1,21 @@
+{
+  "name": "vista-mar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5188",
+    "build": "vite build",
+    "build:single": "vite build && node scripts/build-single.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 5188",
+    "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs",
+    "verify:visual": "node scripts/playtest.mjs"
+  },
+  "dependencies": {
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "vite": "^8.0.13",
+    "pngjs": "^7.0.0"
+  }
+}
