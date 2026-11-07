@@ -1,0 +1,12 @@
+level,active_sec,credited_sec,wall_sec,target_sec,target_metric,ratio,ok
+2,0,0,0,,,,
+3,44,44,44,,,,
+4,110,110,110,120,activeSec,0.92,yes
+5,264,264,264,,,,
+6,506,506,506,600,activeSec,0.84,yes
+7,836,836,836,,,,
+8,1496,1496,1496,2100,activeSec,0.71,yes
+9,2222,5822,31022,,,,
+10,3564,10764,61164,10800,creditedSec,1.00,yes
+11,6380,71180,179180,,,,
+12,11968,227968,357568,259200,creditedSec,0.88,yes
