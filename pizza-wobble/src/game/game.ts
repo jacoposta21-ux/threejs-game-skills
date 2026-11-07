@@ -150,6 +150,7 @@ export class Game {
     this.confetti = new ParticlePool(300, mats.dot, false);
     this.gr.scene.add(this.world, this.scooterView.root, this.deliveries.group, this.arrow, this.dust.points, this.sparks.points, this.confetti.points);
     this.arrow.visible = false;
+    this.arrow.rotation.order = 'YXZ';
     this.applyQuality();
     this.bindUi();
     this.bindInput();
@@ -278,6 +279,7 @@ export class Game {
       ui.select(this.unlockAll ? { ...this.save, stars: this.save.stars.map((x) => Math.max(x, 2)) } : this.save);
       ui.show('select');
     } else if (s === 'garage') {
+      this.showroom();
       ui.garage(this.save);
       ui.show('garage');
     } else if (s === 'settings') {
@@ -346,6 +348,17 @@ export class Game {
     const t = this.sim.scooter.tuning;
     t.maxSpeed = maxSpeed(u.motor);
     t.bumpScale = bumpScale(u.suspension);
+  }
+
+  /** Park the scooter in front of the pizzeria with a full stack (garage / showroom view). */
+  private showroom() {
+    if (!this.sim || (this.shift && !this.shift.ended)) return;
+    const p = this.level.map.pizzeria;
+    this.sim.scooter.place(p.x, p.z, p.heading, this.ground(p.x, p.z));
+    this.sim.pile.build(Math.max(4, this.level.spec.pizzas));
+    const idle = { throttle: 0, brake: 0, steer: 0, handbrake: true };
+    for (let i = 0; i < 30; i++) this.sim.tick(idle, this.ground, this.cobble);
+    this.snapCamera();
   }
 
   loadTitleScene() {
@@ -847,18 +860,18 @@ export class Game {
     const cam = this.gr.camera;
     const fx = sc.forwardX * Math.sign(sc.speed >= -0.5 ? 1 : 1);
     const fz = sc.forwardZ;
-    let dist = 5.6 - this.zoom * 2.4;
-    let height = 2.7 - this.zoom * 0.9;
+    const dist = 4.7 - this.zoom * 2.0;
+    const height = 2.35 - this.zoom * 0.7;
     if (this.state === 'title' || this.state === 'select' || this.state === 'settings' || this.state === 'garage' || this.state === 'end') {
       const close = this.state === 'garage' || this.state === 'end';
       this.orbit += dt * 0.25;
       const sw = Math.sin(this.orbit) * (close ? 0.35 : 0.5);
       const rx = -fz;
       const rz = fx;
-      const dF = close ? 3.0 : 4.6;
-      const dS = close ? 1.3 + sw : 1.6 + sw;
+      const dF = close ? 3.4 : 4.6;
+      const dS = close ? -0.6 + sw : 1.6 + sw;
       _v.set(sc.x + fx * dF + rx * dS, sc.y + (close ? 1.25 : 1.55), sc.z + fz * dF + rz * dS);
-      if (close) _v2.set(sc.x - fx * 0.4 + rx * 0.9, sc.y + 0.95, sc.z - fz * 0.4 + rz * 0.9);
+      if (close) _v2.set(sc.x - fx * 0.2 - rx * 1.7, sc.y + 0.95, sc.z - fz * 0.2 - rz * 1.7);
       else _v2.set(sc.x - fx * 1.2 - rx * 1.6, sc.y + 1.4, sc.z - fz * 1.2 - rz * 1.6);
       if (snap) {
         this.camPos.copy(_v);
@@ -981,6 +994,7 @@ export class Game {
     this.computeCamera(Math.max(dt, 1e-4));
     this.gr.follow(sc.x, sc.y, sc.z);
     if (this.state === 'playing' || this.state === 'paused') this.updateHud(dt);
+    else this.arrow.visible = false;
     // audio
     if (this.state === 'playing') {
       audio.engine(Math.abs(sc.speed) / 16, this.input.state.throttle, true);
@@ -1102,8 +1116,8 @@ export class Game {
           if (p.behind || dist > 120) lab.style.display = 'none';
           else {
             lab.style.display = 'block';
-            lab.style.left = `${p.x}px`;
-            lab.style.top = `${p.y}px`;
+            lab.style.left = `${Math.max(60, Math.min(window.innerWidth - 60, p.x))}px`;
+            lab.style.top = `${Math.max(110, Math.min(window.innerHeight - 90, p.y))}px`;
             const txt = `🍕×${s.count} · ${Math.round(dist)} m`;
             if (lab.textContent !== txt) lab.textContent = txt;
           }

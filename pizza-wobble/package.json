@@ -10,7 +10,8 @@
     "levels": "node tools/generate-levels.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "shots": "node tools/screenshots.mjs"
+    "shots": "node tools/screenshots.mjs",
+    "smoke": "node tools/smoke.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

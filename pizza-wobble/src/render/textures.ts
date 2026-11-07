@@ -9,10 +9,10 @@ export const PAL = {
   stone: 0xe6d6b8,
   roof: 0xbc4f33,
   roofDark: 0x9c3d27,
-  cobble: 0xa59a90,
+  cobble: 0xc4ad98,
   slab: 0xd8ccb8,
   plaza: 0xdcc8a4,
-  asphalt: 0x6f6a69,
+  asphalt: 0x8a807a,
   grass: 0x8fae5a,
   garden: 0x7ea04d,
   water: 0x22b2b5,
@@ -49,15 +49,15 @@ export function groundAtlas(): Texture {
   const [c, g] = canvas(512, 512);
   const r = rand(7);
   // cobbles
-  g.fillStyle = '#8f8a86';
+  g.fillStyle = '#a39383';
   g.fillRect(0, 0, 256, 256);
   const n = 8;
   const s = 256 / n;
   for (let y = 0; y < n; y++)
     for (let x = 0; x < n + 1; x++) {
       const ox = (y % 2) * s * 0.5;
-      const v = 205 + Math.floor(r() * 45);
-      g.fillStyle = `rgb(${v},${v - 4},${v - 10})`;
+      const v = 212 + Math.floor(r() * 40);
+      g.fillStyle = `rgb(${v},${v - 6},${v - 16})`;
       const px = x * s - ox + 2;
       const py = y * s + 2;
       g.beginPath();

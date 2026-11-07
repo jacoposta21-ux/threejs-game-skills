@@ -5,7 +5,7 @@ export default defineConfig({
   build: {
     target: 'es2022',
     assetsInlineLimit: 0,
-    chunkSizeWarningLimit: 4000,
+    chunkSizeWarningLimit: 6000,
   },
   server: { port: 5173, host: '127.0.0.1' },
   test: {

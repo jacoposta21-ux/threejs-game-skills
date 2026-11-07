@@ -99,7 +99,7 @@ export function buildCity(map: MapData, rapier: R | null, world: RAPIER_NS.World
   // ---------- terrain ----------
   const district = map.district;
   const roadTile = district === 'porto' ? 2 : 0;
-  const roadColor = district === 'porto' ? PAL.asphalt : district === 'collina' ? 0xb3a698 : PAL.cobble;
+  const roadColor = district === 'porto' ? PAL.asphalt : district === 'collina' ? 0xc9b49a : PAL.cobble;
   const tileOf = (t: number): [number, number] => {
     switch (t) {
       case Cell.ROAD:
@@ -308,7 +308,7 @@ export function buildCity(map: MapData, rapier: R | null, world: RAPIER_NS.World
     const top = gMax + b.floors * FLOOR_H + 0.5;
     buildingTop[bi] = top;
     const base = b.baseY - 1.5;
-    const color = b.special === 'pizzeria' ? 0xf0dfbd : PAL.facades[b.color];
+    const color = b.special === 'pizzeria' ? 0xf0dfbd : district === 'collina' && b.color % 2 === 1 ? [0xf3ead8, 0xf0dfbd, 0xe9d3a8, 0xf6e9cf][b.color >> 1] : PAL.facades[b.color];
     const cx = (x0 + x1) / 2;
     const cz = (z0 + z1) / 2;
     walls.box(cx, (base + top) / 2, cz, x1 - x0, top - base, z1 - z0, color);
@@ -614,9 +614,6 @@ export function buildCity(map: MapData, rapier: R | null, world: RAPIER_NS.World
         const y = gh((x0 + x1) / 2, z + 0.25);
         steps.box((x0 + x1) / 2, y - 0.2, z + 0.25, x1 - x0, 0.4, 0.5, 0xdcd0b8);
       }
-      // railings
-      steps.box(x0 + 0.1, gh(x0, (st.z0 + st.z1)) + 0.5, ((st.z0 + st.z1) * CELL) / 2, 0.06, 0.06, (st.z1 - st.z0) * CELL, PAL.iron);
-      steps.box(x1 - 0.1, gh(x1, (st.z0 + st.z1)) + 0.5, ((st.z0 + st.z1) * CELL) / 2, 0.06, 0.06, (st.z1 - st.z0) * CELL, PAL.iron);
     }
     const sm = new Mesh(steps.build(), mats.world);
     sm.receiveShadow = true;

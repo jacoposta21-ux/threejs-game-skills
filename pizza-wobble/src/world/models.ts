@@ -47,15 +47,17 @@ export function scooterGeometries() {
   b.box(-0.13, 0.44, 0.24, 0.12, 0.3, 0.12, jeans);
   b.box(0.13, 0.33, 0.3, 0.12, 0.08, 0.2, 0x2b2b2b);
   b.box(-0.13, 0.33, 0.3, 0.12, 0.08, 0.2, 0x2b2b2b);
-  b.sphere(0, 1.12, -0.18, 0.21, 0.32, 0.16, 0xfafafa, 10);
-  b.box(0, 1.0, -0.06, 0.3, 0.3, 0.06, 0xd7262c, 0, 0.1);
-  b.box(0.2, 1.15, 0.18, 0.08, 0.08, 0.48, 0xfafafa, 0, 0.35);
-  b.box(-0.2, 1.15, 0.18, 0.08, 0.08, 0.48, 0xfafafa, 0, 0.35);
+  const shirt = 0x4f8f6a;
+  b.box(0, 1.1, -0.2, 0.38, 0.5, 0.24, shirt, 0, 0.12);
+  b.box(0, 1.33, -0.22, 0.42, 0.08, 0.26, 0x3f7757, 0, 0.12);
+  b.box(0, 0.98, -0.07, 0.3, 0.3, 0.04, 0xf3e6c8, 0, 0.1);
+  b.box(0.22, 1.18, 0.12, 0.09, 0.09, 0.5, shirt, 0, 0.45);
+  b.box(-0.22, 1.18, 0.12, 0.09, 0.09, 0.5, shirt, 0, 0.45);
   b.sphere(0.25, 1.12, 0.47, 0.05, 0.05, 0.05, SKIN[0], 6);
   b.sphere(-0.25, 1.12, 0.47, 0.05, 0.05, 0.05, SKIN[0], 6);
   b.sphere(0, 1.44, -0.16, 0.07, 0.06, 0.07, SKIN[0], 6);
-  b.sphere(0, 1.56, -0.16, 0.16, 0.15, 0.17, 0xfdfdfd, 12);
-  b.box(0, 1.62, -0.16, 0.06, 0.12, 0.34, 0xd7262c);
+  b.sphere(0, 1.56, -0.16, 0.165, 0.155, 0.175, 0xf2c761, 12);
+  b.box(0, 1.62, -0.16, 0.07, 0.13, 0.35, 0xd7262c);
   b.box(0, 1.53, 0.0, 0.22, 0.07, 0.04, 0x30343a);
 
   const w = new GeoBuilder();
@@ -93,20 +95,29 @@ export function boxGeometries() {
 /** Small hatchback; body (tinted per instance) and fixed-colour details. Faces +z. */
 export function carGeometries() {
   const body = new GeoBuilder();
-  body.box(0, 0.5, 0, 1.5, 0.55, 3.0, 0xffffff);
-  body.sphere(0, 0.62, 1.2, 0.75, 0.35, 0.45, 0xffffff, 10);
-  body.sphere(0, 0.62, -1.25, 0.75, 0.35, 0.4, 0xffffff, 10);
-  body.sphere(0, 1.0, -0.15, 0.68, 0.48, 0.95, 0xffffff, 12);
+  body.box(0, 0.52, 0, 1.52, 0.5, 2.9, 0xffffff);
+  body.sphere(0, 0.58, 1.18, 0.76, 0.32, 0.5, 0xffffff, 12);
+  body.sphere(0, 0.6, -1.2, 0.76, 0.34, 0.42, 0xffffff, 12);
+  body.box(0, 0.98, -0.2, 1.3, 0.5, 1.5, 0xffffff);
+  body.sphere(0, 1.22, -0.2, 0.66, 0.12, 0.76, 0xffffff, 10);
   const det = new GeoBuilder();
-  det.box(0, 1.08, -0.1, 1.38, 0.34, 1.5, 0x334657);
-  det.box(0, 1.33, -0.15, 1.1, 0.06, 1.2, 0xf0f0f0);
-  for (const x of [-0.68, 0.68]) for (const z of [-0.95, 1.0]) det.cyl(x, 0.3, z, 0.3, 0.22, 0x222222, 10, 0, 0, Math.PI / 2);
-  det.sphere(0.48, 0.7, 1.58, 0.12, 0.12, 0.05, 0xfff6cf, 8);
-  det.sphere(-0.48, 0.7, 1.58, 0.12, 0.12, 0.05, 0xfff6cf, 8);
-  det.box(0, 0.42, 1.55, 1.2, 0.1, 0.1, 0xd0d0d0);
-  det.box(0, 0.42, -1.55, 1.2, 0.1, 0.1, 0xd0d0d0);
-  det.box(0.55, 0.68, -1.53, 0.2, 0.12, 0.05, 0xd8302e);
-  det.box(-0.55, 0.68, -1.53, 0.2, 0.12, 0.05, 0xd8302e);
+  const glass = 0x3b5368;
+  det.box(0, 1.02, 0.56, 1.2, 0.36, 0.06, glass, 0, -0.35);
+  det.box(0, 1.02, -0.96, 1.2, 0.34, 0.06, glass, 0, 0.3);
+  det.box(0.656, 1.02, -0.2, 0.02, 0.32, 1.3, glass);
+  det.box(-0.656, 1.02, -0.2, 0.02, 0.32, 1.3, glass);
+  det.box(0.66, 1.02, -0.2, 0.03, 0.34, 0.06, 0xf0f0f0);
+  det.box(-0.66, 1.02, -0.2, 0.03, 0.34, 0.06, 0xf0f0f0);
+  for (const x of [-0.68, 0.68]) for (const z of [-0.95, 1.0]) {
+    det.cyl(x, 0.3, z, 0.3, 0.22, 0x222222, 12, 0, 0, Math.PI / 2);
+    det.cyl(x * 1.02, 0.3, z, 0.15, 0.23, 0xd8d8d8, 8, 0, 0, Math.PI / 2);
+  }
+  det.sphere(0.5, 0.68, 1.6, 0.13, 0.13, 0.05, 0xfff6cf, 8);
+  det.sphere(-0.5, 0.68, 1.6, 0.13, 0.13, 0.05, 0xfff6cf, 8);
+  det.box(0, 0.4, 1.6, 1.3, 0.1, 0.1, 0xd0d0d0);
+  det.box(0, 0.4, -1.58, 1.3, 0.1, 0.1, 0xd0d0d0);
+  det.box(0.55, 0.66, -1.6, 0.22, 0.12, 0.05, 0xd8302e);
+  det.box(-0.55, 0.66, -1.6, 0.22, 0.12, 0.05, 0xd8302e);
   return { body: body.build(), detail: det.build() };
 }
 

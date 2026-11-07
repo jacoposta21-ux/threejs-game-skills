@@ -1,0 +1,72 @@
+{
+ "metrics": {
+  "title": {
+   "fps": 0.9159186664223826,
+   "calls": 83,
+   "tris": 352774,
+   "quality": "high"
+  },
+  "centro": {
+   "fps": 0.6463706289186317,
+   "calls": 82,
+   "tris": 351132,
+   "quality": "high"
+  },
+  "piazza": {
+   "fps": 1.4873869585911057,
+   "calls": 89,
+   "tris": 384142,
+   "quality": "high"
+  },
+  "porto": {
+   "fps": 1.54741272592228,
+   "calls": 106,
+   "tris": 297698,
+   "quality": "high"
+  },
+  "collina": {
+   "fps": 0.5763190502261974,
+   "calls": 97,
+   "tris": 465972,
+   "quality": "high"
+  },
+  "shift1": {
+   "state": "end",
+   "shift": {
+    "done": [
+     true,
+     true
+    ],
+    "delivered": 3,
+    "lost": 0,
+    "timeLeft": 100.5333333333174,
+    "ended": true
+   }
+  },
+  "fine-turno": {
+   "fps": 1.1371389583805334,
+   "calls": 67,
+   "tris": 351740,
+   "quality": "high"
+  },
+  "garage": {
+   "fps": 0.7468538780387877,
+   "calls": 67,
+   "tris": 351740,
+   "quality": "high"
+  },
+  "mobile": {
+   "fps": 0.7226477814712866,
+   "calls": 84,
+   "tris": 351292,
+   "quality": "high"
+  },
+  "mobile-select": {
+   "fps": 0.8090287609724983,
+   "calls": 78,
+   "tris": 350824,
+   "quality": "high"
+  }
+ },
+ "errors": []
+}
