@@ -1,3 +1,5 @@
+import { CHEATS } from './cheats';
+
 export interface SaveData {
   version: 1;
   unlocked: number; // highest level index unlocked (0-based)
@@ -25,6 +27,12 @@ const fresh = (): SaveData => ({
 
 let data: SaveData = fresh();
 
+/** test builds: open every chapter (level indices are compared against this, never used as an index) */
+const applyCheats = () => {
+  if (CHEATS.unlockAll) data.unlocked = Math.max(data.unlocked, 999);
+};
+applyCheats();
+
 /** Where the save lives. Default: the browser's localStorage (CrazyGames / web build).
  *  The Playgama build swaps in the Bridge storage (Portal.init), as Playgama requires. */
 export interface SaveBackend {
@@ -50,6 +58,7 @@ export const Save = {
     } catch {
       data = fresh();
     }
+    applyCheats();
     return data;
   },
   get data() {
@@ -69,6 +78,7 @@ export const Save = {
     const s = data.settings;
     data = fresh();
     data.settings = s;
+    applyCheats();
     this.write();
   },
   setCheckpoint(level: number, cp: number) {
