@@ -16,12 +16,17 @@ for (const m of [...html.matchAll(/<link rel="stylesheet"[^>]*href="\.?\/?([^"]+
 
 // collect assets as data URIs
 const assets = {};
+// only embed what the game actually loads (AssetLoader MANIFEST + .bin buffers of .gltf files)
+const manifestSrc = await readFile('src/core/AssetLoader.js', 'utf8');
+const used = new Set([...manifestSrc.matchAll(/'(assets\/[^']+\.(?:glb|gltf))'/g)].map((m) => m[1]));
+for (const u of [...used]) if (u.endsWith('.gltf')) used.add(u.replace(/\.gltf$/, '.bin'));
 async function walk(dir) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) await walk(p);
     else if (/\.(glb|gltf|bin)$/.test(e.name)) {
       const rel = path.relative(dist, p).split(path.sep).join('/');
+      if (!used.has(rel)) continue;
       const buf = await readFile(p);
       const mime = e.name.endsWith('.glb') ? 'model/gltf-binary' : e.name.endsWith('.gltf') ? 'model/gltf+json' : 'application/octet-stream';
       if (e.name.endsWith('.gltf')) {

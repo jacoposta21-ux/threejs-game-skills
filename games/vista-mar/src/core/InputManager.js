@@ -14,6 +14,7 @@ export class InputManager {
     this.enabled = true;
     this.onLockChange = null;
     this.lockFailed = false;
+    this.lockedAt = 0;
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Tab') e.preventDefault();
@@ -26,8 +27,11 @@ export class InputManager {
 
     document.addEventListener('mousemove', (e) => {
       if (this.locked || (this.dragLook && this.dragging)) {
-        this.mouseDX += e.movementX || 0;
-        this.mouseDY += e.movementY || 0;
+        // ignore the warp spike some browsers send right after locking
+        if (performance.now() - this.lockedAt < 120) return;
+        const cl = (v) => Math.max(-150, Math.min(150, v || 0));
+        this.mouseDX += cl(e.movementX);
+        this.mouseDY += cl(e.movementY);
       }
     });
     canvas.addEventListener('mousedown', (e) => {
@@ -42,6 +46,7 @@ export class InputManager {
     document.addEventListener('pointerlockchange', () => {
       const was = this.locked;
       this.locked = document.pointerLockElement === canvas;
+      if (this.locked) { this.lockedAt = performance.now(); this.mouseDX = 0; this.mouseDY = 0; }
       if (this.onLockChange && was !== this.locked) this.onLockChange(this.locked);
     });
     document.addEventListener('pointerlockerror', () => this.useDragFallback());

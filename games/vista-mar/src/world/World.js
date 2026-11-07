@@ -47,11 +47,12 @@ void main() {
   float sd = max(dot(d, sunDir), 0.0);
   // sun halo + disc
   col += sunColor * (pow(sd, 8.0) * 0.35 + pow(sd, 64.0) * 0.6);
-  col += sunColor * smoothstep(0.9993, 0.9997, sd) * 6.0 * step(-0.05, sunDir.y);
+  col += sunColor * smoothstep(0.9995, 0.9998, sd) * 3.0 * step(-0.05, sunDir.y);
   // moon
   float md = max(dot(d, moonDir), 0.0);
-  col += vec3(0.85, 0.9, 1.0) * smoothstep(0.9994, 0.9997, md) * 1.6 * step(0.0, moonDir.y);
-  col += vec3(0.2, 0.25, 0.4) * pow(md, 30.0) * 0.4 * step(0.0, moonDir.y);
+  float moonVis = step(0.0, moonDir.y) * clamp(stars * 1.5 + 0.15, 0.0, 1.0);
+  col += vec3(0.85, 0.9, 1.0) * smoothstep(0.99988, 0.99993, md) * 1.4 * moonVis;
+  col += vec3(0.2, 0.25, 0.4) * pow(md, 60.0) * 0.3 * moonVis;
   // stars
   if (stars > 0.0 && h > 0.0) {
     vec2 sp = d.xz / (d.y + 0.25) * 220.0;
@@ -77,9 +78,9 @@ void main() {
 // Palette keys by sun elevation (sin of angle): night, twilight, golden, day.
 const PAL = {
   night: { top: [0.012, 0.018, 0.05], hor: [0.04, 0.05, 0.1], sun: [0.0, 0.0, 0.0], cloud: [0.05, 0.06, 0.09], hemiSky: [0.12, 0.16, 0.3], hemiGround: [0.04, 0.04, 0.06] },
-  twilight: { top: [0.08, 0.1, 0.28], hor: [0.62, 0.33, 0.32], sun: [1.0, 0.35, 0.2], cloud: [0.42, 0.25, 0.32], hemiSky: [0.42, 0.36, 0.5], hemiGround: [0.2, 0.14, 0.12] },
-  golden: { top: [0.2, 0.36, 0.66], hor: [1.0, 0.68, 0.45], sun: [1.0, 0.62, 0.32], cloud: [1.0, 0.8, 0.7], hemiSky: [0.62, 0.66, 0.8], hemiGround: [0.36, 0.28, 0.2] },
-  day: { top: [0.18, 0.42, 0.82], hor: [0.66, 0.8, 0.92], sun: [1.0, 0.95, 0.86], cloud: [0.96, 0.97, 1.0], hemiSky: [0.66, 0.78, 1.0], hemiGround: [0.42, 0.38, 0.32] },
+  twilight: { top: [0.06, 0.07, 0.24], hor: [0.85, 0.36, 0.24], sun: [1.0, 0.35, 0.18], cloud: [0.5, 0.24, 0.3], hemiSky: [0.42, 0.36, 0.5], hemiGround: [0.2, 0.14, 0.12] },
+  golden: { top: [0.12, 0.28, 0.62], hor: [1.0, 0.6, 0.34], sun: [1.0, 0.6, 0.3], cloud: [1.0, 0.76, 0.62], hemiSky: [0.62, 0.66, 0.8], hemiGround: [0.36, 0.28, 0.2] },
+  day: { top: [0.07, 0.26, 0.72], hor: [0.55, 0.73, 0.9], sun: [1.0, 0.95, 0.86], cloud: [0.96, 0.97, 1.0], hemiSky: [0.66, 0.78, 1.0], hemiGround: [0.42, 0.38, 0.32] },
 };
 
 function mixPal(a, b, t, key) {
@@ -288,10 +289,10 @@ export class World {
       const n = this.night;
       const nm = this.city.nightMaterials;
       for (const m of nm.windows) m.emissiveIntensity = lerp(0, 1.6, smoothstep(0.15, 0.9, n));
-      for (const m of nm.shops) m.emissiveIntensity = lerp(0.05, 1.4, n);
+      for (const m of nm.shops) m.emissiveIntensity = lerp(0.03, 0.7, n);
       for (const m of nm.neon) m.emissiveIntensity = lerp(0.35, 3.2, n);
       for (const m of nm.lamps) m.emissiveIntensity = lerp(0, 4, smoothstep(0.3, 0.8, n));
-      this.glowMat.opacity = smoothstep(0.3, 0.9, n) * 0.55;
+      this.glowMat.opacity = smoothstep(0.3, 0.9, n) * 0.32;
       this.beaconMat.color.setRGB(4 * (0.5 + 0.5 * Math.sin(this.elapsed * 3)) * (0.2 + n), 0.15, 0.1);
       this.updateSignals(dt);
     }

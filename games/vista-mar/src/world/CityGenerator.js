@@ -53,7 +53,7 @@ export class CityGenerator {
       case 'plaza': m = std({ map: T.plazaTexture(), roughness: 0.8 }); break;
       case 'parking': m = std({ map: T.parkingTexture(), roughness: 0.9 }); break;
       case 'lot': m = std({ map: T.concreteTexture('#a39d92'), roughness: 0.9 }); break;
-      case 'yard': m = std({ map: T.concreteTexture('#8d887f', 43), roughness: 0.95 }); break;
+      case 'yard': m = std({ map: T.concreteTexture('#6f6b64', 43), color: 0xb8b2a8, roughness: 0.95 }); break;
       case 'roof': m = std({ map: T.roofTexture(), roughness: 0.95 }); break;
       case 'tileroof': m = std({ map: T.tileRoofTexture(), roughness: 0.8 }); break;
       case 'trim': m = std({ color: 0xece8e0, roughness: 0.7 }); break;
@@ -1020,7 +1020,11 @@ export class CityGenerator {
     // ---- benches, bins, hydrants (procedural, shared geometry)
     const benchGeo = mergeBoxes([[-0.9, 0.42, -0.25, 0.9, 0.5, 0.25], [-0.9, 0.5, 0.2, 0.9, 0.95, 0.28], [-0.85, 0, -0.2, -0.75, 0.42, 0.2], [0.75, 0, -0.2, 0.85, 0.42, 0.2]]);
     addInst({ geometry: benchGeo, materials: [this.mat('wood')] }, this.props.benches, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); });
-    for (const b of this.props.benches) this.collision.addBox(b.x - 0.9, b.z - 0.9, b.x + 0.9, b.z + 0.9, b.y + 0.5, 'bench');
+    for (const b of this.props.benches) {
+      const alongX = Math.abs(Math.cos(b.rot)) > 0.5; // bench length runs along local x
+      const ex = alongX ? 0.9 : 0.3, ez = alongX ? 0.3 : 0.9;
+      this.collision.addBox(b.x - ex, b.z - ez, b.x + ex, b.z + ez, b.y + 0.5, 'bench');
+    }
     const binGeo = new THREE.CylinderGeometry(0.3, 0.26, 0.95, 10).translate(0, 0.475, 0);
     addInst({ geometry: binGeo, materials: [this.mat('darkmetal')] }, this.props.bins, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, 0, 0); d.scale.setScalar(1); });
     for (const b of this.props.bins) this.collision.addCircle(b.x, b.z, 0.32);

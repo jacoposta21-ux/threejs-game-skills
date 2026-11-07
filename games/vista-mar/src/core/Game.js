@@ -321,6 +321,18 @@ export class Game {
         });
         return Object.entries(out).sort((a, b) => b[1].tris - a[1].tris).slice(0, 15);
       },
+      /** Runs the simulation at a fixed 60 Hz with the given keys held (independent of render speed). */
+      simulate(seconds, codes = [], tap = []) {
+        const inp = game.input;
+        codes.forEach((c) => inp.keys.add(c));
+        tap.forEach((c) => inp.pressed.add(c));
+        const steps = Math.round(seconds * 60);
+        let maxY = -1e9;
+        for (let i = 0; i < steps; i++) { game.update(1 / 60); inp.endFrame(); maxY = Math.max(maxY, game.player.pos.y); }
+        codes.forEach((c) => inp.keys.delete(c));
+        game.publishDiagnostics();
+        return { ...window.__THREE_GAME_DIAGNOSTICS__, maxY };
+      },
       tapes() { return game.tapes.tapes.map((t) => ({ x: t.x, z: t.z, collected: t.collected })); },
     };
   }
