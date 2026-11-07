@@ -27,8 +27,8 @@ export interface ScooterTuning {
 
 export const DEFAULT_TUNING: ScooterTuning = {
   maxSpeed: 14,
-  accel: 4.2,
-  brake: 4.4,
+  accel: 3.9,
+  brake: 3.8,
   hardBrake: 8,
   reverseMax: 4,
   bumpScale: 1,
@@ -103,7 +103,7 @@ export class Scooter {
     const { RigidBodyDesc, ColliderDesc } = rapier;
     this.chassis = world.createRigidBody(RigidBodyDesc.kinematicPositionBased());
     this.chassisCollider = world.createCollider(
-      ColliderDesc.cuboid(0.32, 0.35, 0.85).setTranslation(0, 0.6, 0).setCollisionGroups(GROUPS.chassis),
+      ColliderDesc.ball(0.55).setTranslation(0, 0.62, 0).setCollisionGroups(GROUPS.chassis),
       this.chassis,
     );
     this.rack = world.createRigidBody(RigidBodyDesc.kinematicPositionBased());
@@ -257,7 +257,7 @@ export class Scooter {
 
     // lean into turns (only ~45% of the physical lean, so turns load the pile a bit)
     const physLean = Math.atan2(this.latAccel, GRAVITY);
-    const targetLean = clamp(physLean * 0.62 + this.steerSmoothed * 0.08 * Math.min(1, absV / 4), -0.6, 0.6);
+    const targetLean = clamp(physLean * 0.74 + this.steerSmoothed * 0.08 * Math.min(1, absV / 4), -0.6, 0.6);
     this.lean += (targetLean - this.lean) * Math.min(1, dt * 9);
 
     // rack sway: damped spring driven by accelerations (pitch from longitudinal, roll from lateral)
@@ -265,9 +265,9 @@ export class Scooter {
     const zeta = 0.22;
     const k = w * w;
     const c = 2 * zeta * w;
-    this.swayPv += (-k * this.swayP - c * this.swayPv - 1.3 * this.longAccel) * dt;
+    this.swayPv += (-k * this.swayP - c * this.swayPv - 1.0 * this.longAccel) * dt;
     this.swayP += this.swayPv * dt;
-    this.swayRv += (-k * this.swayR - c * this.swayRv + 1.0 * this.latAccel) * dt;
+    this.swayRv += (-k * this.swayR - c * this.swayRv + 0.7 * this.latAccel) * dt;
     this.swayR += this.swayRv * dt;
     this.swayP = clamp(this.swayP, -0.16, 0.16);
     this.swayR = clamp(this.swayR, -0.16, 0.16);
@@ -276,7 +276,7 @@ export class Scooter {
       const kick = Math.min(ev.impact, 12) * this.tuning.bumpScale;
       this.swayPv += kick * 0.35 * Math.sign(prevSpeed || 1);
       this.swayRv += (Math.random() - 0.5) * kick * 0.4;
-      if (!this.airborne && kick > 3) {
+      if (!this.airborne && kick > 5) {
         this.airborne = true;
         this.vy = kick * 0.12;
       }

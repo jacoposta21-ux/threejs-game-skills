@@ -33,6 +33,7 @@ export class PizzaPile {
   boxes: PizzaBox[] = [];
   private rackColliders: RAPIER_NS.Collider[] = [];
   private nextId = 1;
+  private scratch: PizzaBox[] = [];
   level = 0;
 
   constructor(rapier: R, world: RAPIER_NS.World, rackBody: RAPIER_NS.RigidBody, rackLevel: number) {
@@ -175,7 +176,9 @@ export class PizzaPile {
   /** Max horizontal overhang of any alive box relative to the box below it (near-fall metric). */
   instability(): number {
     let worst = 0;
-    const alive = this.boxes.filter((b) => b.alive);
+    const alive = this.scratch;
+    alive.length = 0;
+    for (const b of this.boxes) if (b.alive) alive.push(b);
     alive.sort((a, b) => a.local.y - b.local.y);
     for (let i = 0; i < alive.length; i++) {
       const below = i === 0 ? null : alive[i - 1];

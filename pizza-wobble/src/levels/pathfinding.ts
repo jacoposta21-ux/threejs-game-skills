@@ -25,7 +25,10 @@ export class PathGrid {
   private stamp: Uint32Array;
   private curStamp = 1;
 
-  constructor(map: Pick<MapData, 'cols' | 'rows' | 'cells'>) {
+  /** extra traversal cost per cell (guidance mode keeps routes away from walls) */
+  private extra: Float32Array;
+
+  constructor(map: Pick<MapData, 'cols' | 'rows' | 'cells'>, wallPenalty = 0) {
     this.cols = map.cols;
     this.rows = map.rows;
     const n = map.cols * map.rows;
@@ -37,6 +40,19 @@ export class PathGrid {
     this.heap = new Int32Array(n * 4 + 16);
     this.heapF = new Float32Array(n * 4 + 16);
     this.stamp = new Uint32Array(n);
+    this.extra = new Float32Array(n);
+    if (wallPenalty > 0)
+      for (let z = 0; z < this.rows; z++)
+        for (let x = 0; x < this.cols; x++) {
+          let near = 0;
+          for (let dz = -1; dz <= 1; dz++)
+            for (let dx = -1; dx <= 1; dx++) {
+              const xx = x + dx;
+              const zz = z + dz;
+              if (xx < 0 || zz < 0 || xx >= this.cols || zz >= this.rows || !this.pass[zz * this.cols + xx]) near = 1;
+            }
+          this.extra[z * this.cols + x] = near * wallPenalty + (map.cells[z * this.cols + x] === 2 ? wallPenalty * 0.5 : 0);
+        }
   }
 
   cellOf(x: number, z: number): number {
@@ -145,7 +161,7 @@ export class PathGrid {
         if (d >= 4 && (!this.pass[cz * cols + nx] || !this.pass[nz * cols + cx])) continue;
         this.touch(ni);
         if (this.closed[ni]) continue;
-        const ng = this.g[cur] + (d >= 4 ? SQRT2 : 1);
+        const ng = this.g[cur] + (d >= 4 ? SQRT2 : 1) + this.extra[ni];
         if (ng < this.g[ni]) {
           this.g[ni] = ng;
           this.parent[ni] = cur;

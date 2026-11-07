@@ -51,7 +51,7 @@ export function computeDifficulty(level: LevelData, tour: TourInfo): DifficultyB
     }
     if (near) bumps += b.kind === 'ramp' ? 2 : 1;
   }
-  bumps += (tour.length * map.cobbleAmp) / 3;
+  bumps += (tour.length * map.cobbleAmp * 7.8) / 3; // cobble roughness per metre
   let stairsNear = 0;
   for (let i = 0; i < tour.cells.length; i += 2) {
     const c = tour.cells[i];

@@ -126,10 +126,10 @@
    "cars": 5,
    "minTour": 372,
    "seed": 1950309560,
-   "difficulty": 16.51,
+   "difficulty": 16.54,
    "pathLength": 289,
    "sharpTurns": 5,
-   "bumps": 2.3
+   "bumps": 2.4
   },
   {
    "turn": 11,
@@ -139,10 +139,10 @@
    "cars": 5,
    "minTour": 384,
    "seed": 546467676,
-   "difficulty": 17.52,
+   "difficulty": 17.55,
    "pathLength": 334,
    "sharpTurns": 6,
-   "bumps": 2.4
+   "bumps": 2.5
   },
   {
    "turn": 12,
@@ -152,10 +152,10 @@
    "cars": 6,
    "minTour": 397,
    "seed": 2480451085,
-   "difficulty": 18.72,
+   "difficulty": 18.75,
    "pathLength": 313,
    "sharpTurns": 7,
-   "bumps": 4.4
+   "bumps": 4.5
   },
   {
    "turn": 13,
@@ -165,10 +165,10 @@
    "cars": 6,
    "minTour": 409,
    "seed": 326573179,
-   "difficulty": 18.68,
+   "difficulty": 18.71,
    "pathLength": 335,
    "sharpTurns": 5,
-   "bumps": 6.4
+   "bumps": 6.5
   },
   {
    "turn": 14,
@@ -178,10 +178,10 @@
    "cars": 7,
    "minTour": 421,
    "seed": 1108850614,
-   "difficulty": 18.69,
+   "difficulty": 18.72,
    "pathLength": 327,
    "sharpTurns": 3,
-   "bumps": 8.4
+   "bumps": 8.5
   },
   {
    "turn": 15,
@@ -191,10 +191,10 @@
    "cars": 7,
    "minTour": 434,
    "seed": 3217918374,
-   "difficulty": 18.04,
+   "difficulty": 18.07,
    "pathLength": 310,
    "sharpTurns": 6,
-   "bumps": 2.4
+   "bumps": 2.5
   },
   {
    "turn": 16,
@@ -204,10 +204,10 @@
    "cars": 8,
    "minTour": 446,
    "seed": 2423889168,
-   "difficulty": 21.79,
+   "difficulty": 21.82,
    "pathLength": 386,
    "sharpTurns": 6,
-   "bumps": 3.5
+   "bumps": 3.6
   },
   {
    "turn": 17,
@@ -217,10 +217,10 @@
    "cars": 8,
    "minTour": 459,
    "seed": 2563537325,
-   "difficulty": 21.43,
+   "difficulty": 21.46,
    "pathLength": 394,
    "sharpTurns": 5,
-   "bumps": 3.5
+   "bumps": 3.6
   },
   {
    "turn": 18,
@@ -230,10 +230,10 @@
    "cars": 9,
    "minTour": 471,
    "seed": 3515531564,
-   "difficulty": 23.31,
+   "difficulty": 23.34,
    "pathLength": 392,
    "sharpTurns": 7,
-   "bumps": 5.5
+   "bumps": 5.6
   },
   {
    "turn": 19,
@@ -243,10 +243,10 @@
    "cars": 9,
    "minTour": 483,
    "seed": 2065227772,
-   "difficulty": 22.42,
+   "difficulty": 22.45,
    "pathLength": 393,
    "sharpTurns": 7,
-   "bumps": 2.5
+   "bumps": 2.6
   },
   {
    "turn": 20,
@@ -256,10 +256,10 @@
    "cars": 10,
    "minTour": 496,
    "seed": 1503330964,
-   "difficulty": 22.48,
+   "difficulty": 22.51,
    "pathLength": 365,
    "sharpTurns": 7,
-   "bumps": 2.5
+   "bumps": 2.6
   },
   {
    "turn": 21,
@@ -269,10 +269,10 @@
    "cars": 4,
    "minTour": 508,
    "seed": 3120208065,
-   "difficulty": 21.96,
+   "difficulty": 21.99,
    "pathLength": 359,
    "sharpTurns": 9,
-   "bumps": 6
+   "bumps": 6.1
   },
   {
    "turn": 22,
@@ -282,10 +282,10 @@
    "cars": 4,
    "minTour": 521,
    "seed": 320301547,
-   "difficulty": 23.43,
+   "difficulty": 23.49,
    "pathLength": 367,
    "sharpTurns": 9,
-   "bumps": 7.6
+   "bumps": 7.8
   },
   {
    "turn": 23,
@@ -295,10 +295,10 @@
    "cars": 5,
    "minTour": 533,
    "seed": 3836044808,
-   "difficulty": 23.49,
+   "difficulty": 23.55,
    "pathLength": 364,
    "sharpTurns": 9,
-   "bumps": 6.6
+   "bumps": 6.8
   },
   {
    "turn": 24,
@@ -308,10 +308,10 @@
    "cars": 5,
    "minTour": 546,
    "seed": 674054891,
-   "difficulty": 23.18,
+   "difficulty": 23.24,
    "pathLength": 350,
    "sharpTurns": 9,
-   "bumps": 6.1
+   "bumps": 6.3
   },
   {
    "turn": 25,
@@ -321,10 +321,10 @@
    "cars": 6,
    "minTour": 558,
    "seed": 1480148696,
-   "difficulty": 22.67,
+   "difficulty": 22.7,
    "pathLength": 329,
    "sharpTurns": 8,
-   "bumps": 5.4
+   "bumps": 5.5
   },
   {
    "turn": 26,
@@ -334,10 +334,10 @@
    "cars": 6,
    "minTour": 570,
    "seed": 3641606603,
-   "difficulty": 25.69,
+   "difficulty": 25.75,
    "pathLength": 398,
    "sharpTurns": 10,
-   "bumps": 5.7
+   "bumps": 5.9
   },
   {
    "turn": 27,
@@ -347,10 +347,10 @@
    "cars": 7,
    "minTour": 583,
    "seed": 18629135,
-   "difficulty": 26.3,
+   "difficulty": 26.36,
    "pathLength": 406,
    "sharpTurns": 10,
-   "bumps": 6.1
+   "bumps": 6.3
   },
   {
    "turn": 28,
@@ -360,10 +360,10 @@
    "cars": 7,
    "minTour": 595,
    "seed": 1448393742,
-   "difficulty": 27.09,
+   "difficulty": 27.15,
    "pathLength": 359,
    "sharpTurns": 10,
-   "bumps": 7.6
+   "bumps": 7.8
   },
   {
    "turn": 29,
@@ -373,10 +373,10 @@
    "cars": 8,
    "minTour": 608,
    "seed": 3311656631,
-   "difficulty": 28.74,
+   "difficulty": 28.8,
    "pathLength": 390,
    "sharpTurns": 13,
-   "bumps": 6
+   "bumps": 6.2
   },
   {
    "turn": 30,
@@ -386,10 +386,10 @@
    "cars": 8,
    "minTour": 620,
    "seed": 3531827967,
-   "difficulty": 28.12,
+   "difficulty": 28.15,
    "pathLength": 407,
    "sharpTurns": 11,
-   "bumps": 6.3
+   "bumps": 6.4
   }
  ]
 }

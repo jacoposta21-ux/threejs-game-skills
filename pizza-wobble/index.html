@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6b77e" />
+    <title>Pizza Wobble</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="ui"></div>
+    <div id="loading">
+      <div class="load-card">
+        <div class="logo"><span class="logo-pizza">Pizza</span><span class="logo-wobble">Wobble</span></div>
+        <div class="bar"><div class="fill" id="load-fill"></div></div>
+        <div class="load-text" id="load-text">Warming up the oven…</div>
+      </div>
+    </div>
+    <div id="rotate"><div class="rot-card">↻<br />Rotate your phone to landscape</div></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
