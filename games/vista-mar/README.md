@@ -1,7 +1,7 @@
 # Vista Mar — Coastal Nights
 
 An original third-person open-world game about a fictional tropical coastal city. It runs in the browser with Three.js and WebGL.
-**Phase 1 (playable foundation)** and **Phase 2 (vehicles)** are complete. Traffic, pedestrians, police and missions are the next phases.
+**Phase 1 (playable foundation)**, **Phase 2 (vehicles)** and **Phase 3 (living city)** are complete. The police wanted system and missions are the next phase.
 
 ## Run it
 
@@ -31,7 +31,7 @@ Append `?quality=low|medium|high` to the URL to force a graphics preset.
 | Q | Toggle walk / run |
 | Space | Jump |
 | C | Crouch |
-| E | Interact (pick up tapes) / enter vehicle |
+| E | Interact (pick up tapes) / enter vehicle / take a stopped traffic car |
 | F | Exit vehicle |
 | W / S (driving) | Accelerate · brake, then reverse |
 | A / D (driving) | Steer |
@@ -65,6 +65,15 @@ If the browser frame can't capture the mouse (some embedded previews), hold the 
 - **Audio:** procedural engine with a gearbox model, tyre skid, crash, door, horn and siren sounds.
 - Tapes are collected automatically when you drive through them.
 
+## What's in Phase 3
+
+- **Pedestrians:** nine Quaternius outfits, each with a per-person tint and height. Each pedestrian is collapsed into one skinned mesh (one draw call). The Universal Animation Library clips are baked onto each outfit's skeleton at load, so pedestrians use plain AnimationMixers.
+- **Pedestrian AI:** a state machine with IDLE, WALKING, WAITING, CROSSING, FLEEING, INTERACTING and KNOCKED. Pedestrians walk a sidewalk graph of block corners and signalised crossings, and cross only on the walk phase. They pause at shop windows, chat in pairs, and get startled when you bump into them. They flee from a speeding car heading at them or from your horn, and get knocked down when hit, while people nearby panic.
+- **Daily routine:** pedestrian density changes by district and hour. Neon Mile is busier at night, the beach and parks in the day, and the streets empty out between 1 and 5 am.
+- **Traffic:** right-hand lanes. Cars stop at red lights and take Bezier turns (straight, left or right) at intersections. They keep a gap to cars, pedestrians and the player, and honk when you block them. Speed limits depend on the district. Cars spawn and despawn around the player with a density set by district and time. Rendering uses instanced pools with head and tail lamps that light up at night.
+- **Interactions:** ramming a traffic car turns it into a physical, drivable vehicle. Pressing E next to a stopped traffic car pulls the driver out, who runs away, and you drive off.
+- **Performance:** distance-based animation update rates and shadow casting, pooled pedestrians, and meshopt-compressed models (all assets about 4 MB).
+
 ## Architecture
 
 ```
@@ -83,6 +92,9 @@ src/
   camera/CameraController.js third-person camera
   systems/CollisionSystem.js spatial hash collision + camera ray cast
   systems/MissionSystem.js   activity/mission framework + Lost Tapes
+  npc/NPCSystem.js             pedestrian graph, state machine, reactions, pooling
+  npc/AnimBaker.js             bakes UAL clips onto each outfit's skeleton
+  traffic/TrafficSystem.js     lanes, signals, turns, gap keeping, instanced cars
   vehicles/Vehicle.js           vehicle model, physics, collisions, damage, lights
   vehicles/VehicleSystem.js     spawning, idle physics, pedestrian push-out, smoke, headlight beam
   vehicles/VehicleController.js enter/exit and player driving input
