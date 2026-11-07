@@ -10,7 +10,8 @@
 type Theme = 'menu' | 'station' | 'forest' | 'caverns' | 'ocean' | 'heart' | 'boss' | 'ending' | 'ice' | 'foundry' | 'ruins' | 'boss2' | 'keepers' | 'abyss' | 'boss3' | 'seed' | 'boss4' | 'finale';
 
 const sfxUrls = import.meta.glob('../assets/audio/sfx/*.mp3', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
-const musicUrls = import.meta.glob('../assets/audio/music/*.mp3', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+// VITE_NO_MUSIC=1 (light single-file test build): effects only, no music tracks bundled
+const musicUrls = (import.meta.env.VITE_NO_MUSIC === '1' ? {} : import.meta.glob('../assets/audio/music/*.mp3', { eager: true, query: '?url', import: 'default' })) as Record<string, string>;
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1).replace(/\.mp3$/, '');
 
