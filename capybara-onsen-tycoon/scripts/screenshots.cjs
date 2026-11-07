@@ -13,6 +13,8 @@ const OUT = process.argv[3] || path.join(__dirname, '..', 'screenshots');
 fs.mkdirSync(OUT, { recursive: true });
 
 const errors = [];
+const external = new Set();
+const events = new Set();
 const checks = [];
 const check = (name, ok, detail = '') => {
   checks.push({ name, ok, detail });
@@ -25,9 +27,15 @@ async function open(browser, url, opts = {}) {
   const page = await ctx.newPage();
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`${url}: ${m.text()}`);
+    const t = m.text();
+    if (t.startsWith('[analytics]')) events.add(t.split(' ')[1]);
   });
   page.on('pageerror', (e) => errors.push(`${url}: ${e.message}`));
   page.on('requestfailed', (r) => errors.push(`request failed: ${r.url()}`));
+  page.on('request', (r) => {
+    const u = new URL(r.url());
+    if (!['localhost', '127.0.0.1'].includes(u.hostname) && u.protocol.startsWith('http')) external.add(u.href);
+  });
   if (opts.save !== undefined) {
     await page.addInitScript((save) => {
       if (!sessionStorage.getItem('seeded')) {
@@ -166,6 +174,14 @@ async function drag(page, from, to, steps = 12) {
         return 0.5 * base * Math.pow(1.5, s.upgrades.hotWater) * 3600;
       });
       check('offline earnings = 50% × prod × 3600 s (cap 1 h)', Math.abs(c1 - c0 - expected) / expected < 0.02, `got ${Math.round(c1 - c0)} expected ${Math.round(expected)}`);
+      // dig with the collected coins
+      const db = await page.evaluate(() => ({ x: window.cot.scene.digBtn.x, y: window.cot.scene.digBtn.y }));
+      const before = await page.evaluate(() => window.cot.state().poolsBought);
+      const dp = await toPage(page, db.x, db.y);
+      await page.mouse.click(dp.x, dp.y);
+      await sleep(300);
+      const afterDig = await page.evaluate(() => window.cot.state());
+      check('Dig buys a pool in the first empty slot', afterDig.poolsBought === before + 1 && afterDig.grid[7] === 1, `poolsBought ${before} → ${afterDig.poolsBought}`);
       // album
       await page.evaluate(() => window.cot.scene.openAlbum());
       await sleep(600);
@@ -186,6 +202,24 @@ async function drag(page, from, to, steps = 12) {
       check('rewarded stub (2 s) grants ×2 boost', st.boostTime > 290, `boostTime=${st.boostTime.toFixed(1)}`);
       await sleep(300);
       await page.screenshot({ path: path.join(OUT, '10_boost_active.png') });
+      await ctx.close();
+    }
+
+    // 4b) background tab: hidden for 1 h → offline popup on return, no runaway tick
+    {
+      const { ctx, page } = await open(browser, BASE, { save: makeSave({ grid: [3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], unlocked: [true, true, true, false, false, false, false, false, false, false, false, false], maxLevel: 3 }) });
+      const r = await page.evaluate(async () => {
+        const sc = window.cot.scene;
+        let hidden = true;
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+        document.dispatchEvent(new Event('visibilitychange'));
+        sc.hiddenAt = Date.now() - 3600 * 1000;
+        hidden = false;
+        document.dispatchEvent(new Event('visibilitychange'));
+        await new Promise((res) => setTimeout(res, 500));
+        return { popup: sc.popupOpen, grid: window.cot.state().grid.filter((x) => x > 0).length };
+      });
+      check('background tab (1 h) → welcome-back popup, no spawn explosion', r.popup && r.grid === 2, JSON.stringify(r));
       await ctx.close();
     }
 
@@ -258,7 +292,7 @@ async function drag(page, from, to, steps = 12) {
       await ctx.close();
       if (video) {
         const src = await video.path();
-        fs.renameSync(src, path.join(OUT, 'merge_clip.webm'));
+        fs.renameSync(src, path.join(OUT, 'merge_clip.webm')); // trim: ffmpeg -ss 3 -i merge_clip.webm -t 10 merge_clip_10s.webm
       }
       const exists = fs.existsSync(path.join(OUT, 'merge_clip.webm'));
       check('10 s merge clip recorded', exists, 'screenshots/merge_clip.webm');
@@ -292,6 +326,10 @@ async function drag(page, from, to, steps = 12) {
   }
   const bad = errors.filter((e) => !/favicon/.test(e));
   check('no console errors', bad.length === 0, bad.slice(0, 5).join(' | '));
+  const want = ['session_start', 'merge', 'max_level_reached', 'pool_bought', 'upgrade_bought', 'offline_collected', 'golden_guest_tapped', 'booster_used', 'ad_rewarded_shown', 'album_opened'];
+  const missing = want.filter((e) => !events.has(e));
+  check('analytics events emitted', missing.length === 0, missing.length ? `missing: ${missing.join(', ')}` : [...events].join(', '));
+  check('no external network requests', external.size === 0, [...external].slice(0, 5).join(' | '));
   const failed = checks.filter((c) => !c.ok);
   console.log(`\n${checks.length - failed.length}/${checks.length} checks passed. Screenshots in ${OUT}`);
   process.exitCode = failed.length ? 1 : 0;

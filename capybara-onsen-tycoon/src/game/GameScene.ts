@@ -716,7 +716,7 @@ export class GameScene extends Phaser.Scene {
       const tube = this.add.image(-180, 22, 'tube').setScale(ART_SCALE * 1.2);
       const capy = this.add.image(-180, 26, 'capy_gold').setScale(ART_SCALE * 1.1).setOrigin(0.5, CAPY_ORIGIN_Y);
       const crown = this.add.image(-180, 26, 'acc_12').setScale(ART_SCALE * 1.1).setOrigin(0.5, CAPY_ORIGIN_Y);
-      const ring = pillImage(this, -180, 34, 134, 26, 0xff6b6b, 0xa8343a, 2.5);
+      const ring = pillImage(this, -180, 40, 134, 34, 0xff6b6b, 0xa8343a, 2.5);
       root.add([tube, capy, crown, ring]);
       this.tweens.add({ targets: [tube, capy, crown, ring], y: '-=8', duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       root.add(this.add.text(70, -60, S.goldenBody, textStyle(26, '#a8700f', { align: 'center', wordWrap: { width: 380 } })).setOrigin(0.5));

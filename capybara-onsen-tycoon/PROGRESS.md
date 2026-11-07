@@ -34,3 +34,30 @@ Unchanged: production 1 × 2.3^(L−1), offline rate 50%, all effects/maxima, go
 | 12 | 3.32 h | 2.64 d | 4.14 d | 3 d (credited) | 0.88 ✔ |
 
 Max coins held: 6e9 (< 1e15). Robust across 9 golden-guest seeds (all within tolerance). CSV: `tools/out/simulation.csv`, timeline `tools/out/simulation_timeline.csv`.
+
+## M1 — Playable graybox ✅ (built directly with final art)
+- Dig (first empty slot, row by row), free pool every 22 s with progress bar, drag & drop merge / move / swap, level-12 cap, upgrade panel.
+- Save: `localStorage` key `cot_save_v1`, every 5 s + `visibilitychange`/`beforeunload`/`pagehide`, try/catch (game continues without saving). Corrupt saves → fresh game (unit-tested).
+- Offline earnings + "Welcome back!" popup; debug `?offline=3600`. Background tab: return after ≥ 60 s → offline popup, otherwise the gap is ticked normally; frame dt clamped to 0.25 s.
+
+## M2 — Juice + content + stubs ✅
+- 12 capybaras (accessory + water colour per level), album (12 cards, silhouettes for locked), 12 unlockable decorations, golden guest (90–150 s, 8 s crossing, ×3 30 s + optional video ×3 3 min), manual ×2 5-min video boost.
+- Merge juice: squash & stretch, tinted splash particles, capybara jumps out, "+X/s" flying text, screen shake; grouped floating coin numbers; animated steam; idle bobbing with phase offset.
+- Web Audio SFX (plop pitch rises with level, cling, jingle, click, sparkle); mute saved in the save.
+- `services/ads.ts` (`Ads` interface + `StubAds` DOM overlay "AD (stub) – 2 s", `?adfail=1` simulates failure), `services/adPolicy.ts` (midgame: only after a new capybara, never in the first 5 min, ≤ 1 per 3 min — unit-tested), `services/analytics.ts` (`StubAnalytics` → `console.debug`). `gameplayStop/Start` around popups; game paused + muted during ads.
+- Debug panel (`D` or `?debug=1`): +1M, spawn level N, time ×10, golden guest now, fill album, reset save.
+- Performance: Phaser `Graphics` were re-tessellated every frame (6.2 ms CPU); all UI shapes are now baked canvas textures → **~0.4–0.9 ms CPU per frame**. Particles and floating texts are pooled.
+
+## M3 — Build ✅
+- `npm run build` → `dist/` **1.28 MB** (Phaser ≈ 1.27 MB of it), relative paths (`base: './'`), no external requests.
+- `npm run preview` + `node scripts/screenshots.cjs http://localhost:4173/ screenshots/preview` → **21/21 checks**, no console errors, mobile 844×390 touch merge OK, smallest button 49.8 px.
+
+## Verification script (`npm run screenshots`, needs a running dev/preview server)
+Playwright (environment-provided, used only as a dev tool) checks: start state, mouse + touch drag merge, swap, reload persistence, dig, upgrade, full grid disables Dig, golden guest tap, offline amount = 50% × prod × 3600, rewarded stub reward, failing ad, background tab, mobile button size / no scroll, analytics events, console errors, external requests, CPU per frame.
+
+## Known issues / notes
+- Headless Chromium uses SwiftShader (software GPU): ~15 fps there is fill-rate bound (the background alone gives ~36 fps); CPU per frame is < 1 ms. Real-device fps not measured here.
+- `screenshots/merge_clip_10s.webm` was recorded headless, so it is choppy; record marketing clips on a real machine.
+- `ad_interstitial_shown` and `session_end` are not exercised by the browser script (5-min grace / page unload); the policy is unit-tested.
+- Upgrades Shovel 3–5 and Hot Water beyond ~6 are deliberately out of reach before L12 (simulator ends at hot water 6, shovel 2, long rest 6).
+- `npm run simulate` uses Node ≥ 22.18 native TypeScript stripping (no extra dependency).
