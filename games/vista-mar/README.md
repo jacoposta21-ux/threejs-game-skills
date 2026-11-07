@@ -1,7 +1,7 @@
 # Vista Mar — Coastal Nights
 
 An original third-person open-world game about a fictional tropical coastal city. It runs in the browser with Three.js and WebGL.
-**Phase 1 (playable foundation)**, **Phase 2 (vehicles)** and **Phase 3 (living city)** are complete. The police wanted system and missions are the next phase.
+Phases **1 (playable foundation)**, **2 (vehicles)**, **3 (living city)** and **4 (gameplay: police, missions, money, locations)** are complete. Phase 5 is the visual polish pass.
 
 ## Run it
 
@@ -74,6 +74,17 @@ If the browser frame can't capture the mouse (some embedded previews), hold the 
 - **Interactions:** ramming a traffic car turns it into a physical, drivable vehicle. Pressing E next to a stopped traffic car pulls the driver out, who runs away, and you drive off.
 - **Performance:** distance-based animation update rates and shadow casting, pooled pedestrians, and meshopt-compressed models (all assets about 4 MB).
 
+## What's in Phase 4
+
+- **Wanted system:** five stars. Hitting pedestrians, carjacking, reckless crashes near police, ramming a police car, stealing a police car and setting off car alarms all raise the level. Long pursuits escalate it further. The stars flash while the police search for you.
+- **Police response by level:** 1 unit investigates your last known position (★), units pursue (★★), more units drive ahead of you to intercept (★★★), roadblocks across the road ahead (★★★★), and the maximum response (★★★★★). Police drive real vehicles routed over the street graph and switch to direct pursuit when they have line of sight.
+- **Escaping:** break line of sight, then stay hidden outside the search area shown on the radar for long enough. Crouching on foot hides you faster. You can also respray at Spray & Go while unseen.
+- **Busted and wasted:** staying stopped next to a police car gets you **BUSTED** (10% fine, released at police headquarters). Losing all your health gets you **WASTED** (hospital bill). You lose health from crashes and from being run over. It regenerates slowly when you are out of danger, and food carts restore it.
+- **Missions:** a reusable framework in `MissionManager` with steps, timers, waypoints, GPS route, pass/fail banners and rewards.
+  - *MISSION 01 — The Delivery*: walk to Rico's marker, take the box truck, deliver the package to Port Industrial within 2:30 without wrecking the cargo, and get $3,000 plus a condition bonus. It fails if the van is destroyed, the cargo drops below 35%, you abandon the van or time runs out.
+  - *MISSION 02 — Joyride*: unlocks after Mission 01. Steal the alarmed GT on Ocean Drive (2 stars), lose the cops, and deliver the car to the Spray & Go garage for $5,000 plus a bonus.
+- **Interactive places:** a safehouse (save the game and sleep until 08:00, loaded automatically on Play), a gas station (repair, $150), Spray & Go (repair, repaint and lose the cops, $400) and four food carts (+50 health). All of them appear on the radar.
+
 ## Architecture
 
 ```
@@ -92,6 +103,11 @@ src/
   camera/CameraController.js third-person camera
   systems/CollisionSystem.js spatial hash collision + camera ray cast
   systems/MissionSystem.js   activity/mission framework + Lost Tapes
+  systems/PoliceSystem.js     wanted levels, police AI, roadblocks, busted
+  systems/RoadGraph.js        street graph routing (GPS + police)
+  systems/Locations.js        safehouse, repair, respray, food
+  missions/MissionManager.js  reusable mission framework
+  missions/missions.js        Mission 01 and 02 scripts
   npc/NPCSystem.js             pedestrian graph, state machine, reactions, pooling
   npc/AnimBaker.js             bakes UAL clips onto each outfit's skeleton
   traffic/TrafficSystem.js     lanes, signals, turns, gap keeping, instanced cars

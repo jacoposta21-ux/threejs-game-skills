@@ -67,6 +67,8 @@ export class Menus {
     $('pause-stats').innerHTML = `
       <div>Cash <b>$${g.money.toLocaleString('en-US')}</b></div>
       <div>Lost tapes <b>${tapes.count} / ${tapes.tapes.length}</b></div>
+      <div>Story missions <b>${g.story.done.size} / ${g.story.defs.length}</b></div>
+      <div>Wanted level <b>${'★'.repeat(g.police.level) || 'none'}</b></div>
       <div>Time in Vista Mar <b>${Math.floor(g.playTime / 60)} min ${Math.floor(g.playTime % 60)} s</b></div>
       <div>Clock <b>${g.world.clockString}</b></div>`;
   }

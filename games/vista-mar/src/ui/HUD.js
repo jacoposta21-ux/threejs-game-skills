@@ -38,6 +38,11 @@ export class HUD {
     if (this.el.objHint.textContent !== hint) this.el.objHint.textContent = hint;
   }
 
+  setKicker(t) {
+    const k = document.getElementById('obj-kicker');
+    if (k.textContent !== t) k.textContent = t;
+  }
+
   banner(title, sub = '', kind = '') {
     const b = this.el.banner;
     this.el.bannerTitle.textContent = title;

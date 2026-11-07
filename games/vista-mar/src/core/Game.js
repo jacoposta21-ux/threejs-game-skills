@@ -394,6 +394,7 @@ export class Game {
     }
     // objective: an active mission overrides the free-roam activity
     const obj = this.story.objective();
+    this.hud.setKicker(obj ? 'STORY MISSION' : this.police.level > 0 ? 'WANTED · LOSE THE COPS' : 'EXPLORE · VISTA MAR');
     if (obj) this.hud.setObjective(obj.text, obj.title, obj.timer);
     else this.hud.setObjective(this.tapes.objectiveTitle, this.tapes.objectiveSub, null, this.story.available().length ? 'Yellow markers on the radar start story missions.' : '');
     // GPS route to the mission target
