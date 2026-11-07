@@ -173,6 +173,10 @@ export class LostTapes {
       t.tape.rotation.y = time * 1.8 + t.i;
       t.tape.position.y = 1.1 + Math.sin(time * 2 + t.i) * 0.12;
     }
+    const pl = this.game.player;
+    if (pl.vehicle) {
+      for (const t of this.tapes) if (!t.collected && Math.hypot(t.x - pl.pos.x, t.z - pl.pos.z) < 3.2) this.collect(t);
+    }
     const n = this.count, total = this.tapes.length;
     const near = this.nearest(this.game.player.pos);
     if (near) this.game.hud.setObjective(`Find the lost tapes  ${n}/${total}`, `Nearest: ${Math.round(near.dist)} m — follow the pink beam`);

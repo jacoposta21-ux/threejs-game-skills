@@ -1,0 +1,141 @@
+import * as THREE from 'three';
+import { Vehicle } from './Vehicle.js';
+import { VEHICLE_TYPES, VEHICLE_SPAWNS } from './VehicleTypes.js';
+import { radialGlowTexture } from '../world/textures.js';
+
+// Owns every drivable vehicle: spawning, per-frame physics, pedestrian push-out,
+// nearest-vehicle queries, damage smoke, and the player's headlight beam.
+export class VehicleSystem {
+  constructor(game, assets) {
+    this.game = game;
+    this.scene = game.scene;
+    this.collision = game.collision;
+    this.vehicles = [];
+    this.night = 0;
+    for (const sp of VEHICLE_SPAWNS) {
+      const spec = VEHICLE_TYPES[sp.type];
+      const gltf = assets[spec.asset];
+      if (!gltf) continue;
+      const free = this.findFreeSpot(sp);
+      this.vehicles.push(new Vehicle(this, spec, gltf, free));
+    }
+
+    // one shared pair of headlight spots, attached to whichever car the player drives
+    this.beam = new THREE.SpotLight(0xfff1d6, 0, 70, 0.5, 0.55, 1.4);
+    this.beamTarget = new THREE.Object3D();
+    this.beam.target = this.beamTarget;
+    this.beam.castShadow = false;
+    this.scene.add(this.beam, this.beamTarget);
+
+    // damage smoke (pooled sprites)
+    this.smokeMat = new THREE.SpriteMaterial({ map: radialGlowTexture(), color: 0x6b6b6b, transparent: true, depthWrite: false, opacity: 0.5 });
+    this.smoke = [];
+    for (let i = 0; i < 60; i++) {
+      const s = new THREE.Sprite(this.smokeMat.clone());
+      s.visible = false;
+      this.scene.add(s);
+      this.smoke.push({ s, life: 0, vy: 0 });
+    }
+    this.smokeIdx = 0;
+  }
+
+  findFreeSpot(sp) {
+    for (let k = 0; k < 20; k++) {
+      const x = sp.x + Math.sin(sp.h) * k * 3, z = sp.z + Math.cos(sp.h) * k * 3;
+      if (!this.collision.blockedCircle(x, z, 1.4)) return { ...sp, x, z };
+    }
+    return sp;
+  }
+
+  update(dt, driven) {
+    this.night = this.game.world.night;
+    for (const v of this.vehicles) {
+      if (v === driven) continue;
+      v.idle(dt);
+    }
+    // smoke from damaged cars
+    for (const v of this.vehicles) {
+      if (v.health > 40) continue;
+      v.smokeTimer -= dt;
+      if (v.smokeTimer <= 0) {
+        v.smokeTimer = v.wrecked ? 0.05 : v.health < 20 ? 0.09 : 0.2;
+        const p = this.smoke[this.smokeIdx++ % this.smoke.length];
+        const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
+        p.s.position.set(v.pos.x + fx * v.halfL * 0.7, v.pos.y + v.height * 0.8, v.pos.z + fz * v.halfL * 0.7);
+        p.s.visible = true;
+        p.life = 1;
+        p.vy = 1.2 + Math.random();
+        p.s.material.color.setHex(v.wrecked ? 0x222222 : 0x777777);
+      }
+    }
+    for (const p of this.smoke) {
+      if (!p.s.visible) continue;
+      p.life -= dt * 0.55;
+      if (p.life <= 0) { p.s.visible = false; continue; }
+      p.s.position.y += p.vy * dt;
+      p.s.position.x += 0.4 * dt;
+      const sc = 1 + (1 - p.life) * 3;
+      p.s.scale.set(sc, sc, sc);
+      p.s.material.opacity = p.life * 0.45;
+    }
+    // headlight beam on the driven car
+    if (driven && driven.headlights) {
+      const fx = Math.sin(driven.heading), fz = Math.cos(driven.heading);
+      this.beam.position.set(driven.pos.x + fx * driven.halfL, driven.pos.y + 0.9, driven.pos.z + fz * driven.halfL);
+      this.beamTarget.position.set(driven.pos.x + fx * 30, driven.pos.y - 1, driven.pos.z + fz * 30);
+      this.beamTarget.updateMatrixWorld();
+      this.beam.intensity = 40 + this.night * 260;
+    } else this.beam.intensity = 0;
+  }
+
+  nearest(pos, maxDist = 3.5) {
+    let best = null, bd = maxDist;
+    for (const v of this.vehicles) {
+      // distance to the car's outline, not its centre
+      const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
+      const dx = pos.x - v.pos.x, dz = pos.z - v.pos.z;
+      const lf = dx * fx + dz * fz, lr = dx * -fz + dz * fx;
+      const ef = Math.max(0, Math.abs(lf) - v.halfL), er = Math.max(0, Math.abs(lr) - v.halfW);
+      const d = Math.hypot(ef, er);
+      if (d < bd) { bd = d; best = v; }
+    }
+    return best;
+  }
+
+  /** Push a pedestrian circle out of every vehicle; returns adjusted {x,z}. */
+  pushPedestrian(x, z, r, skip = null) {
+    for (const v of this.vehicles) {
+      if (v === skip) continue;
+      if (Math.abs(v.pos.x - x) > 8 || Math.abs(v.pos.z - z) > 8) continue;
+      const p = v.pushCircle(x, z, r);
+      if (p) { x = p.x; z = p.z; }
+    }
+    return { x, z };
+  }
+
+  onVehicleImpact(v, impact) {
+    if (v.driver) {
+      this.game.audio.crash(Math.min(1, impact / 18));
+      this.game.camera3p.kick(Math.min(0.35, impact * 0.02));
+      this.game.camera3p.shake = Math.min(1, impact / 15);
+    }
+  }
+
+  onWrecked(v) {
+    if (v.driver) this.game.hud.toast('VEHICLE WRECKED', 'The engine is dead. Press F to get out.', '');
+  }
+
+  reset() {
+    for (const v of this.vehicles) v.reset();
+  }
+
+  markers(playerPos) {
+    const out = [];
+    for (const v of this.vehicles) {
+      if (v.driver) continue;
+      if (Math.abs(v.pos.x - playerPos.x) > 220 || Math.abs(v.pos.z - playerPos.z) > 220) continue;
+      out.push({ x: v.pos.x, z: v.pos.z, color: v.spec.siren ? '#4f7cff' : '#7fd8ff', shape: 'car', size: 5 });
+    }
+    return out;
+  }
+}

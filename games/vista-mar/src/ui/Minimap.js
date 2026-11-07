@@ -106,6 +106,7 @@ export class Minimap {
       const s = (m.size || 6) * this.dpr;
       c.beginPath();
       if (m.shape === 'diamond') { c.moveTo(0, -s); c.lineTo(s, 0); c.lineTo(0, s); c.lineTo(-s, 0); c.closePath(); }
+      else if (m.shape === 'car') { c.roundRect ? c.roundRect(-s * 0.6, -s * 0.6, s * 1.2, s * 1.2, s * 0.3) : c.rect(-s * 0.6, -s * 0.6, s * 1.2, s * 1.2); }
       else c.arc(0, 0, s * 0.7, 0, Math.PI * 2);
       c.fill(); c.stroke();
       if (m.label) { c.fillStyle = '#fff'; c.font = `700 ${9 * this.dpr}px Inter, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(m.label, 0, 0.5); }

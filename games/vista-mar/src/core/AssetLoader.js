@@ -20,6 +20,7 @@ export const MANIFEST = {
   taxi: 'assets/vehicles/taxi.glb',
   van: 'assets/vehicles/van.glb',
   police: 'assets/vehicles/police.glb',
+  delivery: 'assets/vehicles/delivery.glb',
   hatch: 'assets/vehicles/hatchback-sports.glb',
 };
 

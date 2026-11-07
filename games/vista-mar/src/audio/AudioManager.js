@@ -162,6 +162,85 @@ export class AudioManager {
     }
   }
 
+  // ---------------------------------------------------------------- vehicles
+  door() { this.burst({ freq: 250, type: 'lowpass', dur: 0.12, gain: 0.35, pitchDrop: 0.6 }); this.burst({ freq: 2500, q: 3, dur: 0.04, gain: 0.08 }); }
+  horn() { this.tone(392, 0.45, { type: 'square', gain: 0.06 }); this.tone(494, 0.45, { type: 'square', gain: 0.05 }); }
+  crash(k) {
+    this.burst({ freq: 140, type: 'lowpass', dur: 0.35 + k * 0.3, gain: 0.3 + k * 0.5, pitchDrop: 0.4 });
+    this.burst({ freq: 2600, q: 0.7, dur: 0.2 + k * 0.3, gain: 0.08 + k * 0.25 });
+    if (k > 0.5) for (let i = 0; i < 5; i++) this.tone(2000 + Math.random() * 3000, 0.15, { type: 'triangle', gain: 0.03, when: 0.05 + Math.random() * 0.3 });
+  }
+
+  engineStart(spec) {
+    if (!this.ctx) return;
+    this.engineStop();
+    const c = this.ctx;
+    const o1 = c.createOscillator(); o1.type = 'sawtooth';
+    const o2 = c.createOscillator(); o2.type = 'square';
+    const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 600; f.Q.value = 2;
+    const g = c.createGain(); g.gain.value = 0;
+    o1.connect(f); o2.connect(f); f.connect(g).connect(this.master);
+    o1.start(); o2.start();
+    // tyre skid: looping noise through a band-pass
+    const sk = this.loop(this.noise, 'bandpass', 1200, 0);
+    sk.f.Q.value = 1.6;
+    this.eng = { o1, o2, f, g, sk, spec, rpm: 900 };
+    this.burst({ freq: 300, type: 'lowpass', dur: 0.5, gain: 0.25 });
+  }
+
+  engineStop() {
+    if (!this.eng) return;
+    const { o1, o2, g, sk } = this.eng;
+    const t = this.ctx.currentTime;
+    g.gain.setTargetAtTime(0, t, 0.08);
+    sk.g.gain.setTargetAtTime(0, t, 0.05);
+    o1.stop(t + 0.4); o2.stop(t + 0.4); sk.src.stop(t + 0.4);
+    this.eng = null;
+    this.setSiren(false);
+  }
+
+  /** Engine pitch from a simple gearbox model; skid from lateral slip. */
+  engine(v, throttle, dt) {
+    if (!this.eng || !this.ctx) return;
+    const e = this.eng, t = this.ctx.currentTime;
+    const sp = Math.abs(v.speed), max = v.spec.maxSpeed, gears = v.spec.gears;
+    const gearSpan = max / gears;
+    const gear = Math.min(gears - 1, Math.floor(sp / gearSpan));
+    const inGear = (sp - gear * gearSpan) / gearSpan;
+    const target = v.wrecked ? 0 : 900 + inGear * 4200 + (throttle > 0 ? 400 : 0) + gear * 120;
+    e.rpm += (target - e.rpm) * Math.min(1, dt * 6);
+    v.gear = sp < 0.5 ? 'N' : v.speed < 0 ? 'R' : String(gear + 1);
+    v.rpm = e.rpm;
+    const base = v.spec.mass > 3000 ? 0.6 : v.spec.siren || v.spec.maxSpeed > 55 ? 1.1 : 0.85;
+    const f0 = (e.rpm / 60) * base;
+    e.o1.frequency.setTargetAtTime(f0, t, 0.03);
+    e.o2.frequency.setTargetAtTime(f0 * 0.5, t, 0.03);
+    e.f.frequency.setTargetAtTime(300 + e.rpm * 0.35 + (throttle > 0 ? 500 : 0), t, 0.05);
+    e.g.gain.setTargetAtTime(v.wrecked ? 0 : 0.05 + Math.abs(throttle) * 0.05 + inGear * 0.02, t, 0.05);
+    const skid = Math.max(0, Math.min(1, (v.slip - 2.5) / 6)) * (sp > 3 ? 1 : 0);
+    e.sk.g.gain.setTargetAtTime(skid * 0.18, t, 0.05);
+  }
+
+  setSiren(on) {
+    if (!this.ctx) return;
+    if (on && !this.siren) {
+      const c = this.ctx;
+      const o = c.createOscillator(); o.type = 'sawtooth';
+      const lfo = c.createOscillator(); lfo.frequency.value = 0.45;
+      const lg = c.createGain(); lg.gain.value = 330;
+      lfo.connect(lg).connect(o.frequency);
+      o.frequency.value = 930;
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 1.2;
+      const g = c.createGain(); g.gain.value = 0.05;
+      o.connect(f).connect(g).connect(this.master);
+      o.start(); lfo.start();
+      this.siren = { o, lfo };
+    } else if (!on && this.siren) {
+      this.siren.o.stop(); this.siren.lfo.stop();
+      this.siren = null;
+    }
+  }
+
   suspend() { this.ctx && this.ctx.suspend(); }
   resume() { this.ctx && this.ctx.resume(); }
 }

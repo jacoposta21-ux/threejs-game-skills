@@ -1,0 +1,348 @@
+import * as THREE from 'three';
+import { terrainHeight } from '../world/Layout.js';
+import { clamp, damp, lerp } from '../utils/random.js';
+
+// One drivable vehicle: CC0 Kenney model with separate wheels, arcade physics
+// (bicycle-model steering, longitudinal engine/brake/reverse, lateral grip with
+// handbrake drift), suspension approximation from terrain + load transfer,
+// static collision with 3 body circles, damage, head/brake/reverse lights.
+
+const _v = new THREE.Vector3();
+
+export class Vehicle {
+  constructor(system, spec, gltf, spawn) {
+    this.system = system;
+    this.spec = spec;
+    this.spawn = spawn;
+    this.root = new THREE.Group();
+    this.root.name = `Vehicle:${spec.label}`;
+    this.body = new THREE.Group(); // pitch/roll for suspension
+    this.root.add(this.body);
+
+    // --- model: normalise to real width, centre on the ground
+    const model = gltf.scene.clone(true);
+    model.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(model);
+    const s = spec.width / (bb.max.x - bb.min.x);
+    model.scale.setScalar(s);
+    model.position.set(-(bb.min.x + bb.max.x) / 2 * s, -bb.min.y * s, -(bb.min.z + bb.max.z) / 2 * s);
+    this.materials = [];
+    this.wheels = [];
+    model.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+        o.material = o.material.clone();
+        o.material.roughness = 0.35;
+        o.material.metalness = 0.25;
+        if (o.material.map) o.material.map.colorSpace = THREE.SRGBColorSpace;
+        this.materials.push(o.material);
+      }
+      if (/^wheel-(front|back)-(left|right)$/.test(o.name)) {
+        this.wheels.push({ node: o, front: o.name.includes('front'), baseRot: o.rotation.clone() });
+      }
+    });
+    this.body.add(model);
+    this.model = model;
+    const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+    this.size = size;
+    this.halfW = size.x / 2;
+    this.halfL = size.z / 2;
+    this.height = size.y;
+    this.wheelRadius = 0.3 * s;
+
+    this.buildLights();
+
+    // --- state
+    this.pos = new THREE.Vector3();
+    this.vel = new THREE.Vector2(); // world x,z velocity
+    this.heading = 0;
+    this.yawRate = 0;
+    this.steer = 0;
+    this.throttle = 0;
+    this.braking = false;
+    this.reversing = false;
+    this.handbrake = false;
+    this.health = 100;
+    this.wrecked = false;
+    this.driver = null;
+    this.headlights = false;
+    this.siren = false;
+    this.sirenPhase = 0;
+    this.wheelSpin = 0;
+    this.pitch = 0; this.roll = 0;
+    this.bodyY = 0;
+    this.speed = 0; // signed forward speed
+    this.slip = 0;
+    this.smokeTimer = 0;
+    this.lastImpact = -1;
+    this.reset();
+    system.scene.add(this.root);
+  }
+
+  buildLights() {
+    const w = this.halfW, l = this.halfL, h = this.height;
+    const mk = (color, intensity) => new THREE.MeshStandardMaterial({ color: 0x111111, emissive: color, emissiveIntensity: intensity, roughness: 0.3 });
+    this.headMat = mk(0xfff4dd, 0.2);
+    this.tailMat = mk(0xff2a1a, 0.3);
+    this.reverseMat = mk(0xffffff, 0);
+    const lamp = new THREE.BoxGeometry(0.34, 0.14, 0.06);
+    const add = (mat, x, y, z) => { const m = new THREE.Mesh(lamp, mat); m.position.set(x, y, z); this.body.add(m); return m; };
+    const fy = h * 0.36, ry = h * 0.42;
+    add(this.headMat, w * 0.62, fy, l - 0.02);
+    add(this.headMat, -w * 0.62, fy, l - 0.02);
+    add(this.tailMat, w * 0.66, ry, -l + 0.02);
+    add(this.tailMat, -w * 0.66, ry, -l + 0.02);
+    add(this.reverseMat, w * 0.3, ry, -l + 0.02);
+    if (this.spec.siren) {
+      const bar = new THREE.Group();
+      this.sirenRed = mk(0xff1a1a, 0.2);
+      this.sirenBlue = mk(0x1a4dff, 0.2);
+      const g = new THREE.BoxGeometry(0.55, 0.16, 0.3);
+      const r = new THREE.Mesh(g, this.sirenRed); r.position.x = 0.3;
+      const b = new THREE.Mesh(g, this.sirenBlue); b.position.x = -0.3;
+      bar.add(r, b);
+      bar.position.set(0, h + 0.02, -0.15);
+      this.body.add(bar);
+    }
+  }
+
+  reset() {
+    const sp = this.spawn;
+    this.pos.set(sp.x, terrainHeight(sp.x, sp.z), sp.z);
+    this.heading = sp.h;
+    this.vel.set(0, 0);
+    this.yawRate = 0;
+    this.health = 100;
+    this.wrecked = false;
+    this.siren = false;
+    for (const m of this.materials) m.color.setScalar(1);
+    this.syncTransform();
+  }
+
+  get forward() { return _v.set(Math.sin(this.heading), 0, Math.cos(this.heading)); }
+
+  /** Driver inputs: throttle -1..1 (S = brake/reverse), steer -1..1 (D = +1 right), handbrake bool. */
+  update(dt, input) {
+    const sp = this.spec;
+    const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
+    const rx = -fz, rz = fx; // right vector
+    let vf = this.vel.x * fx + this.vel.y * fz;
+    let vr = this.vel.x * rx + this.vel.y * rz;
+
+    const thr = this.wrecked ? 0 : input.throttle;
+    this.braking = false;
+    this.reversing = false;
+    if (thr > 0) {
+      if (vf < -0.5) { vf = Math.min(0, vf + sp.brake * dt); this.braking = true; }
+      else vf += sp.accel * thr * dt * Math.max(0.08, 1 - (vf / sp.maxSpeed) ** 2);
+    } else if (thr < 0) {
+      if (vf > 0.5) { vf = Math.max(0, vf - sp.brake * dt * -thr); this.braking = true; }
+      else { vf -= sp.accel * 0.6 * -thr * dt; vf = Math.max(vf, -sp.reverse); this.reversing = vf < -0.3; }
+    }
+    // rolling resistance + air drag
+    const roll = (thr === 0 ? 1.6 : 0.4) + Math.abs(vf) * sp.drag * 0.25;
+    vf -= Math.sign(vf) * Math.min(Math.abs(vf), roll * dt);
+    if (input.handbrake) { vf -= Math.sign(vf) * Math.min(Math.abs(vf), 7 * dt); this.braking = true; }
+
+    // steering: less lock at speed, smoothed
+    const speedK = clamp(Math.abs(vf) / sp.maxSpeed, 0, 1);
+    const targetSteer = input.steer * sp.steer * (1 - speedK * 0.55);
+    this.steer = damp(this.steer, targetSteer, 9, dt);
+    let targetYaw = (-this.steer * vf) / sp.wheelbase;
+    // tyres can only deliver so much lateral acceleration: cap the yaw rate at speed
+    const latMax = sp.grip * 1.75 * (input.handbrake ? 2.3 : 1);
+    const yawCap = latMax / Math.max(4, Math.abs(vf));
+    targetYaw = clamp(targetYaw, -yawCap, yawCap);
+    if (input.handbrake && Math.abs(vf) > 4) targetYaw *= 1.35;
+    this.yawRate = damp(this.yawRate, targetYaw, input.handbrake ? 5 : 7, dt);
+
+    // lateral grip: velocity stays in world space while the body rotates, so the
+    // sideways component that appears is bled off by tyre grip (low grip = drift)
+    const grip = input.handbrake ? sp.driftGrip : sp.grip * (1 - speedK * 0.35);
+    vr *= Math.exp(-grip * dt);
+    this.slip = Math.abs(vr);
+    this.vel.set(fx * vf + rx * vr, fz * vf + rz * vr);
+    this.speed = vf;
+    this.heading += this.yawRate * dt;
+
+    // integrate
+    const ox = this.pos.x, oz = this.pos.z;
+    this.pos.x += this.vel.x * dt;
+    this.pos.z += this.vel.y * dt;
+    this.collide(dt, ox, oz);
+    this.suspension(dt, vf, vr, thr);
+    this.animateParts(dt, vf, input);
+    this.syncTransform();
+  }
+
+  /** Coasting update for unoccupied vehicles (handbrake engaged). */
+  idle(dt) {
+    if (this.vel.lengthSq() < 0.0004 && Math.abs(this.yawRate) < 0.001) {
+      this.animateParts(dt, 0, { steer: 0 });
+      return;
+    }
+    this.update(dt, { throttle: 0, steer: 0, handbrake: true });
+  }
+
+  circles() {
+    const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
+    const r = this.halfW * 0.95;
+    const off = this.halfL - r;
+    return [
+      { x: this.pos.x + fx * off, z: this.pos.z + fz * off, r, k: 1 },
+      { x: this.pos.x, z: this.pos.z, r, k: 0 },
+      { x: this.pos.x - fx * off, z: this.pos.z - fz * off, r, k: -1 },
+    ];
+  }
+
+  collide(dt, ox, oz) {
+    const col = this.system.collision;
+    let px = 0, pz = 0, hitK = 0, hits = 0;
+    for (const c of this.circles()) {
+      const res = col.resolveCharacter(c.x, c.z, c.r, this.pos.y, 0.35, 0, 1.5);
+      const dx = res.x - c.x, dz = res.z - c.z;
+      if (res.hit && (Math.abs(dx) > 1e-5 || Math.abs(dz) > 1e-5)) {
+        if (Math.abs(dx) > Math.abs(px)) px = dx;
+        if (Math.abs(dz) > Math.abs(pz)) pz = dz;
+        hitK += c.k; hits++;
+      }
+    }
+    // other vehicles
+    for (const o of this.system.vehicles) {
+      if (o === this) continue;
+      const d = Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z);
+      if (d > this.halfL + o.halfL + 1) continue;
+      for (const a of this.circles()) for (const b of o.circles()) {
+        const dx = a.x - b.x, dz = a.z - b.z, dd = Math.hypot(dx, dz), rr = a.r + b.r;
+        if (dd < rr && dd > 1e-4) {
+          const push = (rr - dd) * 0.5;
+          px += (dx / dd) * push; pz += (dz / dd) * push;
+          // transfer some momentum to the other car
+          const rel = this.vel.x * (-dx / dd) + this.vel.y * (-dz / dd);
+          if (rel > 0) { o.vel.x += (-dx / dd) * rel * 0.5 * (this.spec.mass / o.spec.mass); o.vel.y += (-dz / dd) * rel * 0.5 * (this.spec.mass / o.spec.mass); o.yawRate += (Math.random() - 0.5) * rel * 0.08; }
+          hitK += a.k; hits++;
+        }
+      }
+    }
+    if (!hits) return;
+    this.pos.x += px; this.pos.z += pz;
+    const n = Math.hypot(px, pz);
+    if (n < 1e-6) return;
+    const nx = px / n, nz = pz / n;
+    const vn = this.vel.x * nx + this.vel.y * nz;
+    if (vn < 0) {
+      const e = 0.25;
+      this.vel.x -= (1 + e) * vn * nx;
+      this.vel.y -= (1 + e) * vn * nz;
+      // scrub some tangential speed too
+      this.vel.multiplyScalar(0.92);
+      const impact = -vn;
+      this.yawRate += clamp(hitK, -1, 1) * impact * 0.06 * (Math.random() < 0.5 ? -1 : 1);
+      this.onImpact(impact);
+    }
+    void dt; void ox; void oz;
+  }
+
+  onImpact(impact) {
+    const now = this.system.game.playTime;
+    if (impact > 2.5 && now - this.lastImpact > 0.18) {
+      this.lastImpact = now;
+      const dmg = (impact - 2.5) * (impact > 12 ? 3.2 : 2) * (1500 / this.spec.mass) ** 0.3;
+      this.health = Math.max(0, this.health - dmg);
+      const k = 1 - this.health / 100;
+      for (const m of this.materials) m.color.setScalar(lerp(1, 0.42, k));
+      this.system.onVehicleImpact(this, impact);
+      if (this.health <= 0 && !this.wrecked) {
+        this.wrecked = true;
+        this.system.onWrecked(this);
+      }
+    }
+  }
+
+  suspension(dt, vf, vr, thr) {
+    const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
+    const rx = -fz, rz = fx;
+    const L = this.halfL * 0.75, W = this.halfW * 0.8;
+    const hF = terrainHeight(this.pos.x + fx * L, this.pos.z + fz * L);
+    const hB = terrainHeight(this.pos.x - fx * L, this.pos.z - fz * L);
+    const hR = terrainHeight(this.pos.x + rx * W, this.pos.z + rz * W);
+    const hLft = terrainHeight(this.pos.x - rx * W, this.pos.z - rz * W);
+    const groundY = Math.max((hF + hB + hR + hLft) / 4, Math.min(hF, hB, hR, hLft));
+    this.pos.y = damp(this.pos.y, groundY, 14, dt);
+    const terrainPitch = Math.atan2(hB - hF, L * 2);
+    const terrainRoll = Math.atan2(hLft - hR, W * 2);
+    // load transfer: nose dips under braking, squats on throttle, body rolls out of turns
+    const accelPitch = this.braking ? 0.045 : thr > 0 ? -0.03 * thr : 0;
+    const lateral = this.yawRate * vf;
+    this.pitch = damp(this.pitch, terrainPitch + accelPitch, 6, dt);
+    this.roll = damp(this.roll, terrainRoll + clamp(lateral * 0.006, -0.07, 0.07), 6, dt);
+    this.bodyY = damp(this.bodyY, Math.min(0.06, Math.abs(vr) * 0.005), 6, dt);
+  }
+
+  animateParts(dt, vf, input) {
+    this.wheelSpin += (vf / Math.max(0.1, this.wheelRadius)) * dt;
+    for (const w of this.wheels) {
+      w.node.rotation.set(w.baseRot.x + this.wheelSpin, w.baseRot.y + (w.front ? -this.steer * 1.0 : 0), w.baseRot.z);
+    }
+    void input;
+    // lights
+    const night = this.system.night;
+    const on = this.driver ? this.headlights : false;
+    this.headMat.emissiveIntensity = on ? 3.2 : 0.15;
+    this.tailMat.emissiveIntensity = this.braking && this.driver ? 3.5 : on ? 1.1 : 0.25;
+    this.reverseMat.emissiveIntensity = this.reversing ? 3 : 0;
+    void night;
+    if (this.spec.siren) {
+      this.sirenPhase += dt * 9;
+      const a = this.siren ? (Math.sin(this.sirenPhase) > 0 ? 5 : 0.2) : 0.15;
+      const b = this.siren ? (Math.sin(this.sirenPhase) > 0 ? 0.2 : 5) : 0.15;
+      this.sirenRed.emissiveIntensity = a;
+      this.sirenBlue.emissiveIntensity = b;
+    }
+  }
+
+  syncTransform() {
+    this.root.position.copy(this.pos);
+    this.root.rotation.set(0, this.heading, 0);
+    this.body.rotation.set(this.pitch, 0, this.roll);
+    this.body.position.y = this.bodyY;
+  }
+
+  /** Pushes a circle (pedestrian) out of this vehicle's oriented box. */
+  pushCircle(x, z, r) {
+    const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
+    const rx = -fz, rz = fx;
+    const dx = x - this.pos.x, dz = z - this.pos.z;
+    const lf = dx * fx + dz * fz, lr = dx * rx + dz * rz;
+    const hl = this.halfL, hw = this.halfW;
+    const cf = clamp(lf, -hl, hl), cr = clamp(lr, -hw, hw);
+    let ef = lf - cf, er = lr - cr;
+    let d = Math.hypot(ef, er);
+    if (d >= r) return null;
+    if (d < 1e-5) {
+      // centre inside: push out along the shallowest side
+      const pf = hl - Math.abs(lf), pr = hw - Math.abs(lr);
+      if (pf < pr) { ef = Math.sign(lf) || 1; er = 0; d = 1; return this.local(this.pos.x, this.pos.z, Math.sign(lf) * (hl + r), lr, fx, fz, rx, rz); }
+      return this.local(this.pos.x, this.pos.z, lf, (Math.sign(lr) || 1) * (hw + r), fx, fz, rx, rz);
+    }
+    const k = r / d;
+    return this.local(this.pos.x, this.pos.z, cf + ef * k, cr + er * k, fx, fz, rx, rz);
+  }
+
+  local(px, pz, f, r, fx, fz, rx, rz) {
+    return { x: px + fx * f + rx * r, z: pz + fz * f + rz * r };
+  }
+
+  /** World position of the driver-side door (left side, +x local = left when facing +z). */
+  doorPoint(side = 1) {
+    const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
+    const rx = -fz, rz = fx;
+    const off = (this.halfW + 0.7) * side;
+    return { x: this.pos.x - rx * off + fx * 0.2, z: this.pos.z - rz * off + fz * 0.2 };
+  }
+
+  get kmh() {
+    return Math.abs(this.speed) * 3.6;
+  }
+}

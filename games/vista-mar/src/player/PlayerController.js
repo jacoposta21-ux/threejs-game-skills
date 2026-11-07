@@ -54,6 +54,7 @@ export class PlayerController {
     this.surface = 'sidewalk';
     this.speed = 0;
     this.interactCooldown = 0;
+    this.vehicle = null;
     this.respawn();
   }
 
@@ -138,6 +139,11 @@ export class PlayerController {
     const base = terrainHeight(nx, nz);
     const res = this.collision.resolveCharacter(nx, nz, RADIUS, this.pos.y, STEP, base);
     nx = res.x; nz = res.z;
+    // parked / abandoned vehicles are solid too
+    if (this.game.vehicles) {
+      const pv = this.game.vehicles.pushPedestrian(nx, nz, RADIUS);
+      if (pv.x !== nx || pv.z !== nz) { nx = pv.x; nz = pv.z; res.hit = true; }
+    }
     let groundY = Math.max(res.ground, terrainHeight(nx, nz));
     // keep out of deep water: treat below-sea sand as a soft wall
     if (groundY < WATER_LEVEL - 0.25) {

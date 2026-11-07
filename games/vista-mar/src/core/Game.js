@@ -16,6 +16,8 @@ import { HUD } from '../ui/HUD.js';
 import { Minimap } from '../ui/Minimap.js';
 import { Menus, loadSettings } from '../ui/Menus.js';
 import { MissionSystem, LostTapes } from '../systems/MissionSystem.js';
+import { VehicleSystem } from '../vehicles/VehicleSystem.js';
+import { VehicleController } from '../vehicles/VehicleController.js';
 import { classify, BEACH } from '../world/Layout.js';
 import { lerp } from '../utils/random.js';
 
@@ -71,6 +73,8 @@ export class Game {
     this.world.attachCity(this.city);
     this.menus.setLoading(0.88, 'Waking up the locals…');
     await nextFrame();
+    this.vehicles = new VehicleSystem(this, assets);
+    this.driver = new VehicleController(this);
     this.player = new PlayerController(this, assets);
     this.camera3p = new CameraController(this);
     this.camera3p.reset(this.player.heading);
@@ -150,6 +154,7 @@ export class Game {
     this.state = 'playing';
     this.input.requestLock();
     this.hud.toast('WELCOME TO VISTA MAR', 'Twelve lost mixtapes are hidden around the city. Follow the pink beams.');
+    setTimeout(() => this.state === 'playing' && this.hud.toast('NEED A RIDE?', 'A sports car is parked on Palm Boulevard right ahead. Walk up and press E.'), 4500);
   }
 
   pause() {
@@ -182,6 +187,8 @@ export class Game {
   }
 
   restart() {
+    if (this.driver.vehicle) this.driver.exit();
+    this.vehicles.reset();
     this.player.respawn();
     this.camera3p.reset(this.player.heading);
     this.money = 500;
@@ -209,7 +216,7 @@ export class Game {
   }
 
   markers() {
-    return this.missions.markers();
+    return [...this.vehicles.markers(this.player.pos), ...this.missions.markers()];
   }
 
   // ------------------------------------------------------------- loop
@@ -240,14 +247,22 @@ export class Game {
   update(dt) {
     this.playTime += dt;
     const p = this.player;
-    this.player.update(dt, this.camera3p.yaw);
+    if (this.driver.vehicle) this.driver.update(dt);
+    else this.player.update(dt, this.camera3p.yaw);
+    this.vehicles.update(dt, this.driver.vehicle);
     this.camera3p.update(dt);
     this.world.update(dt, p.pos);
     this.missions.update(dt);
-    // interaction
-    const it = this.missions.nearestInteractable(p.pos);
-    this.hud.prompt(it ? it.label : '');
-    if (it && this.input.hit('KeyE')) it.action();
+    // interaction: pickups first, then the nearest vehicle
+    if (!this.driver.vehicle) {
+      const it = this.missions.nearestInteractable(p.pos);
+      const car = it ? null : this.vehicles.nearest(p.pos, 1.6);
+      this.hud.prompt(it ? it.label : car ? `Enter ${car.spec.label}${car.wrecked ? ' (wrecked)' : ''}` : '');
+      if (this.input.hit('KeyE')) {
+        if (it) it.action();
+        else if (car) this.driver.enter(car);
+      }
+    } else this.hud.prompt('');
     // bloom by time of day
     this.bloom.strength = lerp(0.22, 0.85, this.world.night);
     this.bloom.threshold = lerp(0.95, 0.82, this.world.night);
@@ -257,7 +272,7 @@ export class Game {
     const dense = { downtown: 1, nightlife: 0.9, midtown: 0.8, apartments: 0.5, beach: 0.6, industrial: 0.55, residential: 0.25, park: 0.3, sand: 0.2 }[c.district] ?? 0.4;
     this.audio.update(dt, { oceanProximity: oceanProx, cityDensity: dense, night: this.world.night, park: c.type === 'grass' ? 1 : 0 });
     this.hud.update(dt);
-    this.minimap.drawRadar(p, this.camera3p.yaw, this.markers(), p.speed > 6 ? 0.85 : 1.1);
+    this.minimap.drawRadar(p, this.camera3p.yaw, this.markers(), p.vehicle ? Math.max(0.45, 1.05 - p.speed * 0.012) : p.speed > 6 ? 0.85 : 1.1);
   }
 
   updateChunkVisibility() {
@@ -277,6 +292,9 @@ export class Game {
     const states = {
       start: () => { game.menus.showStart(true); game.hud.show(false); game.state = 'ready'; },
       'explore-golden': () => game.stage(17.6, 28, -15.4, Math.PI / 2),
+      'drive-golden': () => game.stageDrive(17.6, 'sports', 60, -8, Math.PI / 2),
+      'drive-night': () => game.stageDrive(21.8, 'police', 300, 60, Math.PI, true),
+      'drive-day-ocean': () => game.stageDrive(12, 'sports', 400, 120, Math.PI),
       'explore-day': () => game.stage(11.5, 28, -15.4, Math.PI / 2),
       'explore-night': () => game.stage(21.5, 28, -15.4, Math.PI / 2),
       'downtown-day': () => game.stage(13, 92, -100, Math.PI * 0.85),
@@ -338,7 +356,23 @@ export class Game {
   }
 
   /** Puts the game into a deterministic playing state for captures. */
+  /** Puts the player into a vehicle of `type`, moved to x,z, for captures/tests. */
+  stageDrive(time, type, x, z, heading, siren = false) {
+    if (this.driver.vehicle) this.driver.exit();
+    this.stage(time, x - 6, z, heading);
+    const v = this.vehicles.vehicles.find((c) => c.spec.asset === type || c.spec.label.toLowerCase().includes(type));
+    if (!v) throw new Error(`no vehicle ${type}`);
+    v.pos.set(x, 0, z); v.heading = heading; v.vel.set(Math.sin(heading) * 14, Math.cos(heading) * 14); v.syncTransform();
+    this.driver.enter(v);
+    v.headlights = this.world.night > 0.3;
+    if (siren) { v.siren = true; }
+    this.camera3p.yaw = heading;
+    for (let i = 0; i < 40; i++) { this.input.keys.add('KeyW'); this.update(1 / 60); }
+    this.input.keys.delete('KeyW');
+  }
+
   stage(time, x, z, heading) {
+    if (this.driver.vehicle) this.driver.exit();
     this.menus.showStart(false);
     this.menus.showPause(false);
     this.menus.showMap(false);
@@ -365,6 +399,7 @@ export class Game {
       time: this.world.timeOfDay,
       money: this.money,
       tapes: this.tapes.count,
+      vehicle: this.driver.vehicle ? { label: this.driver.vehicle.spec.label, kmh: this.driver.vehicle.kmh, health: this.driver.vehicle.health, heading: this.driver.vehicle.heading, slip: this.driver.vehicle.slip, gear: this.driver.vehicle.gear } : null,
       player: { x: this.player.pos.x, y: this.player.pos.y, z: this.player.pos.z, speed: this.player.speed, grounded: this.player.grounded, stamina: this.player.stamina, crouched: this.player.crouched, anim: this.player.rig?.currentName },
       camera: { yaw: this.camera3p.yaw, pitch: this.camera3p.pitch, dist: this.camera3p.currentDist },
       pointerLock: this.input.locked, dragLook: this.input.dragLook,

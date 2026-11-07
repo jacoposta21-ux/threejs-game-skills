@@ -11,6 +11,8 @@ export class HUD {
     this.el = {
       objTitle: $('obj-title'), objSub: $('obj-sub'), clock: $('clock'), money: $('money'), wanted: [...document.querySelectorAll('#wanted .star')],
       health: $('bar-health'), stamina: $('bar-stamina'), district: $('district'), districtName: $('district-name'), districtSub: $('district-sub'),
+      vehicle: $('vehicle-hud'), vhName: $('vh-name'), vhSpeed: $('vh-speed'), vhArc: $('vh-arc'), vhGear: $('vh-gear'), vhHealth: $('vh-health'),
+      indLights: $('ind-lights'), indBrake: $('ind-brake'), indDrift: $('ind-drift'), indSiren: $('ind-siren'),
       prompt: $('prompt'), promptText: $('prompt-text'), toasts: $('toasts'), street: $('street'), lookHint: $('look-hint'), stance: $('stance'), fps: $('fps'),
     };
     this.shownMoney = 0;
@@ -88,6 +90,27 @@ export class HUD {
     }
     this.districtTimer -= dt;
     if (this.districtTimer <= 0) this.el.district.classList.remove('show');
+
+    // vehicle panel
+    const v = p.vehicle;
+    this.root.classList.toggle('driving', !!v);
+    this.el.vehicle.classList.toggle('hidden', !v);
+    if (v) {
+      if (this.el.vhName.textContent !== v.spec.label) this.el.vhName.textContent = v.spec.label;
+      const kmh = Math.round(v.kmh);
+      this.el.vhSpeed.textContent = kmh;
+      const frac = Math.min(1, v.kmh / (v.spec.maxSpeed * 3.6));
+      this.el.vhArc.style.strokeDashoffset = String(245 * (1 - frac));
+      this.el.vhArc.classList.toggle('hot', frac > 0.82);
+      this.el.vhGear.textContent = v.gear || 'N';
+      this.el.vhHealth.style.width = `${v.health}%`;
+      this.el.vhHealth.classList.toggle('low', v.health < 35);
+      this.el.indLights.classList.toggle('on', v.headlights);
+      this.el.indBrake.classList.toggle('on', v.braking);
+      this.el.indDrift.classList.toggle('alert', v.slip > 3.5 && Math.abs(v.speed) > 5);
+      this.el.indSiren.classList.toggle('hidden', !v.spec.siren);
+      this.el.indSiren.classList.toggle('alert', v.siren);
+    }
 
     const st = this.streetName(p.pos.x, p.pos.z);
     if (st !== this.lastStreet) { this.lastStreet = st; this.el.street.textContent = st; }

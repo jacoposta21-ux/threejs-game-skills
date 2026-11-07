@@ -108,7 +108,28 @@ kbd { display: inline-block; min-width: 1.7em; padding: 0.12em 0.45em; margin: 0
 .map-title { font: italic 800 30px var(--display); color: var(--ink); margin-bottom: 6px; }
 .map-help { margin-top: 12px; }
 
+/* ---------- vehicle HUD ---------- */
+#vehicle-hud { position: absolute; right: 26px; bottom: 26px; width: 210px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.vh-name { font: italic 800 18px var(--display); letter-spacing: 0.06em; color: var(--ink-dim); text-transform: uppercase; }
+.vh-dial { position: relative; width: 170px; height: 170px; }
+.vh-dial svg { width: 100%; height: 100%; transform: rotate(135deg); }
+.vh-track, .vh-arc { fill: none; stroke-width: 7; stroke-linecap: round; stroke-dasharray: 245 400; }
+.vh-track { stroke: rgba(255,255,255,0.14); }
+.vh-arc { stroke: var(--accent2); stroke-dashoffset: 245; filter: drop-shadow(0 0 6px rgba(63,224,232,0.6)); transition: stroke 0.2s; }
+.vh-arc.hot { stroke: var(--accent); filter: drop-shadow(0 0 8px rgba(255,79,163,0.7)); }
+.vh-readout { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+#vh-speed { font: italic 800 58px/0.9 var(--display); font-variant-numeric: tabular-nums; }
+.vh-readout small { font: 600 11px var(--body); letter-spacing: 0.3em; color: var(--ink-dim); margin-top: 4px; }
+.vh-gear { position: absolute; right: 6px; bottom: 10px; font: italic 800 26px var(--display); color: var(--gold); }
+.vh-cond { width: 170px; font: 600 10px var(--body); letter-spacing: 0.24em; color: var(--ink-dim); display: grid; gap: 5px; }
+.vh-ind { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.vh-ind span { font: 700 10px var(--body); letter-spacing: 0.14em; padding: 3px 7px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.18); color: rgba(255,255,255,0.32); }
+.vh-ind span.on { color: #10131a; background: var(--gold); border-color: var(--gold); }
+.vh-ind span.alert { color: #fff; background: var(--accent); border-color: var(--accent); }
+#hud.driving #district { bottom: 290px; }
+
 @media (max-width: 760px) {
+  #vehicle-hud { right: 14px; bottom: 14px; transform: scale(0.75); transform-origin: bottom right; }
   #radar { width: 150px; left: 14px; bottom: 14px; }
   #minimap { width: 150px; height: 150px; }
   #objective { top: 14px; left: 14px; }
