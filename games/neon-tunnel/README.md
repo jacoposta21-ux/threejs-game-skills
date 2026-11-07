@@ -25,6 +25,12 @@ npm run build
 npm run preview   # serves dist/ on http://127.0.0.1:4188
 ```
 
+Single self-contained HTML file (JS, CSS and fonts inlined; open it by double-clicking, no server needed):
+
+```bash
+npm run build:single   # writes dist-single/neon-tunnel.html
+```
+
 ## Controls
 
 | Action | Desktop | Mobile |

@@ -3,3 +3,4 @@ dist/
 artifacts/
 test-results/
 playwright-report/
+dist-single/
