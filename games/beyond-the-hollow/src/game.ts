@@ -27,6 +27,7 @@ export function startGame() {
     scene: [BootScene, MenuScene, StoryScene, BGScene, GameScene, UIScene, EndingScene],
   });
   (window as any).__game = game;
+  (window as any).__sound = Sound;
   game.events.on('hidden', () => Sound.suspend(true));
   game.events.on('visible', () => Sound.suspend(false));
   // Playgama 1.4.1: on phones and tablets the game goes full screen on the first tap
