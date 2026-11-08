@@ -31,6 +31,18 @@ Single self-contained HTML file (JS, CSS and fonts inlined; open it by double-cl
 npm run build:single   # writes dist-single/neon-tunnel.html
 ```
 
+CrazyGames build (loads the CrazyGames SDK; falls back to local behaviour if it cannot load):
+
+```bash
+npm run build:crazygames   # writes dist-crazygames/
+```
+
+Portal page material (dev server must be running):
+
+```bash
+npm run promo   # writes promo/cover-*.png, promo/screenshot-*.png, promo/gameplay.mp4 (needs ffmpeg)
+```
+
 ## Controls
 
 | Action | Desktop | Mobile |
@@ -75,7 +87,20 @@ If both directions are held, the most recent press wins. The game pauses itself 
   - 🛡 SHIELD: absorbs one hit
   - 🧲 MAGNET: pulls in nearby energy
 - **Five tunnel themes** that blend smoothly every 1,800 m: Cyber Blue, Toxic Green, Solar Core, Violet Void and Quantum White.
-- **Six cosmetic skins** (Cyber Core, Plasma, Inferno, Toxic, Quantum, Void), bought with energy you bank from runs.
+- **Nine cosmetic skins.**
+  - Six are bought with energy you bank from runs: Cyber Core, Plasma, Inferno, Toxic, Quantum, Void.
+  - Three animated skins are earned through achievements: PRISM (rainbow), PULSAR (strobe), AURUM (gold shimmer).
+- **Missions.** Three are always active (near misses, energy, distance, zones, multiplier, survival, power-ups, smashes, runs). Completing one pays energy, and it is replaced by a harder version. You get toasts during the run and a summary on Game Over.
+- **15 achievements** and a **stats** page (runs, distances, time played, furthest zone, near misses and more).
+- **Daily Run.** A seeded tunnel that is identical for every player on the same day, with its own daily best.
+- **More patterns:**
+  - Narrowing *lane*: consecutive walls leave one drifting lane.
+  - *Corkscrew*: a spiral of single-gap gates that forces continuous rotation.
+  - Counter-rotating *double gates*.
+- **Zone soundtrack.** Each theme has its own key, arp timbre, acid bass and echo. The music changes with the zone.
+- **Rewarded options on Game Over (once per run):**
+  - **CONTINUE** revives you at the crash point with 3 s of protection; the recorded result is undone.
+  - **×2 ENERGY** banks the run's energy again.
 - **Particles.** A single pooled GPU point system handles trails, sparks, pickups, near misses, power-up rings and the death explosion. Ambient dust and speed streaks use fixed buffers.
 - **Audio.** A procedural synthwave track whose tempo, filter and layers build with speed, plus SFX for every event. There are master, music and effects volume sliders and a mute toggle. Audio starts only after the first user gesture.
 - **Death sequence.** An explosion, slow motion, camera shake and a flash, then the Game Over screen with score, best, distance, energy and time. Retry is instant.
@@ -108,7 +133,8 @@ neon-tunnel/
     InputManager.js       Keyboard, mouse and multi-touch steering
     UIManager.js          Screens, HUD, popups, skins, settings
     SaveManager.js        localStorage persistence (guarded)
-    Platform.js           Platform adapter (local no-op; portal SDK goes here)
+    Platform.js           Platform adapters: local (placeholder rewarded ads) and CrazyGames SDK v3
+    Progression.js        Missions, achievements, stats, daily seed
   assets/audio, assets/textures   Reserved for optional external assets
   scripts/fairness-check.mjs      Offline generator fairness verification
   scripts/inspect-threejs-canvas.mjs  Canvas/pixel/render-budget inspector
@@ -131,13 +157,18 @@ Test hooks (`window.__THREE_GAME_TEST_HOOKS__`) support `seed(n)`, `setState(nam
 
 - Plain HTML5 static build, relative asset paths, no accounts, no backend and no permissions.
 - Clear game states (`menu`, `playing`, `paused`, `countdown`, `dying`, `gameover`), fast restart, and pause/resume including tab-visibility handling.
-- `src/Platform.js` is the only integration point. The game already calls:
-  - `loadingStart` / `loadingStop` around boot
-  - `gameplayStart` when a run starts or resumes
-  - `gameplayStop` on pause, death and menu
-  - `celebrate` on a new best
-  - `requestBreak(kind, {pause, resume})` as the hook for a between-runs ad break
-- The SDK adapter is **not** implemented. Write it against the current official CrazyGames SDK documentation instead of guessed method names. Ads stay outside gameplay code.
+- `src/Platform.js` is the only integration point. `CrazyGamesPlatform` is used when built with `npm run build:crazygames` or opened with `?platform=crazygames`.
+  - It loads `https://sdk.crazygames.com/crazygames-sdk-v3.js` and calls `SDK.init()`.
+  - It maps the game's hooks onto `game.loadingStart/loadingStop`, `game.gameplayStart/gameplayStop` (run start/resume vs pause/death/menu) and `game.happytime` (new best, achievement).
+  - Ads go through `ad.requestAd('midgame' | 'rewarded', { adStarted, adFinished, adError })`. Audio is suspended during ads.
+  - It honours the portal's `game.settings.muteAudio` (through `addSettingsChangeListener`).
+- Ads:
+  - A midgame break is requested at most every 3rd retry.
+  - Rewarded ads are only shown when the player taps CONTINUE or ×2 ENERGY.
+  - Nothing interrupts a run.
+- If the SDK cannot load, the game logs a warning and stays fully playable without ads.
+- **Before submitting:** the SDK method names were cross-checked against a published third-party integration (`@adlad/plugin-crazygames`), because docs.crazygames.com was unreachable from the build environment. Re-verify them against the official docs and test in the CrazyGames QA tool.
+- Progress is saved in `localStorage`. If you want cloud saves on CrazyGames, mirror `SaveManager` to the SDK data module.
 
 ## Tuning
 

@@ -12,6 +12,17 @@ const PROGRESSION = [
 ];
 const PENTA = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24];
 
+// One musical identity per tunnel zone: progression, arp timbre, acid-ness.
+const MIN = [0, 3, 7, 12];
+const MAJ = [0, 4, 7, 12];
+const ZONES = [
+  { prog: PROGRESSION, arp: 'square', q: 6, octave: 24, echo: 0.32 }, // cyber: A minor
+  { prog: [{ root: 40, chord: [0, 3, 7, 10] }, { root: 38, chord: [0, 3, 7, 10] }, { root: 36, chord: [0, 4, 7, 11] }, { root: 38, chord: [0, 3, 7, 10] }], arp: 'sawtooth', q: 16, octave: 24, echo: 0.25 }, // toxic: acid E minor
+  { prog: [{ root: 38, chord: MAJ }, { root: 45, chord: MAJ }, { root: 47, chord: MIN }, { root: 43, chord: MAJ }], arp: 'triangle', q: 5, octave: 24, echo: 0.3 }, // solar: D major
+  { prog: [{ root: 37, chord: MIN }, { root: 45, chord: MAJ }, { root: 40, chord: MAJ }, { root: 35, chord: MAJ }], arp: 'sine', q: 4, octave: 36, echo: 0.5 }, // violet: C# minor, wide echo
+  { prog: [{ root: 41, chord: [0, 4, 7, 11] }, { root: 43, chord: [0, 4, 7, 11] }, { root: 45, chord: [0, 3, 7, 10] }, { root: 48, chord: [0, 4, 7, 11] }], arp: 'sine', q: 3, octave: 36, echo: 0.42 }, // quantum: F lydian sparkle
+];
+
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
 export class AudioManager {
@@ -25,6 +36,7 @@ export class AudioManager {
     this.nextTime = 0;
     this.timer = null;
     this.beatPulse = 0;
+    this.zone = ZONES[0];
     this.lastBeatTime = 0;
   }
 
@@ -89,18 +101,30 @@ export class AudioManager {
     if (!this.ctx) return;
     const s = this.settings;
     const t = this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(s.muted ? 0 : s.master, t, 0.03);
+    this.master.gain.setTargetAtTime(s.muted || this.externalMute ? 0 : s.master, t, 0.03);
     this.musicBus.gain.setTargetAtTime(s.music * 0.55, t, 0.05);
     this.sfxBus.gain.setTargetAtTime(s.sfx, t, 0.05);
   }
 
-  setMode(mode) {
+  /** Platform-level mute (e.g. a portal's sound setting), independent of the player's. */
+  setExternalMute(muted) {
+    this.externalMute = !!muted;
+    this.applyVolumes();
+  }
+
+    setMode(mode) {
     this.mode = mode;
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const cutoff = mode === 'paused' ? 600 : mode === 'over' ? 350 : 18000;
     this.musicFilter.frequency.setTargetAtTime(cutoff, t, mode === 'game' ? 0.05 : 0.25);
     if (mode !== 'game') this.humGain.gain.setTargetAtTime(0, t, 0.05);
+  }
+
+  /** Switch the soundtrack's identity to a tunnel zone (0..4). */
+  setZone(index) {
+    this.zone = ZONES[index % ZONES.length];
+    if (this.delayFb && this.ctx) this.delayFb.gain.setTargetAtTime(this.zone.echo, this.ctx.currentTime, 0.5);
   }
 
   setIntensity(v) {
@@ -150,10 +174,11 @@ export class AudioManager {
   playStep(step, t) {
     const mode = this.mode;
     if (mode === 'over') {
-      if (step === 0 && this.bar % 2 === 0) this.pad(t, PROGRESSION[(this.bar >> 1) % 4], 0.5);
+      if (step === 0 && this.bar % 2 === 0) this.pad(t, this.zone.prog[(this.bar >> 1) % 4], 0.5);
       return;
     }
-    const chord = PROGRESSION[(this.bar >> 1) % PROGRESSION.length];
+    const prog = this.zone.prog;
+    const chord = prog[(this.bar >> 1) % prog.length];
     const I = mode === 'menu' ? 0 : this.intensity;
     const game = mode === 'game' || mode === 'paused';
     this.delay.delayTime.setValueAtTime((60 / this.bpm) * 0.75, t);
@@ -170,7 +195,7 @@ export class AudioManager {
     if (game && I > 0.25 && (step === 4 || step === 12)) this.clap(t, 0.35);
     const arpOn = mode === 'menu' ? step % 2 === 0 : I > 0.12 || step % 4 === 0;
     if (arpOn) {
-      const note = chord.root + 24 + chord.chord[(step + (this.bar % 2) * 2) % chord.chord.length];
+      const note = chord.root + this.zone.octave + chord.chord[(step + (this.bar % 2) * 2) % chord.chord.length];
       this.arp(t, note, mode === 'menu' ? 0.06 : 0.05 + I * 0.04);
     }
     if (game && I > 0.65 && step % 8 === 6) this.arp(t, chord.root + 36 + chord.chord[2], 0.05);
@@ -202,7 +227,7 @@ export class AudioManager {
     o.frequency.value = mtof(midi);
     const f = ctx.createBiquadFilter();
     f.type = 'lowpass';
-    f.Q.value = 6;
+    f.Q.value = this.zone.q;
     f.frequency.setValueAtTime(cutoff * 1.6, t);
     f.frequency.exponentialRampToValueAtTime(Math.max(80, cutoff * 0.4), t + 0.18);
     const g = this.envGain(t, v, 0.005, 0.2);
@@ -240,7 +265,7 @@ export class AudioManager {
   arp(t, midi, v) {
     const ctx = this.ctx;
     const o = ctx.createOscillator();
-    o.type = 'square';
+    o.type = this.zone.arp;
     o.frequency.value = mtof(midi);
     const f = ctx.createBiquadFilter();
     f.type = 'lowpass';

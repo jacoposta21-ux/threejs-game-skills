@@ -206,9 +206,46 @@ export class Player {
 
   applySkin(skin) {
     this.skin = skin;
-    const core = new THREE.Color(skin.core);
-    const shell = new THREE.Color(skin.shell);
-    const dark = skin.dark ? 1 : 0;
+    this.animCore = new THREE.Color();
+    this.animShell = new THREE.Color();
+    this.animTa = new THREE.Color();
+    this.animTb = new THREE.Color();
+    this.setColors(new THREE.Color(skin.core), new THREE.Color(skin.shell), new THREE.Color(skin.trailA), new THREE.Color(skin.trailB), skin.dark ? 1 : 0, 1);
+    this.light.color.set(skin.core);
+    this.sparkColor.set(skin.spark);
+  }
+
+  /** Animated skins (PRISM / PULSAR / AURUM) recolour every frame. */
+  animateSkin(time) {
+    const anim = this.skin?.anim;
+    if (!anim) return;
+    if (anim === 'rainbow') {
+      const h = (time * 0.12) % 1;
+      this.animCore.setHSL(h, 1, 0.6);
+      this.animShell.setHSL((h + 0.12) % 1, 1, 0.8);
+      this.animTa.setHSL(h, 1, 0.6);
+      this.animTb.setHSL((h + 0.35) % 1, 1, 0.55);
+      this.setColors(this.animCore, this.animShell, this.animTa, this.animTb, 0, 1);
+      this.light.color.copy(this.animCore);
+      this.sparkColor.copy(this.animShell);
+    } else if (anim === 'strobe') {
+      const beat = Math.pow(0.5 + 0.5 * Math.sin(time * 9), 6);
+      this.animCore.set(this.skin.core);
+      this.animShell.set(this.skin.shell);
+      this.animTa.set(this.skin.trailA);
+      this.animTb.set(this.skin.trailB);
+      this.setColors(this.animCore, this.animShell, this.animTa, this.animTb, 0, 0.75 + beat * 0.9);
+    } else if (anim === 'shimmer') {
+      const k = 0.85 + 0.25 * Math.sin(time * 3.3) * Math.sin(time * 1.7);
+      this.animCore.set(this.skin.core);
+      this.animShell.set(this.skin.shell);
+      this.animTa.set(this.skin.trailA);
+      this.animTb.set(this.skin.trailB);
+      this.setColors(this.animCore, this.animShell, this.animTa, this.animTb, 0, k);
+    }
+  }
+
+  setColors(core, shell, ta, tb, dark, k) {
     this.coreMat.color.setRGB(core.r * 1.0 + 0.25, core.g * 1.0 + 0.25, core.b * 1.0 + 0.25);
     if (dark) this.coreMat.color.setRGB(0.05, 0, 0.05);
     this.plasmaUniforms.uColor.value.set(core.r * 0.55, core.g * 0.55, core.b * 0.55);
@@ -218,12 +255,14 @@ export class Player {
     this.beltMat.color.setRGB(core.r * 1.6 + 0.4, core.g * 1.6 + 0.4, core.b * 1.6 + 0.4);
     this.ringMat.color.setRGB(core.r * 1.8, core.g * 1.8, core.b * 1.8);
     this.shellUniforms.uColor.value.set(core.r * 0.5, core.g * 0.5, core.b * 0.5);
-    this.light.color.set(skin.core);
-    const ta = new THREE.Color(skin.trailA);
-    const tb = new THREE.Color(skin.trailB);
     this.trailUniforms.uColorA.value.set(ta.r * 1.1, ta.g * 1.1, ta.b * 1.1);
     this.trailUniforms.uColorB.value.set(tb.r * 0.8, tb.g * 0.8, tb.b * 0.8);
-    this.sparkColor.set(skin.spark);
+    if (k !== 1) {
+      this.coreMat.color.multiplyScalar(k);
+      this.latticeMat.color.multiplyScalar(k);
+      this.beltMat.color.multiplyScalar(k);
+      this.ringMat.color.multiplyScalar(k);
+    }
   }
 
   reset() {
@@ -255,6 +294,7 @@ export class Player {
 
   /** Places the sphere in world space and animates its layers. */
   updateVisual(dt, time, distance, shieldOn, boostOn, menuMode = false) {
+    this.animateSkin(time);
     const r = PLAYER.orbitRadius;
     const a = this.angle;
     if (menuMode) {

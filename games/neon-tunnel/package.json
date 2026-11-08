@@ -8,6 +8,8 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "build:single": "node scripts/build-single.mjs",
+    "build:crazygames": "vite build --mode crazygames --outDir dist-crazygames",
+    "promo": "node scripts/capture-promo.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "playwright test",
     "verify:visual": "playwright test tests/visual.spec.js",

@@ -136,6 +136,9 @@ export class ProceduralGenerator {
       ['zigzag', unlock(t, 70) * 0.55],
       ['gateTrain', unlock(t, 105) * 0.5],
       ['laserFan', unlock(t, 120) * 0.45],
+      ['lane', unlock(t, 50) * 0.45],
+      ['corkscrew', unlock(t, 75) * 0.45],
+      ['doubleGate', unlock(t, 90) * 0.4],
     ];
     let total = 0;
     for (const [, w] of options) total += Math.max(0, w);
@@ -148,7 +151,9 @@ export class ProceduralGenerator {
         break;
       }
     }
-    return this.patternRows(id, t);
+    const rows = this.patternRows(id, t);
+    for (const r of rows) r.pattern = id;
+    return rows;
   }
 
   patternRows(id, t) {
@@ -175,9 +180,10 @@ export class ProceduralGenerator {
       case 'spiral': {
         const n = this.int(4, 6);
         const step = this.sign() * this.range(0.45, 0.75);
-        const start = this.range(0, TWO_PI);
+        const anchor = {};
         for (let i = 0; i < n; i += 1) {
-          rows.push({ gap: i === 0 ? 1 : 0.5, minGap: 7, build: (c) => this.buildSpikes(c, { clusters: 1, fixedAngle: start + step * i, minCount: 4, maxCount: 6 }) });
+          // spikes block the anchor side; the lane is opposite
+          rows.push({ gap: i === 0 ? 1.2 : 0.5, minGap: 7, build: (c) => this.buildSpikes(c, { clusters: 1, fixedAngle: this.anchored(anchor, i, c, Math.PI + step * i), minCount: 4, maxCount: 6 }) });
         }
         break;
       }
@@ -191,9 +197,9 @@ export class ProceduralGenerator {
         break;
       case 'zigzag': {
         const n = this.int(3, 4);
-        const start = this.range(0, TWO_PI);
+        const anchor = {};
         for (let i = 0; i < n; i += 1) {
-          rows.push({ gap: i === 0 ? 1 : 0.62, minGap: 9, build: (c) => this.buildWall(c, { moving: false, fixedAngle: start + (i % 2) * Math.PI, blocks: this.int(18, 22) }) });
+          rows.push({ gap: i === 0 ? 1 : 0.62, minGap: 9, build: (c) => this.buildWall(c, { moving: false, fixedAngle: this.anchored(anchor, i, c, Math.PI + (i % 2) * Math.PI), blocks: this.int(18, 22) }) });
         }
         break;
       }
@@ -209,10 +215,58 @@ export class ProceduralGenerator {
         rows.push({ gap: 0.55, minGap: 8, build: (c) => this.buildLaser(c, { beams: 1, rotate: true }) });
         rows.push({ gap: 0.55, minGap: 8, build: (c) => this.buildLaser(c, { beams: 2, rotate: true }) });
         break;
+      case 'lane': {
+        // the tunnel "narrows": consecutive walls leave one drifting lane
+        const n = this.int(4, 5);
+        const drift = this.sign() * this.range(0.12, 0.3);
+        const anchor = {};
+        for (let i = 0; i < n; i += 1) {
+          rows.push({ gap: i === 0 ? 1.3 : 0.4, minGap: 7, build: (c) => this.buildWall(c, { moving: false, fixedAngle: this.anchored(anchor, i, c, Math.PI + drift * i), blocks: this.int(34, 37) }) });
+        }
+        break;
+      }
+      case 'corkscrew': {
+        // a spiral of single-gap gates: forces continuous rotation one way
+        const n = this.int(6, 8);
+        const step = this.sign() * this.range(0.5, 0.7);
+        const anchor = {};
+        for (let i = 0; i < n; i += 1) {
+          rows.push({ gap: i === 0 ? 1.3 : 0.42, minGap: 7, build: (c) => this.buildGate(c, { gaps: 1, fixedAngle: this.anchored(anchor, i, c, step * i), width: 9 }) });
+        }
+        break;
+      }
+      case 'doubleGate': {
+        const dir = this.sign();
+        rows.push({ gap: 1, build: (c) => this.buildGate(c, { gaps: 2, spin: dir }) });
+        rows.push({ gap: 0.3, minGap: 5, build: (c) => this.buildGate(c, { gaps: 2, spin: -dir }) });
+        break;
+      }
       default:
         rows.push({ gap: 1, build: (c) => this.buildSpikes(c, {}) });
     }
     return rows;
+  }
+
+  /** Circular mean of the currently feasible angles (where the player can be). */
+  feasibleCenter() {
+    let x = 0;
+    let y = 0;
+    for (let b = 0; b < B; b += 1) {
+      if (!this.feasible[b]) continue;
+      x += Math.cos(b * BIN);
+      y += Math.sin(b * BIN);
+    }
+    return x === 0 && y === 0 ? this.pathBin * BIN : Math.atan2(y, x);
+  }
+
+  /**
+   * Shared anchor for fixed-shape patterns. The first row anchors the pattern
+   * on the reachable region (with growing jitter on retries); later rows are
+   * laid out relative to it, so the whole pattern stays solvable.
+   */
+  anchored(anchor, i, c, offset) {
+    if (i === 0) anchor.a = this.feasibleCenter() + this.range(-0.5, 0.5) * Math.min(1, c.attempt / 4);
+    return anchor.a + offset;
   }
 
   // ---------------------------------------------------------------- builders
@@ -267,7 +321,7 @@ export class ProceduralGenerator {
     const o = this.newObstacle('gate');
     const easy = c.attempt > 5;
     const gaps = opts.gaps ?? (c.d < 0.2 ? 1 : this.rng() < 0.45 ? 2 : 1);
-    const width = gaps === 1 ? Math.round(lerp(16, 6, c.d)) + (easy ? 5 : 0) : Math.round(lerp(11, 5, c.d)) + (easy ? 4 : 0);
+    const width = (opts.width ?? (gaps === 1 ? Math.round(lerp(16, 6, c.d)) : Math.round(lerp(11, 5, c.d)))) + (easy ? (gaps === 1 ? 5 : 4) : 0);
     const solid = new Uint8Array(BLOCK_COUNT).fill(1);
     const first = 0;
     for (let g = 0; g < gaps; g += 1) {
@@ -276,8 +330,8 @@ export class ProceduralGenerator {
     }
     o.blocks = [];
     for (let i = 0; i < BLOCK_COUNT; i += 1) if (solid[i]) o.blocks.push(i);
-    o.base = this.range(0, TWO_PI);
-    const spinAllowed = c.t > 40 || opts.spin;
+    o.base = opts.fixedAngle ?? this.range(0, TWO_PI);
+    const spinAllowed = opts.fixedAngle === undefined && (c.t > 40 || opts.spin);
     if (spinAllowed && (opts.spin || this.rng() < 0.55)) {
       o.motion = 'rotate';
       const rate = this.range(0.35, 0.7 + c.d * 0.7) * (opts.spin ?? this.sign());
@@ -364,9 +418,13 @@ export class ProceduralGenerator {
 
     for (let extend = 0; extend < 6 && !accepted; extend += 1) {
       reachBins = first ? B : this.reachBinsFor(ds, speedA);
-      for (let attempt = 0; attempt < 12; attempt += 1) {
+      // fixed-shape patterns get extra distance before we give up on them
+      const attempts = extend >= 3 ? 12 : 10;
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
         const ctx = { rng: this.rng, t: tA, d, speedA, attempt };
         const o = buildArcs(attempt < 10 ? spec.build(ctx) : this.buildSpikes(ctx, { clusters: 1, maxCount: 2 }));
+        o.pattern = (attempt < 10 ? '' : 'fallback:') + (spec.pattern ?? 'intro');
+        o.extended = extend;
         if (this.computeFree(o) < 3) continue;
         if (this.isReachable(reachBins)) {
           accepted = o;

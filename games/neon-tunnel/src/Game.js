@@ -15,6 +15,7 @@ import { PLAYER_HALF_ANGLE, angleDiff, clearance, rotationAt } from './ObstacleM
 import { Dust, ParticleSystem, SpeedStreaks } from './ParticleSystem.js';
 import { createPlatform } from './Platform.js';
 import { Player } from './Player.js';
+import { Progression, dailySeed, newRunStats } from './Progression.js';
 import { PowerUps } from './PowerUps.js';
 import { ProceduralGenerator } from './ProceduralGenerator.js';
 import { SaveManager } from './SaveManager.js';
@@ -110,12 +111,17 @@ export class Game {
     this.applyQuality(this.resolveQuality(this.save.settings.quality), true);
 
     // ---------------------------------------------------------- UI / input
+    this.progression = new Progression(this.save);
     this.ui = new UIManager(this.save, this.audio, this.uiHandlers());
+    this.ui.setProgression(this.progression);
+    this.runsSinceBreak = 0;
+    this.daily = false;
+    this.run = newRunStats();
     this.input = new InputManager(document.getElementById('touch-layer'), {
       onPause: () => this.togglePause(),
       onConfirm: () => {
-        if (this.state === 'gameover') this.startRun();
-        else if (this.state === 'menu' && this.ui.current === 'menu') this.startRun();
+        if (this.state === 'gameover' && this.ui.current === 'gameover') this.retry();
+        else if (this.state === 'menu' && this.ui.current === 'menu') this.startRun({ daily: false });
       },
       onMute: () => this.toggleMute(),
       onAnyInput: () => this.audio.unlock(),
@@ -165,6 +171,7 @@ export class Game {
   async start() {
     this.platform.loadingStart();
     await this.platform.init();
+    this.platform.onMuteChange((muted) => this.audio.setExternalMute(muted));
     try {
       await document.fonts?.load?.('700 20px Orbitron');
     } catch {
@@ -276,8 +283,15 @@ export class Game {
 
   uiHandlers() {
     return {
-      play: () => this.startRun(),
-      retry: () => this.startRun(),
+      play: () => this.startRun({ daily: false }),
+      daily: () => this.startRun({ daily: true }),
+      retry: () => this.retry(),
+      continue: () => this.continueRun(),
+      double: () => this.doubleEnergy(),
+      progress: () => {
+        this.backTo = 'menu';
+        this.ui.show('progress');
+      },
       resume: () => this.resume(),
       pause: () => this.togglePause(),
       menu: () => this.goMenu(),
@@ -330,6 +344,8 @@ export class Game {
       'reset-progress': () => {
         this.ui.confirm('Reset best score, energy and skins?', () => {
           this.save.reset();
+          this.progression.ensure();
+          this.save.save();
           this.audio.settings = this.save.settings;
           this.audio.applyVolumes();
           this.applySkin();
@@ -395,12 +411,96 @@ export class Game {
     this.ui.showTouchHint(false);
     this.ui.show('menu');
     this.audio.setMode('menu');
+    this.ui.setDaily(false);
   }
 
-  startRun() {
+  /** Retry from game over; every few runs a portal may show a midgame break. */
+  async retry() {
+    if (this.breakPending) return;
+    this.runsSinceBreak += 1;
+    if (this.runsSinceBreak >= 3 && this.platform.name !== 'local') {
+      this.breakPending = true;
+      const r = await this.platform.requestBreak('midgame', this.adHooks());
+      this.breakPending = false;
+      if (r.shown) this.runsSinceBreak = 0;
+    }
+    this.startRun({ daily: this.daily });
+  }
+
+  adHooks() {
+    return {
+      pause: () => {
+        this.audio.suspend();
+        this.adPlaying = true;
+      },
+      resume: () => {
+        this.adPlaying = false;
+        this.audio.resume();
+      },
+    };
+  }
+
+  /** Rewarded continue: once per run, revives at the crash point with a safe window. */
+  async continueRun() {
+    if (this.state !== 'gameover' || this.continueUsed || !this.saveSnapshot || this.breakPending) return;
+    this.breakPending = true;
+    const r = await this.platform.requestBreak('rewarded', this.adHooks());
+    this.breakPending = false;
+    if (!r.shown || this.state !== 'gameover') return;
+    // undo the recorded result: the run is not over yet
+    this.save.data = this.saveSnapshot;
+    this.save.save();
+    this.progression.ensure();
+    this.audio.settings = this.save.settings;
+    this.saveSnapshot = null;
+    this.continueUsed = true;
+    this.distance = this.deathDistance;
+    this.prevDistance = this.distance;
+    for (const o of this.obstacles.active) {
+      if (o.s > this.distance - 4 && o.s < this.distance + 50) {
+        o.smashed = true;
+        o.passed = true;
+      }
+    }
+    this.obstacles.killer = null;
+    this.killer = null;
+    this.particles.clear();
+    this.player.setVisible(true);
+    this.player.omega = 0;
+    this.invulnTimer = 3;
+    this.timeScale = 1;
+    this.trauma = 0;
+    this.ui.setHud(true);
+    this.ui.toast('SECOND CHANCE', 'Shield-up for 3 seconds');
+    this.state = 'paused';
+    this.resume();
+  }
+
+  async doubleEnergy() {
+    if (this.state !== 'gameover' || this.doubleUsed || this.runEnergy <= 0 || this.breakPending) return;
+    this.breakPending = true;
+    const r = await this.platform.requestBreak('rewarded', this.adHooks());
+    this.breakPending = false;
+    if (!r.shown) return;
+    this.doubleUsed = true;
+    this.saveSnapshot = null; // energy has been banked twice: no more continue
+    this.save.data.energyBank += this.runEnergy;
+    this.save.save();
+    this.ui.toast('ENERGY DOUBLED', `+${this.runEnergy} ⬢ banked`);
+    this.ui.$('go-energy').textContent = `+${this.runEnergy * 2}`;
+    this.ui.setRewarded({ continueAvailable: false, doubleAvailable: false });
+  }
+
+  startRun({ daily = this.daily } = {}) {
+    this.daily = !!daily;
+    this.continueUsed = false;
+    this.doubleUsed = false;
+    this.saveSnapshot = null;
+    this.run = newRunStats();
+    this.liveCheckTimer = 0;
     this.audio.unlock();
     this.resetRunState();
-    const seed = this.fixedSeed ?? ((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
+    const seed = this.daily ? dailySeed() : this.fixedSeed ?? ((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0);
     this.runSeed = seed;
     this.generator.reset(seed);
     this.obstacles.clear();
@@ -410,6 +510,8 @@ export class Game {
     this.player.setVisible(true);
     this.applySkin();
     this.tunnel.setTheme(0, true);
+    this.audio.setZone(0);
+    this.ui.setDaily(this.daily);
     this.dust.setColor(THEMES[0].dust);
     this.camAngle = 0;
     this.timeScale = 1;
@@ -437,7 +539,7 @@ export class Game {
   togglePause() {
     if (this.state === 'playing') this.pause();
     else if (this.state === 'paused' && this.ui.current === 'pause') this.resume();
-    else if (this.state === 'gameover') this.startRun();
+    else if (this.state === 'gameover' && this.ui.current === 'gameover') this.retry();
   }
 
   pause() {
@@ -489,11 +591,42 @@ export class Game {
   finishRun() {
     this.state = 'gameover';
     const score = Math.floor(this.score);
+    this.deathDistance = this.distance;
+    // snapshot so a rewarded continue can undo this result
+    this.saveSnapshot = JSON.parse(JSON.stringify(this.save.data));
+    this.syncRunStats();
+    this.run.score = score;
     const isBest = this.save.recordRun(score, this.distance, this.runEnergy);
-    if (isBest) this.platform.celebrate();
+    const summary = this.progression.commitRun(this.run, { daily: this.daily });
+    if (isBest || summary.achievements.length) this.platform.celebrate();
     this.ui.setHud(false);
     this.ui.showTouchHint(false);
-    this.ui.showGameOver({ score, best: this.save.data.best, distance: this.distance, energy: this.runEnergy, time: this.elapsed, isBest, cause: this.causeOf(this.killer) });
+    const canReward = this.platform.supportsRewarded;
+    this.ui.showGameOver({
+      score,
+      best: this.save.data.best,
+      distance: this.distance,
+      energy: this.runEnergy,
+      time: this.elapsed,
+      isBest,
+      cause: this.causeOf(this.killer),
+      summary,
+      daily: this.daily,
+      dailyBest: !!summary.dailyBest,
+      dailyBestScore: this.progression.dailyBestToday(),
+      rewarded: { continueAvailable: canReward && !this.continueUsed && this.elapsed > 8, doubleAvailable: canReward && this.runEnergy > 0 },
+    });
+
+  }
+
+  syncRunStats() {
+    const r = this.run;
+    r.distance = Math.floor(this.distance);
+    r.energy = this.runEnergy;
+    r.nearMisses = this.nearMisses;
+    r.time = this.elapsed;
+    r.zone = this.progression.zoneFor(this.distance);
+    r.maxMultiplier = Math.max(r.maxMultiplier, this.multiplier);
   }
 
   causeOf(o) {
@@ -600,6 +733,7 @@ export class Game {
       const themeIdx = Math.floor(this.time / 14) % THEMES.length;
       if (state === 'menu' && themeIdx !== this.tunnel.themeIndex) {
         this.tunnel.setTheme(themeIdx);
+        this.audio.setZone(themeIdx);
         this.dust.setColor(THEMES[themeIdx].dust);
       }
       this.updateWorld(dt, cruise * dt);
@@ -642,6 +776,7 @@ export class Game {
         this.smash(hit, boosting || this.boostGrace > 0);
       } else if (this.powerups.isActive('shield')) {
         this.powerups.timers.shield = 0;
+        this.run.shieldSaves += 1;
         this.invulnTimer = 0.8;
         this.smash(hit, false);
         this.combo = 0;
@@ -693,10 +828,20 @@ export class Game {
       const a = THEMES[themeIdx].neonA;
       this.ui.banner(`ZONE ${zone}`, THEMES[themeIdx].name, `rgb(${Math.min(255, a[0] * 110)},${Math.min(255, a[1] * 110)},${Math.min(255, a[2] * 110)})`);
       this.audio.themeChange();
+      this.audio.setZone(themeIdx);
       this.particles.ring(TMP.set(0, 0, -20), new THREE.Color(a[0], a[1], a[2]), 90, 4, 0.7, 2.2);
     }
 
     this.updateTutorial(dt);
+    this.liveCheckTimer += dt;
+    if (this.liveCheckTimer > 0.5) {
+      this.liveCheckTimer = 0;
+      this.syncRunStats();
+      for (const m of this.progression.checkLive(this.run)) {
+        this.ui.toast('MISSION COMPLETE', `${this.progression.missionText(m)} · +${m.reward} ⬢`);
+        this.audio.tierUp();
+      }
+    }
     if (this.showHintUntil > 0 && this.elapsed > this.showHintUntil) {
       this.showHintUntil = 0;
       this.ui.showTouchHint(false);
@@ -838,6 +983,7 @@ export class Game {
 
   onPowerUp(type, pos) {
     this.powerups.activate(type);
+    this.run.powerups += 1;
     const color = new THREE.Color(POWERUPS[type].color);
     const hdrColor = color.clone().multiplyScalar(2.5);
     this.particles.ring(this.player.position, hdrColor, 48, 9, 0.35, 0.7);
@@ -862,6 +1008,7 @@ export class Game {
     this.particles.ring(TMP.set(0, 0, TMP.z), c, 40, 7, 0.3, 0.6);
     this.trauma = Math.min(1, this.trauma + 0.3);
     if (boosted) {
+      this.run.smashes += 1;
       const pts = SCORE.smashBonus * this.multiplier;
       this.score += pts;
       this.ui.popup(`SMASH <b>+${pts}</b>`, 'near', '#ff9500');
@@ -1030,13 +1177,28 @@ export class Game {
       setAutopilot: (v) => {
         this.autopilot = !!v;
       },
-      startRun: () => this.startRun(),
+      startRun: () => this.startRun({ daily: false }),
+      /** Deterministic frame stepping for promo video capture (simulation is frozen between calls). */
+      step: (frames = 1, dt = 1 / 30) => {
+        for (let i = 0; i < frames; i += 1) {
+          this.update(dt);
+          this.updateCamera(dt);
+        }
+        this.render(dt);
+        this.publishDiagnostics();
+        return this.state;
+      },
       getState: () => this.state,
       setState: async (name) => {
         this.frozen = false;
         switch (name) {
           case 'menu':
+            document.body.classList.remove('promo-cover');
             this.goMenu();
+            break;
+          case 'cover':
+            this.goMenu();
+            document.body.classList.add('promo-cover');
             break;
           case 'skins':
           case 'settings':
@@ -1045,12 +1207,12 @@ export class Game {
             this.uiHandlers()[name]();
             break;
           case 'active-play':
-            this.startRun();
+            this.startRun({ daily: false });
             this.fastForward(7);
             this.ui.showTouchHint(false);
             break;
           case 'late-game':
-            this.startRun();
+            this.startRun({ daily: false });
             this.elapsed = 125;
             this.speed = speedAt(125);
             this.distance = 1800 * 2 + 40;
@@ -1068,7 +1230,7 @@ export class Game {
           case 'theme-3':
           case 'theme-4': {
             const n = Number(name.slice(-1));
-            this.startRun();
+            this.startRun({ daily: false });
             this.elapsed = 40 + n * 20;
             this.speed = speedAt(this.elapsed);
             this.distance = 1800 * n + 40;
@@ -1080,7 +1242,7 @@ export class Game {
             break;
           }
           case 'portal':
-            this.startRun();
+            this.startRun({ daily: false });
             this.distance = 1800 - 70;
             this.elapsed = 45;
             this.speed = speedAt(45);
@@ -1088,18 +1250,18 @@ export class Game {
             this.fastForward(0.5);
             break;
           case 'boost':
-            this.startRun();
+            this.startRun({ daily: false });
             this.fastForward(5);
             this.powerups.activate('boost');
             this.fastForward(1.2);
             break;
           case 'paused':
-            this.startRun();
+            this.startRun({ daily: false });
             this.fastForward(4);
             this.pause();
             break;
           case 'game-over':
-            this.startRun();
+            this.startRun({ daily: false });
             this.fastForward(6);
             {
               // die against the next real obstacle so the cause UI is exercised

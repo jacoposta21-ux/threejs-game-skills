@@ -12,6 +12,7 @@
     <div id="app">
       <canvas id="game-canvas" aria-label="NEON TUNNEL game"></canvas>
       <div id="vignette"></div>
+      <div id="toasts" aria-live="polite"></div>
       <div id="flash"></div>
       <div id="touch-layer" aria-hidden="true"></div>
 
@@ -19,7 +20,7 @@
       <div id="hud" class="hidden">
         <div class="hud-top">
           <div class="hud-score">
-            <div class="label">SCORE</div>
+            <div class="label">SCORE <span class="daily-badge hidden" id="hud-daily">DAILY</span></div>
             <div id="hud-score" class="value">0</div>
             <div class="sub">BEST <span id="hud-best">0</span></div>
           </div>
@@ -70,9 +71,13 @@
             <p class="tagline">SURVIVE THE SPEED</p>
             <nav class="menu-buttons">
               <button class="btn btn-primary" data-action="play"><span>PLAY</span></button>
-              <button class="btn" data-action="skins"><span>SKINS</span></button>
-              <button class="btn" data-action="settings"><span>SETTINGS</span></button>
-              <button class="btn" data-action="howto"><span>HOW TO PLAY</span></button>
+              <button class="btn btn-daily" data-action="daily"><span>DAILY RUN</span><small id="menu-daily">SAME TUNNEL FOR EVERYONE TODAY</small></button>
+              <div class="menu-grid">
+                <button class="btn btn-small" data-action="skins"><span>SKINS</span></button>
+                <button class="btn btn-small" data-action="progress"><span>PROGRESS</span><i class="dot hidden" id="menu-progress-dot"></i></button>
+                <button class="btn btn-small" data-action="settings"><span>SETTINGS</span></button>
+                <button class="btn btn-small" data-action="howto"><span>HOW TO PLAY</span></button>
+              </div>
             </nav>
             <div class="menu-stats">
               <div><span class="k">BEST</span><span class="v" id="menu-best">0</span></div>
@@ -90,6 +95,24 @@
             </header>
             <div class="skin-grid" id="skin-grid"></div>
             <p class="panel-note">Collect energy shards during runs to unlock skins. Skins are cosmetic only.</p>
+            <div class="panel-actions"><button class="btn" data-action="back"><span>BACK</span></button></div>
+          </div>
+        </section>
+
+        <section id="screen-progress" class="screen panel-screen">
+          <div class="panel wide">
+            <header class="panel-head">
+              <h2>PROGRESS</h2>
+              <div class="bank">⬢ <span id="progress-energy">0</span></div>
+            </header>
+            <div class="tabs" role="tablist">
+              <button class="tab on" data-tab="missions">MISSIONS</button>
+              <button class="tab" data-tab="achievements">ACHIEVEMENTS</button>
+              <button class="tab" data-tab="stats">STATS</button>
+            </div>
+            <div class="tab-body" data-body="missions"><div id="missions-list" class="missions"></div><p class="panel-note">Three missions are always active. Complete them during runs to earn energy; finished missions are replaced by harder ones.</p></div>
+            <div class="tab-body hidden" data-body="achievements"><div id="achievements-list" class="achievements"></div></div>
+            <div class="tab-body hidden" data-body="stats"><div id="stats-list" class="stats"></div></div>
             <div class="panel-actions"><button class="btn" data-action="back"><span>BACK</span></button></div>
           </div>
         </section>
@@ -164,7 +187,9 @@
 
         <section id="screen-gameover" class="screen panel-screen">
           <div class="panel narrow gameover">
+            <div class="go-left">
             <h2 class="go-title">GAME OVER</h2>
+            <div class="go-daily hidden" id="go-daily"></div>
             <div class="go-new" id="go-new">NEW BEST!</div>
             <div class="go-cause" id="go-cause"><span class="k">HIT BY</span><span class="go-cause-name" id="go-cause-name"></span><span class="go-tip" id="go-tip"></span></div>
             <div class="go-score-label">FINAL SCORE</div>
@@ -175,12 +200,20 @@
               <div><span class="k">ENERGY</span><span class="v energy" id="go-energy">+0</span></div>
               <div><span class="k">TIME</span><span class="v" id="go-time">0s</span></div>
             </div>
+            </div>
+            <div class="go-right">
+            <div class="go-missions" id="go-missions"></div>
             <div class="go-unlock" id="go-unlock"></div>
+            <div class="go-rewarded" id="go-rewarded">
+              <button class="btn btn-small btn-reward" data-action="continue" id="btn-continue"><span>▶ CONTINUE</span><small>WATCH AD</small></button>
+              <button class="btn btn-small btn-reward" data-action="double" id="btn-double"><span>⬢ ×2 ENERGY</span><small>WATCH AD</small></button>
+            </div>
             <nav class="menu-buttons">
               <button class="btn btn-primary" data-action="retry"><span>RETRY</span></button>
               <button class="btn" data-action="menu"><span>MAIN MENU</span></button>
             </nav>
             <div class="go-hint">ENTER / R to retry</div>
+            </div>
           </div>
         </section>
 

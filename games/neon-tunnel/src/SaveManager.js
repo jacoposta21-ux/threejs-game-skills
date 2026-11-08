@@ -82,6 +82,7 @@ export class SaveManager {
 
   unlock(skin) {
     if (this.isUnlocked(skin.id)) return true;
+    if (skin.achievement) return false; // earned through achievements only
     if (this.data.energyBank < skin.price) return false;
     this.data.energyBank -= skin.price;
     this.data.unlockedSkins.push(skin.id);

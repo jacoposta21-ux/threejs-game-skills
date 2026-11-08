@@ -119,6 +119,10 @@ export const SKINS = [
   { id: 'toxic', name: 'TOXIC', price: 600, core: 0x39ff14, shell: 0xc4ff9a, trailA: 0x39ff14, trailB: 0x00ffa2, spark: 0xd0ffb0 },
   { id: 'quantum', name: 'QUANTUM', price: 900, core: 0xffffff, shell: 0xbfe6ff, trailA: 0xe8f6ff, trailB: 0x4aa8ff, spark: 0xffffff },
   { id: 'void', name: 'VOID', price: 1400, core: 0xff00e5, shell: 0x1a0018, trailA: 0xff00e5, trailB: 0x220022, spark: 0xff6af0, dark: true },
+  // achievement skins (cannot be bought; unlocked by Progression)
+  { id: 'prism', name: 'PRISM', price: 0, achievement: 'near_25', core: 0xff3dd5, shell: 0x7ff6ff, trailA: 0xff3dd5, trailB: 0x3d8bff, spark: 0xffffff, anim: 'rainbow' },
+  { id: 'pulsar', name: 'PULSAR', price: 0, achievement: 'zone_5', core: 0xbff8ff, shell: 0xffffff, trailA: 0x9ffcff, trailB: 0x4a6bff, spark: 0xffffff, anim: 'strobe' },
+  { id: 'aurum', name: 'AURUM', price: 0, achievement: 'missions_15', core: 0xffc83d, shell: 0xfff1b0, trailA: 0xffd34d, trailB: 0xff7a00, spark: 0xffe9a0, anim: 'shimmer' },
 ];
 
 export const QUALITY = {

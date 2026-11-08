@@ -1,4 +1,5 @@
 import { POWERUPS, SKINS } from './Config.js';
+import { ACHIEVEMENTS } from './Progression.js';
 
 // DOM interface: screens, HUD, popups, banners, skins and settings. The UI
 // never touches game state directly; it renders what the Game gives it and
@@ -84,6 +85,7 @@ export class UIManager {
     }
     if (name === 'menu') this.refreshMenu();
     if (name === 'skins') this.refreshSkins();
+    if (name === 'progress') this.refreshProgress();
     if (name === 'settings') this.refreshSettings();
   }
 
@@ -92,7 +94,84 @@ export class UIManager {
     document.body.classList.toggle('in-game', visible);
   }
 
+  /** Set by the Game so the UI can render meta-progression. */
+  setProgression(p) {
+    this.progression = p;
+    for (const tab of document.querySelectorAll('.tab')) {
+      tab.addEventListener('click', () => {
+        this.audio.uiClick();
+        this.showTab(tab.dataset.tab);
+      });
+    }
+  }
+
+  showTab(name) {
+    for (const t of document.querySelectorAll('.tab')) t.classList.toggle('on', t.dataset.tab === name);
+    for (const b of document.querySelectorAll('.tab-body')) b.classList.toggle('hidden', b.dataset.body !== name);
+  }
+
+  missionHtml(m) {
+    const pct = Math.min(100, (m.progress / m.target) * 100);
+    return `<div class="mission${m.complete ? ' done' : ''}"><span class="m-text">${m.complete ? '✔ ' : ''}${m.text}</span><span class="m-reward">⬢ ${m.reward}</span><div class="m-bar"><i style="width:${pct}%"></i></div><span class="m-count">${fmt(m.progress)} / ${fmt(m.target)}</span></div>`;
+  }
+
+  refreshProgress() {
+    const p = this.progression;
+    if (!p) return;
+    this.$('progress-energy').textContent = fmt(this.save.data.energyBank);
+    this.$('missions-list').innerHTML = p.data.missions
+      .map((m) => {
+        const progress = p.missionProgress(m, null);
+        return this.missionHtml({ text: p.missionText(m), progress, target: m.target, reward: m.reward, complete: false });
+      })
+      .join('');
+    const got = new Set(p.data.achievements);
+    this.$('achievements-list').innerHTML = ACHIEVEMENTS.map((a) => {
+      const on = got.has(a.id);
+      const skin = a.unlocks ? SKINS.find((k) => k.id === a.unlocks) : null;
+      return `<div class="ach${on ? ' on' : ''}"><span class="ic">🏆</span><b>${a.name}</b><span>${a.text}</span>${skin ? `<em>UNLOCKS ${skin.name} SKIN</em>` : ''}</div>`;
+    }).join('');
+    const st = p.data.stats;
+    const rows = [
+      ['RUNS', fmt(st.runs)],
+      ['BEST SCORE', fmt(this.save.data.best)],
+      ['BEST DISTANCE', `${fmt(this.save.data.bestDistance)} m`],
+      ['TOTAL DISTANCE', `${fmt(st.totalDistance)} m`],
+      ['TIME PLAYED', `${Math.floor(st.totalTime / 60)}m ${Math.floor(st.totalTime % 60)}s`],
+      ['FURTHEST ZONE', String(st.bestZone)],
+      ['ENERGY COLLECTED', fmt(st.totalEnergy)],
+      ['NEAR MISSES', fmt(st.nearMisses)],
+      ['BEST MULTIPLIER', `×${st.bestMultiplier}`],
+      ['POWER-UPS', fmt(st.powerups)],
+      ['SMASHED', fmt(st.smashes)],
+      ['MISSIONS DONE', fmt(st.missionsDone)],
+      ['ACHIEVEMENTS', `${got.size} / ${ACHIEVEMENTS.length}`],
+    ];
+    this.$('stats-list').innerHTML = rows.map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+  }
+
+  toast(kicker, text) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = `<b>${kicker}</b><span>${text}</span>`;
+    this.$('toasts').appendChild(t);
+    setTimeout(() => t.remove(), 3300);
+  }
+
+  setDaily(on) {
+    this.$('hud-daily').classList.toggle('hidden', !on);
+  }
+
+  setRewarded({ continueAvailable, doubleAvailable }) {
+    const wrap = this.$('go-rewarded');
+    wrap.classList.toggle('hidden', !continueAvailable && !doubleAvailable);
+    this.$('btn-continue').disabled = !continueAvailable;
+    this.$('btn-double').disabled = !doubleAvailable;
+  }
+
   refreshMenu() {
+    const daily = this.progression?.dailyBestToday() ?? 0;
+    this.$('menu-daily').textContent = daily > 0 ? `TODAY'S BEST ${fmt(daily)}` : 'SAME TUNNEL FOR EVERYONE TODAY';
     this.$('menu-best').textContent = fmt(this.save.data.best);
     this.$('menu-energy').textContent = fmt(this.save.data.energyBank);
   }
@@ -233,9 +312,19 @@ export class UIManager {
     this.$('go-distance').textContent = `${fmt(r.distance)} m`;
     this.$('go-energy').textContent = `+${fmt(r.energy)}`;
     this.$('go-time').textContent = `${r.time.toFixed(1)}s`;
-    const next = SKINS.find((s) => !this.save.isUnlocked(s.id) && s.price > 0);
+    const daily = this.$('go-daily');
+    daily.classList.toggle('hidden', !r.daily);
+    if (r.daily) daily.textContent = r.dailyBest ? 'DAILY RUN · NEW BEST TODAY' : `DAILY RUN · TODAY'S BEST ${fmt(r.dailyBestScore)}`;
+    const summary = r.summary;
+    this.$('go-missions').innerHTML = summary
+      ? `<div class="m-head">MISSIONS${summary.rewards ? ` · <span style="color:var(--gold)">+${summary.rewards} ⬢</span>` : ''}</div>${summary.missions.map((m) => this.missionHtml(m)).join('')}`
+      : '';
+    this.setRewarded(r.rewarded);
+    const next = SKINS.find((s) => !this.save.isUnlocked(s.id) && s.price > 0 && !s.achievement);
     const unlockEl = this.$('go-unlock');
-    if (next) {
+    if (summary?.achievements.length) {
+      unlockEl.innerHTML = summary.achievements.map((a) => `🏆 ACHIEVEMENT: ${a.name}${a.unlocks ? ` · ${SKINS.find((k) => k.id === a.unlocks).name} SKIN UNLOCKED` : ''}`).join('<br>');
+    } else if (next) {
       const need = next.price - this.save.data.energyBank;
       unlockEl.textContent = need <= 0 ? `${next.name} SKIN CAN BE UNLOCKED!` : `${fmt(need)} ENERGY TO UNLOCK ${next.name}`;
     } else unlockEl.textContent = 'ALL SKINS UNLOCKED';
@@ -259,12 +348,13 @@ export class UIManager {
     this.skinCards = {};
     for (const skin of SKINS) {
       const card = document.createElement('div');
-      card.className = `skin-card${skin.dark ? ' dark' : ''}`;
+      card.className = `skin-card${skin.dark ? ' dark' : ''}${skin.anim ? ` anim-${skin.anim}` : ''}`;
       card.style.setProperty('--skin', hex(skin.core));
       card.style.setProperty('--shell', hex(skin.shell));
       card.style.setProperty('--trailA', hex(skin.trailA));
       card.style.setProperty('--trailB', hex(skin.trailB));
-      card.innerHTML = `<div class="skin-orb"></div><div class="skin-trail"></div><div class="skin-name">${skin.name}</div><button class="btn"><span></span></button>`;
+      const ach = skin.achievement ? ACHIEVEMENTS.find((a) => a.id === skin.achievement) : null;
+      card.innerHTML = `<div class="skin-orb"></div><div class="skin-trail"></div><div class="skin-name">${skin.name}</div>${ach ? `<div class="lock-note">🏆 ${ach.text.toUpperCase()}</div>` : ''}<button class="btn"><span></span></button>`;
       const btn = card.querySelector('.btn');
       btn.addEventListener('click', () => {
         this.audio.unlock();
@@ -286,8 +376,10 @@ export class UIManager {
       card.classList.toggle('locked', !unlocked);
       card.classList.toggle('selected', selected);
       btn.classList.toggle('btn-primary', selected);
-      btn.classList.toggle('cant', !unlocked && this.save.data.energyBank < skin.price);
-      label.textContent = selected ? 'EQUIPPED' : unlocked ? 'SELECT' : `⬢ ${fmt(skin.price)}`;
+      btn.classList.toggle('cant', !unlocked && (skin.achievement || this.save.data.energyBank < skin.price));
+      label.textContent = selected ? 'EQUIPPED' : unlocked ? 'SELECT' : skin.achievement ? 'LOCKED' : `⬢ ${fmt(skin.price)}`;
+      const note = card.querySelector('.lock-note');
+      if (note) note.style.visibility = unlocked ? 'hidden' : 'visible';
     }
   }
 

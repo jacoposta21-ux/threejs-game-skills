@@ -153,3 +153,32 @@ test('menus are functional', async ({ page }) => {
   expect(after.selectedSkin).toBe('plasma');
   expect(after.energyBank).toBe(50);
 });
+
+test('daily run is deterministic and progress screen works', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('neon-tunnel-save-v1')) localStorage.setItem('neon-tunnel-save-v1', JSON.stringify({ seenTutorial: true, settings: { quality: 'low' } }));
+  });
+  await page.goto('/');
+  await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.state === 'menu', null, { timeout: 30_000 });
+
+  // daily run: same seed every time today
+  await page.locator('[data-action="daily"]').click();
+  await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__.state === 'playing');
+  await expect(page.locator('#hud-daily')).toBeVisible();
+  const seedA = (await diag(page)).seed;
+  await page.locator('#btn-pause').click();
+  await page.locator('#screen-pause [data-action="menu"]').click();
+  await page.locator('[data-action="daily"]').click();
+  await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__.state === 'playing');
+  expect((await diag(page)).seed).toBe(seedA);
+  await page.locator('#btn-pause').click();
+  await page.locator('#screen-pause [data-action="menu"]').click();
+
+  // progress screen: 3 missions, achievements and stats tabs
+  await page.locator('[data-action="progress"]').click();
+  await expect(page.locator('#missions-list .mission')).toHaveCount(3);
+  await page.locator('.tab[data-tab="achievements"]').click();
+  await expect(page.locator('#achievements-list .ach').first()).toBeVisible();
+  await page.locator('.tab[data-tab="stats"]').click();
+  await expect(page.locator('#stats-list div').first()).toBeVisible();
+});
