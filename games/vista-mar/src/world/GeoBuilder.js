@@ -105,24 +105,27 @@ export class GeoBuilder {
   }
 
   /** Gable roof over a rectangle; ridge runs along the longer axis. */
-  gable(x0, z0, x1, z1, y, h, roof, ends, tile = 3) {
+  gable(x0, z0, x1, z1, y, h, roof, ends, tile = 3, roofTile = null, endsTile = null) {
     const alongX = x1 - x0 >= z1 - z0;
+    // roof and gable ends may share one merged bucket: restore each part's atlas tile
+    const setR = () => { if (roofTile) roof.curTile = roofTile; };
+    const setE = () => { if (endsTile) ends.curTile = endsTile; };
     if (alongX) {
       const zm = (z0 + z1) / 2;
       const s = Math.hypot(h, (z1 - z0) / 2) / tile;
-      roof.quad([x0, y, z1], [x1, y, z1], [x1, y + h, zm], [x0, y + h, zm], [x0 / tile, 0], [x1 / tile, 0], [x1 / tile, s], [x0 / tile, s]);
-      roof.quad([x1, y, z0], [x0, y, z0], [x0, y + h, zm], [x1, y + h, zm], [x1 / tile, 0], [x0 / tile, 0], [x0 / tile, s], [x1 / tile, s]);
+      setR(); roof.quad([x0, y, z1], [x1, y, z1], [x1, y + h, zm], [x0, y + h, zm], [x0 / tile, 0], [x1 / tile, 0], [x1 / tile, s], [x0 / tile, s]);
+      setR(); roof.quad([x1, y, z0], [x0, y, z0], [x0, y + h, zm], [x1, y + h, zm], [x1 / tile, 0], [x0 / tile, 0], [x0 / tile, s], [x1 / tile, s]);
       const w = (z1 - z0) / tile;
-      ends.tri([x1, y, z1], [x1, y, z0], [x1, y + h, zm], [0, 0], [w, 0], [w / 2, h / tile]);
-      ends.tri([x0, y, z0], [x0, y, z1], [x0, y + h, zm], [0, 0], [w, 0], [w / 2, h / tile]);
+      setE(); ends.tri([x1, y, z1], [x1, y, z0], [x1, y + h, zm], [0, 0], [w, 0], [w / 2, h / tile]);
+      setE(); ends.tri([x0, y, z0], [x0, y, z1], [x0, y + h, zm], [0, 0], [w, 0], [w / 2, h / tile]);
     } else {
       const xm = (x0 + x1) / 2;
       const s = Math.hypot(h, (x1 - x0) / 2) / tile;
-      roof.quad([x1, y, z1], [x1, y, z0], [xm, y + h, z0], [xm, y + h, z1], [z1 / tile, 0], [z0 / tile, 0], [z0 / tile, s], [z1 / tile, s]);
-      roof.quad([x0, y, z0], [x0, y, z1], [xm, y + h, z1], [xm, y + h, z0], [z0 / tile, 0], [z1 / tile, 0], [z1 / tile, s], [z0 / tile, s]);
+      setR(); roof.quad([x1, y, z1], [x1, y, z0], [xm, y + h, z0], [xm, y + h, z1], [z1 / tile, 0], [z0 / tile, 0], [z0 / tile, s], [z1 / tile, s]);
+      setR(); roof.quad([x0, y, z0], [x0, y, z1], [xm, y + h, z1], [xm, y + h, z0], [z0 / tile, 0], [z1 / tile, 0], [z1 / tile, s], [z0 / tile, s]);
       const w = (x1 - x0) / tile;
-      ends.tri([x0, y, z1], [x1, y, z1], [xm, y + h, z1], [0, 0], [w, 0], [w / 2, h / tile]);
-      ends.tri([x1, y, z0], [x0, y, z0], [xm, y + h, z0], [0, 0], [w, 0], [w / 2, h / tile]);
+      setE(); ends.tri([x0, y, z1], [x1, y, z1], [xm, y + h, z1], [0, 0], [w, 0], [w / 2, h / tile]);
+      setE(); ends.tri([x1, y, z0], [x0, y, z0], [xm, y + h, z0], [0, 0], [w, 0], [w / 2, h / tile]);
     }
   }
 

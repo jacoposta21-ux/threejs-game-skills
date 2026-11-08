@@ -88,11 +88,35 @@ export class Menus {
     if (!this.mapBound) {
       this.mapBound = true;
       const cv = $('bigmap');
+      // the wheel and drag zoom/pan ONLY the map (and never the page or the game camera)
+      cv.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const r = cv.getBoundingClientRect();
+        g.minimap.zoomBig(e.deltaY < 0 ? 1.25 : 0.8, e.clientX - r.left, e.clientY - r.top);
+        g.input.wheel = 0;
+        this.showMap(true);
+      }, { passive: false });
+      document.addEventListener('wheel', (e) => { if (g.state === 'map' && e.ctrlKey) e.preventDefault(); }, { passive: false });
+      window.addEventListener('keydown', (e) => {
+        if (g.state !== 'map') return;
+        if (e.code === 'Equal' || e.code === 'NumpadAdd') { g.minimap.zoomBig(1.25, cv.clientWidth / 2, cv.clientHeight / 2); this.showMap(true); }
+        if (e.code === 'Minus' || e.code === 'NumpadSubtract') { g.minimap.zoomBig(0.8, cv.clientWidth / 2, cv.clientHeight / 2); this.showMap(true); }
+      });
+      let drag = null;
+      cv.addEventListener('mousedown', (e) => { if (e.button === 0) drag = { x: e.clientX, y: e.clientY, moved: 0 }; });
+      window.addEventListener('mousemove', (e) => {
+        if (!drag || g.state !== 'map') return;
+        const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
+        if (drag.moved > 4) { g.minimap.panBig(dx, dy); this.showMap(true); }
+      });
+      window.addEventListener('mouseup', () => { setTimeout(() => { drag = null; }, 0); });
       cv.addEventListener('click', (e) => {
+        if (drag && drag.moved > 4) return; // that was a pan
         const r = cv.getBoundingClientRect();
         const w = g.minimap.bigToWorld(e.clientX - r.left, e.clientY - r.top);
         // snap to a listed place when clicking close to its icon
-        const sc = g.minimap.bigScale || 1;
+        const sc = g.minimap.bigOrigin ? g.minimap.bigOrigin.sc : 1;
         let best = null, bd = 14 / sc;
         for (const pl of g.places()) { const d = Math.hypot(pl.x - w.x, pl.z - w.z); if (d < bd) { bd = d; best = pl; } }
         g.setWaypoint(best || { x: w.x, z: w.z, name: 'Map marker' });

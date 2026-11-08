@@ -96,10 +96,10 @@ export class ShopMenu {
     this.open = false;
     window.addEventListener('keydown', (e) => {
       if (!this.open) return;
-      if (e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); this.close(); return; }
+      if (e.code === 'Escape' || e.code === 'Backspace' || e.code === 'KeyQ') { e.preventDefault(); e.stopImmediatePropagation(); this.close(); return; }
       if (!this.items || !this.items.length) return;
-      if (e.code === 'KeyW' || e.code === 'ArrowUp') { this.sel = (this.sel - 1 + this.items.length) % this.items.length; this.render(); }
-      if (e.code === 'KeyS' || e.code === 'ArrowDown') { this.sel = (this.sel + 1) % this.items.length; this.render(); }
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') { this.sel = (this.sel - 1 + this.items.length) % this.items.length; this.render(); this.preview(); }
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') { this.sel = (this.sel + 1) % this.items.length; this.render(); this.preview(); }
       if (e.code === 'Enter' || e.code === 'KeyE' || e.code === 'Space') { e.preventDefault(); this.buy(this.sel); }
     }, true);
   }
@@ -127,7 +127,7 @@ export class ShopMenu {
 
   render() {
     const g = this.game;
-    this.items = this.spec.items();
+    this.items = [...this.spec.items(), { name: 'Leave', desc: 'Back to the street (Esc / Backspace / Q work too)', price: 0, label: '←', leave: true }];
     this.list.innerHTML = '';
     this.items.forEach((it, i) => {
       const d = document.createElement('div');
@@ -137,7 +137,7 @@ export class ShopMenu {
       d.querySelector('b').textContent = it.name;
       d.querySelector('small').textContent = it.desc || '';
       d.querySelector('.price').textContent = it.label || (it.owned ? 'OWNED' : it.price ? `$${it.price.toLocaleString('en-US')}` : 'FREE');
-      d.addEventListener('mouseenter', () => { if (this.sel !== i) { this.sel = i; this.render(); } });
+      d.addEventListener('mouseenter', () => { if (this.sel !== i) { this.sel = i; this.render(); this.preview(); } });
       d.addEventListener('click', () => this.buy(i));
       this.list.appendChild(d);
       if (i === this.sel) requestAnimationFrame(() => d.scrollIntoView({ block: 'nearest' }));
@@ -145,9 +145,16 @@ export class ShopMenu {
     $('shop-cash').textContent = `$${g.money.toLocaleString('en-US')}`;
   }
 
+  /** Shops can preview the highlighted item (clothes try-on). */
+  preview() {
+    const it = this.items && this.items[this.sel];
+    if (this.spec.onSelect) this.spec.onSelect(it && !it.leave ? it : null);
+  }
+
   buy(i) {
     const g = this.game, it = this.items[i];
     if (performance.now() - this.openedAt < 250) return; // the E that opened the menu
+    if (it && it.leave) { this.close(); return; }
     if (!it || it.disabled) { g.audio.dryFire(); return; }
     if (it.owned && !it.repeat) { g.audio.dryFire(); return; }
     if (it.price > g.money) { g.audio.dryFire(); g.hud.toast('NOT ENOUGH CASH', `You need $${it.price.toLocaleString('en-US')}.`); return; }
@@ -168,6 +175,9 @@ export class ShopMenu {
     g.state = 'playing';
     g.input.enabled = true;
     g.input.keys.clear();
+    g.input.pressed.clear();
+    g.player.walkMode = false;
+    g.player.crouched = false;
     g.input.requestLock();
     if (this.spec.onClose) this.spec.onClose();
   }

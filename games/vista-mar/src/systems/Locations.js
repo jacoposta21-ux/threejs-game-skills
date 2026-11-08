@@ -21,7 +21,9 @@ export class Locations {
     this.game = game;
     this.places = [
       { kind: 'safehouse', x: SAFEHOUSE.x, z: SAFEHOUSE.z, r: 1.8, foot: true, label: 'Save game and sleep until 08:00', icon: 'H', color: '#7dff9b' },
-      { kind: 'repair', x: -150, z: 53, r: 9, car: true, label: 'Repair vehicle ($150)', icon: '⛽', color: '#ffb347', cost: 150 },
+      { kind: 'repair', x: -150, z: 53, r: 9, car: true, label: 'Gas station: fuel and repairs', icon: '⛽', color: '#ffb347', cost: 0, name: 'Gas station (Palm Heights)' },
+      { kind: 'repair', x: 13, z: -452, r: 6, car: true, label: 'Airport fuel stop: fuel and repairs', icon: '⛽', color: '#ffb347', cost: 0, pump: true, name: 'Fuel stop (airport road)' },
+      { kind: 'repair', x: 404, z: 262, r: 6, car: true, label: 'Ocean Drive fuel stop: fuel and repairs', icon: '⛽', color: '#ffb347', cost: 0, pump: true, name: 'Fuel stop (Ocean Drive)' },
       { kind: 'spray', x: GARAGE.x, z: GARAGE.z, r: 6, car: true, label: 'Respray + repair, lose the cops ($400)', icon: 'S', color: '#3fe0e8', cost: 400 },
       ...FOOD.map((f) => ({ kind: 'food', ...f, r: 1.8, foot: true, label: `Eat at ${f.name} ($12, +50 health)`, icon: '♥', color: '#ff4fa3', cost: 12 })),
     ];
@@ -37,6 +39,17 @@ export class Locations {
     const wheel = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
     for (const p of this.places) {
       const y = terrainHeight(p.x, p.z);
+      if (p.pump) {
+        // a pair of fuel pumps under a small canopy
+        const pumpMat = new THREE.MeshStandardMaterial({ color: 0xd8322d, roughness: 0.5 });
+        for (const dz of [-1.6, 1.6]) {
+          const pm = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.8, 0.5), pumpMat);
+          pm.position.set(p.x + (p.x > 300 ? 7 : 5.2), terrainHeight(p.x + (p.x > 300 ? 7 : 5.2), p.z) + 0.9, p.z + dz);
+          pm.castShadow = true;
+          group.add(pm);
+          g.collision.addBox(pm.position.x - 0.35, pm.position.z - 0.25, pm.position.x + 0.35, pm.position.z + 0.25, y + 1.8, 'pump');
+        }
+      }
       if (p.kind === 'food') {
         const cart = new THREE.Group();
         const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.9, 0.9), cartMat); body.position.y = 0.75;
@@ -83,11 +96,17 @@ export class Locations {
         break;
       case 'repair': {
         const v = pl.vehicle;
-        if (v.health >= 99.5) { g.hud.toast('NO DAMAGE', 'This vehicle is in perfect shape.'); return; }
-        g.addMoney(-p.cost);
-        v.repair();
-        g.audio.pickup();
-        g.hud.toast('REPAIRED', `-$${p.cost}`, 'reward');
+        if (v.isAircraft) { g.hud.toast('NOT HERE', 'Aircraft refuel at the airport.'); return; }
+        g.shop.show({
+          kicker: 'Fuel & service', title: p.name || 'Gas station', sub: `${v.spec.label} · fuel ${Math.round(v.fuel ?? 100)}% · condition ${Math.round(v.health)}%`,
+          items: () => {
+            const need = Math.max(0, 100 - (v.fuel ?? 100));
+            return [
+              { name: 'Fill the tank', desc: need < 1 ? 'Already full' : `${Math.round(need)}% to go`, price: Math.max(5, Math.ceil(need * 1.2)), disabled: need < 1, repeat: true, buy: () => { v.fuel = 100; } },
+              { name: 'Repair', desc: v.health >= 99.5 ? 'No damage' : 'Fix the engine and the body', price: 150, disabled: v.health >= 99.5, repeat: true, buy: () => { v.repair(); } },
+            ];
+          },
+        });
         break;
       }
       case 'spray': {

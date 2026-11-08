@@ -22,7 +22,9 @@ export class VehicleSystem {
       const gltf = assets[spec.asset];
       if (!gltf) continue;
       const free = this.findFreeSpot(sp);
-      this.vehicles.push(new Vehicle(this, spec, gltf, free));
+      const v = new Vehicle(this, spec, gltf, free);
+      v.lockable = true; v.locked = true; // street cars have to be broken into
+      this.vehicles.push(v);
     }
 
     // aircraft parked at Vista Mar Airport (north of the city)

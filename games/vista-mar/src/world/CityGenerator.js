@@ -36,6 +36,55 @@ function runwayTexture() {
   return t;
 }
 
+/** Painted shop fronts (colour + emissive) for the walk-in shops. */
+function storefrontTextures(kind) {
+  const Wp = 1024, Hp = 392;
+  const mk = () => { const c = document.createElement('canvas'); c.width = Wp; c.height = Hp; return [c, c.getContext('2d')]; };
+  const [c, x] = mk();
+  const [e, y] = mk();
+  y.fillStyle = '#000'; y.fillRect(0, 0, Wp, Hp);
+  const guns = kind === 'guns';
+  const accent = guns ? '#ff9d3d' : '#c58cff';
+  // facade, sign band, windows, door
+  x.fillStyle = guns ? '#2c2f34' : '#f3eef7'; x.fillRect(0, 0, Wp, Hp);
+  x.fillStyle = guns ? '#16181b' : '#2b2233'; x.fillRect(0, 0, Wp, 96);
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.font = 'italic 800 74px "Barlow Condensed", "Arial Narrow", sans-serif';
+  for (const ctx of [x, y]) { ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = x.font; ctx.shadowColor = accent; ctx.shadowBlur = 18; ctx.fillStyle = accent; ctx.fillText(guns ? 'SUNLINE ARMS' : 'THREADS & CO.', Wp / 2, 50); ctx.shadowBlur = 0; }
+  const win = (x0, w) => {
+    x.fillStyle = guns ? '#1a2630' : '#c9dbe6'; x.fillRect(x0, 120, w, 236);
+    y.fillStyle = guns ? '#3a2a14' : '#4a4038'; y.fillRect(x0, 120, w, 236);
+    x.strokeStyle = guns ? '#5a5f66' : '#ffffff'; x.lineWidth = 10; x.strokeRect(x0, 120, w, 236);
+    if (guns) {
+      // pegboard with weapon silhouettes and a target
+      x.fillStyle = '#3b3328'; x.fillRect(x0 + 16, 140, w - 32, 196);
+      x.fillStyle = '#111';
+      for (let k = 0; k < 3; k++) { const yy = 170 + k * 55; x.fillRect(x0 + 40, yy, w - 120, 12); x.fillRect(x0 + 40, yy, 26, 30); x.fillRect(x0 + w - 110, yy - 6, 40, 10); }
+      x.strokeStyle = '#d8322d'; x.lineWidth = 6; x.beginPath(); x.arc(x0 + w - 70, 300, 26, 0, 7); x.stroke(); x.beginPath(); x.arc(x0 + w - 70, 300, 10, 0, 7); x.stroke();
+    } else {
+      // mannequins in outfits + a rail of garments
+      const cols = ['#e84393', '#16a085', '#f1c40f', '#2c3e50', '#d35400', '#8e44ad'];
+      for (let k = 0; k < 3; k++) {
+        const mx = x0 + 50 + k * (w - 100) / 2;
+        x.fillStyle = '#e8dccf'; x.beginPath(); x.arc(mx, 165, 14, 0, 7); x.fill();
+        x.fillStyle = cols[k]; x.fillRect(mx - 26, 182, 52, 74);
+        x.fillStyle = cols[k + 3]; x.fillRect(mx - 20, 256, 18, 80); x.fillRect(mx + 2, 256, 18, 80);
+      }
+      x.fillStyle = '#9aa0a6'; x.fillRect(x0 + 20, 136, w - 40, 5);
+    }
+  };
+  win(30, 380); win(Wp - 410, 380);
+  // door
+  x.fillStyle = guns ? '#0e1114' : '#3b3340'; x.fillRect(Wp / 2 - 70, 140, 140, 252);
+  x.fillStyle = guns ? '#22313b' : '#b9cbd6'; x.fillRect(Wp / 2 - 56, 156, 112, 160);
+  y.fillStyle = '#2a2016'; y.fillRect(Wp / 2 - 56, 156, 112, 160);
+  x.fillStyle = accent; x.fillRect(Wp / 2 + 36, 260, 10, 30);
+  x.font = '600 22px Inter, Arial, sans-serif'; x.fillStyle = guns ? '#c9c9c9' : '#4a3b55';
+  x.fillText(guns ? 'FIREARMS · AMMO · ARMOR' : 'MIX · MATCH · WEAR', Wp / 2, 112);
+  const tex = (cv, srgb) => { const t = new THREE.CanvasTexture(cv); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
+  return { map: tex(c, true), emissive: tex(e, true) };
+}
+
 // Builds the whole city: merged static geometry per (chunk, material), instanced
 // props, collision volumes, minimap footprints and points of interest.
 export class CityGenerator {
@@ -224,7 +273,9 @@ export class CityGenerator {
     g.cur = new THREE.Color(colorHex);
     g.box(x0, y0, z0, x1, y1, z1, { tileW: 12, tileH: 14, vBase: y0 });
     g.cur = new THREE.Color(0x55575c);
-    g.top(x0, z0, x1, z1, y1, 8);
+    // roof: sample a window-free corner of the far texture so it never lights up at night
+    const uv = [0.01, 0.01];
+    g.quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], uv, uv, uv, uv);
   }
 
   // ---------------------------------------------------------------- generate
@@ -234,6 +285,8 @@ export class CityGenerator {
     for (const blk of allBlocks()) this.buildBlock(blk);
     this.buildStreetFurniture();
     this.buildAirport();
+    this.storefront('guns', -150, -15.2);
+    this.storefront('clothes', -50, -209.5);
     this.buildBoundaries();
     this.flush();
     this.buildInstances();
@@ -772,8 +825,10 @@ export class CityGenerator {
 
   gableRoof(x0, z0, x1, z1, y, h, wallKey, roofKey = 'tileroof') {
     const roof = this.b(roofKey, (x0 + x1) / 2, (z0 + z1) / 2);
+    const rt = roof.curTile;
     const ends = this.b(wallKey, (x0 + x1) / 2, (z0 + z1) / 2);
-    roof.gable(x0, z0, x1, z1, y, h, roof, ends, 3);
+    const et = ends.curTile;
+    roof.gable(x0, z0, x1, z1, y, h, roof, ends, 3, rt, et);
   }
 
   buildApartments(lot, blk) {
@@ -1117,7 +1172,9 @@ export class CityGenerator {
     for (const hx of [-275, -215, -155]) {
       const x0 = hx - 25, x1 = hx + 25, z0 = -514, z1 = -470, h = Y + 11;
       this.b('corrugated', hx, -490).box(x0, Y, z0 + 0.6, x1, h, z1);
-      this.b('corrBlue', hx, -490).gable(x0, z0 + 0.6, x1, z1, h, 3.5, this.b('corrBlue', hx, -490), this.b('corrugated', hx, -490), 4);
+      const hr = this.b('corrBlue', hx, -490), hrt = hr.curTile;
+      const he = this.b('corrugated', hx, -490), het = he.curTile;
+      hr.gable(x0, z0 + 0.6, x1, z1, h, 3.5, hr, he, 4, hrt, het);
       this.b('darkmetal', hx, z0).box(x0 + 4, Y, z0, x1 - 4, h - 1.5, z0 + 0.6);
       this.b('awningYellow', hx, z0).box(x0 + 4, h - 1.5, z0 - 0.05, x1 - 4, h - 0.9, z0 + 0.6);
       this.collision.addBox(x0, z0, x1, z1, h + 3.5, 'hangar');
@@ -1150,6 +1207,43 @@ export class CityGenerator {
     // perimeter lamps on the apron
     for (let x = ap.x0 + 20; x < ap.x1; x += 60) this.props.lamps.push({ x, z: ap.z1 - 2, y: Y, facing: [0, -1] });
     this.pois.push({ type: 'airport', x: 0, z: -540 });
+  }
+
+  /**
+   * Branded shop front for a walk-in shop whose door marker is at (x, z) on a
+   * north-side sidewalk (the shop lies to the north, -z). Finds the building wall
+   * behind the marker and covers its ground floor; builds a small shop if there is none.
+   */
+  storefront(kind, x, z) {
+    const W = 12, H = 4.6;
+    let wallZ = null;
+    const kinds = ['building', 'warehouse', 'house', 'garage'];
+    for (let d = 0.5; d < 14; d += 0.25) {
+      if ([-W / 2 + 0.5, 0, W / 2 - 0.5].every((dx) => this.collision.blockedCircle(x + dx, z - d, 0.05, kinds))) {
+        // step back out to the exact face of the wall
+        let f = z - d;
+        while (this.collision.blockedCircle(x, f, 0.01, kinds) && f < z) f += 0.02;
+        wallZ = f;
+        break;
+      }
+    }
+    if (wallZ === null) {
+      // nothing behind the sidewalk: a compact single-storey shop
+      wallZ = z - 2.3;
+      this.building(x - W / 2 - 1, wallZ - 12, x + W / 2 + 1, wallZ, CURB_H + 6, kind === 'guns' ? 'stuccoWhite' : 'decoLilac', { rooftop: false, kind: 'shop' });
+    }
+    const key = `store_${kind}`;
+    if (!this.materials[key]) {
+      const { map, emissive } = storefrontTextures(kind);
+      const m = new THREE.MeshStandardMaterial({ map, emissiveMap: emissive, emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.45, metalness: 0.1 });
+      this.nightMaterials.shops.push(m);
+      this.materials[key] = m;
+    }
+    const zf = wallZ + 0.07;
+    this.b(key, x, zf).wallQuad(x, CURB_H + H / 2, zf, W, H, 'pz');
+    // awning over the door, in the shop colour
+    this.b(kind === 'guns' ? 'awningYellow' : 'awningTeal', x, zf).box(x - W / 2, CURB_H + H - 0.15, zf, x + W / 2, CURB_H + H + 0.05, zf + 1.6, { top: true });
+    this.props.glows.push({ x, y: CURB_H, z: zf + 1.5, color: kind === 'guns' ? 0xff9d3d : 0xc58cff, ground: true, radius: 7 });
   }
 
   /** Parked (decorative) car next to a point, or null. Model forward is +z rotated by rot. */

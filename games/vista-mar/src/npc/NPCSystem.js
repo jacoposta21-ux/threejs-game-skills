@@ -25,6 +25,10 @@ const VARIANTS = {
   thug: { base: 'npc_m_punk', recolor: { Red: 0x2a2a2a, Red_Dark: 0x7a1020 } },
   guard: { base: 'npc_m_suit', recolor: {} },
   boss: { base: 'npc_m_suit', recolor: { Suit: 0xd8d4cc, Tie: 0x7a1020 } },
+  // Club Velvet dancers: showgirl costumes (top recoloured, legs bare, metallic heels)
+  dancerA: { base: 'npc_w_casual', recolor: { White: [0.9, 0.05, 0.42], Orange: [0.49, 0.33, 0.19], Grey: [0.75, 0.55, 0.12] } },
+  dancerB: { base: 'npc_w_casual', recolor: { White: [0.85, 0.62, 0.1], Orange: [0.49, 0.33, 0.19], Grey: [0.06, 0.06, 0.07] } },
+  dancerC: { base: 'npc_w_formal', recolor: { LimeGreen: [0.05, 0.6, 0.85], Gold: [0.9, 0.85, 0.8], Red: [0.8, 0.8, 0.85] } },
 };
 const INSET = 3; // sidewalk path distance from the curb
 const RADIUS = 0.32;
@@ -934,7 +938,7 @@ function mergeCharacter(scene, recolor = null) {
     const P = g.attributes.position, Nn = g.attributes.normal, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight;
     for (const gr of groups) {
       const mat = mats[gr.materialIndex] || mats[0];
-      if (recolor && recolor[mat.name] !== undefined) c.set(recolor[mat.name]);
+      if (recolor && recolor[mat.name] !== undefined) { const rc = recolor[mat.name]; if (Array.isArray(rc)) c.setRGB(rc[0], rc[1], rc[2]); else c.set(rc); }
       else c.copy(mat.color || new THREE.Color(1, 1, 1));
       for (let v = gr.start; v < gr.start + gr.count; v++) {
         v3.set(P.getX(v), P.getY(v), P.getZ(v)).applyMatrix4(T);

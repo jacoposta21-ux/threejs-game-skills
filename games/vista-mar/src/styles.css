@@ -222,3 +222,5 @@ kbd { display: inline-block; min-width: 1.7em; padding: 0.12em 0.45em; margin: 0
 #map-places button small { margin-left: auto; color: var(--ink-dim); font-size: 11px; }
 #bigmap { cursor: crosshair; pointer-events: auto; }
 #map-places button small { white-space: nowrap; }
+
+.fill.fuel { background: linear-gradient(90deg, #d8a12c, #ffd23f); }

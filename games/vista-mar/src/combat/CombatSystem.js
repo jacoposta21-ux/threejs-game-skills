@@ -497,7 +497,10 @@ export class CombatSystem {
     const hp = new THREE.Vector3().setFromMatrixPosition(hand.matrixWorld);
     const fp = new THREE.Vector3().setFromMatrixPosition(fore.matrixWorld);
     const dir = this.aiming ? this.aimDir.clone() : hp.clone().sub(fp).normalize();
-    if (id === 'bat' && !this.melee) dir.lerp(new THREE.Vector3(0, 1, 0), 0.35).normalize();
+    if (id === 'bat' && !this.melee) {
+      const fx = Math.sin(pl.heading), fz = Math.cos(pl.heading);
+      dir.set(fx * 0.42 - fz * 0.12, -0.88, fz * 0.42 + fx * 0.12).normalize();
+    }
     mesh.position.copy(hp).addScaledVector(dir, 0.06);
     _m.lookAt(dir, ORIGIN, Math.abs(dir.y) > 0.95 ? new THREE.Vector3(Math.sin(pl.heading), 0, Math.cos(pl.heading)) : _up);
     mesh.quaternion.setFromRotationMatrix(_m);
@@ -509,7 +512,7 @@ export class CombatSystem {
     if (this.flinch > 0) return { name: 'Hit_Chest', once: true };
     if (this.melee && this.melee.clip) return { name: this.melee.clip, once: true, timeScale: this.melee.kind === 'bat' ? 1.35 : 1.25 };
     const w = this.weapon;
-    if (w.melee) return w.id === 'bat' ? { name: 'Sword_Idle' } : null;
+    if (w.melee) return null;
     if (this.reloading > 0) return { name: 'Pistol_Reload', once: true, timeScale: 1.6 / w.reload };
     if (this.aiming) return { name: this.cooldown > w.rate * 0.5 && !w.auto ? 'Pistol_Shoot' : 'Pistol_Aim_Neutral', once: false };
     return null; // carried at the side with normal locomotion

@@ -156,25 +156,58 @@ export class Minimap {
 
   /** Map canvas pixel (CSS px) -> world x,z. */
   bigToWorld(px, py) {
-    const sc = this.bigScale || 1;
-    return { x: px / sc + MAP.x0, z: py / sc + MAP.z0 };
+    const o = this.bigOrigin || { x: MAP.x0, z: MAP.z0, sc: this.bigScale || 1 };
+    return { x: px / o.sc + o.x, z: py / o.sc + o.z };
   }
 
+  /** Zoom the big map around a canvas point (CSS px); zoom 1 shows the whole city. */
+  zoomBig(f, px, py) {
+    const v = this.view || (this.view = { zoom: 1, cx: (MAP.x0 + MAP.x1) / 2, cz: (MAP.z0 + MAP.z1) / 2 });
+    const before = this.bigToWorld(px, py);
+    v.zoom = Math.max(1, Math.min(6, v.zoom * f));
+    this.clampView();
+    const after = this.bigToWorld(px, py);
+    v.cx += before.x - after.x; v.cz += before.z - after.z;
+    this.clampView();
+  }
+
+  panBig(dx, dy) {
+    const v = this.view; if (!v) return;
+    const s = (this.bigScale || 1) * v.zoom;
+    v.cx -= dx / s; v.cz -= dy / s;
+    this.clampView();
+  }
+
+  clampView() {
+    const v = this.view;
+    const hw = (MAP.x1 - MAP.x0) / v.zoom / 2, hh = (MAP.z1 - MAP.z0) / v.zoom / 2;
+    v.cx = Math.max(MAP.x0 + hw, Math.min(MAP.x1 - hw, v.cx));
+    v.cz = Math.max(MAP.z0 + hh, Math.min(MAP.z1 - hh, v.cz));
+  }
+
+  resetBig() { this.view = { zoom: 1, cx: (MAP.x0 + MAP.x1) / 2, cz: (MAP.z0 + MAP.z1) / 2 }; }
+
   drawBig(player, markers) {
-    const maxW = Math.min(window.innerWidth - 260, 900), maxH = window.innerHeight - 80;
-    const sc = Math.max(0.3, Math.min(maxW / this.base.width, maxH / this.base.height));
+    const maxW = Math.min(window.innerWidth - 300, 900), maxH = window.innerHeight - 80;
+    const sc0 = Math.max(0.3, Math.min(maxW / this.base.width, maxH / this.base.height));
+    if (!this.view) this.resetBig();
+    const v = this.view;
+    const sc = sc0 * v.zoom;
+    const vx0 = v.cx - (MAP.x1 - MAP.x0) / v.zoom / 2, vz0 = v.cz - (MAP.z1 - MAP.z0) / v.zoom / 2;
     const dpr = this.dpr;
-    const w = Math.round(this.base.width * sc), h = Math.round(this.base.height * sc);
+    const w = Math.round(this.base.width * sc0), h = Math.round(this.base.height * sc0);
     this.big.style.width = w + 'px';
     this.big.style.height = h + 'px';
     this.big.width = w * dpr; this.big.height = h * dpr;
     const c = this.big.getContext('2d');
     c.scale(dpr, dpr);
-    c.drawImage(this.base, 0, 0, w, h);
-    const P = (x, z) => [(x - MAP.x0) * sc, (z - MAP.z0) * sc];
-    this.bigScale = sc;
+    c.imageSmoothingEnabled = v.zoom < 2.5;
+    c.drawImage(this.base, vx0 - MAP.x0, vz0 - MAP.z0, (MAP.x1 - MAP.x0) / v.zoom, (MAP.z1 - MAP.z0) / v.zoom, 0, 0, w, h);
+    const P = (x, z) => [(x - vx0) * sc, (z - vz0) * sc];
+    this.bigScale = sc0;
+    this.bigOrigin = { x: vx0, z: vz0, sc };
     // district labels
-    c.font = `italic 800 ${Math.max(12, 18 * sc * 1.4)}px "Barlow Condensed", sans-serif`;
+    c.font = `italic 800 ${Math.max(12, Math.min(30, 18 * sc * 1.4))}px "Barlow Condensed", sans-serif`;
     c.textAlign = 'center';
     c.fillStyle = 'rgba(255,255,255,0.85)';
     c.shadowColor = 'rgba(0,0,0,0.8)'; c.shadowBlur = 4;

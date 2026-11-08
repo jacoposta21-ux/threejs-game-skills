@@ -138,10 +138,31 @@ export class Game {
     this.applyDaySpeed();
     this.resize();
     this.installHooks();
-    // warm up shaders/textures behind the start screen
+    // warm up everything behind the loading bar: streets filled, every shader compiled,
+    // textures uploaded and a few real frames rendered, so Play starts without a hitch
+    this.menus.setLoading(0.95, 'Filling the streets…');
+    await nextFrame();
     this.world.update(0.016, this.player.pos);
     this.camera3p.update(0.016);
-    this.renderer.compile(this.scene, this.camera);
+    this.traffic.prefill(this.player.pos);
+    this.npcs.prefill(this.player.pos);
+    this.prefilled = true;
+    for (let i = 0; i < 3; i++) { this.npcs.update(1 / 60); this.traffic.update(1 / 60); }
+    this.menus.setLoading(0.97, 'Compiling shaders…');
+    await nextFrame();
+    const hidden = [];
+    this.scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+    try { if (this.renderer.compileAsync && this.renderer.extensions.has('KHR_parallel_shader_compile')) await this.renderer.compileAsync(this.scene, this.camera); else this.renderer.compile(this.scene, this.camera); } catch (e) { this.renderer.compile(this.scene, this.camera); }
+    this.menus.setLoading(0.99, 'Uploading textures…');
+    await nextFrame();
+    this.renderer.shadowMap.needsUpdate = true;
+    this.renderer.render(this.scene, this.camera);
+    for (const o of hidden) o.visible = false;
+    this.updateChunkVisibility();
+    this.renderer.shadowMap.needsUpdate = true;
+    this.composer.render(0.016);
+    this.renderer.render(this.scene, this.camera);
+    await nextFrame();
     this.state = 'ready';
     this.menus.setLoading(1, 'Ready');
     this.menus.ready();
@@ -210,8 +231,8 @@ export class Game {
     this.menus.showStart(false);
     this.hud.show(true);
     this.state = 'playing';
-    this.traffic.prefill(this.player.pos);
-    this.npcs.prefill(this.player.pos);
+    if (!this.prefilled) { this.traffic.prefill(this.player.pos); this.npcs.prefill(this.player.pos); }
+    this.prefilled = false;
     if (this.loadSave()) setTimeout(() => this.hud.toast('SAVE LOADED', 'Progress restored from your last safehouse visit.', 'reward'), 1200);
     this.input.requestLock();
     this.hud.toast('WELCOME TO VISTA MAR', 'Twelve lost mixtapes are hidden around the city. Follow the pink beams.');
@@ -234,6 +255,7 @@ export class Game {
     this.state = 'playing';
     this.input.enabled = true;
     this.input.keys.clear();
+    this.input.wheel = 0;
     this.audio.resume();
     this.input.requestLock();
   }
@@ -244,6 +266,7 @@ export class Game {
     this.suppressUnlockPause = true;
     this.input.exitLock();
     this.input.enabled = false;
+    this.minimap.resetBig();
     this.menus.showMap(true);
   }
 
@@ -298,7 +321,7 @@ export class Game {
     this.city.takeParked(c);
     v.vel.set(0, 0);
     this.events.emit('carStolen', v);
-    this.driver.enter(v);
+    this.driver.beginEnter(v);
   }
 
   /** Player was hurt (vehicle impacts, being run over). */
@@ -386,7 +409,7 @@ export class Game {
     for (const pl of E.places) if (shop[pl.kind]) add('Shops & fun', shop[pl.kind], pl.x, pl.z, pl.icon, pl.color);
     for (const pl of this.locations.places) {
       if (pl.kind === 'spray') add('Shops & fun', 'Spray & Go (respray)', pl.x, pl.z, pl.icon, pl.color);
-      if (pl.kind === 'repair') add('Shops & fun', 'Gas station (repair)', pl.x, pl.z, pl.icon, pl.color);
+      if (pl.kind === 'repair') add('Fuel & repairs', pl.name || 'Gas station', pl.x, pl.z, pl.icon, pl.color);
     }
     for (const pl of this.locations.places) if (pl.kind === 'food') add('Food', pl.name, pl.x, pl.z, pl.icon, pl.color);
     add('Safehouses', 'Safehouse (Palm Blvd)', this.locations.places[0].x, this.locations.places[0].z, 'H', '#7dff9b');
@@ -394,7 +417,7 @@ export class Game {
     add('Services', 'Vista Mar Airport', 60, -470, '✈', '#9ad8ff');
     add('Services', 'VMPD Headquarters', 109, -60, 'P', '#4f7cff');
     add('Services', 'Hospital', 93, 150, '+', '#ff6b6b');
-    const order = ['Story missions', 'Shops & fun', 'Food', 'Safehouses', 'Your properties', 'Properties for sale', 'Services'];
+    const order = ['Story missions', 'Shops & fun', 'Fuel & repairs', 'Food', 'Safehouses', 'Your properties', 'Properties for sale', 'Services'];
     return out.sort((a, b) => order.indexOf(a.cat) - order.indexOf(b.cat));
   }
 
@@ -462,6 +485,7 @@ export class Game {
     this.input.enabled = !this.cinematic;
     this.cutscene.update(dt);
     if (this.driver.vehicle) { this.driver.update(dt); this.combat.aiming = false; }
+    else if (this.driver.entering) { this.driver.updateEntering(dt); this.combat.aiming = false; }
     else this.player.update(dt, this.camera3p.yaw);
     this.vehicles.update(dt, this.driver.vehicle);
     this.police.update(dt);
@@ -484,17 +508,23 @@ export class Game {
       const car = place || it || inside ? null : this.vehicles.nearest(p.pos, 1.6);
       const jack = place || it || car || inside ? null : this.traffic.nearest(p.pos, 1.6);
       const parked = place || it || car || jack || inside ? null : this.city.parkedNear(p.pos, 1.3);
-      this.hud.prompt(place ? place.label : it ? it.label : car ? `Enter ${car.spec.label}${car.wrecked ? ' (wrecked)' : ''}` : jack ? 'Take this car' : parked ? 'Break into this parked car' : '');
-      if (this.input.hit('KeyE') && !p.knocked) {
+      const carLabel = car ? (car.locked ? `Break into the ${car.spec.label}` : `Enter ${car.spec.label}${car.wrecked ? ' (wrecked)' : ''}`) : '';
+      this.hud.prompt(this.driver.entering ? '' : place ? place.label : it ? it.label : car ? carLabel : jack ? 'Take this car' : parked ? 'Break into this parked car' : '');
+      if (this.input.hit('KeyE') && !p.knocked && !this.driver.entering) {
         if (place) usePlace(place);
         else if (it) it.action();
-        else if (car) this.driver.enter(car);
+        else if (car && car.locked) this.lockpick.start(() => { car.locked = false; this.events.emit('carStolen', car); this.driver.beginEnter(car); });
+        else if (car) this.driver.beginEnter(car);
         else if (jack) this.carjack(jack);
         else if (parked) this.lockpick.start(() => this.stealParked(parked));
       }
     } else {
       this.hud.prompt(place ? place.label : '');
-      if (place && this.input.hit('KeyE')) usePlace(place);
+      if (this.input.hit('KeyE') && !this.cinematic) {
+        if (place) usePlace(place);
+        else this.driver.exit();
+        this.input.pressed.delete('KeyE');
+      }
     }
     // objective: an active mission overrides the free-roam activity
     const obj = this.story.objective();

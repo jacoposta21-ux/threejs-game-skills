@@ -130,6 +130,8 @@ export class Vehicle {
     this.health = 100;
     this.wrecked = false;
     this.siren = false;
+    this.fuel = 55 + Math.random() * 45;
+    this.locked = !!this.lockable;
     for (const m of this.materials) m.color.setScalar(1);
     this.syncTransform();
   }
@@ -144,7 +146,14 @@ export class Vehicle {
     let vf = this.vel.x * fx + this.vel.y * fz;
     let vr = this.vel.x * rx + this.vel.y * rz;
 
-    const thr = this.wrecked ? 0 : input.throttle;
+    // fuel: only the player's car burns it; an empty tank kills the engine
+    if (this.driver && this.driver === this.system.game.player && input.throttle) {
+      const before = this.fuel;
+      this.fuel = Math.max(0, this.fuel - Math.abs(input.throttle) * (0.1 + Math.abs(this.speed) / this.spec.maxSpeed * 0.28) * dt);
+      if (before > 15 && this.fuel <= 15) this.system.game.hud.toast('LOW FUEL', 'Find a gas station (⛽ on the map).', 'alert');
+      if (before > 0 && this.fuel <= 0) this.system.game.hud.toast('OUT OF GAS', 'The engine died. Push on or find another car.', 'alert');
+    }
+    const thr = this.wrecked || (this.fuel <= 0 && this.driver === this.system.game.player) ? 0 : input.throttle;
     this.braking = false;
     this.reversing = false;
     if (thr > 0) {

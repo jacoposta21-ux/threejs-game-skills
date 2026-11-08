@@ -79,7 +79,11 @@ vec4 atlasTex(sampler2D t, vec2 uv) {
   vec2 tileSize = vec2(${tw}, ${th});
   vec2 inner = tileSize * (1.0 - 2.0 * ${pad});
   vec2 a = vAtlasTile + tileSize * ${pad} + fract(uv) * inner;
-  return textureGrad(t, a, dFdx(uv) * inner, dFdy(uv) * inner);
+  // cap the footprint so distant mips never blend in the neighbouring tiles (lit windows on roofs)
+  vec2 gx = dFdx(uv) * inner, gy = dFdy(uv) * inner;
+  float m = max(length(gx), length(gy)), cap = tileSize.x * 0.02;
+  if (m > cap) { gx *= cap / m; gy *= cap / m; }
+  return textureGrad(t, a, gx, gy);
 }`)
       .replace('#include <map_fragment>', swap('map_fragment', 'texture2D( map, vMapUv )', 'atlasTex( map, vMapUv )'))
       .replace('#include <emissivemap_fragment>', swap('emissivemap_fragment', 'texture2D( emissiveMap, vEmissiveMapUv )', 'atlasTex( emissiveMap, vEmissiveMapUv )'))

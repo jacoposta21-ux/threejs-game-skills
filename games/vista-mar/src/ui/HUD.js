@@ -11,7 +11,7 @@ export class HUD {
     this.el = {
       objTitle: $('obj-title'), objSub: $('obj-sub'), clock: $('clock'), money: $('money'), wanted: [...document.querySelectorAll('#wanted .star')],
       health: $('bar-health'), stamina: $('bar-stamina'), district: $('district'), districtName: $('district-name'), districtSub: $('district-sub'),
-      vehicle: $('vehicle-hud'), vhName: $('vh-name'), vhSpeed: $('vh-speed'), vhArc: $('vh-arc'), vhGear: $('vh-gear'), vhHealth: $('vh-health'),
+      vehicle: $('vehicle-hud'), vhName: $('vh-name'), vhSpeed: $('vh-speed'), vhArc: $('vh-arc'), vhGear: $('vh-gear'), vhHealth: $('vh-health'), vhFuel: $('vh-fuel'),
       indLights: $('ind-lights'), indBrake: $('ind-brake'), indDrift: $('ind-drift'), indSiren: $('ind-siren'),
       prompt: $('prompt'), banner: $('banner'), bannerTitle: $('banner-title'), bannerSub: $('banner-sub'), objTimer: $('obj-timer'), objHint: $('obj-hint'), damage: $('damage'), fade: $('fade'), wantedBox: $('wanted'), promptText: $('prompt-text'), toasts: $('toasts'), street: $('street'), lookHint: $('look-hint'), stance: $('stance'), fps: $('fps'),
       wpName: $('wp-name'), wpAmmo: $('wp-ammo'), crosshair: $('crosshair'), armor: $('bar-armor'), armorWrap: $('armor-wrap'),
@@ -162,6 +162,9 @@ export class HUD {
       this.el.vhArc.classList.toggle('hot', frac > 0.82);
       this.el.vhGear.textContent = v.gear || 'N';
       this.el.vhHealth.style.width = `${v.health}%`;
+      const fuel = v.isAircraft ? 100 : (v.fuel ?? 100);
+      this.el.vhFuel.style.width = `${fuel}%`;
+      this.el.vhFuel.classList.toggle('low', fuel < 15);
       this.el.vhHealth.classList.toggle('low', v.health < 35);
       this.el.indLights.classList.toggle('on', v.headlights);
       this.el.indBrake.classList.toggle('on', v.braking);
@@ -174,7 +177,7 @@ export class HUD {
     if (st !== this.lastStreet) { this.lastStreet = st; this.el.street.textContent = st; }
 
     const inp = g.input;
-    this.el.lookHint.classList.toggle('hidden', !(g.state === 'playing' && !inp.locked && !inp.dragLook && g.playTime < 8));
+    this.el.lookHint.classList.toggle('hidden', !(g.state === 'playing' && !inp.locked && !inp.dragLook && !g.cinematic));
 
     if (g.settings.showFps) {
       this.fpsAcc += dt; this.fpsFrames++;

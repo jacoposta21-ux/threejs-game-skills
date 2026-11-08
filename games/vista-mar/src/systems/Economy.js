@@ -65,7 +65,7 @@ export class Economy {
   spawnClubLife() {
     const n = this.game.npcs;
     if (this.dancers.length) return;
-    const stage = [[251, 37, 'npc_w_casual'], [258, 36.5, 'npc_w_punk'], [265, 37, 'npc_w_formal']];
+    const stage = [[251, 37, 'dancerA'], [258, 36.5, 'dancerC'], [265, 37, 'dancerB']];
     for (const [x, z, k] of stage) { const a = n.spawnActor(k, x, z, Math.PI, 'Dance_Loop'); if (a) { a.pos.y = 1.08; a.root.position.y = 1.08; this.dancers.push(a); } }
     const crowd = [[249, 27, 'npc_m_casual', 'Dance_Loop'], [256, 25.5, 'npc_w_casual', 'Dance_Loop'], [262, 27.5, 'npc_m_casual', 'Idle_Talking_Loop'], [268, 26, 'npc_w_punk', 'Dance_Loop']];
     for (const [x, z, k, clip] of crowd) { const a = n.spawnActor(k, x, z, 0.15 - Math.random() * 0.3, clip); if (a) this.dancers.push(a); }
@@ -176,8 +176,15 @@ export class Economy {
   clothesShop() {
     const g = this.game;
     const slotName = { body: 'Top', legs: 'Bottoms', feet: 'Shoes' };
+    // face the player toward the camera for the fitting
+    const pl = g.player;
+    g.camera3p.reset(pl.heading + Math.PI);
+    g.camera3p.pitch = 0.05;
+    for (let i = 0; i < 20; i++) g.camera3p.update(1 / 60);
     g.shop.show({
-      kicker: 'Midtown · 31st St', title: 'Threads & Co.', sub: 'Mix tops, bottoms and shoes. Anything you bought can be worn again for free.',
+      kicker: 'Midtown · 31st St', title: 'Threads & Co.', sub: 'Highlight an item to try it on. Anything you bought can be worn again for free.',
+      onSelect: (it) => { const sel = it && it.tryOn ? { ...this.clothes, ...it.tryOn } : this.clothes; this.previewClothes(sel); },
+      onClose: () => this.previewClothes(this.clothes),
       items: () => {
         const out = [];
         for (const slot of ['body', 'legs', 'feet']) {
@@ -188,7 +195,7 @@ export class Economy {
             const wearing = this.clothes[slot] === c.key;
             out.push({
               name: `${slotName[slot]} · ${c.name}`, desc: wearing ? 'Wearing now' : has ? 'In your wardrobe' : '',
-              price: has ? 0 : c.price, label: wearing ? 'WEARING' : has ? 'WEAR' : null, repeat: true, disabled: wearing,
+              price: has ? 0 : c.price, label: wearing ? 'WEARING' : has ? 'WEAR' : null, repeat: true, disabled: wearing, tryOn: { [slot]: c.key },
               buy: () => { this.wardrobe.add(id); return this.wearClothes({ ...this.clothes, [slot]: c.key }); },
             });
           }
@@ -198,6 +205,13 @@ export class Economy {
     });
   }
 
+  /** Shows an outfit on the player without buying it (try-on). */
+  previewClothes(sel) {
+    const key = `${sel.body}|${sel.legs}|${sel.feet}`;
+    if (key === this.shownClothes) return;
+    try { if (this.game.player.setOutfit(composeOutfit(this.game.assets, sel))) this.shownClothes = key; } catch (e) { console.warn('[try-on]', e); }
+  }
+
   /** Swaps clothing parts on the player while keeping the player's own head. */
   wearClothes(sel) {
     const g = this.game;
@@ -205,6 +219,7 @@ export class Economy {
     try { ok = g.player.setOutfit(composeOutfit(g.assets, sel)); } catch (e) { console.warn('[clothes]', e); }
     if (!ok) return false;
     this.clothes = { ...sel };
+    this.shownClothes = `${sel.body}|${sel.legs}|${sel.feet}`;
     // a new look makes it harder for cops who only saw the old one
     if (g.police.level > 0 && g.police.level <= 2 && !g.police.seen) g.police.clear('NEW LOOK');
     return true;
@@ -246,6 +261,7 @@ export class Economy {
     const vs = this.game.vehicles;
     for (const o of vs.vehicles) if (o.owned && o !== v) { o.owned = false; if (o.dynamic) o.dynamic = true; }
     v.owned = true;
+    v.lockable = false; v.locked = false;
     v.missionVehicle = true; // never recycled by streaming
     v.spawn = { ...OWNED_SPOT };
     if (v.dynamic) { v.dynamic = false; const i = vs.dynamic.indexOf(v); if (i >= 0) vs.dynamic.splice(i, 1); }

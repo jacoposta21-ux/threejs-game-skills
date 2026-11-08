@@ -292,6 +292,8 @@ export class Interiors {
       const out = r.exit;
       g.player.pos.set(out.x, terrainHeight(out.x, out.z) + 0.05, out.z);
       g.player.vel.set(0, 0, 0);
+      g.player.walkMode = false; g.player.crouched = false;
+      g.input.keys.clear();
       g.player.heading = r.yaw + Math.PI;
       g.camera3p.reset(r.yaw + Math.PI);
       g.hud.fade(false);
@@ -308,9 +310,9 @@ export class Interiors {
     if (r.id === 'guns') put('guard', 0, 3.4, Math.PI, 'Idle_Loop');
     if (r.id === 'clothes') put('npc_w_suit', 4.2, 4.0, Math.PI, 'Idle_Talking_Loop');
     if (r.id === 'club') {
-      put('npc_w_casual', -3.5, 7.2, Math.PI, 'Dance_Loop');
-      put('npc_w_punk', 0, 7.6, Math.PI, 'Dance_Loop');
-      put('npc_w_formal', 3.5, 7.2, Math.PI, 'Dance_Loop');
+      put('dancerA', -3.5, 7.2, Math.PI, 'Dance_Loop');
+      put('dancerC', 0, 7.6, Math.PI, 'Dance_Loop');
+      put('dancerB', 3.5, 7.2, Math.PI, 'Dance_Loop');
       put('npc_m_casual', -2.5, 0, 0.3, 'Dance_Loop');
       put('npc_w_casual', 1.5, 1.2, -0.4, 'Dance_Loop');
       put('npc_m_casual', 3, -1.5, 2.6, 'Dance_Loop');

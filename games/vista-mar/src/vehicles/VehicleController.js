@@ -14,6 +14,48 @@ export class VehicleController {
     return !!this.vehicle;
   }
 
+  /** Walk to the nearer door, sit down into the seat, then take the wheel. */
+  beginEnter(v) {
+    const p = this.game.player;
+    if (this.vehicle || this.entering || v.driver) return;
+    if (v.isAircraft || !p.rig) { this.enter(v); return; }
+    const d1 = v.doorPoint(1), d2 = v.doorPoint(-1);
+    const col = this.game.collision;
+    let door = Math.hypot(d1.x - p.pos.x, d1.z - p.pos.z) <= Math.hypot(d2.x - p.pos.x, d2.z - p.pos.z) ? d1 : d2;
+    if (col.blockedCircle(door.x, door.z, 0.3)) door = door === d1 ? d2 : d1;
+    this.entering = { v, door, t: 0, phase: 'walk', side: door === d1 ? 1 : -1 };
+  }
+
+  updateEntering(dt) {
+    const e = this.entering, p = this.game.player, v = e.v;
+    e.t += dt;
+    if (v.driver || v.wrecked && v.health <= 0 && false) { this.entering = null; return; }
+    if (e.phase === 'walk') {
+      const dx = e.door.x - p.pos.x, dz = e.door.z - p.pos.z, d = Math.hypot(dx, dz);
+      if (d < 0.25 || e.t > 2.2) { e.phase = 'sit'; e.t = 0; e.from = p.pos.clone(); }
+      else {
+        const sp = Math.min(3.2, d * 6);
+        p.pos.x += (dx / d) * sp * dt; p.pos.z += (dz / d) * sp * dt;
+        p.heading = Math.atan2(dx, dz);
+        if (p.rig) { p.rig.play(d > 1 ? 'Jog_Fwd_Loop' : 'Walk_Loop', { fade: 0.15 }); p.rig.update(dt); }
+      }
+    }
+    if (e.phase === 'sit') {
+      // turn to face along the car and lower in, sliding toward the seat
+      const k = Math.min(1, e.t / 0.55);
+      p.heading = v.heading + (e.side > 0 ? Math.PI / 2 : -Math.PI / 2) * (1 - k);
+      const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
+      const seatX = v.pos.x + -fz * v.halfW * 0.36 * -1, seatZ = v.pos.z + fx * v.halfW * 0.36 * -1;
+      p.pos.x = e.from.x + (seatX - e.from.x) * k * 0.55;
+      p.pos.z = e.from.z + (seatZ - e.from.z) * k * 0.55;
+      if (p.rig) { p.rig.play('Sitting_Enter', { fade: 0.12, once: true }); p.rig.update(dt); }
+      if (e.t >= 0.55) { this.entering = null; this.enter(v); return; }
+    }
+    p.group.position.copy(p.pos);
+    p.group.rotation.y = p.heading;
+    p.speed = 0;
+  }
+
   enter(v) {
     const p = this.game.player;
     if (this.vehicle || v.driver) return;
@@ -39,10 +81,11 @@ export class VehicleController {
     }
     this.game.audio.door();
     this.game.audio.engineStart(v.spec);
+    if (v.lockable) v.locked = false;
     this.game.camera3p.enterVehicle(v);
-    if (v.kind === 'heli') this.game.hud.toast(v.spec.label.toUpperCase(), 'Space climb · Shift descend · W/S tilt forward/back · A/D turn · F exit');
-    else if (v.kind === 'plane') this.game.hud.toast(v.spec.label.toUpperCase(), 'W throttle up · S throttle down/brake · A/D bank · Space pull up (take off above 110 km/h) · Shift nose down · F exit');
-    else this.game.hud.toast(v.spec.label.toUpperCase(), 'W/S drive · A/D steer · Space handbrake · L lights · H horn · F exit');
+    if (v.kind === 'heli') this.game.hud.toast(v.spec.label.toUpperCase(), 'Space climb · Shift descend · W/S tilt forward/back · A/D turn · E exit');
+    else if (v.kind === 'plane') this.game.hud.toast(v.spec.label.toUpperCase(), 'W throttle up · S throttle down/brake · A/D bank · Space pull up (take off above 110 km/h) · Shift nose down · E exit');
+    else this.game.hud.toast(v.spec.label.toUpperCase(), 'W/S drive · A/D steer · Space handbrake · L lights · H horn · E exit');
   }
 
   exit() {
