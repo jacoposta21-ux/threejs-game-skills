@@ -277,11 +277,12 @@ export class Player {
   }
 
   /** Integrates angular movement. input: -1 (counter-clockwise / left), 0, +1. */
-  updateMovement(dt, input, speed) {
+  updateMovement(dt, input, speed, soft = false) {
     this.prevAngle = this.angle;
     const maxOmega = maxOmegaAt(speed);
     const target = input * maxOmega;
-    const rate = input === 0 || Math.sign(target) !== Math.sign(this.omega) ? PLAYER.stopResponsiveness : PLAYER.responsiveness;
+    // soft = one-finger drag: gentler, symmetric easing for smooth tracking
+    const rate = soft ? 10 : input === 0 || Math.sign(target) !== Math.sign(this.omega) ? PLAYER.stopResponsiveness : PLAYER.responsiveness;
     this.omega += (target - this.omega) * (1 - Math.exp(-rate * dt));
     this.angle += this.omega * dt;
     // keep the unwrapped angle bounded without discontinuities in rendering

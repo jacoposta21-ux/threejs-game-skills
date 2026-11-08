@@ -771,19 +771,26 @@ export class Game {
     let dir = this.input.direction();
     // one-finger drag: the finger sets a target angle the sphere chases at its
     // normal (fair) turning speed, so dragging can never out-turn the keys
+    // Touch events arrive in irregular bursts, so the raw finger target is
+    // low-pass filtered and the sphere eases into it with no dead zone.
     const drag = this.input.consumeDrag();
+    let soft = false;
     if (drag.active) {
-      if (drag.started) this.dragTarget = this.player.angle;
-      this.dragTarget += drag.dx * (3.2 / Math.max(320, window.innerWidth));
-      let err = this.dragTarget - this.player.angle;
-      if (Math.abs(err) > 1.4) {
-        this.dragTarget = this.player.angle + Math.sign(err) * 1.4;
-        err = Math.sign(err) * 1.4;
+      if (drag.started) {
+        this.dragTarget = this.player.angle;
+        this.dragSmooth = this.player.angle;
       }
-      if (dir === 0 && Math.abs(err) > 0.012) dir = Math.max(-1, Math.min(1, err * 5));
+      this.dragTarget += drag.dx * (3.2 / Math.max(320, window.innerWidth));
+      if (Math.abs(this.dragTarget - this.player.angle) > 1.4) this.dragTarget = this.player.angle + Math.sign(this.dragTarget - this.player.angle) * 1.4;
+      this.dragSmooth += (this.dragTarget - this.dragSmooth) * (1 - Math.exp(-14 * dt));
+      const err = this.dragSmooth - this.player.angle;
+      if (dir === 0) {
+        dir = Math.max(-1, Math.min(1, err * 3.2));
+        soft = true;
+      }
     }
     if (this.autopilot) dir = this.autopilotDirection();
-    this.player.updateMovement(dt, dir, this.speed);
+    this.player.updateMovement(dt, dir, this.speed, soft && !this.autopilot);
 
     // procedural generation ahead of the player
     this.generator.update(this.elapsed, this.distance, base);
