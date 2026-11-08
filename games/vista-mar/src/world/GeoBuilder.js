@@ -26,6 +26,7 @@ export class GeoBuilder {
     this.n.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
     this.uv.push(...ua, ...ub, ...uc);
     if (this.c) { const c = this.cur; this.c.push(c.r, c.g, c.b, c.r, c.g, c.b, c.r, c.g, c.b); }
+    if (this.tl) { const t = this.curTile; this.tl.push(t[0], t[1], t[0], t[1], t[0], t[1]); }
   }
 
   /** a,b,c,d counter-clockwise when seen from the front. */
@@ -131,6 +132,7 @@ export class GeoBuilder {
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
     if (this.c) g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    if (this.tl) g.setAttribute('atlasTile', new THREE.Float32BufferAttribute(this.tl, 2));
     g.computeBoundingSphere();
     g.computeBoundingBox();
     return g;

@@ -308,7 +308,7 @@ export class World {
       for (const m of nm.neon) m.emissiveIntensity = lerp(0.35, 3.2, n);
       for (const m of nm.lamps) m.emissiveIntensity = lerp(0, 4, smoothstep(0.3, 0.8, n));
       // evening humidity: streets get a slight sheen after dark
-      for (const m of this.city.wetMaterials) m.roughness = lerp(0.82, 0.48, smoothstep(0.4, 1, n));
+      for (const m of this.city.wetMaterials) { const w = m.userData.wet || [0.82, 0.48]; m.roughness = lerp(w[0], w[1], smoothstep(0.4, 1, n)); }
       this.glowMat.opacity = smoothstep(0.3, 0.9, n) * 0.32;
       this.beaconMat.color.setRGB(4 * (0.5 + 0.5 * Math.sin(this.elapsed * 3)) * (0.2 + n), 0.15, 0.1);
       this.updateSignals(dt);

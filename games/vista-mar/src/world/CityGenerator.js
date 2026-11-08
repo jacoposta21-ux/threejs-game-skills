@@ -6,6 +6,7 @@ import { bakeStatic } from '../core/AssetLoader.js';
 import { PropInstancer } from './PropInstancer.js';
 import { ChunkedLod as LodBatch, normalizeGeometry, emissiveSwitchTexture } from './Batches.js';
 import { addWind, carPaint } from './Effects.js';
+import { buildAtlas, applyAtlas } from './Atlas.js';
 import {
   LINES, xWidths, zWidths, SIDEWALK, CURB_H, BOULEVARD_MEDIAN, BEACH, WATER_LEVEL, BOUNDS,
   allBlocks, terrainHeight,
@@ -14,6 +15,8 @@ import {
 const CHUNK = 300;
 const BCHUNK = 150;
 const BUILDING_KEYS = new Set(['shop', 'roof', 'trim', 'trimDark', 'metal', 'darkmetal', 'corrugated', 'corrBlue', 'corrRust', 'tileroof', 'awningRed', 'awningTeal', 'awningYellow', 'stripe', 'canopyLight', 'hedge', 'wood']);
+const ATLAS_G_KEYS = ['road14', 'road16', 'blvd', 'inter', 'sidewalk', 'grass', 'sand', 'plaza', 'parking', 'lot'];
+const ATLAS_B_KEYS = ['facade_glassTeal', 'facade_glassBlue', 'facade_glassGold', 'facade_office', 'facade_officeDark', 'facade_decoPink', 'facade_decoMint', 'facade_decoWhite', 'facade_decoLilac', 'facade_stuccoPeach', 'facade_stuccoYellow', 'facade_stuccoWhite', 'facade_brick', 'facade_house', 'corrugated', 'corrBlue', 'corrRust', 'roof', 'tileroof'];
 const FLAT_COLORS = { trim: 0xece8e0, trimDark: 0x3c3f44, metal: 0x8a8f94, darkmetal: 0x2c2f33, hedge: 0x3f6b2f, wood: 0x9c7650, stripe: 0xffffff, awningRed: 0xb8322d, awningTeal: 0x1f8a86, awningYellow: 0xe0b23c, curb: 0xb8b2a8 };
 function isBuildingKey(k) { return k.startsWith('facade_') || BUILDING_KEYS.has(k); }
 
@@ -78,6 +81,19 @@ export class CityGenerator {
       case 'awningTeal': m = std({ color: 0x1f8a86, roughness: 0.8, side: THREE.DoubleSide }); break;
       case 'awningYellow': m = std({ color: 0xe0b23c, roughness: 0.8, side: THREE.DoubleSide }); break;
       case 'stripe': m = std({ color: 0xffffff, roughness: 0.8 }); break;
+      case 'atlasB': {
+        const a = this.atlas('atlasB').textures;
+        m = applyAtlas(std({ map: a.map, emissive: 0xffffff, emissiveMap: a.emissive, emissiveIntensity: 0, roughnessMap: a.orm, metalnessMap: a.orm, roughness: 1, metalness: 1, normalMap: a.normal, normalScale: new THREE.Vector2(0.9, 0.9) }), 5, 4);
+        this.nightMaterials.windows.push(m);
+        break;
+      }
+      case 'atlasG': {
+        const a = this.atlas('atlasG').textures;
+        m = applyAtlas(std({ map: a.map, roughnessMap: a.orm, metalnessMap: a.orm, roughness: 1, metalness: 1, normalMap: a.normal, normalScale: new THREE.Vector2(0.25, 0.25) }), 4, 3);
+        m.userData.wet = [1, 0.66];
+        this.wetMaterials.push(m);
+        break;
+      }
       case 'flatB': m = std({ vertexColors: true, roughness: 0.7, metalness: 0.15, side: THREE.DoubleSide }); break;
       case 'flatG': m = std({ vertexColors: true, roughness: 0.85 }); break;
       case 'wood': m = std({ color: 0x9c7650, roughness: 0.9 }); break;
@@ -138,12 +154,48 @@ export class CityGenerator {
     const cx = Math.floor((x + 1000) / size), cz = Math.floor((z + 1000) / size);
     // flat-colour materials share one vertex-coloured material (colour baked per vertex)
     const flat = FLAT_COLORS[key];
-    const mk = flat !== undefined ? (isB ? 'flatB' : 'flatG') : key;
+    const atlas = ATLAS_B_KEYS.includes(key) ? 'atlasB' : ATLAS_G_KEYS.includes(key) ? 'atlasG' : null;
+    const mk = atlas || (flat !== undefined ? (isB ? 'flatB' : 'flatG') : key);
     const k = `${size}:${cx},${cz}|${mk}`;
     let g = this.buckets.get(k);
-    if (!g) { g = new GeoBuilder(); g.matKey = mk; g.chunk = [cx, cz]; g.building = isB; if (flat !== undefined) g.c = []; this.buckets.set(k, g); }
-    if (flat !== undefined) g.cur = new THREE.Color(flat);
+    if (!g) { g = new GeoBuilder(); g.matKey = mk; g.chunk = [cx, cz]; g.building = isB; if (flat !== undefined && !atlas) g.c = []; if (atlas) g.tl = []; this.buckets.set(k, g); }
+    if (flat !== undefined && !atlas) g.cur = new THREE.Color(flat);
+    if (atlas) g.curTile = this.atlas(atlas).tile(key);
     return g;
+  }
+
+  /** Lazily built texture atlases for building surfaces (B) and ground surfaces (G). */
+  atlas(which) {
+    this.atlases = this.atlases || {};
+    if (this.atlases[which]) return this.atlases[which];
+    let slots;
+    if (which === 'atlasB') {
+      slots = Object.keys(T.FACADE_STYLES).map((st) => { const f = T.facadeMaterialMaps(st); return { key: `facade_${st}`, map: f.map, emissive: f.emissiveMap, orm: f.ormMap, normal: f.normalMap }; });
+      slots.push(
+        { key: 'corrugated', map: T.corrugatedTexture('#8d9396'), orm: { rough: 0.6, metal: 0.4 } },
+        { key: 'corrBlue', map: T.corrugatedTexture('#5f7f95', 72), orm: { rough: 0.6, metal: 0.4 } },
+        { key: 'corrRust', map: T.corrugatedTexture('#9a6a4c', 73), orm: { rough: 0.7, metal: 0.3 } },
+        { key: 'roof', map: T.roofTexture(), orm: { rough: 0.95, metal: 0 } },
+        { key: 'tileroof', map: T.tileRoofTexture(), orm: { rough: 0.8, metal: 0 } },
+      );
+      this.atlases[which] = buildAtlas(slots, 5, 4);
+    } else {
+      const grain = T.grainNormalTexture();
+      slots = [
+        { key: 'road14', map: T.roadTexture(14, { lanesEachWay: 2 }), orm: { rough: 0.82, metal: 0 }, normal: grain },
+        { key: 'road16', map: T.roadTexture(16, { lanesEachWay: 2 }), orm: { rough: 0.82, metal: 0 }, normal: grain },
+        { key: 'blvd', map: T.roadTexture(11, { oneWay: true, lanes: 3 }), orm: { rough: 0.82, metal: 0 }, normal: grain },
+        { key: 'inter', map: T.intersectionTexture(), orm: { rough: 0.82, metal: 0 }, normal: grain },
+        { key: 'sidewalk', map: T.sidewalkTexture(), orm: { rough: 0.85, metal: 0 }, normal: grain },
+        { key: 'grass', map: T.grassTexture(), orm: { rough: 1, metal: 0 } },
+        { key: 'sand', map: T.sandTexture(), orm: { rough: 1, metal: 0 } },
+        { key: 'plaza', map: T.plazaTexture(), orm: { rough: 0.8, metal: 0 } },
+        { key: 'parking', map: T.parkingTexture(), orm: { rough: 0.9, metal: 0 } },
+        { key: 'lot', map: T.concreteTexture('#a39d92'), orm: { rough: 0.9, metal: 0 } },
+      ];
+      this.atlases[which] = buildAtlas(slots, 4, 3);
+    }
+    return this.atlases[which];
   }
 
   /** Simplified stand-in for a building volume, drawn when its chunk is far away. */
@@ -972,7 +1024,7 @@ export class CityGenerator {
       if (g.vertexCount === 0) continue;
       const mesh = new THREE.Mesh(g.build(), this.mat(g.matKey));
       const k = g.matKey;
-      const noShadow = ['road14', 'road16', 'blvd', 'inter', 'sidewalk', 'grass', 'sand', 'plaza', 'parking', 'lot', 'yard', 'pool', 'pond', 'neon', 'canopyLight'].includes(k) || k.startsWith('neon');
+      const noShadow = ['atlasG', 'road14', 'road16', 'blvd', 'inter', 'sidewalk', 'grass', 'sand', 'plaza', 'parking', 'lot', 'yard', 'pool', 'pond', 'neon', 'canopyLight'].includes(k) || k.startsWith('neon');
       mesh.castShadow = !noShadow;
       mesh.receiveShadow = true;
       mesh.matrixAutoUpdate = false;
