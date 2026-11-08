@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 
-const DEFAULTS = { quality: 'high', sensitivity: 1, invertY: false, cameraDistance: 4.6, fov: 68, volume: 0.8, dayMinutes: 16, showFps: false, drawDistance: 1, autoPerf: true };
+const DEFAULTS = { quality: 'medium', sensitivity: 1, invertY: false, cameraDistance: 4.6, fov: 68, volume: 0.8, dayMinutes: 16, showFps: false, drawDistance: 1, autoPerf: true };
 
 export function loadSettings() {
   let saved = {};
@@ -71,7 +71,9 @@ export class Menus {
       <div>Story missions <b>${g.story.done.size} / ${g.story.defs.length}</b></div>
       <div>Wanted level <b>${'★'.repeat(g.police.level) || 'none'}</b></div>
       <div>Time in Vista Mar <b>${Math.floor(g.playTime / 60)} min ${Math.floor(g.playTime % 60)} s</b></div>
-      <div>Clock <b>${g.world.clockString}</b></div>`;
+      <div>Clock <b>${g.world.clockString}</b></div>
+      <div>Graphics <b>${g.settings.quality} · auto level ${g.perfLevel || 0} · ${Math.round(g.measuredFps || 0)} fps</b></div>
+      <div>GPU <b>${g.gpuName}</b></div>`;
   }
 
   showMap(v) {

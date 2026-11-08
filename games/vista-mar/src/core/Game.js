@@ -31,6 +31,16 @@ import { terrainHeight } from '../world/Layout.js';
 import { classify, BEACH } from '../world/Layout.js';
 import { lerp } from '../utils/random.js';
 
+// automatic-performance tiers, mildest first
+const PERF_TIERS = [
+  { res: 1, msaa: true, bloom: true, shadowMap: 4096, shadowEvery: 2, crowd: 1 },
+  { res: 0.85, msaa: true, bloom: true, shadowMap: 4096, shadowEvery: 2, crowd: 1 },
+  { res: 0.75, msaa: false, bloom: true, shadowMap: 2048, shadowEvery: 2, crowd: 1 },
+  { res: 0.65, msaa: false, bloom: false, shadowMap: 2048, shadowEvery: 3, crowd: 1 },
+  { res: 0.55, msaa: false, bloom: false, shadowMap: 1024, shadowEvery: 3, crowd: 0.8 },
+  { res: 0.5, msaa: false, bloom: false, shadowMap: 1024, shadowEvery: 4, crowd: 0.6 },
+];
+
 const QUALITY = {
   low: { dpr: 1, shadow: 1024, bloom: false, samples: 0 },
   medium: { dpr: 1.25, shadow: 2048, bloom: true, samples: 0 },
@@ -161,6 +171,7 @@ export class Game {
       if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
     }
     this.resize();
+    if (this.perfLevel) this.applyPerfLevel(this.perfLevel);
   }
 
   applyDaySpeed() {
@@ -368,7 +379,7 @@ export class Game {
       }
     }
     this.updateChunkVisibility();
-    this.renderer.shadowMap.needsUpdate = this.frame % 2 === 0 || this.state !== 'playing';
+    this.renderer.shadowMap.needsUpdate = this.frame % (this.shadowEvery || 2) === 0 || this.state !== 'playing';
     this.composer.render(dt);
     this.input.endFrame();
     this.publishDiagnostics();
@@ -458,27 +469,55 @@ export class Game {
     }
   }
 
-  /** Watches real frame times and trades resolution / crowd density for frame rate. */
+  /**
+   * Automatic performance: steps through tiers when the measured FPS is low
+   * (resolution first, then MSAA, bloom, shadow resolution, crowds, shadows)
+   * and climbs back when there is headroom.
+   */
   autoPerformance(rawDt) {
-    if (!this.settings.autoPerf) { this.perfScale = 1; return; }
     this.perfAcc = (this.perfAcc || 0) + rawDt;
     this.perfFrames = (this.perfFrames || 0) + 1;
     if (this.perfAcc < 2) return;
     const fps = this.perfFrames / this.perfAcc;
     this.perfAcc = 0; this.perfFrames = 0;
     this.measuredFps = fps;
-    const prev = this.perfScale ?? 1;
-    let s = prev;
-    if (fps < 40) s = Math.max(0.55, s - 0.1);
-    else if (fps > 57) s = Math.min(1, s + 0.05);
-    if (s !== prev) {
-      this.perfScale = s;
-      const q = QUALITY[this.settings.quality] || QUALITY.high;
-      const dpr = Math.min(window.devicePixelRatio || 1, q.dpr) * (0.6 + 0.4 * s);
-      this.renderer.setPixelRatio(dpr);
-      this.composer.setPixelRatio(dpr);
-      this.resize();
+    if (!this.settings.autoPerf) { if (this.perfLevel) this.applyPerfLevel(0); return; }
+    const lvl = this.perfLevel || 0;
+    if (fps < 45 && lvl < PERF_TIERS.length - 1) { this.perfGood = 0; this.applyPerfLevel(lvl + 1); }
+    else if (fps > 58 && lvl > 0) { this.perfGood = (this.perfGood || 0) + 1; if (this.perfGood >= 3) { this.perfGood = 0; this.applyPerfLevel(lvl - 1); } }
+  }
+
+  applyPerfLevel(level) {
+    this.perfLevel = level;
+    const t = PERF_TIERS[level];
+    const q = QUALITY[this.settings.quality] || QUALITY.high;
+    this.perfScale = t.crowd;
+    const dpr = Math.max(0.5, Math.min(window.devicePixelRatio || 1, q.dpr) * t.res);
+    this.renderer.setPixelRatio(dpr);
+    this.composer.setPixelRatio(dpr);
+    const samples = t.msaa ? q.samples : 0;
+    if (this.composerSamples !== samples) {
+      this.composer.renderTarget1.samples = samples;
+      this.composer.renderTarget2.samples = samples;
+      this.composerSamples = samples;
     }
+    this.smaa.enabled = samples === 0;
+    this.bloom.enabled = q.bloom && t.bloom;
+    const sun = this.world.sun;
+    const size = Math.min(q.shadow, t.shadowMap);
+    if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+    this.shadowEvery = t.shadowEvery;
+    this.resize();
+  }
+
+  get gpuName() {
+    if (this._gpu !== undefined) return this._gpu;
+    try {
+      const gl = this.renderer.getContext();
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      this._gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    } catch { this._gpu = 'unknown'; }
+    return this._gpu;
   }
 
   // ------------------------------------------------------------- test hooks
