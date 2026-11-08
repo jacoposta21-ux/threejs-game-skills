@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LINES, xWidths, zWidths, terrainHeight, blockDistrict } from '../world/Layout.js';
 import { clamp } from '../utils/random.js';
+import { normalizeGeometry } from '../world/Batches.js';
 
 // Autonomous road traffic on the street grid. Each car follows a lane (right-hand
 // traffic), stops at red lights, picks straight/left/right at intersections on a
@@ -25,46 +26,51 @@ export class TrafficSystem {
     this.scene = game.scene;
     this.cars = [];
     this.meshes = {};
-    this.lights = {};
+    // every traffic car is an instance of ONE BatchedMesh (body) + ONE BatchedMesh (lamps)
     const lampGeo = new THREE.BoxGeometry(0.32, 0.12, 0.05);
-    for (const key of MODELS) {
-      const m = carModels[key];
-      if (!m) continue;
-      const im = new THREE.InstancedMesh(m.geometry, m.materials.length > 1 ? m.materials : m.materials[0], POOL_PER_MODEL);
-      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      im.frustumCulled = false;
-      im.castShadow = true;
-      im.receiveShadow = true;
-      im.count = 0;
-      this.scene.add(im);
-      // head + tail lamps for this model, one instanced mesh with 4 lamps per car
-      const s = m.size;
+    const keys = MODELS.filter((k) => carModels[k]);
+    const bodyGeos = [], lampGeos = [];
+    for (const key of keys) {
+      const m = carModels[key], s = m.size;
+      bodyGeos.push(normalizeGeometry(m.geometry));
       const lamps = [
         [s.x * 0.31, s.y * 0.36, s.z / 2, 0xfff1d6], [-s.x * 0.31, s.y * 0.36, s.z / 2, 0xfff1d6],
         [s.x * 0.33, s.y * 0.42, -s.z / 2, 0xff2414], [-s.x * 0.33, s.y * 0.42, -s.z / 2, 0xff2414],
       ];
-      const geos = lamps.map(([x, y, z, c]) => {
+      lampGeos.push(mergeSimple(lamps.map(([x, y, z, c]) => {
         const g = lampGeo.clone().translate(x, y, z).toNonIndexed();
         const col = new THREE.Color(c);
         const arr = new Float32Array(g.attributes.position.count * 3);
         for (let i = 0; i < arr.length; i += 3) { arr[i] = col.r; arr[i + 1] = col.g; arr[i + 2] = col.b; }
         g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
         return g;
-      });
-      const merged = mergeSimple(geos);
-      const lm = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, color: 0x333333 });
-      const li = new THREE.InstancedMesh(merged, lm, POOL_PER_MODEL);
-      li.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      li.frustumCulled = false;
-      li.count = 0;
-      this.scene.add(li);
-      this.meshes[key] = { im, li, size: s, free: [...Array(POOL_PER_MODEL).keys()], key, lampMat: lm };
+      })));
     }
+    const total = keys.length * POOL_PER_MODEL;
+    const count = (gs) => gs.reduce((n, g) => n + g.attributes.position.count, 0);
+    this.body = new THREE.BatchedMesh(total, count(bodyGeos), 0, carModels[keys[0]].materials[0]);
+    this.lampMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, color: 0x333333 });
+    this.lamps = new THREE.BatchedMesh(total, count(lampGeos), 0, this.lampMat);
+    for (const bm of [this.body, this.lamps]) { bm.sortObjects = false; bm.perObjectFrustumCulled = true; this.scene.add(bm); }
+    this.body.castShadow = true; this.body.receiveShadow = true;
+    const bodyIds = bodyGeos.map((g) => this.body.addGeometry(g));
+    const lampIds = lampGeos.map((g) => this.lamps.addGeometry(g));
+    keys.forEach((key, k) => {
+      const slots = [];
+      for (let i = 0; i < POOL_PER_MODEL; i++) {
+        const b = this.body.addInstance(bodyIds[k]);
+        const l = this.lamps.addInstance(lampIds[k]);
+        this.body.setVisibleAt(b, false); this.lamps.setVisibleAt(l, false);
+        slots.push({ b, l });
+      }
+      this.meshes[key] = { size: carModels[key].size, free: [...Array(POOL_PER_MODEL).keys()], key, slots };
+    });
     this.spawnTimer = 0;
     this.matrix = new THREE.Matrix4();
     this.q = new THREE.Quaternion();
     this.up = new THREE.Vector3(0, 1, 0);
     this.scale = new THREE.Vector3(1, 1, 1);
+    this.tmpPos = new THREE.Vector3();
     this.hornTimer = 0;
   }
 
@@ -144,6 +150,10 @@ export class TrafficSystem {
   }
 
   remove(car) {
+    const slot = car.pool.slots[car.slot];
+    slot.on = false;
+    this.body.setVisibleAt(slot.b, false);
+    this.lamps.setVisibleAt(slot.l, false);
     car.pool.free.push(car.slot);
     this.cars.splice(this.cars.indexOf(car), 1);
   }
@@ -349,23 +359,16 @@ export class TrafficSystem {
 
   // ------------------------------------------------------------ rendering
   render(night) {
-    for (const pool of Object.values(this.meshes)) { pool.im.count = 0; pool.li.count = 0; pool.used = 0; }
-    const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
-    for (const pool of Object.values(this.meshes)) for (let i = 0; i < POOL_PER_MODEL; i++) { pool.im.setMatrixAt(i, hidden); pool.li.setMatrixAt(i, hidden); }
     for (const c of this.cars) {
+      const slot = c.pool.slots[c.slot];
       this.q.setFromAxisAngle(this.up, c.heading);
-      this.matrix.compose(new THREE.Vector3(c.x, c.y || 0, c.z), this.q, this.scale);
-      c.pool.im.setMatrixAt(c.slot, this.matrix);
-      c.pool.li.setMatrixAt(c.slot, this.matrix);
+      this.matrix.compose(this.tmpPos.set(c.x, c.y || 0, c.z), this.q, this.scale);
+      this.body.setMatrixAt(slot.b, this.matrix);
+      this.lamps.setMatrixAt(slot.l, this.matrix);
+      if (!slot.on) { slot.on = true; this.body.setVisibleAt(slot.b, true); this.lamps.setVisibleAt(slot.l, true); }
     }
-    for (const pool of Object.values(this.meshes)) {
-      pool.im.count = POOL_PER_MODEL;
-      pool.li.count = POOL_PER_MODEL;
-      pool.im.instanceMatrix.needsUpdate = true;
-      pool.li.instanceMatrix.needsUpdate = true;
-      const k = 0.25 + night * 2.6;
-      pool.lampMat.color.setRGB(k, k, k);
-    }
+    const k = 0.25 + night * 2.6;
+    this.lampMat.color.setRGB(k, k, k);
   }
 
   /** Fill the streets around a point immediately (start of play, teleports). */

@@ -4,6 +4,7 @@ import * as T from './textures.js';
 import { createRng } from '../utils/random.js';
 import { bakeStatic } from '../core/AssetLoader.js';
 import { PropInstancer } from './PropInstancer.js';
+import { LodBatch, normalizeGeometry, emissiveSwitchTexture } from './Batches.js';
 import { addWind, carPaint } from './Effects.js';
 import {
   LINES, xWidths, zWidths, SIDEWALK, CURB_H, BOULEVARD_MEDIAN, BEACH, WATER_LEVEL, BOUNDS,
@@ -13,6 +14,7 @@ import {
 const CHUNK = 300;
 const BCHUNK = 150;
 const BUILDING_KEYS = new Set(['shop', 'roof', 'trim', 'trimDark', 'metal', 'darkmetal', 'corrugated', 'corrBlue', 'corrRust', 'tileroof', 'awningRed', 'awningTeal', 'awningYellow', 'stripe', 'canopyLight', 'hedge', 'wood']);
+const FLAT_COLORS = { trim: 0xece8e0, trimDark: 0x3c3f44, metal: 0x8a8f94, darkmetal: 0x2c2f33, hedge: 0x3f6b2f, wood: 0x9c7650, stripe: 0xffffff, awningRed: 0xb8322d, awningTeal: 0x1f8a86, awningYellow: 0xe0b23c, curb: 0xb8b2a8 };
 function isBuildingKey(k) { return k.startsWith('facade_') || BUILDING_KEYS.has(k); }
 
 // Builds the whole city: merged static geometry per (chunk, material), instanced
@@ -76,6 +78,8 @@ export class CityGenerator {
       case 'awningTeal': m = std({ color: 0x1f8a86, roughness: 0.8, side: THREE.DoubleSide }); break;
       case 'awningYellow': m = std({ color: 0xe0b23c, roughness: 0.8, side: THREE.DoubleSide }); break;
       case 'stripe': m = std({ color: 0xffffff, roughness: 0.8 }); break;
+      case 'flatB': m = std({ vertexColors: true, roughness: 0.7, metalness: 0.15, side: THREE.DoubleSide }); break;
+      case 'flatG': m = std({ vertexColors: true, roughness: 0.85 }); break;
       case 'wood': m = std({ color: 0x9c7650, roughness: 0.9 }); break;
       case 'canopyLight': m = std({ color: 0xffffff, emissive: 0xfff2d8, emissiveIntensity: 0.2, roughness: 0.5 }); this.nightMaterials.lamps.push(m); break;
       case 'neon': {
@@ -132,9 +136,13 @@ export class CityGenerator {
     const isB = isBuildingKey(key);
     const size = isB ? BCHUNK : CHUNK;
     const cx = Math.floor((x + 1000) / size), cz = Math.floor((z + 1000) / size);
-    const k = `${size}:${cx},${cz}|${key}`;
+    // flat-colour materials share one vertex-coloured material (colour baked per vertex)
+    const flat = FLAT_COLORS[key];
+    const mk = flat !== undefined ? (isB ? 'flatB' : 'flatG') : key;
+    const k = `${size}:${cx},${cz}|${mk}`;
     let g = this.buckets.get(k);
-    if (!g) { g = new GeoBuilder(); g.matKey = key; g.chunk = [cx, cz]; g.building = isB; this.buckets.set(k, g); }
+    if (!g) { g = new GeoBuilder(); g.matKey = mk; g.chunk = [cx, cz]; g.building = isB; if (flat !== undefined) g.c = []; this.buckets.set(k, g); }
+    if (flat !== undefined) g.cur = new THREE.Color(flat);
     return g;
   }
 
@@ -1030,94 +1038,90 @@ export class CityGenerator {
       return im;
     };
 
-    // ---- palms (CC0 Quaternius models near, cheap procedural palm far)
-    this.instancer = new PropInstancer(this.group);
+    // ---- vegetation: palms, trees and bushes in ONE BatchedMesh (one draw call)
+    this.batches = [];
     const palmModels = [A.palm2, A.palm3].map((g) => bakeStatic(g, { size: 9.5, baseAlign: true, vertexColors: true })).filter(Boolean);
     const palmLow = proceduralPalm();
-    const palmsByVar = [[], []];
-    for (const p of this.props.palms) palmsByVar[palmModels.length ? p.v % palmModels.length : 0].push(p);
-    // street palms lean out over the road, away from the buildings
     for (const p of this.props.palms) {
       const model = palmModels[p.v % Math.max(1, palmModels.length)];
       if (p.face && model && model.lean) p.rot = Math.atan2(p.face[0], p.face[1]) - Math.atan2(model.lean.x, model.lean.z) + this.rng.range(-0.35, 0.35);
     }
-    const palmPlace = (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(it.s); };
-    const palmDepth = addWind([...palmModels.flatMap((m) => m.materials), ...palmLow.materials], { height: 9.5, amp: 0.45, freq: 1.1 });
-    palmsByVar.forEach((list, v) => {
-      this.instancer.add({ near: palmModels[v] || palmLow, far: palmModels[v] ? palmLow : null, items: list, place: palmPlace, nearDist: 35, farDist: 900, depthMaterial: palmDepth });
-    });
-
-    // ---- broadleaf trees (procedural)
     const tree = proceduralTree();
-    const treePlace = (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.x * 7.1, 0); d.scale.setScalar(it.s); };
-    const treeColor = (it) => new THREE.Color().setHSL(0.27 + ((it.x * 13.7) % 0.06), 0.45, 0.28 + ((it.z * 7.3) % 0.08));
-    this.instancer.add({ near: tree.trunk, items: this.props.trees, place: treePlace, nearDist: 200, farDist: 700 });
-    const treeDepth = addWind(tree.crown.materials, { height: 6, amp: 0.22, freq: 1.4 });
-    this.instancer.add({ near: tree.crown, far: tree.crownLow, items: this.props.trees, place: treePlace, color: treeColor, nearDist: 90, farDist: 900, depthMaterial: treeDepth });
+    const crownTones = [0x4f7a35, 0x5d8a3a, 0x3f6b2e].map((c) => colorGeo(tree.crown.geometry, c));
+    const trunkGeo = colorGeo(tree.trunk.geometry, 0x5b4532);
+    const treeNear = crownTones.map((cg) => mergeColored([trunkGeo, cg]));
+    const treeFar = mergeColored([trunkGeo, colorGeo(tree.crownLow.geometry, 0x4f7a35)]);
+    const bushBaked = bakeStatic(A.bush, { size: 1.6, vertexColors: true });
+    const bushGeo = bushBaked ? bushBaked.geometry : colorGeo(new THREE.IcosahedronGeometry(1, 1).translate(0, 0.8, 0), 0x3d6b2e);
+    const vegGeos = [...palmModels.map((m) => m.geometry), palmLow.geometry, ...treeNear, treeFar, bushGeo].map((g) => normalizeGeometry(g));
+    const vegMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0, side: THREE.DoubleSide });
+    const vegDepth = addWind([vegMat], { height: 9.5, amp: 0.45, freq: 1.1 });
+    const PALM0 = 0, PALMLOW = palmModels.length, TREE0 = PALMLOW + 1, TREEFAR = TREE0 + treeNear.length, BUSH = TREEFAR + 1;
+    const veg = new LodBatch(this.group, vegMat, vegGeos, this.props.palms.length + this.props.trees.length + this.props.bushes.length + 8, { depthMaterial: vegDepth });
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    const mat4 = (x, y, z, rot, s) => m4.compose(ps.set(x, y, z), q.setFromAxisAngle(up, rot), sc.setScalar(s));
+    for (const p of this.props.palms) veg.add(mat4(p.x, p.y, p.z, p.rot, p.s), palmModels.length ? PALM0 + (p.v % palmModels.length) : PALMLOW, PALMLOW, { nearDist: 75, farDist: 900 });
+    this.props.trees.forEach((t, i) => veg.add(mat4(t.x, t.y, t.z, t.x * 7.1, t.s), TREE0 + (i % treeNear.length), TREEFAR, { nearDist: 110, farDist: 900 }));
+    for (const b of this.props.bushes) veg.add(mat4(b.x, b.y, b.z, b.rot, b.s), BUSH, -1, { nearDist: 160, farDist: 160 });
+    this.batches.push(veg);
     for (const t of this.props.trees) this.collision.addCircle(t.x, t.z, 0.4 * t.s);
 
-    // ---- bushes
-    const bush = bakeStatic(A.bush, { size: 1.6 }) || { geometry: new THREE.IcosahedronGeometry(1, 1).translate(0, 0.8, 0), materials: [new THREE.MeshStandardMaterial({ color: 0x3d6b2e })] };
-    const bushDepth = addWind(bush.materials, { height: 1.6, amp: 0.06, freq: 1.8 });
-    const bushMesh = addInst(bush, this.props.bushes, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(it.s); });
-    if (bushMesh) bushMesh.customDepthMaterial = bushDepth;
-
-    // ---- streetlights
+    // ---- streetlights: one batch; lamp heads glow through a 2-texel emissive map
     const lampModel = bakeStatic(A.streetlight, { size: 7.5, centerXZ: false });
     let armAngle = 0;
-    let headOffset = new THREE.Vector3(0, 7.2, 1.6);
+    let headOffset = new THREE.Vector3(0, 7.15, 1.7);
+    let lampGeo = null;
     if (lampModel) {
-      // find the lamp head ("Light"/"Glass" material group) to know which way the arm points
       const g = lampModel.geometry;
-      const idx = lampModel.materials.findIndex((m) => /light|glass/i.test(m.name));
-      if (idx >= 0) {
-        const grp = g.groups.find((gr) => gr.materialIndex === idx);
-        const pos = g.attributes.position;
-        const c = new THREE.Vector3();
-        for (let i = grp.start; i < grp.start + grp.count; i++) c.add(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)));
-        c.divideScalar(grp.count);
-        headOffset = c;
-        armAngle = Math.atan2(c.x, c.z);
-        const lm = lampModel.materials[idx];
-        lm.emissive = new THREE.Color(0xffe2b0);
-        lm.emissiveIntensity = 0;
-        this.nightMaterials.lamps.push(lm);
+      const parts = [];
+      for (const grp of g.groups) {
+        const mat = lampModel.materials[grp.materialIndex];
+        const isHead = /light|glass/i.test(mat.name);
+        const part = sliceGeo(g, grp.start, grp.count);
+        parts.push(normalizeGeometry(colorGeo(part, isHead ? 0xfff1d6 : mat.color.getHex()), { uv: isHead ? [0.75, 0.5] : [0.25, 0.5] }));
+        if (isHead) {
+          const pos = part.attributes.position, c = new THREE.Vector3();
+          for (let i = 0; i < pos.count; i++) c.add(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)));
+          headOffset = c.divideScalar(pos.count);
+          armAngle = Math.atan2(headOffset.x, headOffset.z);
+        }
       }
-      for (const m of lampModel.materials) { m.metalness = Math.min(m.metalness ?? 0, 0.5); }
+      lampGeo = mergeColored(parts, true);
     }
-    const lampProc = proceduralLamp(this.nightMaterials.lamps);
-    if (!lampModel) { headOffset.set(0, 7.15, 1.7); armAngle = 0; }
+    const lampLow = proceduralLampGeo();
+    const lampMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.3, emissive: 0xffe2b0, emissiveMap: emissiveSwitchTexture(), emissiveIntensity: 0 });
+    this.nightMaterials.lamps.push(lampMat);
+    const lampGeos = [lampGeo || lampLow, lampLow].map((g) => normalizeGeometry(g));
+    const lamps = new LodBatch(this.group, lampMat, lampGeos, this.props.lamps.length + 4);
     for (const L of this.props.lamps) {
       const f = L.facing || [Math.sin(L.rot || 0), Math.cos(L.rot || 0)];
       L.rotY = Math.atan2(f[0], f[1]) - armAngle;
-      const hx = Math.sin(L.rotY) * Math.hypot(headOffset.x, headOffset.z), hz = Math.cos(L.rotY) * Math.hypot(headOffset.x, headOffset.z);
-      // rotated head position (rotation about y of headOffset)
       const c = Math.cos(L.rotY), s = Math.sin(L.rotY);
       const rx = headOffset.x * c + headOffset.z * s, rz = -headOffset.x * s + headOffset.z * c;
       L.head = { x: L.x + rx, y: L.y + headOffset.y, z: L.z + rz };
-      void hx; void hz;
       this.collision.addCircle(L.x, L.z, 0.2);
       this.props.glows.push({ x: L.head.x, y: 0.03 + (L.y === 0 ? 0 : CURB_H), z: L.head.z, ground: true, color: 0xffd9a0, radius: 9 });
+      // the far stand-in has its arm along +z, so it needs the facing angle itself
+      const it = lamps.add(mat4(L.x, L.y, L.z, L.rotY, 1), 0, 1, { nearDist: 70, farDist: 650 });
+      it.farMatrix = mat4(L.x, L.y, L.z, L.rotY + armAngle, 1).clone();
+      it.nearMatrix = mat4(L.x, L.y, L.z, L.rotY, 1).clone();
     }
-    this.instancer.add({
-      near: lampModel || lampProc, far: lampModel ? lampProc : null, items: this.props.lamps, nearDist: 15, farDist: 700,
-      place: (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rotY, 0); d.scale.setScalar(1); },
-      placeFar: (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rotY + armAngle, 0); d.scale.setScalar(1); },
-    });
+    lamps.onSwap = (it, state) => lamps.mesh.setMatrixAt(it.id, state === 'far' ? it.farMatrix : it.nearMatrix);
+    this.batches.push(lamps);
 
     // ---- benches, bins, hydrants (procedural, shared geometry)
     const benchGeo = mergeBoxes([[-0.9, 0.42, -0.25, 0.9, 0.5, 0.25], [-0.9, 0.5, 0.2, 0.9, 0.95, 0.28], [-0.85, 0, -0.2, -0.75, 0.42, 0.2], [0.75, 0, -0.2, 0.85, 0.42, 0.2]]);
-    addInst({ geometry: benchGeo, materials: [this.mat('wood')] }, this.props.benches, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); });
+    addInst({ geometry: benchGeo, materials: [this.mat('wood')] }, this.props.benches, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); }, { castShadow: false });
     for (const b of this.props.benches) {
       const alongX = Math.abs(Math.cos(b.rot)) > 0.5; // bench length runs along local x
       const ex = alongX ? 0.9 : 0.3, ez = alongX ? 0.3 : 0.9;
       this.collision.addBox(b.x - ex, b.z - ez, b.x + ex, b.z + ez, b.y + 0.5, 'bench');
     }
     const binGeo = new THREE.CylinderGeometry(0.3, 0.26, 0.95, 10).translate(0, 0.475, 0);
-    addInst({ geometry: binGeo, materials: [this.mat('darkmetal')] }, this.props.bins, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, 0, 0); d.scale.setScalar(1); });
+    addInst({ geometry: binGeo, materials: [this.mat('darkmetal')] }, this.props.bins, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, 0, 0); d.scale.setScalar(1); }, { castShadow: false });
     for (const b of this.props.bins) this.collision.addCircle(b.x, b.z, 0.32);
     const hydGeo = mergeGeometriesSafe([new THREE.CylinderGeometry(0.15, 0.18, 0.7, 10).translate(0, 0.35, 0), new THREE.SphereGeometry(0.16, 10, 6).translate(0, 0.7, 0), new THREE.CylinderGeometry(0.07, 0.07, 0.45, 8).rotateZ(Math.PI / 2).translate(0, 0.45, 0)]);
-    addInst({ geometry: hydGeo, materials: [new THREE.MeshStandardMaterial({ color: 0xc4302b, roughness: 0.5 })] }, this.props.hydrants, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, 0, 0); d.scale.setScalar(1); });
+    addInst({ geometry: hydGeo, materials: [new THREE.MeshStandardMaterial({ color: 0xc4302b, roughness: 0.5 })] }, this.props.hydrants, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, 0, 0); d.scale.setScalar(1); }, { castShadow: false });
     for (const h of this.props.hydrants) this.collision.addCircle(h.x, h.z, 0.2);
 
     // ---- beach umbrellas + loungers
@@ -1127,7 +1131,7 @@ export class CityGenerator {
     addInst({ geometry: umbGeo, materials: [new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide })] }, this.props.umbrellas, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0.05); d.scale.setScalar(1); }, { color: (it) => it.color });
     for (const u of this.props.umbrellas) this.collision.addCircle(u.x, u.z, 0.15);
     const loungerGeo = mergeBoxes([[-0.35, 0.3, -0.95, 0.35, 0.38, 0.6], [-0.35, 0.35, 0.55, 0.35, 0.95, 0.68], [-0.32, 0, -0.9, -0.26, 0.3, 0.6], [0.26, 0, -0.9, 0.32, 0.3, 0.6]]);
-    addInst({ geometry: loungerGeo, materials: [new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.7 })] }, this.props.loungers, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); });
+    addInst({ geometry: loungerGeo, materials: [new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.7 })] }, this.props.loungers, (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); }, { castShadow: false });
 
     // ---- bus stop shelters: frame + glass + illuminated ad panel
     if (this.props.busStops.length) {
@@ -1167,8 +1171,19 @@ export class CityGenerator {
       this.collision.addBox(c.x - ex, c.z - ez, c.x + ex, c.z + ez, c.y + 1.6, 'car');
       this.footprints.push({ x0: c.x - ex, z0: c.z - ez, x1: c.x + ex, z1: c.z + ez, h: 1.5, kind: 'car' });
     });
-    for (const [k, list] of Object.entries(carLists)) {
-      this.instancer.add({ near: carModels[k], far: carProxy(carModels[k]), items: list, nearDist: 40, farDist: 600, place: (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); } });
+    // all parked cars share the Kenney colour map -> one batch, one draw call
+    const carKeysUsed = Object.keys(carLists).filter((k) => carModels[k]);
+    if (carKeysUsed.length) {
+      const carGeos = [];
+      const idx = {};
+      for (const k of carKeysUsed) {
+        idx[k] = carGeos.length;
+        carGeos.push(normalizeGeometry(carModels[k].geometry), normalizeGeometry(carProxy(carModels[k]).geometry, { uv: [0.06, 0.94] }));
+      }
+      this.carBatchMaterial = carModels[carKeysUsed[0]].materials[0];
+      const cars = new LodBatch(this.group, this.carBatchMaterial, carGeos, this.props.cars.length + 4);
+      for (const k of carKeysUsed) for (const c of carLists[k]) cars.add(mat4(c.x, c.y, c.z, c.rot, 1), idx[k], idx[k] + 1, { nearDist: 70, farDist: 600 });
+      this.batches.push(cars);
     }
     this.carModels = carModels;
   }
@@ -1246,13 +1261,15 @@ function proceduralPalm() {
   return { geometry: geo, materials: [new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide })] };
 }
 
-function mergeColored(geos) {
+function mergeColored(geos, keepUv = false) {
   let n = 0;
+  geos = geos.map((g) => (g.index ? g.toNonIndexed() : g));
   for (const g of geos) n += g.attributes.position.count;
   const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3), uv = new Float32Array(n * 2);
   let o = 0;
   for (const g of geos) {
     pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); col.set(g.attributes.color.array, o * 3);
+    if (keepUv && g.attributes.uv) uv.set(g.attributes.uv.array, o * 2);
     o += g.attributes.position.count;
   }
   const out = new THREE.BufferGeometry();
@@ -1288,4 +1305,34 @@ function carProxy(model) {
   const out = { geometry: geo, materials: [new THREE.MeshStandardMaterial({ color: 0x8b95a1, roughness: 0.5, metalness: 0.3 })] };
   proxyCache.set(model, out);
   return out;
+}
+
+function colorGeo(src, hex) {
+  const g = src.index ? src.toNonIndexed() : src.clone();
+  const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+  if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
+  return g;
+}
+
+function sliceGeo(g, start, count) {
+  const src = g.index ? g.toNonIndexed() : g;
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv']) {
+    const a = src.attributes[name];
+    if (!a) continue;
+    out.setAttribute(name, new THREE.BufferAttribute(a.array.slice(start * a.itemSize, (start + count) * a.itemSize), a.itemSize));
+  }
+  return out;
+}
+
+function proceduralLampGeo() {
+  const pole = colorGeo(mergeGeometriesSafe([
+    new THREE.CylinderGeometry(0.07, 0.12, 7.4, 8).translate(0, 3.7, 0),
+    new THREE.CylinderGeometry(0.2, 0.22, 0.6, 8).translate(0, 0.3, 0),
+    mergeBoxes([[-0.05, 7.22, 0, 0.05, 7.34, 1.75]]),
+  ]), 0x2c3a33);
+  const head = normalizeGeometry(colorGeo(new THREE.BoxGeometry(0.4, 0.15, 0.7).translate(0, 7.15, 1.7), 0xfff1d6), { uv: [0.75, 0.5] });
+  return mergeColored([normalizeGeometry(pole, { uv: [0.25, 0.5] }), head], true);
 }

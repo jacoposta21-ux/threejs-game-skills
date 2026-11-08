@@ -25,6 +25,9 @@ export function addWind(materials, { height = 9, amp = 0.35, freq = 1.3 } = {}) 
         #ifdef USE_INSTANCING
           ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
         #endif
+        #ifdef USE_BATCHING
+          ip = batchingMatrix[3].xyz;
+        #endif
         float hk = clamp(position.y / ${height.toFixed(2)}, 0.0, 1.5);
         float bend = hk * hk * ${amp.toFixed(3)} * uWind;
         float ph = ip.x * 0.13 + ip.z * 0.17;

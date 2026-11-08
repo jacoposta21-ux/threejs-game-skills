@@ -102,27 +102,36 @@ export class LostTapes {
     ctx.fillStyle = '#333'; ctx.fillRect(52, 52, 24, 12);
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    const side = new THREE.MeshStandardMaterial({ color: 0x222228, roughness: 0.4 });
     const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.35, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.35 });
     const tapeGeo = new THREE.BoxGeometry(0.5, 0.32, 0.07);
     const beamGeo = new THREE.CylinderGeometry(0.5, 0.9, 40, 16, 1, true).translate(0, 20, 0);
     this.beamMat = new THREE.MeshBasicMaterial({ color: 0xff4fa3, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
     const ringGeo = new THREE.RingGeometry(0.8, 1.05, 32).rotateX(-Math.PI / 2);
     this.ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 0.5, 1.4), transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false });
+    const n = this.tapes.length;
+    this.tapeIM = new THREE.InstancedMesh(tapeGeo, face, n);
+    this.beamIM = new THREE.InstancedMesh(beamGeo, this.beamMat, n);
+    this.ringIM = new THREE.InstancedMesh(ringGeo, this.ringMat, n);
+    for (const im of [this.tapeIM, this.beamIM, this.ringIM]) { im.frustumCulled = false; this.group.add(im); }
+    this.tapeIM.castShadow = true;
+    this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._p = new THREE.Vector3(); this._s = new THREE.Vector3(1, 1, 1); this._up = new THREE.Vector3(0, 1, 0);
+    const self = this;
     for (const t of this.tapes) {
-      const grp = new THREE.Group();
-      const tape = new THREE.Mesh(tapeGeo, [side, side, side, side, face, face]);
-      tape.position.y = 1.1;
-      tape.castShadow = true;
-      const beam = new THREE.Mesh(beamGeo, this.beamMat);
-      const ring = new THREE.Mesh(ringGeo, this.ringMat);
-      ring.position.y = 0.05;
-      grp.add(tape, beam, ring);
-      grp.position.set(t.x, t.y, t.z);
-      this.group.add(grp);
-      t.mesh = grp;
-      t.tape = tape;
+      t.visible = true;
+      t.mesh = { get visible() { return t.visible; }, set visible(v) { t.visible = v; self.placeTape(t, 0); } };
+      this.placeTape(t, 0);
     }
+  }
+
+  placeTape(t, time) {
+    const s = t.visible ? 1 : 0;
+    this._s.setScalar(s);
+    this._q.identity();
+    this.beamIM.setMatrixAt(t.i, this._m.compose(this._p.set(t.x, t.y, t.z), this._q, this._s));
+    this.ringIM.setMatrixAt(t.i, this._m.compose(this._p.set(t.x, t.y + 0.05, t.z), this._q, this._s));
+    this._q.setFromAxisAngle(this._up, time * 1.8 + t.i);
+    this.tapeIM.setMatrixAt(t.i, this._m.compose(this._p.set(t.x, t.y + 1.1 + Math.sin(time * 2 + t.i) * 0.12, t.z), this._q, this._s));
+    this.tapeIM.instanceMatrix.needsUpdate = this.beamIM.instanceMatrix.needsUpdate = this.ringIM.instanceMatrix.needsUpdate = true;
   }
 
   get count() { return this.tapes.filter((t) => t.collected).length; }
@@ -168,11 +177,7 @@ export class LostTapes {
     const time = this.game.world.elapsed;
     const night = this.game.world.night;
     this.beamMat.opacity = 0.12 + night * 0.18;
-    for (const t of this.tapes) {
-      if (t.collected) continue;
-      t.tape.rotation.y = time * 1.8 + t.i;
-      t.tape.position.y = 1.1 + Math.sin(time * 2 + t.i) * 0.12;
-    }
+    for (const t of this.tapes) if (!t.collected) this.placeTape(t, time);
     const pl = this.game.player;
     if (pl.vehicle) {
       for (const t of this.tapes) if (!t.collected && Math.hypot(t.x - pl.pos.x, t.z - pl.pos.z) < 3.2) this.collect(t);

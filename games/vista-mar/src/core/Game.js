@@ -52,6 +52,7 @@ export class Game {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.autoUpdate = false; // refreshed every other frame in tick()
     setMaxAnisotropy(Math.min(8, this.renderer.capabilities.getMaxAnisotropy()));
 
     this.scene = new THREE.Scene();
@@ -367,6 +368,7 @@ export class Game {
       }
     }
     this.updateChunkVisibility();
+    this.renderer.shadowMap.needsUpdate = this.frame % 2 === 0 || this.state !== 'playing';
     this.composer.render(dt);
     this.input.endFrame();
     this.publishDiagnostics();
@@ -445,7 +447,8 @@ export class Game {
     const fogFar = this.scene.fog ? this.scene.fog.far : 1000;
     const far = fogFar + 160;
     const near = 170 * dd; // full-detail buildings within this distance, simplified beyond
-    this.city.instancer.update(cam, fogFar);
+    this.lodTick = ((this.lodTick || 0) + 1) % 6;
+    if (this.lodTick === 0) for (const b of this.city.batches) b.update(cam, Math.min(1, fogFar / 1000) * dd);
     for (const m of this.city.chunkMeshes) {
       const bs = m.geometry.boundingSphere;
       const d = Math.hypot(cam.x - bs.center.x, cam.z - bs.center.z) - bs.radius;
