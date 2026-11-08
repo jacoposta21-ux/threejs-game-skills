@@ -160,3 +160,43 @@ kbd { display: inline-block; min-width: 1.7em; padding: 0.12em 0.45em; margin: 0
   .menu-body { padding-top: 0; }
   .map-frame { flex-direction: column; }
 }
+
+/* ---- Phase 6: combat, story, shops ---- */
+#weapon-hud { margin-top: 6px; font: italic 700 18px/1.1 var(--display); letter-spacing: 0.05em; color: var(--ink); text-shadow: 0 2px 6px rgba(0,0,0,0.7); }
+#wp-ammo { font: 600 14px var(--body); color: var(--ink-dim); margin-top: 2px; }
+#wp-ammo.empty { color: #ff7a52; }
+#radar-bars .armor-bar { grid-column: 1 / span 2; height: 5px; }
+.fill.armor { background: linear-gradient(90deg, #6f8fb8, #b8d4ff); }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); }
+#crosshair i { position: absolute; background: rgba(255,255,255,0.92); box-shadow: 0 0 2px rgba(0,0,0,0.8); }
+#crosshair i:nth-child(1) { left: 12px; top: 0; width: 2px; height: 8px; }
+#crosshair i:nth-child(2) { left: 12px; bottom: 0; width: 2px; height: 8px; }
+#crosshair i:nth-child(3) { top: 12px; left: 0; width: 8px; height: 2px; }
+#crosshair i:nth-child(4) { top: 12px; right: 0; width: 8px; height: 2px; }
+#crosshair.hit i { background: #ff4f6a; }
+#crosshair.target i { background: #ffd23f; }
+#cutscene { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+#cutscene .lb { position: absolute; left: 0; right: 0; height: 12vh; background: #000; transition: transform 0.5s ease; }
+#cutscene .lb.top { top: 0; } #cutscene .lb.bottom { bottom: 0; }
+#cutscene.hidden { display: block; visibility: hidden; }
+#cutscene.hidden .lb.top { transform: translateY(-100%); } #cutscene.hidden .lb.bottom { transform: translateY(100%); }
+#cs-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+#cs-title { position: absolute; top: calc(12vh + 18px); left: 0; right: 0; text-align: center; font: italic 800 clamp(26px, 4vw, 44px)/1 var(--display); color: var(--gold); text-shadow: 0 3px 16px rgba(0,0,0,0.8); letter-spacing: 0.03em; }
+#cs-line { position: absolute; bottom: calc(12vh + 22px); left: 50%; transform: translateX(-50%); width: min(880px, 86vw); text-align: center; font: 500 clamp(16px, 2vw, 21px)/1.45 var(--body); color: var(--ink); text-shadow: 0 2px 10px rgba(0,0,0,0.95); }
+#cs-who { display: block; font: italic 800 17px var(--display); letter-spacing: 0.12em; color: var(--accent); margin-bottom: 4px; }
+#cs-skip { position: absolute; bottom: 3.5vh; right: 24px; font: 500 12px var(--body); color: rgba(255,255,255,0.55); }
+#shop { z-index: 25; background: rgba(5,6,12,0.35); }
+.shop-card { position: absolute; left: 6vw; top: 50%; transform: translateY(-50%); width: min(460px, 88vw); background: var(--panel-strong); border-left: 3px solid var(--accent); padding: 22px 22px 16px; border-radius: 0 10px 10px 0; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+.shop-kicker { font: 600 11px var(--body); letter-spacing: 0.18em; color: var(--accent); text-transform: uppercase; }
+.shop-title { font: italic 800 38px/1 var(--display); color: var(--ink); margin-top: 4px; letter-spacing: 0.02em; }
+.shop-sub { font: 500 13px/1.4 var(--body); color: var(--ink-dim); margin: 6px 0 14px; }
+.shop-list { display: grid; gap: 4px; max-height: 52vh; overflow: auto; }
+.shop-item { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 9px 12px; border-radius: 7px; border: 1px solid transparent; cursor: pointer; pointer-events: auto; }
+.shop-item b { font: 600 15px var(--body); color: var(--ink); }
+.shop-item small { grid-column: 1; font: 500 12px var(--body); color: var(--ink-dim); }
+.shop-item .price { grid-row: 1 / span 2; grid-column: 2; align-self: center; font: italic 800 22px var(--display); color: var(--money); }
+.shop-item.sel { background: rgba(255,79,163,0.14); border-color: rgba(255,79,163,0.55); }
+.shop-item.owned .price { color: var(--ink-dim); font-size: 15px; }
+.shop-item.poor .price { color: #ff7a52; }
+.shop-foot { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font: 500 12px var(--body); color: var(--ink-dim); }
+.shop-cash { margin-left: auto; color: var(--money); font-weight: 700; }

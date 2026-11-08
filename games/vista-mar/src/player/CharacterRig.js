@@ -33,6 +33,11 @@ const BONE_MAP = {
 
 const norm = (n) => n.replace(/[.:]/g, '').toLowerCase();
 
+// Source bones driven by the upper-body layer (aiming, punching, reloading)
+// while the legs keep playing locomotion.
+const UPPER = ['DEF-spine.002', 'DEF-spine.003', 'DEF-neck', 'DEF-head', 'DEF-shoulder.L', 'DEF-upper_arm.L', 'DEF-forearm.L', 'DEF-hand.L', 'DEF-shoulder.R', 'DEF-upper_arm.R', 'DEF-forearm.R', 'DEF-hand.R'];
+
+
 function findBone(root, name) {
   const want = norm(name);
   let hit = null;
@@ -46,6 +51,8 @@ const _q = new THREE.Quaternion();
 const _q2 = new THREE.Quaternion();
 const _qp = new THREE.Quaternion();
 const _v = new THREE.Vector3();
+const _v2 = new THREE.Vector3();
+const _qt = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
 
 export class CharacterRig {
@@ -158,6 +165,74 @@ export class CharacterRig {
     this.actions = {};
     this.current = null;
     this.currentName = '';
+
+    // upper-body layer: a second hidden mannequin plays the upper clip in full;
+    // its upper-body bones' orientations (relative to the character) are blended
+    // onto the main source, so clips that also turn the hips/root still aim right
+    this.source2 = skeletonClone(animGltf.scene);
+    this.source2.traverse((o) => { if (o.isMesh) o.visible = false; });
+    this.sourceHolder2 = new THREE.Group();
+    this.sourceHolder2.add(this.source2);
+    this.upperMixer = new THREE.AnimationMixer(this.source2);
+    this.upperBones = [];
+    this.upperBones2 = [];
+    for (const n of UPPER) { const a = findBone(this.source, n), b = findBone(this.source2, n); if (a && b) { this.upperBones.push(a); this.upperBones2.push(b); } }
+    this.upperClips = {};
+    this.upperActions = {};
+    this.upperW = 0;
+    this.upperTarget = 0;
+    this.upperFade = 0.12;
+    this.upperName = '';
+    this.upperAction = null;
+    this.boneCache = {};
+  }
+
+  /** Target-skeleton bone by name (e.g. 'Hand.R'). */
+  bone(name) {
+    if (!(name in this.boneCache)) this.boneCache[name] = findBone(this.model, name);
+    return this.boneCache[name];
+  }
+
+  /** Plays a clip on the upper body only (null fades the layer out). */
+  playUpper(name, { once = false, timeScale = 1, fade = 0.12, restart = false } = {}) {
+    this.upperFade = Math.max(0.02, fade);
+    if (!name) { this.upperTarget = 0; return; }
+    const src = this.clips[name];
+    if (!src) return;
+    if (!this.upperClips[name]) this.upperClips[name] = src;
+    let a = this.upperActions[name];
+    if (!a) a = this.upperActions[name] = this.upperMixer.clipAction(this.upperClips[name]);
+    a.timeScale = timeScale;
+    this.upperTarget = 1;
+    if (this.upperName === name && !restart && a.isRunning()) return;
+    a.reset();
+    a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+    a.clampWhenFinished = once;
+    a.enabled = true;
+    a.setEffectiveWeight(1);
+    a.play();
+    if (this.upperAction && this.upperAction !== a && this.upperW > 0.05) this.upperAction.crossFadeTo(a, fade, false);
+    else if (this.upperAction && this.upperAction !== a) this.upperAction.stop();
+    this.upperAction = a;
+    this.upperName = name;
+  }
+
+  /** 0..1 progress of the current upper-body clip. */
+  get upperProgress() {
+    const a = this.upperAction;
+    if (!a) return 1;
+    return Math.min(1, a.time / Math.max(1e-3, a.getClip().duration));
+  }
+
+  /** Rotates a target bone in world space (applied after the retarget, e.g. procedural kicks). */
+  rotateBoneWorld(bone, axis, angle) {
+    if (!bone || !angle) return;
+    bone.matrixWorld.decompose(_v, _q, _v2);
+    _q2.setFromAxisAngle(axis, angle).multiply(_q);
+    bone.parent.matrixWorld.decompose(_v, _qp, _v2);
+    bone.quaternion.copy(_qp.invert().multiply(_q2));
+    bone.updateMatrix();
+    bone.updateMatrixWorld(true);
   }
 
   action(name) {
@@ -188,7 +263,33 @@ export class CharacterRig {
   }
 
   update(dt) {
+    if (this.upperAction && this.upperTarget === 0 && this.upperW <= 0.001) {
+      // stop before the base mixer runs: stopping restores the bind state of those bones
+      this.upperMixer.stopAllAction();
+      this.upperAction = null;
+      this.upperName = '';
+    }
     this.mixer.update(dt);
+    if (this.upperW > 0 || this.upperTarget > 0) {
+      const step = dt / this.upperFade;
+      this.upperW = Math.max(0, Math.min(1, this.upperW + Math.max(-step, Math.min(step, this.upperTarget - this.upperW))));
+      if (this.upperW > 0.001) {
+        this.upperMixer.update(dt);
+        this.sourceHolder.updateMatrixWorld(true);
+        this.sourceHolder2.updateMatrixWorld(true);
+        // bones are listed parent-first, so each parent is final before its children
+        for (let i = 0; i < this.upperBones.length; i++) {
+          const b = this.upperBones[i], b2 = this.upperBones2[i];
+          b.matrixWorld.decompose(_v, _q, _v2);
+          b2.matrixWorld.decompose(_v, _q2, _v2);
+          _q.slerp(_q2, this.upperW);
+          b.parent.matrixWorld.decompose(_v, _qt, _v2);
+          b.quaternion.copy(_qt.invert().multiply(_q));
+          b.updateMatrix();
+          b.updateMatrixWorld(true);
+        }
+      }
+    }
     if (!this.ok) return;
     this.sourceHolder.updateMatrixWorld(true);
     this.root.updateMatrixWorld(false);

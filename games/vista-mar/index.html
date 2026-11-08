@@ -28,6 +28,7 @@
         <div id="wanted" title="Wanted level">
           <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
         </div>
+        <div id="weapon-hud"><div id="wp-name">FISTS</div><div id="wp-ammo"></div></div>
       </div>
 
       <div id="radar">
@@ -35,6 +36,7 @@
         <div id="radar-bars">
           <div class="bar"><div id="bar-health" class="fill health"></div></div>
           <div class="bar"><div id="bar-stamina" class="fill stamina"></div></div>
+          <div class="bar armor-bar hidden" id="armor-wrap"><div id="bar-armor" class="fill armor"></div></div>
         </div>
         <div id="street"></div>
       </div>
@@ -57,11 +59,32 @@
       </div>
       <div id="banner" class="hidden"><div id="banner-title"></div><div id="banner-sub"></div></div>
       <div id="damage"></div>
+      <div id="crosshair" class="hidden"><i></i><i></i><i></i><i></i></div>
       <div id="prompt" class="hidden"><kbd>E</kbd><span id="prompt-text"></span></div>
       <div id="toasts"></div>
       <div id="look-hint" class="hidden">Click the game to look around with the mouse</div>
       <div id="stance"></div>
       <div id="fps" class="hidden"></div>
+    </div>
+
+    <!-- Story cutscene: letterbox with dialogue lines (or an optional MP4) -->
+    <div id="cutscene" class="hidden">
+      <div class="lb top"></div><div class="lb bottom"></div>
+      <video id="cs-video" playsinline class="hidden"></video>
+      <div id="cs-title"></div>
+      <div id="cs-line"><b id="cs-who"></b><span id="cs-text"></span></div>
+      <div id="cs-skip"><kbd>Space</kbd> next · <kbd>Enter</kbd> skip</div>
+    </div>
+
+    <!-- Shops and property menus -->
+    <div id="shop" class="overlay hidden">
+      <div class="shop-card">
+        <div class="shop-kicker" id="shop-kicker"></div>
+        <div class="shop-title" id="shop-title"></div>
+        <div class="shop-sub" id="shop-sub"></div>
+        <div class="shop-list" id="shop-list"></div>
+        <div class="shop-foot"><span><kbd>W</kbd><kbd>S</kbd> choose</span><span><kbd>E</kbd> / <kbd>Enter</kbd> buy</span><span><kbd>Esc</kbd> leave</span><span class="shop-cash" id="shop-cash"></span></div>
+      </div>
     </div>
 
     <!-- Full-screen map -->

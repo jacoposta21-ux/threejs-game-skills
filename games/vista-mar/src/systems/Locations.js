@@ -73,7 +73,8 @@ export class Locations {
 
   use(p) {
     const g = this.game, pl = g.player;
-    if (p.cost && g.money < p.cost) { g.hud.toast('NOT ENOUGH CASH', `You need $${p.cost}.`); return; }
+    const freeSpray = p.kind === 'spray' && g.economy && g.economy.owned.has('spray');
+    if (p.cost && !freeSpray && g.money < p.cost) { g.hud.toast('NOT ENOUGH CASH', `You need $${p.cost}.`); return; }
     switch (p.kind) {
       case 'safehouse':
         if (g.police.level > 0) { g.hud.toast('NOT NOW', 'You cannot save while the police are after you.'); return; }
@@ -91,7 +92,7 @@ export class Locations {
       }
       case 'spray': {
         if (g.police.level > 0 && g.police.seen) { g.hud.toast('THEY CAN SEE YOU', 'Break line of sight with the police first.'); return; }
-        g.addMoney(-p.cost);
+        if (!freeSpray) g.addMoney(-p.cost);
         pl.vehicle.repair();
         pl.vehicle.respray();
         if (g.police.level > 0) g.police.clear('FRESH PAINT');

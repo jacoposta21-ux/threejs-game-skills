@@ -38,6 +38,7 @@ export const SPECIAL = {
   '2,4': 'gas',
   '5,1': 'parking',
   '4,2': 'plaza',
+  '6,4': 'club',
 };
 
 export function blockDistrict(i, j) {

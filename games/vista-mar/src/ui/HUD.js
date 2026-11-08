@@ -14,6 +14,7 @@ export class HUD {
       vehicle: $('vehicle-hud'), vhName: $('vh-name'), vhSpeed: $('vh-speed'), vhArc: $('vh-arc'), vhGear: $('vh-gear'), vhHealth: $('vh-health'),
       indLights: $('ind-lights'), indBrake: $('ind-brake'), indDrift: $('ind-drift'), indSiren: $('ind-siren'),
       prompt: $('prompt'), banner: $('banner'), bannerTitle: $('banner-title'), bannerSub: $('banner-sub'), objTimer: $('obj-timer'), objHint: $('obj-hint'), damage: $('damage'), fade: $('fade'), wantedBox: $('wanted'), promptText: $('prompt-text'), toasts: $('toasts'), street: $('street'), lookHint: $('look-hint'), stance: $('stance'), fps: $('fps'),
+      wpName: $('wp-name'), wpAmmo: $('wp-ammo'), crosshair: $('crosshair'), armor: $('bar-armor'), armorWrap: $('armor-wrap'),
     };
     this.shownMoney = 0;
     this.lastDistrict = null;
@@ -110,6 +111,25 @@ export class HUD {
     this.setWanted(g.police.level);
     this.el.wantedBox.classList.toggle('flash', g.police.level > 0 && !g.police.seen);
     this.el.stamina.style.width = `${p.stamina}%`;
+    // weapon, ammo, armour, crosshair
+    const cb = g.combat;
+    if (cb) {
+      const w = cb.weapon;
+      const nm = w.name.toUpperCase();
+      if (this.el.wpName.textContent !== nm) this.el.wpName.textContent = nm;
+      const at = cb.reloading > 0 ? 'RELOADING…' : cb.ammoText;
+      if (this.el.wpAmmo.textContent !== at) this.el.wpAmmo.textContent = at;
+      const a = cb.ammo[w.id];
+      this.el.wpAmmo.classList.toggle('empty', !!a && a.mag === 0);
+      this.el.armorWrap.classList.toggle('hidden', cb.armor <= 0);
+      this.el.armor.style.width = `${cb.armor}%`;
+      const ch = cb.aiming && !p.vehicle;
+      this.el.crosshair.classList.toggle('hidden', !ch);
+      if (ch) {
+        this.el.crosshair.classList.toggle('hit', cb.hitMarker > 0);
+        this.el.crosshair.classList.toggle('target', cb.hitMarker <= 0 && !!cb.aimTarget && cb.aimTarget.kind === 'npc');
+      }
+    }
     this.el.stamina.classList.toggle('low', p.staminaLock);
     this.el.stance.textContent = p.crouched ? 'CROUCH' : p.walkMode ? 'WALK' : '';
 

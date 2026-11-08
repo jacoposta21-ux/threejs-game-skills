@@ -59,6 +59,25 @@ export class PlayerController {
     this.respawn();
   }
 
+  /** Swaps the character model (clothes shop). Returns false if the rig cannot be built. */
+  setOutfit(gltf) {
+    let rig;
+    try { rig = new CharacterRig(this.game.assets.anim, gltf, 1.78); } catch (e) { console.warn('[player] outfit failed', e); return false; }
+    if (!rig.ok) return false;
+    const parent = this.rig ? this.rig.root.parent : this.group;
+    if (this.rig) parent.remove(this.rig.root);
+    this.rig = rig;
+    (parent || this.group).add(rig.root);
+    if (this.vehicle) {
+      const old = this.vehicle;
+      rig.root.position.set(old.halfW * 0.36, 0.12, -0.15);
+      rig.root.scale.setScalar(Math.min(1, (old.height * 0.62) / 1.25));
+      rig.play('Driving_Loop', { fade: 0 });
+    } else rig.play('Idle_Loop', { fade: 0 });
+    rig.update(0);
+    return true;
+  }
+
   respawn() {
     this.pos.set(PLAYER_START.x, terrainHeight(PLAYER_START.x, PLAYER_START.z), PLAYER_START.z);
     this.vel.set(0, 0, 0);
@@ -91,6 +110,7 @@ export class PlayerController {
   update(dt, cameraYaw) {
     const inp = this.input;
     if (this.knocked > 0) return this.updateKnocked(dt);
+    const cmb = this.game.combat ? this.game.combat.updatePlayer(dt, cameraYaw) : { face: null };
     // --- intent
     let ix = 0, iz = 0;
     if (inp.down('KeyW')) iz += 1;
@@ -123,6 +143,8 @@ export class PlayerController {
       if (this.staminaLock && this.stamina > 25) this.staminaLock = false;
     }
     if (this.surface === 'sand') target *= 0.86;
+    if (cmb.slow) { target = Math.min(target, 2.4); sprinting = false; }
+    if (cmb.rooted) target = this.grounded ? 0.3 : target;
 
     // --- horizontal velocity with acceleration (less control in the air)
     const accel = this.grounded ? (moving ? 16 : 20) : 3.5;
@@ -178,6 +200,7 @@ export class PlayerController {
     if (ny <= groundY + 0.001) {
       if (!wasGrounded && this.airTime > 0.25) {
         this.landTimer = 0.18;
+        if (-this.vel.y > 13) this.game.damagePlayer((-this.vel.y - 13) * 7); // long falls hurt
         this.game.audio.land(Math.min(1, -this.vel.y / 12));
         this.game.camera3p.kick(Math.min(0.25, -this.vel.y * 0.015));
       }
@@ -202,7 +225,8 @@ export class PlayerController {
     const hs = Math.hypot(this.vel.x, this.vel.z);
     this.speed = hs;
     const prevHeading = this.heading;
-    if (hs > 0.3 && moving) this.heading = dampAngle(this.heading, Math.atan2(dx, dz), this.grounded ? 11 : 4, dt);
+    if (cmb.face !== null && cmb.face !== undefined) this.heading = dampAngle(this.heading, cmb.face, 18, dt);
+    else if (hs > 0.3 && moving) this.heading = dampAngle(this.heading, Math.atan2(dx, dz), this.grounded ? 11 : 4, dt);
     let turn = this.heading - prevHeading;
     while (turn > Math.PI) turn -= Math.PI * 2;
     while (turn < -Math.PI) turn += Math.PI * 2;
@@ -246,7 +270,15 @@ export class PlayerController {
       const once = clip === 'Jump_Start' || clip === 'Jump_Land';
       this.rig.play(clip, { fade: clip === 'Jump_Land' ? 0.08 : 0.18, once });
       this.rig.setTimeScale(ts);
+      const c = this.game.combat;
+      const up = c ? c.upperClip() : null;
+      if (up) {
+        let restart = false;
+        if (c.melee && !c.melee.started) { c.melee.started = true; restart = true; }
+        this.rig.playUpper(up.name, { once: !!up.once, timeScale: up.timeScale || 1, fade: up.fade || 0.1, restart });
+      } else this.rig.playUpper(null, { fade: 0.15 });
       this.rig.update(dt);
+      if (c) c.postRig(this.rig);
     }
     // footsteps from distance travelled (stride depends on gait)
     if (this.grounded && hs > 0.4) {
@@ -273,8 +305,10 @@ export class PlayerController {
     this.speed = 0;
     this.group.position.copy(this.pos);
     if (this.rig) {
-      this.rig.play(this.knocked > 0.5 ? 'Death01' : 'Idle_Loop', { fade: 0.1, once: this.knocked > 0.5 });
+      this.rig.play(this.knocked > 0.5 || this.health <= 0 ? 'Death01' : 'Idle_Loop', { fade: 0.1, once: this.knocked > 0.5 || this.health <= 0 });
+      this.rig.playUpper(null, { fade: 0.05 });
       this.rig.update(dt);
+      if (this.game.combat) this.game.combat.placeWeapon(this.rig);
     }
     if (this.knocked <= 0) this.knocked = 0;
   }

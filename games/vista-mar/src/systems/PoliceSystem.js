@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { LINES, xWidths, zWidths, terrainHeight } from '../world/Layout.js';
 import { route } from './RoadGraph.js';
 import { clamp } from '../utils/random.js';
@@ -13,6 +14,7 @@ import { clamp } from '../utils/random.js';
 // police car while wanted = BUSTED.
 
 const UNITS = [0, 1, 2, 4, 5, 6];
+const MAX_OFFICERS = 6;
 const N = LINES.length;
 
 export class PoliceSystem {
@@ -30,11 +32,27 @@ export class PoliceSystem {
     this.bustTimer = 0;
     this.scanTimer = 0;
     this.pedHits = 0;
+    this.downs = 0;
+    this.shots = 0;
+    this.arresting = 0;
     const ev = game.events;
+    ev.on('shotsFired', () => {
+      this.shots++;
+      if (this.level === 0 && (this.policeNear(90) || (this.shots >= 3 && this.witness(30)))) this.crime(1, 'Shots fired');
+      else if (this.level > 0 && this.seen) this.lastKnown = { x: game.player.pos.x, z: game.player.pos.z };
+    });
+    ev.on('pedestrianAttacked', (e) => {
+      if (e.role === 'cop') { this.crime(e.downed ? 2 : 1, e.downed ? 'Officer down' : 'Assaulting an officer', e.downed ? 3 : 2); return; }
+      if (e.role) return; // gang members do not call the cops
+      if (e.downed) { this.downs++; this.crime(this.level === 0 ? 1 : this.downs % 3 === 0 ? 1 : 0, 'Violent crime'); }
+      else if (this.policeNear(50)) this.crime(this.level === 0 ? 1 : 0, 'Assault');
+    });
+    ev.on('vehicleDestroyed', () => { if (this.policeNear(80) || this.witness(25)) this.crime(this.level === 0 ? 1 : 0, 'Arson'); });
     ev.on('pedestrianHit', () => { this.pedHits++; this.crime(this.level === 0 ? 1 : this.pedHits % 2 === 0 ? 1 : 0, 'Hit-and-run'); });
     ev.on('carjack', () => this.crime(1, 'Carjacking'));
     ev.on('trafficCrash', () => { if (this.policeNear(70)) this.crime(1, 'Reckless driving'); });
     ev.on('policeHit', () => this.crime(this.level < 2 ? 2 - this.level : 1, 'Assaulting an officer', 2));
+    ev.on('enterVehicle', (v) => { if (v.isAircraft && v.stolenStars && !(game.economy && game.economy.owned.has('hangar'))) { v.stolenStars = 0; this.crime(Math.max(0, 2 - this.level), 'Stolen aircraft', 2); } });
     ev.on('enterVehicle', (v) => { if (v.spec.siren && !v.police) this.crime(2 - Math.min(2, this.level), 'Stolen police car', 2); if (v.alarm) { v.alarm = false; this.crime(Math.max(0, v.alarmStars - this.level), 'Car alarm', v.alarmStars); } });
   }
 
@@ -44,7 +62,42 @@ export class PoliceSystem {
 
   policeNear(r) {
     const p = this.game.player.pos;
-    return this.units.some((u) => Math.hypot(u.v.pos.x - p.x, u.v.pos.z - p.z) < r);
+    if (this.units.some((u) => Math.hypot(u.v.pos.x - p.x, u.v.pos.z - p.z) < r)) return true;
+    // parked police cars around the city count as patrols too
+    return this.game.vehicles.vehicles.some((v) => v.spec.siren && !v.driver && Math.hypot(v.pos.x - p.x, v.pos.z - p.z) < r * 0.6);
+  }
+
+  /** A civilian within r metres saw it. */
+  witness(r) {
+    const p = this.game.player.pos;
+    return this.game.npcs.npcs.some((n) => !n.role && n.state !== 'DOWN' && Math.hypot(n.pos.x - p.x, n.pos.z - p.z) < r);
+  }
+
+  officers() {
+    return this.game.npcs.npcs.filter((n) => n.role === 'cop' && n.state !== 'DOWN');
+  }
+
+  /** A cop on foot is holding the suspect (1 star). */
+  arrestPressure(dt) {
+    this.arresting = 0.25;
+    void dt;
+  }
+
+  /** Two officers jump out of a stopped unit near an on-foot suspect. */
+  deploy(u) {
+    const g = this.game;
+    u.deployed = true;
+    u.mode = 'parked';
+    const n = Math.min(2, MAX_OFFICERS - this.officers().length);
+    for (let i = 0; i < n; i++) {
+      const door = u.v.doorPoint(i === 0 ? 1 : -1);
+      if (g.collision.blockedCircle(door.x, door.z, 0.35)) continue;
+      const smg = this.level >= 4 && Math.random() < 0.5;
+      g.npcs.spawnCombatant('cop', door.x, door.z, {
+        weapon: smg ? 'smg' : 'pistol', alerted: true, health: 100, heading: u.v.heading,
+        accuracy: 0.3 + this.level * 0.04, damage: smg ? 4 : 6, range: 11,
+      });
+    }
   }
 
   /** Raise the wanted level by `add` (and to at least `min`). */
@@ -72,6 +125,8 @@ export class PoliceSystem {
     this.evade = 0;
     this.seenTime = 0;
     this.pedHits = 0;
+    this.downs = 0;
+    this.shots = 0;
     for (const u of this.units) { u.mode = 'leave'; u.v.siren = false; }
     for (const rb of this.roadblocks) rb.expire = 0;
     if (msg) this.game.hud.toast(msg, 'Wanted level cleared', 'reward');
@@ -196,6 +251,18 @@ export class PoliceSystem {
       if (rb.expire <= 0 && far) { for (const c of rb.cars) g.vehicles.removePolice(c); this.roadblocks.splice(this.roadblocks.indexOf(rb), 1); }
     }
 
+    // officers on foot: stopped units near an on-foot suspect deploy, and re-mount when the suspect drives off
+    if (this.level > 0) {
+      for (const u of this.units) {
+        if (u.mode === 'leave' || u.v.wrecked) continue;
+        const d = Math.hypot(u.v.pos.x - p.x, u.v.pos.z - p.z);
+        const suspectSlow = !pl.vehicle || Math.abs(pl.vehicle.speed) < 2;
+        if (!u.deployed && d < 30 && Math.abs(u.v.speed) < 7 && suspectSlow && this.officers().length < MAX_OFFICERS) this.deploy(u);
+        else if (u.mode === 'parked' && pl.vehicle && d > 45) { u.mode = 'pursue'; u.deployed = false; }
+      }
+    }
+    this.arresting -= dt;
+
     // drive every unit
     for (const u of [...this.units]) {
       if (u.v.driver) { this.units.splice(this.units.indexOf(u), 1); continue; } // player stole it
@@ -209,8 +276,9 @@ export class PoliceSystem {
     // busted: wanted and stuck next to a police car
     if (this.level > 0) {
       const near = this.units.some((u) => !u.v.wrecked && Math.hypot(u.v.pos.x - p.x, u.v.pos.z - p.z) < (pl.vehicle ? 7 : 6) && Math.abs(u.v.speed) < 4)
-        || this.roadblocks.some((rb) => rb.cars.some((c) => Math.hypot(c.pos.x - p.x, c.pos.z - p.z) < 6));
-      const slow = pl.vehicle ? Math.abs(pl.vehicle.speed) < 1.5 : pl.speed < 1.2;
+        || this.roadblocks.some((rb) => rb.cars.some((c) => Math.hypot(c.pos.x - p.x, c.pos.z - p.z) < 6))
+        || (this.level <= 1 && this.arresting > 0);
+      const slow = pl.vehicle ? Math.abs(pl.vehicle.speed) < 1.5 : pl.speed < 1.2 || this.arresting > 0;
       this.bustTimer = near && slow ? this.bustTimer + dt : Math.max(0, this.bustTimer - dt * 2);
       if (this.bustTimer > 3) { this.bustTimer = 0; g.busted(); }
     } else this.bustTimer = 0;
@@ -224,6 +292,14 @@ export class PoliceSystem {
   driveUnit(u, dt, dist) {
     const g = this.game, v = u.v, pl = g.player;
     const p = pl.pos;
+    if (u.mode === 'parked') { v.update(dt, { throttle: 0, steer: 0, handbrake: true }); return; }
+    // at three stars and up, officers shoot from the car window
+    u.fireCd = (u.fireCd ?? 1.5) - dt;
+    if (this.level >= 3 && u.mode === 'pursue' && dist < 30 && u.fireCd <= 0 && g.combat && !g.respawning) {
+      u.fireCd = 0.9 + Math.random() * 0.8;
+      const from = { x: v.pos.x, y: v.pos.y + 1.3, z: v.pos.z };
+      if (g.collision.raycast(from.x, from.y, from.z, p.x, p.y + 1.2, p.z) >= 0.99) g.combat.enemyFire(new THREE.Vector3(from.x, from.y, from.z), 0.22 + this.level * 0.03, 5, 'pistol');
+    }
     let tx, tz, maxSpeed = v.spec.maxSpeed * (0.85 + this.level * 0.04);
     if (u.mode === 'leave') {
       tx = v.pos.x + Math.sin(v.heading) * 50; tz = v.pos.z + Math.cos(v.heading) * 50;

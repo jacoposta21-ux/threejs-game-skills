@@ -36,10 +36,12 @@ export class InputManager {
     });
     canvas.addEventListener('mousedown', (e) => {
       if (!this.enabled) return;
+      // mouse buttons act like keys ('Mouse0' = left, 'Mouse2' = right) once the game owns the pointer
+      if (this.locked || this.dragLook) { const code = `Mouse${e.button}`; if (!this.keys.has(code)) this.pressed.add(code); this.keys.add(code); }
       if (this.dragLook) { this.dragging = true; return; }
       if (!this.locked && e.button === 0) this.requestLock();
     });
-    window.addEventListener('mouseup', () => { this.dragging = false; });
+    window.addEventListener('mouseup', (e) => { this.dragging = false; this.keys.delete(`Mouse${e.button}`); });
     canvas.addEventListener('wheel', (e) => { this.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 

@@ -241,6 +241,34 @@ export class AudioManager {
     }
   }
 
+  // ---- combat (Phase 6)
+  gunshot(kind = 'pistol', dist = 0) {
+    if (!this.ctx) return;
+    const k = Math.max(0.08, 1 - dist / 140);
+    const big = kind === 'shotgun' ? 1.5 : kind === 'smg' ? 0.8 : 1;
+    this.burst({ freq: 1600 * (kind === 'smg' ? 1.3 : 1), q: 0.5, dur: 0.05 * big, gain: 0.32 * k * big });
+    this.burst({ freq: 140, type: 'lowpass', dur: 0.22 * big, gain: 0.5 * k * big, pitchDrop: 0.4 });
+    if (dist < 25) this.burst({ freq: 4200, q: 2, dur: 0.03, gain: 0.08 * k });
+  }
+  dryFire() { this.tone(1900, 0.03, { type: 'square', gain: 0.03 }); }
+  reload() { this.burst({ freq: 2600, q: 4, dur: 0.04, gain: 0.08 }); setTimeout(() => this.burst({ freq: 1800, q: 4, dur: 0.05, gain: 0.1 }), 380); }
+  whoosh() { this.burst({ freq: 900, q: 0.7, dur: 0.14, gain: 0.07, pitchDrop: 0.5 }); }
+  punch(k = 1) { this.burst({ freq: 260, type: 'lowpass', dur: 0.11, gain: 0.32 * k, pitchDrop: 0.6 }); this.burst({ freq: 1400, q: 1, dur: 0.03, gain: 0.08 * k }); }
+  ricochet() { this.tone(2400 + Math.random() * 1200, 0.12, { type: 'sine', gain: 0.025, slide: 0.6 }); }
+  metalHit() { this.burst({ freq: 2200, q: 6, dur: 0.08, gain: 0.08 }); }
+  explosion(k = 1) { this.burst({ freq: 90, type: 'lowpass', dur: 1.4, gain: 0.7 * k, pitchDrop: 0.3 }); this.burst({ freq: 700, q: 0.5, dur: 0.5, gain: 0.25 * k }); }
+  cash() { [1319, 1760].forEach((f, i) => this.tone(f, 0.08, { type: 'square', gain: 0.03, when: i * 0.06 })); }
+  rotor(on, k = 0) {
+    if (!this.ctx) return;
+    if (!this.rotorSrc && on) {
+      this.rotorSrc = this.loop(this.brown, 'lowpass', 260, 0);
+      this.rotorLfo = 0;
+    }
+    if (!this.rotorSrc) return;
+    this.rotorLfo += 0.016 * (14 + k * 8);
+    const g = on ? (0.12 + k * 0.18) * (0.65 + 0.35 * Math.abs(Math.sin(this.rotorLfo * Math.PI))) : 0;
+    this.rotorSrc.g.gain.setTargetAtTime(g, this.ctx.currentTime, 0.03);
+  }
   thud(k) { this.burst({ freq: 180, type: 'lowpass', dur: 0.25, gain: 0.25 + k * 0.4, pitchDrop: 0.5 }); }
   grunt() { this.tone(170 + Math.random() * 60, 0.12, { type: 'sawtooth', gain: 0.03, slide: 0.7 }); }
   hornAt(dist) {

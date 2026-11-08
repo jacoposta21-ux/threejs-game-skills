@@ -375,6 +375,7 @@ export class CityGenerator {
     if (special === 'gas') return this.buildGasStation(lot, blk);
     if (special === 'parking') return this.buildParking(lot, blk);
     if (special === 'plaza') return this.buildPlaza(lot, blk);
+    if (special === 'club') return this.buildClub(lot, blk);
     switch (district) {
       case 'downtown': return this.buildDowntown(lot, blk);
       case 'midtown': return this.buildPerimeter(lot, blk, { floors: [3, 9], styles: ['office', 'brick', 'stuccoWhite', 'officeDark', 'decoWhite'], shop: true });
@@ -554,6 +555,57 @@ export class CityGenerator {
     g.box(cx - 0.2, y, cz - 0.2, cx + 0.2, y + 3, cz + 0.2);
     g.box(cx - w / 2 - 0.2, y + 3, cz - 0.3, cx + w / 2 + 0.2, y + 3 + h + 0.3, cz + 0.3);
     this.b('billboard', cx, cz).wallQuad(cx, y + 3 + h / 2 + 0.15, cz + (dir === 'nz' ? -0.32 : 0.32), w, h, dir, [u0, v0, u0 + 0.5, v0 + 0.5]);
+  }
+
+  /** Club Velvet: neon nightclub with an open-air stage terrace facing Palm Boulevard. */
+  buildClub(lot, blk) {
+    const Y = CURB_H;
+    const bx0 = 236, bx1 = 281, bz0 = 44, bz1 = 87;
+    this.building(bx0, bz0, bx1, bz1, Y + 13, 'decoLilac', { kind: 'club', rooftop: false, parapetKey: 'trimDark' });
+    this.neonStrip(bx0, bz0, bx1, bz1, Y + 13.95, 'neonPink');
+    this.neonStrip(bx0 + 0.05, bz0 + 0.05, bx1 - 0.05, bz1 - 0.05, Y + 4.6, 'neonPurple');
+    // big sign on the Neon Mile facade + a second one over the terrace
+    this.neonSign(bx1 + 0.05, Y + 9, 65.5, 18, 4.5, 'px', 1);
+    this.neonSign(258.5, Y + 9.5, bz0 - 0.05, 16, 4, 'nz', 1);
+    this.props.glows.push({ x: bx1 + 2, y: Y, z: 65.5, color: 0xb05cff, ground: true, radius: 14 });
+    // entrance: canopy, red carpet, rope posts
+    const dm = this.b('darkmetal', bx1 + 3, 65);
+    dm.box(bx1, Y + 3.5, 59, bx1 + 6.5, Y + 3.8, 72, { top: true });
+    for (const z of [59.3, 71.7]) dm.box(bx1 + 6.1, Y, z - 0.15, bx1 + 6.4, Y + 3.5, z + 0.15);
+    this.b('awningRed', bx1 + 3, 65).top(bx1, 62.5, bx1 + 7.5, 68.5, Y + 0.025, 2);
+    this.b('neonPink', bx1 + 3, 65).box(bx1 + 0.1, Y + 3.38, 59.2, bx1 + 6.4, Y + 3.5, 59.4);
+    this.b('neonPink', bx1 + 3, 65).box(bx1 + 0.1, Y + 3.38, 71.6, bx1 + 6.4, Y + 3.5, 71.8);
+    for (const z of [61.8, 69.2]) for (const x of [bx1 + 1.5, bx1 + 4.5, bx1 + 7]) this.b('metal', x, z).box(x - 0.06, Y, z - 0.06, x + 0.06, Y + 0.9, z + 0.06);
+    this.collision.addCircle(bx1 + 6.25, 59.3, 0.25); this.collision.addCircle(bx1 + 6.25, 71.7, 0.25);
+    // terrace deck + stage with a neon back wall
+    const tz0 = 18, tz1 = bz0;
+    this.b('wood', 258, 30).box(bx0, Y, tz0, bx1, Y + 0.22, tz1, { top: true, tileW: 2, tileH: 2 });
+    const sx0 = 247, sx1 = 270, sz0 = 33, sz1 = 41.5;
+    this.b('trimDark', 258, 37).box(sx0, Y + 0.22, sz0, sx1, Y + 0.9, sz1, { top: true });
+    this.b('neonCyan', 258, 33).box(sx0, Y + 0.85, sz0 - 0.08, sx1, Y + 0.95, sz0 + 0.08);
+    this.b('trimDark', 258, 42).box(sx0 - 1, Y + 0.22, sz1, sx1 + 1, Y + 6.5, sz1 + 0.6);
+    this.neonSign(258.5, Y + 4.4, sz1 - 0.05, 12, 3, 'nz', 28);
+    this.b('neonPink', 258, 42).box(sx0 - 1, Y + 6.5, sz1 - 0.1, sx1 + 1, Y + 6.7, sz1 + 0.7);
+    for (const x of [sx0 - 0.6, sx1 + 0.6]) this.b('neonPurple', x, 37).box(x - 0.1, Y + 0.9, sz0, x + 0.1, Y + 6.5, sz0 + 0.2);
+    this.collision.addBox(sx0, sz0, sx1, sz1 + 0.6, Y + 0.9, 'stage');
+    // lounge sofas along the terrace edges
+    for (let z = 21; z < 31; z += 4.2) {
+      this.b('awningRed', bx0 + 2, z).box(bx0 + 1, Y + 0.22, z, bx0 + 3, Y + 0.75, z + 2.6, { top: true });
+      this.b('awningRed', bx1 - 2, z).box(bx1 - 3, Y + 0.22, z, bx1 - 1, Y + 0.75, z + 2.6, { top: true });
+      this.collision.addBox(bx0 + 1, z, bx0 + 3, z + 2.6, Y + 0.75, 'bench');
+      this.collision.addBox(bx1 - 3, z, bx1 - 1, z + 2.6, Y + 0.75, 'bench');
+    }
+    // low railing toward the boulevard (open at the east end), planter palms, string-light glows
+    this.b('trimDark', 258, tz0).box(bx0, Y + 0.22, tz0, bx1 - 6, Y + 1.1, tz0 + 0.25);
+    this.collision.addBox(bx0, tz0, bx1 - 6, tz0 + 0.25, Y + 1.1, 'rail');
+    for (const x of [bx0 + 1.5, bx1 - 1.5]) this.addPalm(x, tz0 + 1.6, Y + 0.22, 0.85);
+    for (let x = bx0 + 6; x < bx1 - 4; x += 7) this.props.glows.push({ x, y: Y + 0.22, z: 27, color: x % 2 ? 0xff4fa3 : 0x4fd8ff, ground: true, radius: 6 });
+    // parking on the west side
+    this.b('parking', 222, 52).top(lot.x0, lot.z0, bx0 - 2, lot.z1, Y + 0.02, 20);
+    for (let z = lot.z0 + 6; z < lot.z1 - 4; z += 9) if (this.rng.chance(0.55)) this.props.cars.push({ x: (lot.x0 + bx0 - 2) / 2, z, y: Y, rot: Math.PI / 2 });
+    this.footprints.push({ x0: bx0, z0: tz0, x1: bx1, z1: tz1, h: 1, kind: 'canopy' });
+    this.pois.push({ type: 'club', x: bx1 + 4, z: 65 });
+    void blk;
   }
 
   /** Perimeter block: a ring of street-facing buildings around a service court. */

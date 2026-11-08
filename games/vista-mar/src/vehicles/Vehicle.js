@@ -292,7 +292,7 @@ export class Vehicle {
     const now = this.system.game.playTime;
     if (impact > 2.5 && now - this.lastImpact > 0.18) {
       this.lastImpact = now;
-      const dmg = (impact - 2.5) * (impact > 12 ? 2.4 : 1.8) * (1500 / this.spec.mass) ** 0.3;
+      const dmg = (impact - 2.5) * (impact > 12 ? 2.4 : 1.8) * (1500 / this.spec.mass) ** 0.3 * (this.armored ? 0.45 : 1);
       this.health = Math.max(0, this.health - dmg);
       const k = 1 - this.health / 100;
       for (const m of this.materials) m.color.setScalar(lerp(1, 0.42, k));
@@ -389,6 +389,7 @@ export class Vehicle {
   repair() {
     this.health = 100;
     this.wrecked = false;
+    this.exploded = false;
     for (const m of this.materials) m.color.setScalar(1);
   }
 

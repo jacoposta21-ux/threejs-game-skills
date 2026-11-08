@@ -30,6 +30,9 @@ import { route } from '../systems/RoadGraph.js';
 import { terrainHeight } from '../world/Layout.js';
 import { classify, BEACH } from '../world/Layout.js';
 import { lerp } from '../utils/random.js';
+import { CombatSystem } from '../combat/CombatSystem.js';
+import { Cutscene, ShopMenu } from '../ui/Overlays.js';
+import { Economy } from '../systems/Economy.js';
 
 // automatic-performance tiers, mildest first
 const PERF_TIERS = [
@@ -111,6 +114,9 @@ export class Game {
     await nextFrame();
     this.traffic = new TrafficSystem(this, this.city.carModels);
     this.npcs = new NPCSystem(this, assets);
+    this.combat = new CombatSystem(this);
+    this.cutscene = new Cutscene(this);
+    this.shop = new ShopMenu(this);
     this.camera3p = new CameraController(this);
     this.camera3p.reset(this.player.heading);
     this.hud = new HUD(this);
@@ -120,6 +126,7 @@ export class Game {
     this.police = new PoliceSystem(this);
     this.story = new MissionManager(this, MISSIONS);
     this.locations = new Locations(this);
+    this.economy = new Economy(this);
     this.seagulls = new Seagulls(this.scene);
     this.sunFlare = new SunFlare(this.scene);
     this.setupComposer();
@@ -248,12 +255,15 @@ export class Game {
     this.money = 500;
     this.hud.shownMoney = 500;
     this.missions.reset();
+    this.combat.reset();
+    this.economy.reset();
     this.world.setTime(17.3);
     this.playTime = 0;
     this.hud.toast('RESTARTED', 'Back at Palm Boulevard.');
   }
 
   onKey(e) {
+    if (this.state === 'shop' || this.cutscene?.active) return;
     if (e.code === 'Escape') {
       if (this.state === 'map') { this.resume(); return; }
       if (this.state === 'playing' && !this.input.locked) this.pause();
@@ -280,7 +290,9 @@ export class Game {
   /** Player was hurt (vehicle impacts, being run over). */
   damagePlayer(amount) {
     const p = this.player;
-    if (this.respawning || amount <= 0) return;
+    if (this.respawning || amount <= 0 || this.cinematic) return;
+    const c = this.combat;
+    if (c && c.armor > 0) { const soak = Math.min(c.armor, amount * 0.7); c.armor -= soak; amount -= soak; }
     p.health = Math.max(0, p.health - amount);
     this.lastDamage = this.playTime;
     this.hud.flashDamage();
@@ -295,6 +307,7 @@ export class Game {
 
   wasted() {
     if (this.respawning) return;
+    if (!this.player.vehicle) this.player.knocked = 2.6;
     const bill = Math.min(this.money, 250);
     this.endLife('WASTED', `Hospital bill: -$${bill}`, HOSPITAL, bill);
     this.audio.busted();
@@ -332,19 +345,20 @@ export class Game {
   }
 
   save() {
-    const data = { v: 1, money: this.money, tapes: this.tapes.tapes.map((t) => t.collected), missions: [...this.story.done], time: this.world.timeOfDay };
+    const data = { v: 2, money: this.money, tapes: this.tapes.tapes.map((t) => t.collected), missions: [...this.story.done], time: this.world.timeOfDay, combat: this.combat.serialize(), econ: this.economy.serialize() };
     try { localStorage.setItem('vistamar.save', JSON.stringify(data)); } catch { this.hud.toast('SAVE FAILED', 'This browser blocks local storage.'); }
   }
 
   loadSave() {
     let data = null;
     try { data = JSON.parse(localStorage.getItem('vistamar.save') || 'null'); } catch { data = null; }
-    if (!data || data.v !== 1) return false;
+    if (!data || (data.v !== 1 && data.v !== 2)) return false;
     this.money = data.money ?? this.money;
     this.hud.shownMoney = this.money;
     (data.tapes || []).forEach((c, i) => { const t = this.tapes.tapes[i]; if (t && c) { t.collected = true; t.mesh.visible = false; } });
     for (const id of data.missions || []) this.story.done.add(id);
     this.story.refreshStartMarkers();
+    try { this.combat.restore(data.combat); this.economy.restore(data.econ); } catch (e) { console.warn('[save] partial restore', e); }
     return true;
   }
 
@@ -353,7 +367,8 @@ export class Game {
   }
 
   markers() {
-    const out = [...this.locations.markers(), ...this.vehicles.markers(this.player.pos), ...this.missions.markers(), ...this.story.startMarkers(), ...this.police.markers()];
+    const out = [...this.locations.markers(), ...this.economy.markers(), ...this.vehicles.markers(this.player.pos), ...this.missions.markers(), ...this.story.startMarkers(), ...this.police.markers(), ...this.combat.markers()];
+    for (const n of this.npcs.npcs) if (n.role && n.role !== 'actor' && n.state !== 'DOWN' && n.alerted) out.push({ x: n.pos.x, z: n.pos.z, color: n.role === 'cop' ? '#4f7cff' : '#ff4f4f', shape: 'dot', size: 4 });
     const obj = this.story.objective();
     if (obj && obj.target) out.push({ x: obj.target.x, z: obj.target.z, color: '#ffd23f', shape: 'diamond', size: 8, edge: true });
     return out;
@@ -399,33 +414,38 @@ export class Game {
   update(dt) {
     this.playTime += dt;
     const p = this.player;
-    if (this.driver.vehicle) this.driver.update(dt);
+    this.input.enabled = !this.cinematic;
+    this.cutscene.update(dt);
+    if (this.driver.vehicle) { this.driver.update(dt); this.combat.aiming = false; }
     else this.player.update(dt, this.camera3p.yaw);
     this.vehicles.update(dt, this.driver.vehicle);
     this.police.update(dt);
     this.traffic.update(dt);
     this.npcs.update(dt);
+    this.combat.update(dt);
     this.camera3p.update(dt);
     this.world.update(dt, p.pos);
     this.missions.update(dt);
     this.story.update(dt);
     this.locations.update(dt);
+    this.economy.update(dt);
     // interaction: places first, then pickups, then the nearest vehicle
-    const place = this.locations.current();
+    const place = this.locations.current() || this.economy.current();
+    const usePlace = (pl) => (pl.kind && this.economy.places.includes(pl) ? this.economy.use(pl) : this.locations.use(pl));
     if (!this.driver.vehicle) {
       const it = place ? null : this.missions.nearestInteractable(p.pos);
       const car = place || it ? null : this.vehicles.nearest(p.pos, 1.6);
       const jack = place || it || car ? null : this.traffic.nearest(p.pos, 1.6);
       this.hud.prompt(place ? place.label : it ? it.label : car ? `Enter ${car.spec.label}${car.wrecked ? ' (wrecked)' : ''}` : jack ? 'Take this car' : '');
       if (this.input.hit('KeyE') && !p.knocked) {
-        if (place) this.locations.use(place);
+        if (place) usePlace(place);
         else if (it) it.action();
         else if (car) this.driver.enter(car);
         else if (jack) this.carjack(jack);
       }
     } else {
       this.hud.prompt(place ? place.label : '');
-      if (place && this.input.hit('KeyE')) this.locations.use(place);
+      if (place && this.input.hit('KeyE')) usePlace(place);
     }
     // objective: an active mission overrides the free-roam activity
     const obj = this.story.objective();

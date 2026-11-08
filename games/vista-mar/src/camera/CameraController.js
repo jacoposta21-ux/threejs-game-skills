@@ -57,7 +57,10 @@ export class CameraController {
     this.pitch = clamp(this.pitch, -0.45, 1.25);
     const w = input.takeWheel();
     if (w) s.cameraDistance = clamp(s.cameraDistance + w * 0.5, 2.2, 9);
-    this.targetDistance = s.cameraDistance;
+    const aiming = this.game.combat && this.game.combat.aiming;
+    this.aimK = damp(this.aimK || 0, aiming ? 1 : 0, 12, dt);
+    if (this.recoil) { this.pitch -= this.recoil; this.recoil = 0; }
+    this.targetDistance = s.cameraDistance + (2.0 - s.cameraDistance) * this.aimK;
 
     const p = this.game.player;
     const eye = p.eyeHeight;
@@ -68,7 +71,7 @@ export class CameraController {
 
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
     const rx = -fz, rz = fx;
-    const shoulder = 0.45 * clamp(this.currentDist / 4.6, 0.4, 1);
+    const shoulder = 0.45 * clamp(this.currentDist / 4.6, 0.4, 1) + 0.3 * this.aimK;
     const pivot = this._look.set(this.focus.x + rx * shoulder, this.focus.y - this.kickY, this.focus.z + rz * shoulder);
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     const want = this.targetDistance + (p.speed > 6 ? 0.6 : 0);
@@ -85,8 +88,9 @@ export class CameraController {
     this.camera.lookAt(pivot.x + fx * 2, pivot.y + 0.05 - (this.pitch < 0 ? this.pitch * 0.8 : 0), pivot.z + fz * 2);
 
     this.kickY = damp(this.kickY, 0, 8, dt);
-    this.fovBoost = damp(this.fovBoost, p.speed > 6 ? 7 : 0, 4, dt);
-    const fov = s.fov + this.fovBoost;
+    this.fovBoost = damp(this.fovBoost, p.speed > 6 ? 7 : 0, 4, dt) - 0;
+    this.fovAim = (this.aimK || 0) * -12;
+    const fov = s.fov + this.fovBoost + this.fovAim;
     if (Math.abs(this.camera.fov - fov) > 0.01) {
       this.camera.fov = fov;
       this.camera.updateProjectionMatrix();
@@ -119,7 +123,7 @@ export class CameraController {
     const target = this._look.set(v.pos.x, v.pos.y + v.height + 0.35, v.pos.z);
     this.focus.copy(target);
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
-    const want = v.halfL + 3.6 + (s.cameraDistance - 4.6) * 0.8 + Math.min(speed, 40) * 0.05;
+    const want = v.halfL + 3.6 + (s.cameraDistance - 4.6) * 0.8 + Math.min(speed, 40) * 0.05 + (v.isAircraft ? 4 : 0);
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     const ex = target.x - fx * cp * want, ey = target.y + sp * want, ez = target.z - fz * cp * want;
     const t = this.game.collision.raycast(target.x, target.y, target.z, ex, ey, ez);

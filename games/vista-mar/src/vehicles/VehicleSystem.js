@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Vehicle } from './Vehicle.js';
+import { Aircraft } from './Aircraft.js';
 import { VEHICLE_TYPES, VEHICLE_SPAWNS } from './VehicleTypes.js';
 import { radialGlowTexture } from '../world/textures.js';
 import { SkidMarks } from '../world/Effects.js';
@@ -23,6 +24,13 @@ export class VehicleSystem {
       const free = this.findFreeSpot(sp);
       this.vehicles.push(new Vehicle(this, spec, gltf, free));
     }
+
+    // aircraft parked at Vista Mar Airport (north of the city)
+    this.aircraft = [
+      new Aircraft(this, 'heli', { x: 160, z: -548, h: Math.PI }, 0x2a6fd6),
+      new Aircraft(this, 'plane', { x: -215, z: -548, h: Math.PI }, 0xd94f3d),
+    ];
+    for (const a of this.aircraft) { a.stolenStars = 2; this.vehicles.push(a); }
 
     // one shared pair of headlight spots, attached to whichever car the player drives
     this.beam = new THREE.SpotLight(0xfff1d6, 0, 70, 0.5, 0.55, 1.4);
@@ -60,6 +68,11 @@ export class VehicleSystem {
       // far vehicles are not drawn; abandoned ones are recycled (GTA-style streaming)
       const dc = Math.hypot(v.pos.x - cam.x, v.pos.z - cam.z);
       v.root.visible = v === driven || dc < 230;
+      if (v.owned && v !== driven) {
+        // the garage car drives itself home once you leave it far away
+        const s = v.spawn;
+        if (Math.hypot(v.pos.x - pl.x, v.pos.z - pl.z) > 260 && Math.hypot(s.x - pl.x, s.z - pl.z) > 200 && Math.hypot(v.pos.x - s.x, v.pos.z - s.z) > 1) { v.reset(); if (v.wrecked) v.repair(); }
+      }
       if (v !== driven && !v.police && !v.missionVehicle) {
         const dp = Math.hypot(v.pos.x - pl.x, v.pos.z - pl.z);
         if (dp > 260) {
@@ -151,6 +164,15 @@ export class VehicleSystem {
     return v;
   }
 
+  /** Rebuilds a saved car (the player's garage car). */
+  spawnFromSpec(spec, spot) {
+    const gltf = this.assets[spec.asset];
+    if (!gltf) return null;
+    const v = new Vehicle(this, { ...spec }, gltf, { x: spot.x, z: spot.z, h: spot.h });
+    this.vehicles.push(v);
+    return v;
+  }
+
   spawnPolice(x, z, heading) {
     const spec = VEHICLE_TYPES.police;
     const gltf = this.assets[spec.asset];
@@ -171,6 +193,12 @@ export class VehicleSystem {
   }
 
   spawnMissionVehicle(type, x, z, heading) {
+    if (type === 'heli' || type === 'plane') {
+      const a = new Aircraft(this, type, { x, z, h: heading }, type === 'heli' ? 0x1b1b1f : 0xd94f3d);
+      a.missionVehicle = true;
+      this.vehicles.push(a);
+      return a;
+    }
     const spec = VEHICLE_TYPES[type];
     const v = new Vehicle(this, spec, this.assets[spec.asset], { x, z, h: heading });
     v.missionVehicle = true;
@@ -230,6 +258,7 @@ export class VehicleSystem {
 
   reset() {
     for (const v of [...this.dynamic]) this.removeVehicle(v);
+    for (const v of [...this.vehicles]) if (v.missionVehicle && !v.owned) this.removeMission(v);
     for (const v of this.vehicles) v.reset();
   }
 
