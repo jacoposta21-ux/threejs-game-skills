@@ -407,6 +407,8 @@ export class Game {
 
   goMenu() {
     this.state = 'menu';
+    this.pathPilot = false;
+    this.generator.noPowerUps = false;
     this.platform.gameplayStop();
     this.timeScale = 1;
     this.obstacles.clear();
@@ -500,6 +502,7 @@ export class Game {
   }
 
   startRun({ daily = this.daily } = {}) {
+    this.generator.noPowerUps = false;
     this.daily = !!daily;
     this.continueUsed = false;
     this.doubleUsed = false;
@@ -786,6 +789,7 @@ export class Game {
       soft = true;
     }
     if (this.autopilot) dir = this.autopilotDirection();
+    if (this.pathPilot) dir = this.pathPilotDirection();
     this.player.updateMovement(dt, dir, this.speed, soft && !this.autopilot);
 
     // procedural generation ahead of the player
@@ -861,7 +865,7 @@ export class Game {
 
     this.updateTutorial(dt);
     this.liveCheckTimer += dt;
-    if (this.liveCheckTimer > 0.5) {
+    if (this.liveCheckTimer > 0.5 && !this.pathPilot) {
       this.liveCheckTimer = 0;
       this.syncRunStats();
       for (const m of this.progression.checkLive(this.run)) {
@@ -1115,6 +1119,25 @@ export class Game {
 
   // ================================================================ autopilot (tests / attract)
 
+  /** Promo pilot: follows the generator's guaranteed-safe line (where the coins are). */
+  pathPilotDirection() {
+    const log = this.generator.pathLog;
+    const look = this.distance + this.speed * 0.12;
+    let a = null;
+    for (let i = log.length - 2; i >= 0; i -= 2) {
+      const p0 = log[i];
+      const p1 = log[i + 1];
+      if (look >= p0.s && look <= p1.s) {
+        a = p0.a + (p1.a - p0.a) * ((look - p0.s) / Math.max(1e-6, p1.s - p0.s));
+        break;
+      }
+    }
+    if (a === null) return 0;
+    const pa = this.player.angle;
+    const target = a + Math.round((pa - a) / (Math.PI * 2)) * Math.PI * 2;
+    return Math.max(-1, Math.min(1, (target - pa) * 6));
+  }
+
   /** Greedy steering bot used by test hooks: aims for the safest reachable angle of the next rows. */
   autopilotDirection() {
     const pa = this.player.angle;
@@ -1201,6 +1224,9 @@ export class Game {
       setInvincible: (v) => {
         this.invincible = !!v;
       },
+      setPathPilot: (v) => {
+        this.pathPilot = !!v;
+      },
       setAutopilot: (v) => {
         this.autopilot = !!v;
       },
@@ -1266,6 +1292,30 @@ export class Game {
             this.tunnel.setTheme(n, true);
             this.dust.setColor(THEMES[n].dust);
             this.fastForward(3);
+            break;
+          }
+          case 'promo-fast': {
+            // clean late-game footage: fast Violet Void, no power-ups, real collisions
+            this.startRun({ daily: false });
+            this.generator.noPowerUps = true;
+            this.elapsed = 150;
+            this.tier = tierAt(150);
+            this.speed = speedAt(150);
+            this.distance = 1800 * 3 + 40;
+            this.prevDistance = this.distance;
+            this.generator.lastRowS = this.distance + 25;
+            this.generator.feasible.fill(1);
+            this.generator.pathBin = 0;
+            this.player.angle = 0;
+            this.tunnel.setTheme(3, true);
+            this.audio.setZone(3);
+            this.dust.setColor(THEMES[3].dust);
+            this.score = 31250;
+            this.combo = 20;
+            this.pathPilot = true;
+            this.ui.el.banner.classList.remove('show');
+            this.ui.showTouchHint(false);
+            this.ui.tutorial(null);
             break;
           }
           case 'portal':

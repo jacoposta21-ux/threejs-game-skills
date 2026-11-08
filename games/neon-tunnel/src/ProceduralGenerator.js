@@ -85,6 +85,11 @@ export class ProceduralGenerator {
     this.out = { obstacles: [], pickups: [] };
     this.log = null; // set to [] to record rows (tests)
     this.forceOrbRows = 0; // tutorial: guarantee energy trails on the first rows
+    this.noPowerUps = false; // promo capture: plain runs without power-ups
+    // Guaranteed-safe line through every row (the same line the coins follow),
+    // as unwrapped angles by tunnel distance. Used by the promo pilot.
+    this.pathLog = [];
+    this.pathU = null;
   }
 
   range(a, b) {
@@ -506,7 +511,12 @@ export class ProceduralGenerator {
     const usable = toS - start;
 
     let powerUpS = -1;
-    if (tA >= this.nextPowerUpT && usable >= 12 && fromS > 0) {
+    if (this.pathU === null) this.pathU = startAngle;
+    this.pathLog.push({ s: fromS, a: this.pathU }, { s: toS, a: this.pathU + diff });
+    this.pathU += diff;
+    if (this.pathLog.length > 400) this.pathLog.splice(0, 100);
+
+    if (!this.noPowerUps && tA >= this.nextPowerUpT && usable >= 12 && fromS > 0) {
       const r = this.rng();
       const type = r < 0.36 ? 'shield' : r < 0.7 ? 'boost' : 'magnet';
       powerUpS = start + usable * 0.5;
