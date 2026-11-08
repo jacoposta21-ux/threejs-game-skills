@@ -18,6 +18,7 @@ import { Player } from './Player.js';
 import { Progression, dailySeed, newRunStats } from './Progression.js';
 import { PowerUps } from './PowerUps.js';
 import { ProceduralGenerator } from './ProceduralGenerator.js';
+import { buildArcs } from './ObstacleModel.js';
 import { SaveManager } from './SaveManager.js';
 import { Tunnel } from './Tunnel.js';
 import { UIManager } from './UIManager.js';
@@ -145,7 +146,7 @@ export class Game {
     this.camAngle = 0;
     this.camRoll = 0;
     this.fov = 70;
-    this.frameTimes = new Float32Array(90);
+    this.frameTimes = new Float32Array(90).fill(1 / 60);
     this.frameIdx = 0;
     this.qualityCooldown = 4;
     this.fps = 60;
@@ -179,8 +180,9 @@ export class Game {
     } catch {
       /* fonts optional */
     }
-    // warm up shaders so the first run does not hitch
+    // warm up every shader variant so the first run does not freeze
     this.renderer.compile(this.scene, this.camera);
+    this.warmUpShaders();
     this.platform.loadingStop();
     this.goMenu();
     this.last = performance.now();
@@ -239,7 +241,12 @@ export class Game {
       this.bloom = null;
       this.finalPass = null;
     }
-    if (!initial) this.resize();
+    if (!initial) {
+      this.resize();
+      // a paused run keeps its world intact; warm up before the next run instead
+      if (['playing', 'paused', 'countdown', 'dying'].includes(this.state)) this.needsWarmup = true;
+      else this.warmUpShaders();
+    }
     this.ui?.refreshSettings(this.qualityLabel());
   }
 
@@ -263,14 +270,73 @@ export class Game {
     if (!this.autoQuality || this.state !== 'playing') return;
     this.qualityCooldown -= realDt;
     if (this.qualityCooldown > 0) return;
-    if (avg > 1 / 45) {
+    // Judge sustained slowness, not one-off hitches: count slow frames
+    // instead of averaging (a single 500 ms stall must not trigger a switch).
+    let slow = 0;
+    for (let i = 0; i < this.frameTimes.length; i += 1) if (this.frameTimes[i] > 1 / 42) slow += 1;
+    if (slow > this.frameTimes.length * 0.6) {
       const next = this.qualityName === 'high' ? 'medium' : this.qualityName === 'medium' ? 'low' : null;
-      if (next) {
-        this.applyQuality(next);
-        this.frameTimes.fill(1 / 60);
-      }
-      this.qualityCooldown = 5;
+      // Never switch mid-run (rebuilding the pipeline recompiles every shader
+      // and freezes the screen): apply it before the next run instead.
+      if (next) this.pendingQuality = next;
+      this.qualityCooldown = 6;
     }
+  }
+
+  applyPendingQuality() {
+    if (!this.pendingQuality) return;
+    const q = this.pendingQuality;
+    this.pendingQuality = null;
+    this.applyQuality(q);
+    this.frameTimes.fill(1 / 60);
+  }
+
+  /**
+   * Compiles every shader variant the game can draw by rendering one frame
+   * that contains every obstacle type, coins, power-ups, particles, shield,
+   * trail and zone portal through the real post-processing pipeline. Without
+   * this, mobile GPUs compile them on first appearance during the opening
+   * seconds of a run, freezing or blanking the screen.
+   */
+  warmUpShaders() {
+    const keep = { distance: this.distance, prev: this.prevDistance, state: this.state };
+    this.state = 'warmup';
+    this.distance = 1800 - 60; // a zone portal is in view
+    this.prevDistance = this.distance;
+    const ctx = { rng: Math.random, t: 130, d: 0.8, speedA: 60, attempt: 0 };
+    const g = this.generator;
+    const samples = [
+      g.buildSpikes(ctx, {}),
+      g.buildWall(ctx, { moving: true }),
+      g.buildGate(ctx, {}),
+      g.buildLaser(ctx, { beams: 2, rotate: true }),
+      g.buildBlades(ctx, {}),
+      g.buildLaser(ctx, { beams: 1 }),
+    ];
+    samples.forEach((o, i) => {
+      buildArcs(o);
+      o.s = this.distance + (i === samples.length - 1 ? 150 : 10 + i * 7); // last laser far away: dashed "charging" beam
+      this.obstacles.add(o);
+    });
+    this.obstacles.killer = samples[0];
+    this.powerups.add({ kind: 'energy', s: this.distance + 6, angle: 0.2 });
+    for (const type of ['boost', 'shield', 'magnet']) this.powerups.add({ kind: 'powerup', type, s: this.distance + 12, angle: 1 });
+    this.player.setVisible(true);
+    this.player.shieldVisual = 1;
+    this.particles.burst(this.player.position, COLOR_WHITE, 8, 4, 0.3, 0.5);
+    this.ui.stick(NO_STICK);
+    for (let i = 0; i < 2; i += 1) {
+      this.updateWorld(1 / 60, 0);
+      this.updateCamera(1 / 60);
+      this.render(1 / 60);
+    }
+    this.obstacles.clear();
+    this.powerups.clear();
+    this.particles.clear();
+    this.player.shieldVisual = 0;
+    this.distance = keep.distance;
+    this.prevDistance = keep.prev;
+    this.state = keep.state;
   }
 
   resize() {
@@ -502,6 +568,11 @@ export class Game {
   }
 
   startRun({ daily = this.daily } = {}) {
+    this.applyPendingQuality();
+    if (this.needsWarmup) {
+      this.needsWarmup = false;
+      this.warmUpShaders();
+    }
     this.generator.noPowerUps = false;
     this.daily = !!daily;
     this.continueUsed = false;
@@ -1191,6 +1262,7 @@ export class Game {
     d.renderer.triangles = info.render.triangles;
     d.renderer.geometries = info.memory.geometries;
     d.renderer.textures = info.memory.textures;
+    d.renderer.programs = info.programs ? info.programs.length : null;
     d.timers = this.powerups.timers;
     window.__THREE_GAME_DIAGNOSTICS__ = d;
   }
