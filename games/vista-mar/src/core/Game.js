@@ -37,8 +37,9 @@ const PERF_TIERS = [
   { res: 0.85, msaa: true, bloom: true, shadowMap: 4096, shadowEvery: 2, crowd: 1 },
   { res: 0.75, msaa: false, bloom: true, shadowMap: 2048, shadowEvery: 2, crowd: 1 },
   { res: 0.65, msaa: false, bloom: false, shadowMap: 2048, shadowEvery: 3, crowd: 1 },
-  { res: 0.55, msaa: false, bloom: false, shadowMap: 1024, shadowEvery: 3, crowd: 0.8 },
-  { res: 0.5, msaa: false, bloom: false, shadowMap: 1024, shadowEvery: 4, crowd: 0.6 },
+  // fast path: draw straight to the screen (no post-processing passes / render-target switches)
+  { res: 0.55, msaa: false, bloom: false, shadowMap: 1024, shadowEvery: 3, crowd: 0.8, direct: true },
+  { res: 0.5, msaa: false, bloom: false, shadowMap: 1024, shadowEvery: 4, crowd: 0.5, direct: true, shadows: false },
 ];
 
 const QUALITY = {
@@ -171,7 +172,7 @@ export class Game {
       if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
     }
     this.resize();
-    if (this.perfLevel) this.applyPerfLevel(this.perfLevel);
+    this.applyPerfLevel(this.perfLevel || 0);
   }
 
   applyDaySpeed() {
@@ -382,7 +383,8 @@ export class Game {
     const tB = performance.now();
     this.updateChunkVisibility();
     this.renderer.shadowMap.needsUpdate = this.frame % (this.shadowEvery || 2) === 0 || this.state !== 'playing';
-    this.composer.render(dt);
+    if (this.directRender) this.renderer.render(this.scene, this.camera);
+    else this.composer.render(dt);
     const tC = performance.now();
     // CPU time per frame (smoothed): game logic vs. render submission, plus the real frame interval
     const k = 0.05;
@@ -516,6 +518,10 @@ export class Game {
     const size = Math.min(q.shadow, t.shadowMap);
     if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
     this.shadowEvery = t.shadowEvery;
+    // the Low preset always uses the direct path; the last tier also drops sun shadows
+    this.directRender = !!t.direct || this.settings.quality === 'low';
+    const wantShadows = t.shadows !== false;
+    if (sun.castShadow !== wantShadows) sun.castShadow = wantShadows;
     this.resize();
   }
 
