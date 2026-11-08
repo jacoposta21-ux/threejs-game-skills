@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { terrainHeight } from '../world/Layout.js';
 import { WEAPONS } from '../combat/Weapons.js';
 import { radialGlowTexture } from '../world/textures.js';
+import { CLOTHES, composeOutfit } from '../player/Outfit.js';
+import { ROOM_Y } from '../world/Interiors.js';
 
 // Ways to spend money: weapon shop, clothes, car tuning + a private garage
 // spot, properties with daily income (Club Velvet among them), club visits and
@@ -9,14 +11,6 @@ import { radialGlowTexture } from '../world/textures.js';
 
 export const OWNED_SPOT = { x: 52, z: -11.4, h: Math.PI / 2 };
 
-const OUTFITS = [
-  { key: 'player', name: 'Beach Look', desc: 'Tank top and board shorts. The Vista Mar classic.', price: 0 },
-  { key: 'npc_m_casual', name: 'Night Out', desc: 'Purple shirt, clean sneakers.', price: 300 },
-  { key: 'npc_m_casual2', name: 'Weekend', desc: 'Relaxed tee and jeans.', price: 250 },
-  { key: 'npc_m_punk', name: 'Street', desc: 'Black and red. People cross the road.', price: 600 },
-  { key: 'npc_m_worker', name: 'Work Crew', desc: 'Hi-vis vest. Nobody asks questions.', price: 400 },
-  { key: 'npc_m_suit', name: 'Sharp Suit', desc: 'Tailored black suit for serious business.', price: 1500 },
-];
 
 export const PROPERTIES = [
   { id: 'condo', name: 'Seaside Condo', x: 390, z: 150, price: 15000, income: 0, safehouse: true, desc: 'Ocean Drive apartment: a second save point with a sea view.' },
@@ -30,16 +24,26 @@ export class Economy {
   constructor(game) {
     this.game = game;
     this.owned = new Set();
-    this.outfit = 'player';
-    this.outfits = new Set(['player']);
+    this.clothes = { body: 'player', legs: 'player', feet: 'player' };
+    this.wardrobe = new Set(['body:player', 'legs:player', 'feet:player']);
     this.lastHour = game.world.timeOfDay;
     this.places = [
-      { kind: 'guns', x: -150, z: -15.2, r: 1.8, foot: true, label: 'Browse Sunline Arms', icon: 'G', color: '#ff9d3d' },
-      { kind: 'clothes', x: -50, z: -209.5, r: 1.8, foot: true, label: 'Browse Threads & Co.', icon: 'T', color: '#c58cff' },
+      { kind: 'guns', x: -150, z: -15.2, r: 1.8, foot: true, label: 'Enter Sunline Arms', icon: 'G', color: '#ff9d3d' },
+      { kind: 'clothes', x: -50, z: -209.5, r: 1.8, foot: true, label: 'Enter Threads & Co.', icon: 'T', color: '#c58cff' },
       { kind: 'tuning', x: -195.5, z: -64, r: 6, car: true, label: 'Vista Customs: tune this car', icon: 'C', color: '#3fe0e8' },
       { kind: 'clubdoor', x: 285.5, z: 62, r: 1.6, foot: true, label: '', icon: '♪', color: '#b05cff' },
       ...PROPERTIES.map((p) => ({ kind: 'property', prop: p, x: p.x, z: p.z, r: 1.6, foot: true, label: '', icon: '$', color: '#7dff9b' })),
     ];
+    // markers inside the walk-in interiors
+    const R = game.interiors.rooms;
+    const inside = (room, kind, lx, lz, label, color, r = 1.3) => { const w = R[room].toWorld(lx, lz); this.places.push({ kind, interior: room, x: w.x, z: w.z, r, foot: true, label, icon: '', color }); };
+    inside('guns', 'gunsCounter', 0, 0.4, 'Buy weapons, ammo and armor', '#ff9d3d');
+    inside('guns', 'exit', 0, -R.guns.D / 2 + 0.7, 'Leave Sunline Arms', '#ffffff', 1.1);
+    inside('clothes', 'clothesCounter', 4.2, 2.7, 'Try on clothes', '#c58cff');
+    inside('clothes', 'exit', 0, -R.clothes.D / 2 + 0.7, 'Leave Threads & Co.', '#ffffff', 1.1);
+    inside('club', 'bar', -7.8, -2, 'Order a drink ($20, +30 health)', '#ff4fa3');
+    inside('club', 'vip', 7.9, -0.6, '', '#ffd23f');
+    inside('club', 'exit', 0, -R.club.D / 2 + 0.7, 'Leave Club Velvet', '#ffffff', 1.1);
     this.buildProps();
     this.dancers = [];
   }
@@ -49,7 +53,7 @@ export class Economy {
     this.group = new THREE.Group();
     g.scene.add(this.group);
     for (const p of this.places) {
-      const y = terrainHeight(p.x, p.z);
+      const y = p.interior ? ROOM_Y : terrainHeight(p.x, p.z);
       const ring = new THREE.Mesh(new THREE.RingGeometry(p.r * 0.85, p.r, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(p.color).multiplyScalar(1.6), transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false }));
       ring.position.set(p.x, y + 0.05, p.z);
       this.group.add(ring);
@@ -72,7 +76,9 @@ export class Economy {
   // ------------------------------------------------------------ interaction
   current() {
     const pl = this.game.player;
+    const room = this.game.interior ? this.game.interior.id : null;
     for (const p of this.places) {
+      if ((p.interior || null) !== room) continue;
       if (p.car && !pl.vehicle) continue;
       if (p.foot && pl.vehicle) continue;
       if (Math.hypot(pl.pos.x - p.x, pl.pos.z - p.z) < p.r) { p.label = this.labelFor(p); return p; }
@@ -86,17 +92,40 @@ export class Economy {
       if (o && p.prop.safehouse) return `${p.prop.name}: save game and sleep until 08:00`;
       return o ? `${p.prop.name} · yours${p.prop.income ? ` · $${p.prop.income.toLocaleString('en-US')}/day` : ''}` : `For sale: ${p.prop.name} ($${p.prop.price.toLocaleString('en-US')})`;
     }
-    if (p.kind === 'clubdoor') return this.owned.has('club') ? 'Club Velvet VIP lounge (free, restores health)' : 'Club Velvet: enjoy the show ($50)';
+    if (p.kind === 'clubdoor') return this.owned.has('club') ? 'Enter Club Velvet (owner)' : 'Enter Club Velvet ($50 cover)';
+    if (p.kind === 'vip') return this.owned.has('club') ? 'VIP lounge: relax (free, restores health)' : 'VIP lounge (owners only)';
     return p.label;
   }
 
   use(p) {
     const g = this.game;
     switch (p.kind) {
-      case 'guns': return this.gunShop();
-      case 'clothes': return this.clothesShop();
+      case 'guns':
+      case 'clothes':
+        if (g.police.level > 0) { g.hud.toast('DOOR LOCKED', 'Shops lock up when the police are after you.'); return; }
+        return g.interiors.enter(p.kind);
+      case 'gunsCounter': return this.gunShop();
+      case 'clothesCounter': return this.clothesShop();
+      case 'exit': return g.interiors.leave();
       case 'tuning': return this.tuningShop();
-      case 'clubdoor': return this.clubVisit();
+      case 'clubdoor': {
+        const owner = this.owned.has('club');
+        if (g.police.level > 0) { g.hud.toast('THE BOUNCER SHAKES HIS HEAD', 'Not with the cops on your tail.'); return; }
+        if (!owner && g.money < 50) { g.hud.toast('NOT ENOUGH CASH', 'Cover charge is $50.'); return; }
+        if (!owner) g.addMoney(-50);
+        return g.interiors.enter('club');
+      }
+      case 'bar': {
+        if (g.money < 20) { g.hud.toast('NOT ENOUGH CASH', 'A drink costs $20.'); return; }
+        g.addMoney(-20);
+        g.player.health = Math.min(100, g.player.health + 30);
+        g.audio.pickup();
+        g.hud.toast('CHEERS', 'Mango mojito, no alcohol for drivers. +30 health · -$20', 'reward');
+        return;
+      }
+      case 'vip':
+        if (!this.owned.has('club')) { g.hud.toast('VIP LOUNGE', 'Reserved for the owner. Club Velvet is for sale outside on Palm Boulevard.'); return; }
+        return this.clubVisit();
       case 'property': {
         const pr = p.prop;
         if (this.owned.has(pr.id)) {
@@ -132,10 +161,10 @@ export class Economy {
       kicker: 'Port Industrial · Palm Boulevard', title: 'Sunline Arms', sub: 'Licensed dealer. Cash only, no small talk.',
       items: () => {
         const out = [];
-        for (const id of ['bat', 'pistol', 'smg', 'shotgun']) {
+        for (const id of ['bat', 'pistol', 'smg', 'shotgun', 'rpg']) {
           const w = WEAPONS[id];
           const has = !!c.inv[id];
-          out.push({ name: w.name, desc: id === 'bat' ? 'Solid ash. Left click to swing.' : `${w.mag}-round magazine · comes with ${w.ammoPack} rounds`, price: w.price, owned: has, buy: () => { c.give(id, w.ammoPack || 0); c.select(id); } });
+          out.push({ name: w.name, desc: id === 'bat' ? 'Solid ash. Left click to swing.' : id === 'rpg' ? `Shoulder-fired rockets · comes with ${w.ammoPack} rockets` : `${w.mag}-round magazine · comes with ${w.ammoPack} rounds`, price: w.price, owned: has, buy: () => { c.give(id, w.ammoPack || 0); c.select(id); } });
           if (has && !w.melee) out.push({ name: `${w.name} ammo`, desc: `+${w.ammoPack} rounds (you have ${c.ammo[id] ? c.ammo[id].mag + c.ammo[id].reserve : 0})`, price: w.ammoPrice, repeat: true, buy: () => { c.addAmmo(id, w.ammoPack); } });
         }
         out.push({ name: 'Body Armor', desc: `Soaks 70% of incoming damage · now ${Math.round(c.armor)}%`, price: 250, repeat: true, disabled: c.armor >= 100, buy: () => { c.armor = 100; } });
@@ -146,20 +175,36 @@ export class Economy {
 
   clothesShop() {
     const g = this.game;
+    const slotName = { body: 'Top', legs: 'Bottoms', feet: 'Shoes' };
     g.shop.show({
-      kicker: 'Midtown · 42nd St', title: 'Threads & Co.', sub: 'Change your look. Owned outfits can be worn again for free.',
-      items: () => OUTFITS.filter((o) => g.assets[o.key]).map((o) => {
-        const has = this.outfits.has(o.key);
-        return { name: o.name + (this.outfit === o.key ? '  (wearing)' : ''), desc: o.desc, price: has ? 0 : o.price, label: has ? (this.outfit === o.key ? 'WEARING' : 'WEAR') : null, repeat: true, disabled: this.outfit === o.key, buy: () => { this.outfits.add(o.key); this.wear(o.key); } };
-      }),
+      kicker: 'Midtown · 31st St', title: 'Threads & Co.', sub: 'Mix tops, bottoms and shoes. Anything you bought can be worn again for free.',
+      items: () => {
+        const out = [];
+        for (const slot of ['body', 'legs', 'feet']) {
+          for (const c of CLOTHES[slot]) {
+            if (!g.assets[c.key]) continue;
+            const id = `${slot}:${c.key}`;
+            const has = this.wardrobe.has(id);
+            const wearing = this.clothes[slot] === c.key;
+            out.push({
+              name: `${slotName[slot]} · ${c.name}`, desc: wearing ? 'Wearing now' : has ? 'In your wardrobe' : '',
+              price: has ? 0 : c.price, label: wearing ? 'WEARING' : has ? 'WEAR' : null, repeat: true, disabled: wearing,
+              buy: () => { this.wardrobe.add(id); return this.wearClothes({ ...this.clothes, [slot]: c.key }); },
+            });
+          }
+        }
+        return out;
+      },
     });
   }
 
-  wear(key) {
+  /** Swaps clothing parts on the player while keeping the player's own head. */
+  wearClothes(sel) {
     const g = this.game;
-    const gltf = g.assets[key];
-    if (!gltf || !g.player.setOutfit(gltf)) return false;
-    this.outfit = key;
+    let ok = false;
+    try { ok = g.player.setOutfit(composeOutfit(g.assets, sel)); } catch (e) { console.warn('[clothes]', e); }
+    if (!ok) return false;
+    this.clothes = { ...sel };
     // a new look makes it harder for cops who only saw the old one
     if (g.police.level > 0 && g.police.level <= 2 && !g.police.seen) g.police.clear('NEW LOOK');
     return true;
@@ -264,14 +309,15 @@ export class Economy {
   }
 
   markers() {
-    return this.places.map((p) => ({ x: p.x, z: p.z, color: p.kind === 'property' && this.owned.has(p.prop.id) ? '#ffd23f' : p.color, shape: 'dot', size: p.kind === 'property' ? 5 : 6, label: p.icon }));
+    const room = this.game.interior ? this.game.interior.id : null;
+    return this.places.filter((p) => (p.interior || null) === room).map((p) => ({ x: p.x, z: p.z, color: p.kind === 'property' && this.owned.has(p.prop.id) ? '#ffd23f' : p.color, shape: 'dot', size: p.kind === 'property' ? 5 : 6, label: p.icon }));
   }
 
   // ------------------------------------------------------------ save
   serialize() {
     const v = this.ownedCar;
     return {
-      owned: [...this.owned], outfit: this.outfit, outfits: [...this.outfits],
+      owned: [...this.owned], clothes: { ...this.clothes }, wardrobe: [...this.wardrobe],
       car: v ? { spec: v.baseSpec || v.spec, upEngine: v.upEngine || 0, armored: !!v.armored, underglow: !!v.underglow } : null,
     };
   }
@@ -279,8 +325,8 @@ export class Economy {
   restore(d) {
     if (!d) return;
     this.owned = new Set(d.owned || []);
-    this.outfits = new Set(d.outfits || ['player']);
-    if (d.outfit && d.outfit !== this.outfit) this.wear(d.outfit);
+    if (d.wardrobe) this.wardrobe = new Set(d.wardrobe);
+    if (d.clothes && (d.clothes.body !== 'player' || d.clothes.legs !== 'player' || d.clothes.feet !== 'player')) this.wearClothes(d.clothes);
     if (d.car && d.car.spec) {
       const v = this.game.vehicles.spawnFromSpec(d.car.spec, OWNED_SPOT);
       if (v) {
@@ -294,8 +340,8 @@ export class Economy {
 
   reset() {
     this.owned.clear();
-    this.outfits = new Set(['player']);
-    if (this.outfit !== 'player') this.wear('player');
+    this.wardrobe = new Set(['body:player', 'legs:player', 'feet:player']);
+    if (this.clothes.body !== 'player' || this.clothes.legs !== 'player' || this.clothes.feet !== 'player') this.wearClothes({ body: 'player', legs: 'player', feet: 'player' });
     if (this.ownedCar) { this.ownedCar.owned = false; this.ownedCar = null; }
   }
 }

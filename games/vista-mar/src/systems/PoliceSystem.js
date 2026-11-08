@@ -50,6 +50,8 @@ export class PoliceSystem {
     ev.on('vehicleDestroyed', () => { if (this.policeNear(80) || this.witness(25)) this.crime(this.level === 0 ? 1 : 0, 'Arson'); });
     ev.on('pedestrianHit', () => { this.pedHits++; this.crime(this.level === 0 ? 1 : this.pedHits % 2 === 0 ? 1 : 0, 'Hit-and-run'); });
     ev.on('carjack', () => this.crime(1, 'Carjacking'));
+    ev.on('carStolen', () => { if (this.witness(20) || this.policeNear(60)) this.crime(this.level === 0 ? 1 : 0, 'Car theft'); });
+    ev.on('carAlarm', () => { if (this.witness(30) || this.policeNear(80)) this.crime(this.level === 0 ? 1 : 0, 'Car alarm'); });
     ev.on('trafficCrash', () => { if (this.policeNear(70)) this.crime(1, 'Reckless driving'); });
     ev.on('policeHit', () => this.crime(this.level < 2 ? 2 - this.level : 1, 'Assaulting an officer', 2));
     ev.on('enterVehicle', (v) => { if (v.isAircraft && v.stolenStars && !(game.economy && game.economy.owned.has('hangar'))) { v.stolenStars = 0; this.crime(Math.max(0, 2 - this.level), 'Stolen aircraft', 2); } });

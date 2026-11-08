@@ -77,8 +77,51 @@ export class Menus {
   }
 
   showMap(v) {
+    const g = this.game;
+    const wasHidden = this.map.classList.contains('hidden');
     this.map.classList.toggle('hidden', !v);
-    if (v) this.game.minimap.drawBig(this.game.player, this.game.markers());
+    if (!v) return;
+    g.minimap.waypoint = g.waypoint;
+    g.minimap.route = g.waypoint ? g.waypointRoute : null;
+    g.minimap.drawBig(g.player, g.markers());
+    if (wasHidden || this.placesDirty) this.buildPlaces();
+    if (!this.mapBound) {
+      this.mapBound = true;
+      const cv = $('bigmap');
+      cv.addEventListener('click', (e) => {
+        const r = cv.getBoundingClientRect();
+        const w = g.minimap.bigToWorld(e.clientX - r.left, e.clientY - r.top);
+        // snap to a listed place when clicking close to its icon
+        const sc = g.minimap.bigScale || 1;
+        let best = null, bd = 14 / sc;
+        for (const pl of g.places()) { const d = Math.hypot(pl.x - w.x, pl.z - w.z); if (d < bd) { bd = d; best = pl; } }
+        g.setWaypoint(best || { x: w.x, z: w.z, name: 'Map marker' });
+        this.placesDirty = true;
+        this.showMap(true);
+      });
+      cv.addEventListener('contextmenu', (e) => { e.preventDefault(); g.setWaypoint(null); this.placesDirty = true; this.showMap(true); });
+    }
+  }
+
+  buildPlaces() {
+    const g = this.game, box = $('map-places');
+    this.placesDirty = false;
+    box.innerHTML = '';
+    let cat = '';
+    const p = g.player.pos;
+    for (const pl of g.places()) {
+      if (pl.cat !== cat) { cat = pl.cat; const h = document.createElement('div'); h.className = 'cat'; h.textContent = cat; box.appendChild(h); }
+      const b = document.createElement('button');
+      const on = g.waypoint && g.waypoint.name === pl.name;
+      b.className = on ? 'on' : '';
+      b.innerHTML = '<b></b><span></span><small></small>';
+      b.querySelector('b').textContent = pl.icon || '';
+      b.querySelector('b').style.background = pl.color;
+      b.querySelector('span').textContent = pl.name;
+      b.querySelector('small').textContent = `${Math.round(Math.hypot(pl.x - p.x, pl.z - p.z))} m`;
+      b.addEventListener('click', () => { g.setWaypoint(on ? null : pl); this.placesDirty = true; this.showMap(true); });
+      box.appendChild(b);
+    }
   }
 
   bindSettings() {

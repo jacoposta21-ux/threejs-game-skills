@@ -131,7 +131,7 @@ export class CombatSystem {
     const kickKey = inp.hit('KeyV');
     let face = null; // heading the body must face this frame
 
-    if (busy) { this.aiming = false; this.melee = null; return { face: null, slow: false }; }
+    if (busy || g.interior) { this.aiming = false; this.melee = null; return { face: null, slow: false }; }
 
     if (w.melee) {
       this.aiming = false;
@@ -229,6 +229,7 @@ export class CombatSystem {
     a.mag--;
     this.cooldown = w.rate;
     this.shotsFired++;
+    if (w.rocket) { this.fireRocket(); return; }
     const cam = g.camera;
     const moving = g.player.speed > 0.5 ? 1.8 : 1;
     const muzzle = this.muzzleWorld(new THREE.Vector3());
@@ -255,6 +256,82 @@ export class CombatSystem {
     g.camera3p.recoil = (g.camera3p.recoil || 0) + (w.id === 'shotgun' ? 0.05 : w.id === 'smg' ? 0.008 : 0.02);
     g.events.emit('shotsFired', { x: g.player.pos.x, z: g.player.pos.z, weapon: w.id });
     if (a.mag === 0 && a.reserve > 0) setTimeout(() => this.reloading <= 0 && this.current === w.id && this.startReload(), 250);
+  }
+
+  fireRocket() {
+    const g = this.game;
+    const muzzle = this.muzzleWorld(new THREE.Vector3());
+    const cam = g.camera;
+    cam.getWorldDirection(_d);
+    const hit = this.raycast(cam.position.clone(), _d.clone(), 220, true);
+    const target = cam.position.clone().addScaledVector(_d, hit.t);
+    const dir = target.sub(muzzle).normalize();
+    if (!this.rocketMesh) {
+      const geo = new THREE.CylinderGeometry(0.05, 0.07, 0.6, 8).rotateX(Math.PI / 2);
+      this.rocketMat = new THREE.MeshStandardMaterial({ color: 0x4d5a3a, roughness: 0.6, emissive: 0xff8a2a, emissiveIntensity: 0 });
+      this.rockets = [];
+      for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(geo, this.rocketMat); m.visible = false; this.scene.add(m); this.rockets.push({ m, active: false }); }
+      this.rocketMesh = true;
+    }
+    const r = this.rockets.find((x) => !x.active) || this.rockets[0];
+    r.active = true; r.life = 4; r.pos = muzzle.clone(); r.vel = dir.multiplyScalar(62); r.trail = 0;
+    r.m.visible = true; r.m.position.copy(muzzle); r.m.lookAt(muzzle.clone().add(r.vel));
+    this.flash(muzzle, 1.2, 0xffb24a, 0.08);
+    this.puff(muzzle.clone().addScaledVector(r.vel, -0.03), 0x333333, 0.9, 1);
+    g.audio.gunshot('shotgun', 0);
+    g.audio.whoosh();
+    g.camera3p.kick(0.12);
+    g.events.emit('shotsFired', { x: g.player.pos.x, z: g.player.pos.z, weapon: 'rpg' });
+  }
+
+  updateRockets(dt) {
+    if (!this.rockets) return;
+    const g = this.game;
+    for (const r of this.rockets) {
+      if (!r.active) continue;
+      r.life -= dt;
+      const step = r.vel.clone().multiplyScalar(dt);
+      const len = step.length();
+      const dir = step.clone().normalize();
+      // anything in the way during this step?
+      const hit = this.raycastFrom(r.pos, dir, len + 0.3);
+      if (hit || r.life <= 0) {
+        const p = hit ? r.pos.clone().addScaledVector(dir, hit) : r.pos;
+        r.active = false; r.m.visible = false;
+        this.explode(p.x, p.y, p.z, 8);
+        continue;
+      }
+      r.pos.add(step);
+      r.vel.y -= 1.5 * dt;
+      r.m.position.copy(r.pos);
+      r.m.lookAt(r.pos.clone().add(r.vel));
+      r.trail -= dt;
+      if (r.trail <= 0) { r.trail = 0.025; this.puff(r.pos.clone(), 0x333333, 0.5, 0.9); this.flash(r.pos.clone(), 0.5, 0xffa040, 0.04); }
+    }
+  }
+
+  /** Distance along dir (from o) to the first solid thing, or 0 if clear within len. */
+  raycastFrom(o, d, len) {
+    const g = this.game;
+    let best = Infinity;
+    for (const n of g.npcs.npcs) {
+      if (n.state === 'DOWN' || n.role === 'actor') continue;
+      const t = rayCylinder(o, d, n.pos.x, n.pos.z, n.pos.y, n.pos.y + 1.8, 0.4);
+      if (t < best) best = t;
+    }
+    for (const v of g.vehicles.vehicles) {
+      if (v === g.player.vehicle || Math.abs(v.pos.x - o.x) > len + 8 || Math.abs(v.pos.z - o.z) > len + 8) continue;
+      for (const c of v.circles()) { const t = rayCylinder(o, d, c.x, c.z, v.pos.y, v.pos.y + v.height, c.r); if (t < best) best = t; }
+    }
+    if (g.traffic) for (const c of g.traffic.cars) {
+      if (Math.abs(c.x - o.x) > len + 8 || Math.abs(c.z - o.z) > len + 8) continue;
+      for (const cc of g.traffic.carCircles(c)) { const t = rayCylinder(o, d, cc.x, cc.z, 0, 1.5, cc.r); if (t < best) best = t; }
+    }
+    const tw = g.collision.raycast(o.x, o.y, o.z, o.x + d.x * len, o.y + d.y * len, o.z + d.z * len) * len;
+    if (tw < len) best = Math.min(best, tw);
+    const gy = terrainHeight(o.x + d.x * len, o.z + d.z * len);
+    if (o.y + d.y * len <= gy) best = Math.min(best, d.y < -1e-3 ? Math.max(0.01, (gy - o.y) / d.y) : len);
+    return best <= len ? Math.max(0.01, best) : 0;
   }
 
   applyHit(hit, damage, point, dir) {
@@ -303,9 +380,10 @@ export class CombatSystem {
   }
 
   /** Clean-style blast: bright flash, smoke, knocks people over nearby. */
-  explode(x, y, z) {
+  explode(x, y, z, r = 7) {
     const g = this.game;
     _p.set(x, y, z);
+    const center = new THREE.Vector3(x, y, z);
     this.flash(_p, 4.5, 0xffb24a, 0.5);
     for (let i = 0; i < 6; i++) this.puff(_p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2, (Math.random() - 0.5) * 3)), 0x333333, 2.2, 1.6);
     g.audio.explosion(Math.max(0.2, 1 - g.player.pos.distanceTo(_p) / 120));
@@ -316,7 +394,16 @@ export class CombatSystem {
       if (pl.vehicle) g.damagePlayer((7 - d) * 3);
       else { g.damagePlayer((7 - d) * 7); pl.hitByVehicle({ vel: new THREE.Vector2((pl.pos.x - x) * 2, (pl.pos.z - z) * 2), police: false }, 8, { x: pl.pos.x, z: pl.pos.z }); }
     }
-    g.npcs.blast(x, z, 7);
+    g.npcs.blast(x, z, r);
+    // chain reaction: cars caught in the blast take heavy damage (and may blow up too)
+    for (const v of [...g.vehicles.vehicles]) {
+      const dv = Math.hypot(v.pos.x - x, v.pos.z - z);
+      if (dv < r && !v.wrecked) setTimeout(() => this.damageVehicle(v, (r - dv) * 28 + 20, center), 120 + dv * 25);
+    }
+    if (g.traffic) for (const c of [...g.traffic.cars]) {
+      const dc = Math.hypot(c.x - x, c.z - z);
+      if (dc < r) { const v = g.traffic.toVehicle(c, { x: (c.x - x) * 2, z: (c.z - z) * 2 }); if (v) setTimeout(() => this.damageVehicle(v, (r - dc) * 28 + 20, center), 150 + dc * 25); }
+    }
   }
 
   // ------------------------------------------------------------ ray tests
@@ -534,6 +621,7 @@ export class CombatSystem {
 
   update(dt) {
     const g = this.game;
+    this.updateRockets(dt);
     // tracers fade
     const col = this.tracers.geometry.attributes.color;
     let dirty = false;

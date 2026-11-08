@@ -18,9 +18,13 @@ export const WEAPONS = {
     id: 'shotgun', name: 'Pump Shotgun', slot: 4, damage: 15, rate: 0.95, mag: 6, spread: 0.07, range: 36, reload: 2.2,
     price: 1400, ammoPrice: 90, ammoPack: 24, auto: false, pellets: 8, icon: '🔫',
   },
+  rpg: {
+    id: 'rpg', name: 'Rocket Launcher', slot: 5, damage: 0, rate: 1.3, mag: 1, spread: 0.004, range: 220, reload: 2.0,
+    price: 6000, ammoPrice: 900, ammoPack: 3, auto: false, pellets: 1, rocket: true, icon: '🚀',
+  },
 };
 
-export const WEAPON_ORDER = ['fists', 'bat', 'pistol', 'smg', 'shotgun'];
+export const WEAPON_ORDER = ['fists', 'bat', 'pistol', 'smg', 'shotgun', 'rpg'];
 
 const mats = {};
 function mat(key) {
@@ -69,6 +73,15 @@ export function makeWeaponMesh(id) {
       cyl(g, 'wood', 0.024, 0.024, 0.16, 0, 0.02, 0.22); // pump
       box(g, 'wood', 0.04, 0.07, 0.26, 0, 0.02, -0.14); // stock
       muzzle = new THREE.Vector3(0, 0.05, 0.58);
+      break;
+    case 'rpg':
+      cyl(g, 'gun', 0.065, 0.065, 1.05, 0, 0.09, 0.18, 12);
+      cyl(g, 'steel', 0.085, 0.07, 0.16, 0, 0.09, 0.72, 12);
+      cyl(g, 'steel', 0.075, 0.085, 0.12, 0, 0.09, -0.36, 12);
+      box(g, 'grip', 0.03, 0.12, 0.05, 0, -0.02, 0);
+      box(g, 'grip', 0.03, 0.12, 0.05, 0, -0.02, 0.28);
+      box(g, 'steel', 0.05, 0.06, 0.12, 0.08, 0.17, 0.1); // sight
+      muzzle = new THREE.Vector3(0, 0.09, 0.8);
       break;
     case 'bat':
       cyl(g, 'tape', 0.018, 0.018, 0.22, 0, 0, 0.0);

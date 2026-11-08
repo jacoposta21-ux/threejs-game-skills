@@ -140,6 +140,7 @@ export class ShopMenu {
       d.addEventListener('mouseenter', () => { if (this.sel !== i) { this.sel = i; this.render(); } });
       d.addEventListener('click', () => this.buy(i));
       this.list.appendChild(d);
+      if (i === this.sel) requestAnimationFrame(() => d.scrollIntoView({ block: 'nearest' }));
     });
     $('shop-cash').textContent = `$${g.money.toLocaleString('en-US')}`;
   }
@@ -169,5 +170,86 @@ export class ShopMenu {
     g.input.keys.clear();
     g.input.requestLock();
     if (this.spec.onClose) this.spec.onClose();
+  }
+}
+
+/** Lock-picking minigame: stop the swinging needle inside the green zone three times. */
+export class Lockpick {
+  constructor(game) {
+    this.game = game;
+    this.el = $('lockpick');
+    this.active = false;
+    window.addEventListener('keydown', (e) => {
+      if (!this.active) return;
+      if (e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); this.close(false); return; }
+      if ((e.code === 'KeyE' || e.code === 'Space') && !e.repeat) { e.preventDefault(); this.attempt(); }
+    }, true);
+  }
+
+  start(onSuccess) {
+    const g = this.game;
+    if (g.state !== 'playing') return;
+    this.onSuccess = onSuccess;
+    this.pins = 0;
+    this.pos = 0; this.dir = 1; this.speed = 0.9;
+    this.width = 0.24;
+    this.newZone();
+    this.active = true;
+    this.openedAt = performance.now();
+    g.state = 'minigame';
+    g.input.keys.clear();
+    this.el.classList.remove('hidden', 'miss');
+    this.render();
+  }
+
+  newZone() {
+    this.z0 = 0.1 + Math.random() * (0.8 - this.width);
+    this.z1 = this.z0 + this.width;
+  }
+
+  update(dt) {
+    if (!this.active) return;
+    this.pos += this.dir * this.speed * dt;
+    if (this.pos > 1) { this.pos = 1; this.dir = -1; }
+    if (this.pos < 0) { this.pos = 0; this.dir = 1; }
+    this.render();
+  }
+
+  render() {
+    $('lp-needle').style.left = `${this.pos * 100}%`;
+    const z = $('lp-zone');
+    z.style.left = `${this.z0 * 100}%`;
+    z.style.width = `${(this.z1 - this.z0) * 100}%`;
+    [...$('lp-pins').children].forEach((p, i) => p.classList.toggle('on', i < this.pins));
+  }
+
+  attempt() {
+    const g = this.game;
+    if (performance.now() - this.openedAt < 200) return;
+    if (this.pos >= this.z0 && this.pos <= this.z1) {
+      this.pins++;
+      g.audio.click();
+      if (this.pins >= 3) { this.render(); setTimeout(() => this.close(true), 150); return; }
+      this.speed += 0.35;
+      this.width = Math.max(0.12, this.width - 0.05);
+      this.newZone();
+    } else {
+      // a slip sets the alarm off and drops a pin
+      this.pins = Math.max(0, this.pins - 1);
+      this.el.classList.remove('miss'); void this.el.offsetWidth; this.el.classList.add('miss');
+      g.audio.horn(); setTimeout(() => g.audio.horn(), 350);
+      g.events.emit('carAlarm', { x: g.player.pos.x, z: g.player.pos.z });
+    }
+    this.render();
+  }
+
+  close(ok) {
+    const g = this.game;
+    if (!this.active) return;
+    this.active = false;
+    this.el.classList.add('hidden');
+    g.state = 'playing';
+    g.input.keys.clear();
+    if (ok && this.onSuccess) this.onSuccess();
   }
 }

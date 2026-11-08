@@ -32,8 +32,9 @@ import { terrainHeight } from '../world/Layout.js';
 import { classify, BEACH } from '../world/Layout.js';
 import { lerp } from '../utils/random.js';
 import { CombatSystem } from '../combat/CombatSystem.js';
-import { Cutscene, ShopMenu } from '../ui/Overlays.js';
+import { Cutscene, ShopMenu, Lockpick } from '../ui/Overlays.js';
 import { Economy } from '../systems/Economy.js';
+import { Interiors } from '../world/Interiors.js';
 
 // automatic-performance tiers, mildest first
 const PERF_TIERS = [
@@ -118,6 +119,7 @@ export class Game {
     this.combat = new CombatSystem(this);
     this.cutscene = new Cutscene(this);
     this.shop = new ShopMenu(this);
+    this.lockpick = new Lockpick(this);
     this.camera3p = new CameraController(this);
     this.camera3p.reset(this.player.heading);
     this.hud = new HUD(this);
@@ -127,6 +129,7 @@ export class Game {
     this.police = new PoliceSystem(this);
     this.story = new MissionManager(this, [...MISSIONS, ...STORY]);
     this.locations = new Locations(this);
+    this.interiors = new Interiors(this);
     this.economy = new Economy(this);
     this.seagulls = new Seagulls(this.scene);
     this.sunFlare = new SunFlare(this.scene);
@@ -264,7 +267,7 @@ export class Game {
   }
 
   onKey(e) {
-    if (this.state === 'shop' || this.cutscene?.active) return;
+    if (this.state === 'shop' || this.state === 'minigame' || this.cutscene?.active) return;
     if (e.code === 'Escape') {
       if (this.state === 'map') { this.resume(); return; }
       if (this.state === 'playing' && !this.input.locked) this.pause();
@@ -285,6 +288,16 @@ export class Game {
     this.npcs.spawnAt(door.x, door.z, this.player.pos);
     this.events.emit('carjack', v);
     this.audio.grunt();
+    this.driver.enter(v);
+  }
+
+  /** A parked prop car becomes a real one once the lock is picked. */
+  stealParked(c) {
+    const v = this.vehicles.spawnDynamic(c.key, c.x, c.z, c.rot);
+    if (!v) return;
+    this.city.takeParked(c);
+    v.vel.set(0, 0);
+    this.events.emit('carStolen', v);
     this.driver.enter(v);
   }
 
@@ -363,6 +376,34 @@ export class Game {
     return true;
   }
 
+  /** Every point of interest for the map list (category order matters). */
+  places() {
+    const out = [];
+    const add = (cat, name, x, z, icon, color) => out.push({ cat, name, x, z, icon, color });
+    for (const d of this.story.available()) add('Story missions', d.title.replace(/^MISSION \d+ — /, ''), d.start.x, d.start.z, d.letter || 'M', '#ffd23f');
+    const E = this.economy;
+    const shop = { guns: 'Sunline Arms (weapons)', clothes: 'Threads & Co. (clothes)', tuning: 'Vista Customs (tuning)', clubdoor: 'Club Velvet' };
+    for (const pl of E.places) if (shop[pl.kind]) add('Shops & fun', shop[pl.kind], pl.x, pl.z, pl.icon, pl.color);
+    for (const pl of this.locations.places) {
+      if (pl.kind === 'spray') add('Shops & fun', 'Spray & Go (respray)', pl.x, pl.z, pl.icon, pl.color);
+      if (pl.kind === 'repair') add('Shops & fun', 'Gas station (repair)', pl.x, pl.z, pl.icon, pl.color);
+    }
+    for (const pl of this.locations.places) if (pl.kind === 'food') add('Food', pl.name, pl.x, pl.z, pl.icon, pl.color);
+    add('Safehouses', 'Safehouse (Palm Blvd)', this.locations.places[0].x, this.locations.places[0].z, 'H', '#7dff9b');
+    for (const pl of E.places) if (pl.kind === 'property') add(E.owned.has(pl.prop.id) ? 'Your properties' : 'Properties for sale', pl.prop.name, pl.x, pl.z, '$', E.owned.has(pl.prop.id) ? '#ffd23f' : '#7dff9b');
+    add('Services', 'Vista Mar Airport', 60, -470, '✈', '#9ad8ff');
+    add('Services', 'VMPD Headquarters', 109, -60, 'P', '#4f7cff');
+    add('Services', 'Hospital', 93, 150, '+', '#ff6b6b');
+    const order = ['Story missions', 'Shops & fun', 'Food', 'Safehouses', 'Your properties', 'Properties for sale', 'Services'];
+    return out.sort((a, b) => order.indexOf(a.cat) - order.indexOf(b.cat));
+  }
+
+  setWaypoint(p) {
+    this.waypoint = p ? { x: p.x, z: p.z, name: p.name } : null;
+    this.waypointRoute = p ? route({ x: this.player.pos.x, z: this.player.pos.z }, p) : null;
+    if (p) this.hud.toast('GPS SET', p.name);
+  }
+
   addMoney(v) {
     this.money += v;
   }
@@ -372,6 +413,7 @@ export class Game {
     for (const n of this.npcs.npcs) if (n.role && n.role !== 'actor' && n.state !== 'DOWN' && n.alerted) out.push({ x: n.pos.x, z: n.pos.z, color: n.role === 'cop' ? '#4f7cff' : '#ff4f4f', shape: 'dot', size: 4 });
     const obj = this.story.objective();
     if (obj && obj.target) out.push({ x: obj.target.x, z: obj.target.z, color: '#ffd23f', shape: 'diamond', size: 8, edge: true });
+    if (this.waypoint) out.push({ x: this.waypoint.x, z: this.waypoint.z, color: '#c77dff', shape: 'diamond', size: 8, edge: true });
     return out;
   }
 
@@ -392,6 +434,8 @@ export class Game {
         this.camera3p.yaw += dt * 0.05;
         this.camera3p.update(dt);
         this.player.rig && this.player.rig.update(dt);
+      } else if (this.state === 'minigame') {
+        this.lockpick.update(dt);
       } else if (this.state === 'map' && this.frame % 20 === 0) {
         this.menus.showMap(true);
       }
@@ -430,19 +474,23 @@ export class Game {
     this.story.update(dt);
     this.locations.update(dt);
     this.economy.update(dt);
+    this.interiors.update(dt);
     // interaction: places first, then pickups, then the nearest vehicle
     const place = this.locations.current() || this.economy.current();
     const usePlace = (pl) => (pl.kind && this.economy.places.includes(pl) ? this.economy.use(pl) : this.locations.use(pl));
     if (!this.driver.vehicle) {
-      const it = place ? null : this.missions.nearestInteractable(p.pos);
-      const car = place || it ? null : this.vehicles.nearest(p.pos, 1.6);
-      const jack = place || it || car ? null : this.traffic.nearest(p.pos, 1.6);
-      this.hud.prompt(place ? place.label : it ? it.label : car ? `Enter ${car.spec.label}${car.wrecked ? ' (wrecked)' : ''}` : jack ? 'Take this car' : '');
+      const inside = !!this.interior;
+      const it = place || inside ? null : this.missions.nearestInteractable(p.pos);
+      const car = place || it || inside ? null : this.vehicles.nearest(p.pos, 1.6);
+      const jack = place || it || car || inside ? null : this.traffic.nearest(p.pos, 1.6);
+      const parked = place || it || car || jack || inside ? null : this.city.parkedNear(p.pos, 1.3);
+      this.hud.prompt(place ? place.label : it ? it.label : car ? `Enter ${car.spec.label}${car.wrecked ? ' (wrecked)' : ''}` : jack ? 'Take this car' : parked ? 'Break into this parked car' : '');
       if (this.input.hit('KeyE') && !p.knocked) {
         if (place) usePlace(place);
         else if (it) it.action();
         else if (car) this.driver.enter(car);
         else if (jack) this.carjack(jack);
+        else if (parked) this.lockpick.start(() => this.stealParked(parked));
       }
     } else {
       this.hud.prompt(place ? place.label : '');
@@ -459,6 +507,11 @@ export class Game {
       this.routeTimer = 0.5;
       const tg = obj && obj.target;
       this.route = tg ? route({ x: p.pos.x, z: p.pos.z }, tg) : null;
+      if (this.waypoint) {
+        this.waypointRoute = route({ x: p.pos.x, z: p.pos.z }, this.waypoint);
+        if (Math.hypot(p.pos.x - this.waypoint.x, p.pos.z - this.waypoint.z) < 12) { this.hud.toast('ARRIVED', this.waypoint.name, 'reward'); this.waypoint = null; this.waypointRoute = null; }
+      }
+      if (!this.route && this.waypointRoute) this.route = this.waypointRoute;
     }
     // health: slow regeneration out of danger, wasted at zero
     if (p.health > 0 && p.health < 100 && this.playTime - this.lastDamage > 8 && this.police.level === 0) p.health = Math.min(100, p.health + dt * 1.5);

@@ -59,6 +59,12 @@
       </div>
       <div id="banner" class="hidden"><div id="banner-title"></div><div id="banner-sub"></div></div>
       <div id="damage"></div>
+      <div id="lockpick" class="hidden">
+        <div class="lp-title">BREAKING IN</div>
+        <div class="lp-bar"><div id="lp-zone"></div><div id="lp-needle"></div></div>
+        <div id="lp-pins"><i></i><i></i><i></i></div>
+        <div class="lp-help"><kbd>E</kbd> / <kbd>Space</kbd> set the pin when the needle is in the green · <kbd>Esc</kbd> give up</div>
+      </div>
       <div id="crosshair" class="hidden"><i></i><i></i><i></i><i></i></div>
       <div id="prompt" class="hidden"><kbd>E</kbd><span id="prompt-text"></span></div>
       <div id="toasts"></div>
@@ -93,12 +99,8 @@
         <canvas id="bigmap"></canvas>
         <div class="map-legend">
           <div class="map-title">VISTA MAR</div>
-          <div><i style="background:#ffd23f"></i>You</div>
-          <div><i style="background:#ff4fa3"></i>Lost tape</div>
-          <div><i style="background:#5b6170"></i>Downtown</div>
-          <div><i style="background:#9b4d8f"></i>Neon Mile</div>
-          <div><i style="background:#6f8f63"></i>Residential</div>
-          <div><i style="background:#7a7466"></i>Industrial</div>
+          <div class="map-help">Click a place (or anywhere on the map) to set the GPS. Right click clears it.</div>
+          <div id="map-places"></div>
           <div class="map-help"><kbd>M</kbd> / <kbd>Esc</kbd> close</div>
         </div>
       </div>

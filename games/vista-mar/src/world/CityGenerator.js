@@ -9,7 +9,7 @@ import { addWind, carPaint } from './Effects.js';
 import { buildAtlas, applyAtlas } from './Atlas.js';
 import {
   LINES, xWidths, zWidths, SIDEWALK, CURB_H, BOULEVARD_MEDIAN, BEACH, WATER_LEVEL, BOUNDS,
-  allBlocks, terrainHeight, AIRPORT,
+  allBlocks, terrainHeight, AIRPORT, classify,
 } from './Layout.js';
 
 const CHUNK = 300;
@@ -1032,6 +1032,9 @@ export class CityGenerator {
           const off = L + side * (hw + 2.6);
           const x = bl.ori === 'x' ? off : along, z = bl.ori === 'x' ? along : off;
           if (this.collision.blockedCircle(x, z, 2.2)) continue;
+          // the whole shelter must stand on sidewalk (never on a cross street)
+          const ends = bl.ori === 'x' ? [[x, z - 3], [x, z + 3]] : [[x - 3, z], [x + 3, z]];
+          if ([[x, z], ...ends].some(([px, pz]) => classify(px, pz).type !== 'sidewalk')) continue;
           const rot = bl.ori === 'x' ? (side > 0 ? -Math.PI / 2 : Math.PI / 2) : (side > 0 ? Math.PI : 0);
           this.props.busStops.push({ x, z, y: CURB_H, rot });
           const ex = bl.ori === 'x' ? 0.9 : 2.2, ez = bl.ori === 'x' ? 2.2 : 0.9;
@@ -1147,6 +1150,27 @@ export class CityGenerator {
     // perimeter lamps on the apron
     for (let x = ap.x0 + 20; x < ap.x1; x += 60) this.props.lamps.push({ x, z: ap.z1 - 2, y: Y, facing: [0, -1] });
     this.pois.push({ type: 'airport', x: 0, z: -540 });
+  }
+
+  /** Parked (decorative) car next to a point, or null. Model forward is +z rotated by rot. */
+  parkedNear(pos, r = 1.4) {
+    let best = null, bd = r;
+    for (const c of this.parkedCars || []) {
+      if (c.taken || Math.abs(c.x - pos.x) > 8 || Math.abs(c.z - pos.z) > 8) continue;
+      const fx = Math.sin(c.rot), fz = Math.cos(c.rot);
+      const dx = pos.x - c.x, dz = pos.z - c.z;
+      const ef = Math.max(0, Math.abs(dx * fx + dz * fz) - c.hl), er = Math.max(0, Math.abs(dx * -fz + dz * fx) - c.hw);
+      const d = Math.hypot(ef, er);
+      if (d < bd) { bd = d; best = c; }
+    }
+    return best;
+  }
+
+  /** Swaps a parked prop for nothing: its collision and instance disappear. */
+  takeParked(c) {
+    c.taken = true;
+    if (c.box) c.box.top = -5;
+    if (this.parkedBatch) this.parkedBatch.hide(c.item);
   }
 
   addPalm(x, z, y, s = 1, face = null) {
@@ -1356,7 +1380,8 @@ export class CityGenerator {
       const hl = carModels[k].size.z / 2, hw = carModels[k].size.x / 2;
       const along = Math.abs(Math.sin(c.rot)) > 0.5; // rotated 90 degrees: long axis on x
       const ex = along ? hl : hw, ez = along ? hw : hl;
-      this.collision.addBox(c.x - ex, c.z - ez, c.x + ex, c.z + ez, c.y + 1.6, 'car');
+      c.box = this.collision.addBox(c.x - ex, c.z - ez, c.x + ex, c.z + ez, c.y + 1.6, 'car');
+      c.key = k; c.hl = hl; c.hw = hw;
       this.footprints.push({ x0: c.x - ex, z0: c.z - ez, x1: c.x + ex, z1: c.z + ez, h: 1.5, kind: 'car' });
     });
     // all parked cars share the Kenney colour map -> one batch, one draw call
@@ -1374,8 +1399,10 @@ export class CityGenerator {
       carGeos.push(proxy);
       this.carBatchMaterial = carModels[carKeysUsed[0]].materials[0];
       const cars = new LodBatch(this.group, this.carBatchMaterial, carGeos, this.props.cars.length + 4);
-      for (const k of carKeysUsed) for (const c of carLists[k]) cars.add(mat4(c.x, c.y, c.z, c.rot, 1), idx[k], PROXY, { nearDist: 40, farDist: 600 });
+      this.parkedCars = [];
+      for (const k of carKeysUsed) for (const c of carLists[k]) { c.item = cars.add(mat4(c.x, c.y, c.z, c.rot, 1), idx[k], PROXY, { nearDist: 40, farDist: 600 }); this.parkedCars.push(c); }
       cars.finalize();
+      this.parkedBatch = cars;
       this.batches.push(cars);
     }
     this.carModels = carModels;

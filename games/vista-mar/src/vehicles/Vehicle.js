@@ -265,7 +265,7 @@ export class Vehicle {
     if (this.system.game.npcs && Math.hypot(this.vel.x, this.vel.y) > 0.5) this.system.game.npcs.vehicleSweep(this);
     // an AI or runaway car hitting the player on foot
     const pl = this.system.game.player;
-    if (!this.driver && pl && !pl.vehicle && Math.hypot(this.vel.x, this.vel.y) > 1) {
+    if (!this.driver && pl && !pl.vehicle && !this.system.game.interior && Math.hypot(this.vel.x, this.vel.y) > 1) {
       const hitP = this.pushCircle(pl.pos.x, pl.pos.z, 0.4);
       if (hitP) pl.hitByVehicle(this, Math.hypot(this.vel.x, this.vel.y), hitP);
     }

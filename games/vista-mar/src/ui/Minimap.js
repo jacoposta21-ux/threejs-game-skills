@@ -154,6 +154,12 @@ export class Minimap {
     c.fillStyle = g; c.fillRect(0, 0, S, S);
   }
 
+  /** Map canvas pixel (CSS px) -> world x,z. */
+  bigToWorld(px, py) {
+    const sc = this.bigScale || 1;
+    return { x: px / sc + MAP.x0, z: py / sc + MAP.z0 };
+  }
+
   drawBig(player, markers) {
     const maxW = Math.min(window.innerWidth - 260, 900), maxH = window.innerHeight - 80;
     const sc = Math.max(0.3, Math.min(maxW / this.base.width, maxH / this.base.height));
@@ -166,21 +172,38 @@ export class Minimap {
     c.scale(dpr, dpr);
     c.drawImage(this.base, 0, 0, w, h);
     const P = (x, z) => [(x - MAP.x0) * sc, (z - MAP.z0) * sc];
+    this.bigScale = sc;
     // district labels
     c.font = `italic 800 ${Math.max(12, 18 * sc * 1.4)}px "Barlow Condensed", sans-serif`;
     c.textAlign = 'center';
     c.fillStyle = 'rgba(255,255,255,0.85)';
     c.shadowColor = 'rgba(0,0,0,0.8)'; c.shadowBlur = 4;
-    const labels = [['DOWNTOWN', 50, -60], ['NEON MILE', 250, 90], ['OCEAN DRIVE', 350, -330], ['PALM HEIGHTS', -250, 250], ['PORT INDUSTRIAL', -250, -250], ['MIDTOWN', 50, -300], ['CORAL GABLES', 50, 310], ['VISTA MAR BEACH', 440, 120], ['ATLANTIC OCEAN', 560, -150]];
+    const labels = [['VISTA MAR AIRPORT', 0, -700], ['DOWNTOWN', 50, -60], ['NEON MILE', 250, 90], ['OCEAN DRIVE', 350, -330], ['PALM HEIGHTS', -250, 250], ['PORT INDUSTRIAL', -250, -250], ['MIDTOWN', 50, -300], ['CORAL GABLES', 50, 310], ['VISTA MAR BEACH', 440, 120], ['ATLANTIC OCEAN', 560, -150]];
     for (const [t, x, z] of labels) { const [px, pz] = P(x, z); c.fillText(t, px, pz); }
     c.shadowBlur = 0;
+    // GPS route to the waypoint
+    if (this.route && this.route.length > 1) {
+      c.strokeStyle = 'rgba(199,125,255,0.95)'; c.lineWidth = 3; c.lineJoin = 'round';
+      c.beginPath();
+      this.route.forEach((pt, k) => { const [x, z] = P(pt.x, pt.z); if (k) c.lineTo(x, z); else c.moveTo(x, z); });
+      c.stroke();
+    }
     for (const m of markers) {
       const [px, pz] = P(m.x, m.z);
+      const r = m.label ? 7.5 : 5;
       c.fillStyle = m.color; c.strokeStyle = '#000'; c.lineWidth = 1.5;
       c.beginPath();
-      if (m.shape === 'diamond') { c.moveTo(px, pz - 7); c.lineTo(px + 7, pz); c.lineTo(px, pz + 7); c.lineTo(px - 7, pz); c.closePath(); }
-      else c.arc(px, pz, 5, 0, 7);
+      if (m.shape === 'diamond') { c.moveTo(px, pz - 8); c.lineTo(px + 8, pz); c.lineTo(px, pz + 8); c.lineTo(px - 8, pz); c.closePath(); }
+      else c.arc(px, pz, r, 0, 7);
       c.fill(); c.stroke();
+      if (m.label) { c.fillStyle = '#111'; c.font = '700 9px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(m.label, px, pz + 0.5); }
+    }
+    // waypoint flag
+    if (this.waypoint) {
+      const [wx, wz] = P(this.waypoint.x, this.waypoint.z);
+      c.fillStyle = '#c77dff'; c.strokeStyle = '#000'; c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(wx, wz); c.lineTo(wx, wz - 20); c.lineTo(wx + 13, wz - 15); c.lineTo(wx, wz - 10); c.stroke(); c.fill();
+      c.beginPath(); c.arc(wx, wz, 3, 0, 7); c.fill(); c.stroke();
     }
     const [px, pz] = P(player.pos.x, player.pos.z);
     c.save(); c.translate(px, pz); c.rotate(Math.atan2(Math.cos(player.heading), Math.sin(player.heading)) + Math.PI / 2 - Math.PI);

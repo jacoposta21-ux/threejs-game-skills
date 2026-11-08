@@ -247,7 +247,7 @@ export class NPCSystem {
     if (npc.state === NPC_STATE.KNOCKED || npc.state === NPC_STATE.DOWN) return;
     // being run over hurts: fast hits keep people down for good
     npc.health -= speed * 6.5;
-    if (npc.health <= 0) {
+    if (npc.health <= 0 || speed > 9) {
       this.down(npc, { x: npc.pos.x - vx, z: npc.pos.z - vz }, 'vehicle', speed);
       for (const o of this.npcs) if (o !== npc && !o.role && (o.pos.x - npc.pos.x) ** 2 + (o.pos.z - npc.pos.z) ** 2 < 900) this.flee(o, npc.pos, 7 + Math.random() * 4);
       if (byPlayer) this.game.events.emit('pedestrianHit', { npc, speed, downed: true });
@@ -335,6 +335,7 @@ export class NPCSystem {
         npc.pos.x += npc.vel.x * dt; npc.pos.z += npc.vel.y * dt;
         npc.vel.multiplyScalar(Math.exp(-5 * dt));
         npc.animAcc += dt;
+        if (npc.currentName !== 'Death01') { npc.currentName = ''; this.play(npc, 'Death01', { fade: 0.05, once: true }); }
         if (npc.currentName === 'Death01' && npc.current && npc.current.time < npc.current.getClip().duration) { npc.mixer.update(npc.animAcc); npc.animAcc = 0; }
         npc.root.position.copy(npc.pos);
         npc.root.rotation.y = npc.heading;
@@ -428,6 +429,7 @@ export class NPCSystem {
         }
         break;
       case NPC_STATE.KNOCKED:
+        if (npc.timer <= 0 && npc.health < 40) { this.down(npc, g.player.pos, 'melee', 0, true); break; }
         if (npc.timer <= 0) {
           if (npc.role) { npc.state = NPC_STATE.COMBAT; npc.alerted = true; }
           else if (npc.brave && npc.angry && !g.player.vehicle) { npc.state = NPC_STATE.FIGHT; npc.timer = 12; }
@@ -451,6 +453,7 @@ export class NPCSystem {
 
   move(npc, dt) {
     const g = this.game;
+    if (npc.state === NPC_STATE.DOWN) return; // bodies never animate back up
     let tx = 0, tz = 0, speed = 0, anim = 'Idle_Loop', ts = 1;
     switch (npc.state) {
       case NPC_STATE.WALKING:
@@ -521,7 +524,7 @@ export class NPCSystem {
     x = pv.x; z = pv.z;
     if (g.traffic) { const pt = g.traffic.pushPedestrian(x, z, RADIUS); x = pt.x; z = pt.z; }
     const pl = g.player;
-    if (!pl.vehicle) {
+    if (!pl.vehicle && Math.abs(pl.pos.y - npc.pos.y) < 2.5) {
       const ox = x - pl.pos.x, oz = z - pl.pos.z, d = Math.hypot(ox, oz);
       if (d < RADIUS + 0.36 && d > 1e-4) { x = pl.pos.x + (ox / d) * (RADIUS + 0.36); z = pl.pos.z + (oz / d) * (RADIUS + 0.36); }
     }
@@ -546,9 +549,10 @@ export class NPCSystem {
   }
 
   /** Pushes the on-foot player out of pedestrians (bodies are solid both ways). */
-  pushPlayer(x, z, r) {
+  pushPlayer(x, z, r, y = null) {
     for (const npc of this.npcs) {
       if (npc.state === NPC_STATE.KNOCKED || npc.state === NPC_STATE.DOWN) continue;
+      if (y !== null && Math.abs(npc.pos.y - y) > 2.5) continue; // different floor (interiors)
       const ox = x - npc.pos.x, oz = z - npc.pos.z, d = Math.hypot(ox, oz), rr = r + RADIUS;
       if (d < rr && d > 1e-4) { x = npc.pos.x + (ox / d) * rr; z = npc.pos.z + (oz / d) * rr; }
     }
@@ -625,18 +629,22 @@ export class NPCSystem {
   }
 
   /** Puts someone on the ground for good (clean style: they just lie still). */
-  down(npc, from, kind = 'melee', speed = 4) {
+  down(npc, from, kind = 'melee', speed = 4, alreadyLying = false) {
     const g = this.game;
+    const lying = alreadyLying || npc.state === NPC_STATE.KNOCKED;
     if (npc.partner) { npc.partner.partner = null; if (npc.partner.state === NPC_STATE.INTERACTING) npc.partner.state = NPC_STATE.WALKING; npc.partner = null; }
     npc.state = NPC_STATE.DOWN;
     npc.health = 0;
     npc.downAt = g.playTime;
     npc.speed = 0;
     const dx = npc.pos.x - from.x, dz = npc.pos.z - from.z, L = Math.hypot(dx, dz) || 1;
-    npc.vel.set(dx / L, dz / L).multiplyScalar(kind === 'vehicle' ? Math.min(8, speed * 0.6) : kind === 'bullet' ? 1.2 : 2.6);
-    npc.heading = Math.atan2(-dx, -dz);
-    npc.currentName = '';
-    this.play(npc, 'Death01', { fade: 0.08, once: true });
+    if (lying) npc.vel.set(0, 0);
+    else {
+      npc.vel.set(dx / L, dz / L).multiplyScalar(kind === 'vehicle' ? Math.min(8, speed * 0.6) : kind === 'bullet' ? 1.2 : 2.6);
+      npc.heading = Math.atan2(-dx, -dz);
+    }
+    // already on the floor: keep the pose instead of replaying the fall
+    if (!(lying && npc.currentName === 'Death01')) { npc.currentName = ''; this.play(npc, 'Death01', { fade: 0.08, once: true }); }
     if (npc.weaponMesh) npc.weaponMesh.visible = false;
     const c = g.combat;
     if (c) {

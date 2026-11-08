@@ -4,6 +4,10 @@ export const VEHICLE_TYPES = {
     label: 'Vapor GT', asset: 'sports', width: 1.95, maxSpeed: 60, accel: 9.5, brake: 26, reverse: 9, drag: 0.08,
     steer: 0.6, grip: 9, driftGrip: 1.6, wheelbase: 2.5, mass: 1300, gears: 6, colorTint: null,
   },
+  speedster: {
+    label: 'Vista Speedster', asset: 'race', width: 1.9, maxSpeed: 72, accel: 13, brake: 30, reverse: 9, drag: 0.07,
+    steer: 0.58, grip: 10.5, driftGrip: 1.7, wheelbase: 2.6, mass: 950, gears: 7,
+  },
   sedan: {
     label: 'Coastline Sedan', asset: 'sedan', width: 1.95, maxSpeed: 48, accel: 7, brake: 22, reverse: 8, drag: 0.1,
     steer: 0.62, grip: 8, driftGrip: 1.5, wheelbase: 2.6, mass: 1450, gears: 5,
@@ -38,4 +42,6 @@ export const VEHICLE_SPAWNS = [
   { type: 'suv', x: 150, z: -260, h: Math.PI / 2 },
   { type: 'sedan', x: -95, z: 250, h: 0 },
   { type: 'police', x: 205, z: 120, h: 0 },
+  { type: 'speedster', x: 394.5, z: -40, h: Math.PI },
+  { type: 'speedster', x: 296, z: 150, h: 0 },
 ];

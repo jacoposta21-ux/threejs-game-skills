@@ -99,6 +99,8 @@ export function emissiveSwitchTexture() {
  * everywhere, whereas BatchedMesh multi-draw can be emulated as one draw per
  * instance on some drivers (e.g. ANGLE/D3D11 on integrated GPUs).
  */
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+
 export class ChunkedLod {
   constructor(parent, material, geometries, _max, { castShadow = true, depthMaterial = null, chunk = 200 } = {}) {
     this.parent = parent;
@@ -138,7 +140,7 @@ export class ChunkedLod {
         const meshes = [];
         for (const [gi, list] of byGeo) {
           const im = new THREE.InstancedMesh(this.geos[gi], this.material, list.length);
-          list.forEach((it, i) => im.setMatrixAt(i, matKey === 'fm' ? (it.fm || it.m) : it.m));
+          list.forEach((it, i) => { im.setMatrixAt(i, matKey === 'fm' ? (it.fm || it.m) : it.m); (it.refs = it.refs || []).push({ im, i }); });
           im.castShadow = shadow;
           im.receiveShadow = true;
           if (this.depthMaterial) im.customDepthMaterial = this.depthMaterial;
@@ -153,6 +155,11 @@ export class ChunkedLod {
       this.chunks.push({ ...g, near: build('near', 'm', this.castShadow), far: build('far', 'fm', false), state: '' });
     }
     this.items = [];
+  }
+
+  /** Removes one instance (e.g. a parked car the player just stole). */
+  hide(it) {
+    for (const r of it.refs || []) { r.im.setMatrixAt(r.i, ZERO); r.im.instanceMatrix.needsUpdate = true; }
   }
 
   update(cam, farScale = 1) {

@@ -200,3 +200,25 @@ kbd { display: inline-block; min-width: 1.7em; padding: 0.12em 0.45em; margin: 0
 .shop-item.poor .price { color: #ff7a52; }
 .shop-foot { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font: 500 12px var(--body); color: var(--ink-dim); }
 .shop-cash { margin-left: auto; color: var(--money); font-weight: 700; }
+
+#lockpick { position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); width: min(420px, 86vw); background: var(--panel-strong); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px 12px; text-align: center; }
+.lp-title { font: italic 800 24px var(--display); letter-spacing: 0.06em; color: var(--gold); }
+.lp-bar { position: relative; height: 18px; margin: 12px 0 10px; background: rgba(255,255,255,0.08); border-radius: 9px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15); }
+#lp-zone { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, #2fae55, #5fdc72); }
+#lp-needle { position: absolute; top: -2px; bottom: -2px; width: 4px; margin-left: -2px; background: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.9); }
+#lockpick.miss .lp-bar { box-shadow: inset 0 0 0 2px #ff4f4f; }
+#lp-pins { display: flex; gap: 8px; justify-content: center; }
+#lp-pins i { width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,0.15); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3); }
+#lp-pins i.on { background: var(--money); box-shadow: 0 0 8px rgba(125,255,155,0.8); }
+.lp-help { margin-top: 10px; font: 500 12px var(--body); color: var(--ink-dim); }
+
+.map-legend { max-height: calc(100vh - 80px); width: 230px; }
+#map-places { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; max-height: calc(100vh - 200px); pointer-events: auto; padding-right: 4px; }
+#map-places .cat { font: 600 10px var(--body); letter-spacing: 0.16em; color: var(--accent); margin: 8px 0 2px; text-transform: uppercase; }
+#map-places button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 5px 8px; color: var(--ink); font: 500 13px var(--body); cursor: pointer; }
+#map-places button:hover { background: rgba(255,255,255,0.07); }
+#map-places button.on { border-color: #c77dff; background: rgba(199,125,255,0.15); }
+#map-places button b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font: 700 10px var(--body); color: #111; flex: none; }
+#map-places button small { margin-left: auto; color: var(--ink-dim); font-size: 11px; }
+#bigmap { cursor: crosshair; pointer-events: auto; }
+#map-places button small { white-space: nowrap; }

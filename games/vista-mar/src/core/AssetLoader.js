@@ -32,6 +32,7 @@ export const MANIFEST = {
   npc_w_suit: 'assets/characters/W_Suit.glb',
   npc_w_punk: 'assets/characters/W_Punk.glb',
   hatch: 'assets/vehicles/hatchback-sports.glb',
+  race: 'assets/vehicles/race.glb',
 };
 
 export async function loadAssets(onProgress) {

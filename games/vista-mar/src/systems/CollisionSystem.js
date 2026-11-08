@@ -27,8 +27,8 @@ export class CollisionSystem {
     }
   }
 
-  addBox(x0, z0, x1, z1, top, kind = 'solid') {
-    const e = { t: 0, x0, z0, x1, z1, top, kind, s: 0 };
+  addBox(x0, z0, x1, z1, top, kind = 'solid', bottom = -1) {
+    const e = { t: 0, x0, z0, x1, z1, top, kind, s: 0, b: bottom };
     if ((x1 - x0) * (z1 - z0) > 400000) { this.big.push(e); return e; }
     this.boxes.push(e);
     this.insert(e, x0, z0, x1, z1);
@@ -61,6 +61,7 @@ export class CollisionSystem {
     const list = this.query(x - r, z - r, x + r, z + r, this._tmp || (this._tmp = []));
     for (const e of list) {
       if (kinds && !kinds.includes(e.kind)) continue;
+      if (e.b > 50) continue; // floating interiors never block street-level queries
       if (e.t === 0) {
         const cx = Math.max(e.x0, Math.min(x, e.x1)), cz = Math.max(e.z0, Math.min(z, e.z1));
         if ((cx - x) ** 2 + (cz - z) ** 2 < r * r) return true;
@@ -81,6 +82,7 @@ export class CollisionSystem {
       let moved = false;
       for (const e of list) {
         if (e.t === 0) {
+          if (feetY + height < e.b) continue; // entirely below a raised box (interiors)
           const cx = Math.max(e.x0, Math.min(x, e.x1)), cz = Math.max(e.z0, Math.min(z, e.z1));
           const dx = x - cx, dz = z - cz;
           const d2 = dx * dx + dz * dz;
@@ -117,7 +119,6 @@ export class CollisionSystem {
       }
       if (!moved) break;
     }
-    void height;
     return { x, z, ground, hit };
   }
 
@@ -129,7 +130,7 @@ export class CollisionSystem {
     for (const e of list) {
       if (e.t !== 0 || e.kind === 'bound' || e.top < 2.5) continue;
       let t0 = 0, t1 = best;
-      const slabs = [[ax, dx, e.x0, e.x1], [ay, dy, -1, e.top], [az, dz, e.z0, e.z1]];
+      const slabs = [[ax, dx, e.x0, e.x1], [ay, dy, e.b, e.top], [az, dz, e.z0, e.z1]];
       let ok = true;
       for (const [o, d, mn, mx] of slabs) {
         if (Math.abs(d) < 1e-9) { if (o < mn || o > mx) { ok = false; break; } continue; }
