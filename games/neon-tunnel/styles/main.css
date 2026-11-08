@@ -1785,3 +1785,33 @@ body.promo-cover .logo-tunnel {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* one-finger drag hint */
+.th-drag {
+  display: none;
+}
+
+#touch-hint.drag .th-left,
+#touch-hint.drag .th-right {
+  display: none;
+}
+
+#touch-hint.drag {
+  justify-content: center;
+  align-items: flex-end;
+  padding-bottom: 22%;
+}
+
+#touch-hint.drag .th-drag {
+  display: flex;
+}
+
+#touch-hint.drag .th-drag svg {
+  width: 44px;
+  animation: slide-hint 1.4s ease-in-out infinite;
+}
+
+@keyframes slide-hint {
+  0%, 100% { transform: translateX(-10px); }
+  50% { transform: translateX(10px); }
+}

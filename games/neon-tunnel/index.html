@@ -56,6 +56,7 @@
         <div id="touch-hint">
           <div class="th th-left"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg><span>HOLD</span></div>
           <div class="th th-right"><span>HOLD</span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg></div>
+          <div class="th th-drag"><svg viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M3 12h18" /></svg><span>SLIDE ONE FINGER</span></div>
         </div>
       </div>
 
@@ -124,6 +125,12 @@
               <label class="row"><span>MASTER</span><input type="range" min="0" max="1" step="0.05" data-setting="master" /></label>
               <label class="row"><span>MUSIC</span><input type="range" min="0" max="1" step="0.05" data-setting="music" /></label>
               <label class="row"><span>EFFECTS</span><input type="range" min="0" max="1" step="0.05" data-setting="sfx" /></label>
+              <label class="row"><span>GLOW</span><input id="setting-glow" type="range" min="0" max="1.5" step="0.05" data-setting="glow" /></label>
+              <div class="row"><span>TOUCH</span>
+                <div class="seg" data-setting-seg="touchMode">
+                  <button data-value="drag">SLIDE</button><button data-value="sides">HOLD SIDES</button>
+                </div>
+              </div>
               <div class="row"><span>SOUND</span><button class="toggle" data-toggle="muted" data-on="MUTED" data-off="ON"></button></div>
               <div class="row"><span>SCREEN SHAKE</span><button class="toggle" data-toggle="shake" data-on="ON" data-off="OFF"></button></div>
               <div class="row"><span>GRAPHICS</span>
@@ -146,7 +153,7 @@
                 <div class="ctl"><div class="keys"><kbd>A</kbd><kbd>←</kbd></div><span>Rotate left</span></div>
                 <div class="ctl"><div class="keys"><kbd>D</kbd><kbd>→</kbd></div><span>Rotate right</span></div>
                 <div class="ctl"><div class="keys"><kbd class="wide">SPACE</kbd></div><span>Pause / resume</span></div>
-                <div class="ctl"><div class="keys"><span class="touch-ic">◐</span></div><span>Touch / mouse: hold the left or right half</span></div>
+                <div class="ctl"><div class="keys"><span class="touch-ic">◐</span></div><span>Touch / mouse: slide one finger left or right (or hold a side: Settings)</span></div>
               </div>
               <h3>HAZARDS</h3>
               <div class="legend">

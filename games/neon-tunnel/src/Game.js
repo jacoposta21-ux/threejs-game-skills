@@ -126,6 +126,7 @@ export class Game {
       onMute: () => this.toggleMute(),
       onAnyInput: () => this.audio.unlock(),
     });
+    this.input.setMode(this.save.settings.touchMode);
 
     // ---------------------------------------------------------- state
     this.state = 'loading';
@@ -228,7 +229,7 @@ export class Game {
       });
       this.composer = new EffectComposer(this.renderer, rt);
       this.composer.addPass(new RenderPass(this.scene, this.camera));
-      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), name === 'high' ? 0.75 : 0.65, 0.42, 0.92);
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), this.bloomBase(), 0.38, 0.95);
       this.composer.addPass(this.bloom);
       this.finalPass = new ShaderPass(FinalShader);
       this.composer.addPass(this.finalPass);
@@ -239,6 +240,11 @@ export class Game {
     }
     if (!initial) this.resize();
     this.ui?.refreshSettings(this.qualityLabel());
+  }
+
+  /** Bloom strength from quality preset and the player's GLOW setting. */
+  bloomBase() {
+    return (this.qualityName === 'high' ? 0.55 : 0.48) * (this.save.settings.glow ?? 1);
   }
 
   qualityLabel() {
@@ -334,6 +340,7 @@ export class Game {
       },
       setting: (key, value) => {
         this.save.setSetting(key, value);
+        if (key === 'touchMode') this.input.setMode(value);
         if (key === 'quality') {
           this.autoQuality = value === 'auto';
           this.applyQuality(this.resolveQuality(value));
@@ -524,7 +531,7 @@ export class Game {
     this.ui.resetHud(this.save.data.best);
     this.ui.banner('ZONE 1', THEMES[0].name, '#00f5ff');
     this.showHintUntil = this.isTouch ? 3.5 : 0;
-    this.ui.showTouchHint(this.isTouch);
+    this.ui.showTouchHint(this.isTouch, this.input.mode);
     this.tutorialStep = this.save.data.seenTutorial ? -1 : 0;
     this.tutorialTimer = 0;
     this.tutorialTurn = 0;
@@ -649,7 +656,10 @@ export class Game {
   }
 
   tutorialText(step) {
-    if (step === 0) return this.isTouch ? 'HOLD THE <b>LEFT</b> OR <b>RIGHT</b> SIDE TO ROTATE' : 'HOLD <b>A / D</b> OR <b>← / →</b> TO ROTATE';
+    if (step === 0) {
+      if (!this.isTouch) return 'HOLD <b>A / D</b> OR <b>← / →</b> TO ROTATE';
+      return this.input.mode === 'drag' ? 'SLIDE ONE FINGER <b>LEFT</b> OR <b>RIGHT</b> TO ROTATE' : 'HOLD THE <b>LEFT</b> OR <b>RIGHT</b> SIDE TO ROTATE';
+    }
     if (step === 1) return 'FOLLOW THE <b class="gold">ENERGY</b> TRAIL';
     return 'SKIM PAST HAZARDS FOR A <b class="pink">NEAR MISS</b> BONUS';
   }
@@ -687,6 +697,7 @@ export class Game {
     this.last = now;
     this.frame += 1;
     this.monitorPerformance(realDt);
+    if (this.state !== 'playing') this.input.consumeDrag(); // drop drags made outside play
     if (!this.frozen) this.update(realDt);
     this.render(realDt);
     this.publishDiagnostics();
@@ -758,6 +769,19 @@ export class Game {
     this.distance += this.speed * dt;
 
     let dir = this.input.direction();
+    // one-finger drag: the finger sets a target angle the sphere chases at its
+    // normal (fair) turning speed, so dragging can never out-turn the keys
+    const drag = this.input.consumeDrag();
+    if (drag.active) {
+      if (drag.started) this.dragTarget = this.player.angle;
+      this.dragTarget += drag.dx * (3.2 / Math.max(320, window.innerWidth));
+      let err = this.dragTarget - this.player.angle;
+      if (Math.abs(err) > 1.4) {
+        this.dragTarget = this.player.angle + Math.sign(err) * 1.4;
+        err = Math.sign(err) * 1.4;
+      }
+      if (dir === 0 && Math.abs(err) > 0.012) dir = Math.max(-1, Math.min(1, err * 5));
+    }
     if (this.autopilot) dir = this.autopilotDirection();
     this.player.updateMovement(dt, dir, this.speed);
 
@@ -1079,7 +1103,7 @@ export class Game {
     if (this.composer) {
       this.finalPass.uniforms.uTime.value = this.time % 100;
       this.finalPass.uniforms.uAberration.value = (this.boostFx ?? 0) * 1.2 + this.trauma * 0.6;
-      if (this.bloom) this.bloom.strength = (this.qualityName === 'high' ? 0.75 : 0.65) + (this.boostFx ?? 0) * 0.2;
+      if (this.bloom) this.bloom.strength = this.bloomBase() + (this.boostFx ?? 0) * 0.15 * this.save.settings.glow;
       this.composer.render(realDt);
     } else {
       this.renderer.render(this.scene, this.camera);

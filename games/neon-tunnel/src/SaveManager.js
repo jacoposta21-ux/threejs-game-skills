@@ -18,6 +18,8 @@ const DEFAULTS = {
     muted: false,
     quality: 'auto', // auto | high | medium | low
     shake: true,
+    glow: 1, // bloom multiplier (0 = off, 1.5 = extra)
+    touchMode: 'drag', // drag = slide one finger anywhere, sides = hold left/right half
   },
 };
 

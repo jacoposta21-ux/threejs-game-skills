@@ -251,8 +251,9 @@ export class UIManager {
     setTimeout(() => w.classList.remove('bump'), 160);
   }
 
-  showTouchHint(v) {
+  showTouchHint(v, mode = 'drag') {
     this.el.touchHint.classList.toggle('show', v);
+    this.el.touchHint.classList.toggle('drag', mode === 'drag');
   }
 
   banner(kicker, title, color = '#00f5ff') {

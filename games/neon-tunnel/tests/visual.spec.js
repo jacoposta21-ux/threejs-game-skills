@@ -23,31 +23,31 @@ async function sampleCanvas(page) {
 
 const diag = (page) => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__);
 
-/** Holds a real steering input until the sphere has turned by `delta` radians. */
+/**
+ * Steers with real input until the sphere has turned by `delta` radians.
+ * Desktop holds a key; mobile slides one finger (default touch mode).
+ */
 async function steer(page, mobile, side, delta) {
   const start = (await diag(page)).player.angle;
-  if (mobile) {
-    const vp = page.viewportSize();
-    const x = side > 0 ? vp.width * 0.8 : vp.width * 0.2;
-    await page.evaluate(
-      ({ x, y }) => {
-        document.getElementById('touch-layer').dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, pointerType: 'touch', clientX: x, clientY: y, bubbles: true, isPrimary: true }));
+  const fire = (type, x) =>
+    page.evaluate(
+      ({ type, x, y }) => {
+        document.getElementById('touch-layer').dispatchEvent(new PointerEvent(type, { pointerId: 7, pointerType: 'touch', clientX: x, clientY: y, bubbles: true, isPrimary: true }));
       },
-      { x, y: vp.height * 0.6 },
+      { type, x, y: page.viewportSize().height * 0.6 },
     );
+  if (mobile) {
+    const cx = page.viewportSize().width / 2;
+    await fire('pointerdown', cx);
+    for (let i = 1; i <= 6; i += 1) await fire('pointermove', cx + side * i * 25);
   } else {
     await page.keyboard.down(side > 0 ? 'ArrowRight' : 'KeyA');
   }
   await expect
     .poll(async () => ((await diag(page)).player.angle - start) * side, { timeout: 15_000 })
     .toBeGreaterThan(delta);
-  if (mobile) {
-    await page.evaluate(() => {
-      document.getElementById('touch-layer').dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, pointerType: 'touch', bubbles: true }));
-    });
-  } else {
-    await page.keyboard.up(side > 0 ? 'ArrowRight' : 'KeyA');
-  }
+  if (mobile) await fire('pointerup', page.viewportSize().width / 2);
+  else await page.keyboard.up(side > 0 ? 'ArrowRight' : 'KeyA');
   return (await diag(page)).player.angle;
 }
 

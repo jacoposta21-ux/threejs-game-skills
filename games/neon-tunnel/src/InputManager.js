@@ -14,6 +14,11 @@ export class InputManager {
     this.order = 0;
     this.enabled = false;
     this.lastPointerType = 'mouse';
+    // 'drag': slide one finger (or the mouse) anywhere, the sphere follows it.
+    // 'sides': hold the left or right half of the screen.
+    this.mode = 'drag';
+    this.dragDx = 0;
+    this.dragStarted = false;
 
     this.onKeyDown = (e) => {
       if (e.repeat && (LEFT_KEYS.has(e.code) || RIGHT_KEYS.has(e.code))) {
@@ -44,7 +49,8 @@ export class InputManager {
       this.lastPointerType = e.pointerType;
       handlers.onAnyInput?.();
       if (!this.enabled) return;
-      this.pointers.set(e.pointerId, { side: this.sideOf(e.clientX), order: ++this.order });
+      this.pointers.set(e.pointerId, { side: this.sideOf(e.clientX), order: ++this.order, x: e.clientX });
+      this.dragStarted = true;
       try {
         touchLayer.setPointerCapture(e.pointerId);
       } catch {
@@ -55,6 +61,9 @@ export class InputManager {
     this.onPointerMove = (e) => {
       const p = this.pointers.get(e.pointerId);
       if (!p) return;
+      // only the most recent finger steers in drag mode
+      if (this.isLatest(p)) this.dragDx += e.clientX - p.x;
+      p.x = e.clientX;
       const side = this.sideOf(e.clientX);
       if (side !== p.side) {
         p.side = side;
@@ -77,6 +86,25 @@ export class InputManager {
     window.addEventListener('pointerdown', () => handlers.onAnyInput?.(), { capture: true });
   }
 
+  isLatest(p) {
+    for (const q of this.pointers.values()) if (q.order > p.order) return false;
+    return true;
+  }
+
+  setMode(mode) {
+    this.mode = mode === 'sides' ? 'sides' : 'drag';
+    this.pointers.clear();
+  }
+
+  /** Drag steering since the last call: { active, started, dx (px) }. */
+  consumeDrag() {
+    const active = this.mode === 'drag' && this.pointers.size > 0;
+    const out = { active, started: this.dragStarted, dx: this.dragDx };
+    this.dragDx = 0;
+    this.dragStarted = false;
+    return out;
+  }
+
   sideOf(x) {
     return x < window.innerWidth / 2 ? -1 : 1;
   }
@@ -97,10 +125,12 @@ export class InputManager {
         dir = LEFT_KEYS.has(code) ? -1 : 1;
       }
     }
-    for (const p of this.pointers.values()) {
-      if (p.order > bestOrder) {
-        bestOrder = p.order;
-        dir = p.side;
+    if (this.mode === 'sides') {
+      for (const p of this.pointers.values()) {
+        if (p.order > bestOrder) {
+          bestOrder = p.order;
+          dir = p.side;
+        }
       }
     }
     return dir;
@@ -110,9 +140,11 @@ export class InputManager {
   heldSides() {
     let l = false;
     let r = false;
-    for (const p of this.pointers.values()) {
-      if (p.side < 0) l = true;
-      else r = true;
+    if (this.mode === 'sides') {
+      for (const p of this.pointers.values()) {
+        if (p.side < 0) l = true;
+        else r = true;
+      }
     }
     for (const code of this.keys.keys()) {
       if (LEFT_KEYS.has(code)) l = true;

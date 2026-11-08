@@ -128,7 +128,7 @@ const fragmentShader = /* glsl */ `
     vec3 n = normalize(vec3(-vWorld.xy, 0.0));
     vec3 v = normalize(cameraPosition - vWorld);
     float fres = pow(1.0 - abs(dot(n, v)), 3.0);
-    col += mix(uNeonA, uNeonB, u) * fres * fres * 0.035 * bevel;
+    col += mix(uNeonA, uNeonB, u) * fres * fres * 0.018 * bevel;
 
     // ---- longitudinal neon strips (count varies by section style)
     float strips = style < 2.0 ? 4.0 : 6.0;
@@ -161,7 +161,7 @@ const fragmentShader = /* glsl */ `
 
     // ---- glow pool cast by the energy sphere onto the wall
     float pd = length(vWorld - uPlayerPos);
-    col += uPlayerColor * (0.22 / (1.0 + pd * pd * 1.4)) * (0.5 + 0.5 * bevel);
+    col += uPlayerColor * (0.14 / (1.0 + pd * pd * 1.6)) * (0.5 + 0.5 * bevel);
 
     // ---- speed streak shimmer during boost
     col += uNeonA * uSpeedFx * 0.12 * step(0.985, hash21(vec2(floor(u * 140.0), floor(s * 0.25))));

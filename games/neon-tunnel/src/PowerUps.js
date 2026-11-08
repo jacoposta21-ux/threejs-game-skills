@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PLAYER, POWERUPS } from './Config.js';
 import { angleDiff } from './ObstacleModel.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Energy collectibles (instanced shards) and the three power-ups. Each power-up
 // has a distinctive silhouette so it reads at speed: BOOST = double chevron,
@@ -71,14 +72,34 @@ export class PowerUps {
     this.timers = { boost: 0, shield: 0, magnet: 0 };
     this.dummy = new THREE.Object3D();
 
-    this.orbMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.4, 2.7, 0.5) });
-    this.orbs = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.26, 0), this.orbMat, 260);
+    // Energy coins: hexagonal gold discs that flip around the radial axis.
+    // Mostly below the bloom threshold so they read as solid objects instead
+    // of glare; only the rim catches a little glow.
+    const coinGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.09, 6, 1).rotateX(Math.PI / 2);
+    {
+      const pos = coinGeo.attributes.position;
+      const nrm = coinGeo.attributes.normal;
+      const col = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i += 1) {
+        const face = Math.abs(nrm.getZ(i)) > 0.5;
+        const c = face ? [1.0, 0.5, 0.0] : [1.5, 0.95, 0.12];
+        col.set(c, i * 3);
+      }
+      coinGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
+    this.orbMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+    this.orbs = new THREE.InstancedMesh(coinGeo, this.orbMat, 260);
     this.orbs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.orbs.frustumCulled = false;
     this.orbs.count = 0;
     scene.add(this.orbs);
-    this.orbHaloMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 0.9, 0.1), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, wireframe: true });
-    this.orbHalos = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.42, 0), this.orbHaloMat, 260);
+    // dark embossed hexagon on both faces gives the coin a readable silhouette
+    const emblem = new THREE.TorusGeometry(0.2, 0.04, 3, 6).rotateZ(Math.PI / 6);
+    const emblemGeo = mergeGeometries([emblem.clone().translate(0, 0, 0.05), emblem.clone().translate(0, 0, -0.05)]);
+    this.orbHaloMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.22, 0.08, 0.0) });
+    this.orbHalos = new THREE.InstancedMesh(emblemGeo, this.orbHaloMat, 260);
+    this.coinDummy = new THREE.Object3D();
+    this.coinDummy.rotation.order = 'ZYX';
     this.orbHalos.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.orbHalos.frustumCulled = false;
     this.orbHalos.count = 0;
@@ -182,15 +203,14 @@ export class PowerUps {
         continue;
       }
       if (n < 260) {
-        const bob = 1 + 0.12 * Math.sin(time * 6 + e.s);
-        d.position.set(Math.sin(e.angle) * RP, -Math.cos(e.angle) * RP, -dz);
-        d.rotation.set(time * 2.1 + e.s, time * 3 + e.s * 0.3, 0);
-        d.scale.setScalar(bob);
-        d.updateMatrix();
-        this.orbs.setMatrixAt(n, d.matrix);
-        d.rotation.set(-time * 1.4, -time * 2, e.s);
-        d.updateMatrix();
-        this.orbHalos.setMatrixAt(n, d.matrix);
+        const c = this.coinDummy;
+        c.position.set(Math.sin(e.angle) * RP, -Math.cos(e.angle) * RP, -dz);
+        // face the camera, flip around the axis pointing at the tunnel centre
+        c.rotation.set(0, time * 3 + e.s * 0.7, e.angle);
+        c.scale.setScalar(1);
+        c.updateMatrix();
+        this.orbs.setMatrixAt(n, c.matrix);
+        this.orbHalos.setMatrixAt(n, c.matrix);
         n += 1;
       }
     }
