@@ -28,7 +28,7 @@ export class VehicleSystem {
     // aircraft parked at Vista Mar Airport (north of the city)
     this.aircraft = [
       new Aircraft(this, 'heli', { x: 160, z: -548, h: Math.PI }, 0x2a6fd6),
-      new Aircraft(this, 'plane', { x: -215, z: -548, h: Math.PI }, 0xd94f3d),
+      new Aircraft(this, 'plane', { x: -405, z: -657, h: Math.PI / 2 }, 0xd94f3d),
     ];
     for (const a of this.aircraft) { a.stolenStars = 2; this.vehicles.push(a); }
 

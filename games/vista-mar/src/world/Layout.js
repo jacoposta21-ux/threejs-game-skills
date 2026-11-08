@@ -7,7 +7,10 @@ export const SIDEWALK = 4;
 export const CURB_H = 0.18;
 export const WATER_LEVEL = -0.45;
 export const BEACH = { roadEdge: 408, promenadeEnd: 413, waterLimit: 476, oceanStart: 466 };
-export const BOUNDS = { minX: -468, maxX: BEACH.waterLimit, minZ: -468, maxZ: 468 };
+export const BOUNDS = { minX: -468, maxX: BEACH.waterLimit, minZ: -730, maxZ: 468 };
+
+// Vista Mar Airport, north of North Loop
+export const AIRPORT = { runway: { x0: -430, x1: 430, z0: -672, z1: -642 }, apron: { x0: -320, x1: 220, z0: -592, z1: -516 }, terminal: { x0: -70, x1: 70, z0: -514, z1: -482 }, helipad: { x: 160, z: -548 }, hangarProp: { x: -215, z: -467.5 } };
 
 // Width of the road on each grid line (N-S roads use xWidths, E-W roads zWidths).
 export const xWidths = LINES.map((x) => (x === 400 ? 16 : 14));

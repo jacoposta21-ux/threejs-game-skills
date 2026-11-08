@@ -257,7 +257,7 @@ export class Aircraft {
     this.power = clamp(this.power + (powered ? inp.throttle * 0.6 * dt : -dt), 0, 1);
     let v = Math.hypot(this.vel.x, this.vel.y) / Math.max(0.2, Math.cos(this.pitch));
     if (onGround && inp.throttle < 0) v = Math.max(0, v - 12 * dt); // wheel brakes
-    v += (this.power * 17 * this.rpm - v * v * 0.0028 - (onGround ? 0.8 : 0)) * dt;
+    v += (this.power * 13 * this.rpm - v * v * 0.0028 - (onGround ? 0.8 : 0)) * dt;
     v -= Math.sin(this.pitch) * 9.8 * dt; // climbing costs speed
     v = clamp(v, 0, this.spec.maxSpeed);
     const stall = 30;

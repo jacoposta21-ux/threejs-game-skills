@@ -9,7 +9,7 @@ import { addWind, carPaint } from './Effects.js';
 import { buildAtlas, applyAtlas } from './Atlas.js';
 import {
   LINES, xWidths, zWidths, SIDEWALK, CURB_H, BOULEVARD_MEDIAN, BEACH, WATER_LEVEL, BOUNDS,
-  allBlocks, terrainHeight,
+  allBlocks, terrainHeight, AIRPORT,
 } from './Layout.js';
 
 const CHUNK = 300;
@@ -19,6 +19,22 @@ const ATLAS_G_KEYS = ['road14', 'road16', 'blvd', 'inter', 'sidewalk', 'grass', 
 const ATLAS_B_KEYS = ['facade_glassTeal', 'facade_glassBlue', 'facade_glassGold', 'facade_office', 'facade_officeDark', 'facade_decoPink', 'facade_decoMint', 'facade_decoWhite', 'facade_decoLilac', 'facade_stuccoPeach', 'facade_stuccoYellow', 'facade_stuccoWhite', 'facade_brick', 'facade_house', 'corrugated', 'corrBlue', 'corrRust', 'roof', 'tileroof'];
 const FLAT_COLORS = { trim: 0xece8e0, trimDark: 0x3c3f44, metal: 0x8a8f94, darkmetal: 0x2c2f33, hedge: 0x3f6b2f, wood: 0x9c7650, stripe: 0xffffff, awningRed: 0xb8322d, awningTeal: 0x1f8a86, awningYellow: 0xe0b23c, curb: 0xb8b2a8 };
 function isBuildingKey(k) { return k.startsWith('facade_') || BUILDING_KEYS.has(k); }
+
+function runwayTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 512;
+  const x = c.getContext('2d');
+  x.fillStyle = '#3a3c40'; x.fillRect(0, 0, 256, 512);
+  for (let i = 0; i < 2500; i++) { x.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '0,0,0'},${Math.random() * 0.06})`; x.fillRect(Math.random() * 256, Math.random() * 512, 2, 2); }
+  x.fillStyle = '#e9e6dc';
+  x.fillRect(8, 0, 6, 512); x.fillRect(242, 0, 6, 512);
+  x.fillRect(124, 40, 8, 200); x.fillRect(124, 296, 8, 200);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
+}
 
 // Builds the whole city: merged static geometry per (chunk, material), instanced
 // props, collision volumes, minimap footprints and points of interest.
@@ -95,6 +111,7 @@ export class CityGenerator {
         break;
       }
       case 'flatB': m = std({ vertexColors: true, roughness: 0.7, metalness: 0.15, side: THREE.DoubleSide }); break;
+      case 'runway': m = std({ map: runwayTexture(), roughness: 0.85 }); this.wetMaterials.push(m); break;
       case 'flatG': m = std({ vertexColors: true, roughness: 0.85 }); break;
       case 'wood': m = std({ color: 0x9c7650, roughness: 0.9 }); break;
       case 'canopyLight': m = std({ color: 0xffffff, emissive: 0xfff2d8, emissiveIntensity: 0.2, roughness: 0.5 }); this.nightMaterials.lamps.push(m); break;
@@ -216,6 +233,7 @@ export class CityGenerator {
     this.buildRoads();
     for (const blk of allBlocks()) this.buildBlock(blk);
     this.buildStreetFurniture();
+    this.buildAirport();
     this.buildBoundaries();
     this.flush();
     this.buildInstances();
@@ -1036,7 +1054,7 @@ export class CityGenerator {
       const side = i % 3;
       let x, z;
       if (side === 0) { x = rng.range(-470, -412); z = rng.range(-470, 470); }
-      else if (side === 1) { x = rng.range(-470, 405); z = rng.range(-470, -412); }
+      else if (side === 1) { x = rng.range(-470, 405); z = rng.range(-436, -412); if (Math.abs(x) < 16) continue; }
       else { x = rng.range(-470, 405); z = rng.range(412, 470); }
       if (rng.chance(0.6)) this.props.trees.push({ x, z, y: CURB_H, s: rng.range(1, 1.7) });
       else this.addPalm(x, z, CURB_H, rng.range(0.9, 1.3));
@@ -1056,13 +1074,79 @@ export class CityGenerator {
       const a = (i / 40) * Math.PI * 1.5 + Math.PI * 0.25 + rng.range(-0.04, 0.04); // west, north and south arcs
       const r = rng.range(760, 950);
       p.set(Math.cos(a + Math.PI / 2) * r - 150, 0, Math.sin(a + Math.PI / 2) * r);
-      if (p.x > 250 || Math.hypot(p.x, p.z) < 700) { hills.setMatrixAt(i, m.makeScale(0, 0, 0)); continue; }
+      if (p.x > 250 || Math.hypot(p.x, p.z) < 700 || (p.z < -300 && p.z > -1000 && Math.abs(p.x) < 650)) { hills.setMatrixAt(i, m.makeScale(0, 0, 0)); continue; }
       s.set(rng.range(120, 220), rng.range(35, 85), rng.range(120, 220));
       q.setFromEuler(new THREE.Euler(0, rng.range(0, 6), 0));
       hills.setMatrixAt(i, m.compose(p, q, s));
     }
     hills.receiveShadow = false;
     this.group.add(hills);
+  }
+
+  /** Vista Mar Airport: access road, terminal, tower, hangars, apron, helipad, runway. */
+  buildAirport() {
+    const Y = CURB_H, A = AIRPORT;
+    // access road from North Loop
+    this.b('road14', 0, -440).flat(-7, -482, 7, -407, Y + 0.012, 0, 482 / 12, 1, 407 / 12);
+    this.footprints.push({ x0: -7, z0: -482, x1: 7, z1: -407, h: 0, kind: 'road' });
+    // car park in front of the terminal
+    this.b('parking', -40, -460).top(-70, -478, -9, -440, Y + 0.012, 20);
+    this.b('parking', 40, -460).top(9, -478, 70, -440, Y + 0.012, 20);
+    for (let i = 0; i < 10; i++) if (this.rng.chance(0.6)) this.props.cars.push({ x: (i < 5 ? -60 : 20) + (i % 5) * 9, z: -470, y: Y, rot: 0 });
+    // terminal: glass box with a canopy and the city sign
+    const T0 = A.terminal;
+    this.building(T0.x0, T0.z0, T0.x1, T0.z1, Y + 13, 'glassTeal', { kind: 'building', rooftop: true });
+    this.b('trim', 0, -480).box(-50, Y + 4.2, T0.z1, 50, Y + 4.6, T0.z1 + 6, { top: true });
+    for (let x = -48; x <= 48; x += 12) { this.b('metal', x, -478).box(x - 0.15, Y, T0.z1 + 5.6, x + 0.15, Y + 4.2, T0.z1 + 5.9); this.collision.addCircle(x, T0.z1 + 5.75, 0.2); }
+    this.neonSign(0, Y + 10, T0.z1 + 0.05, 22, 5.5, 'pz', 27);
+    this.b('plaza', 0, -479).top(T0.x0, T0.z1, T0.x1, -478, Y + 0.015, 4);
+    // control tower
+    const tx = 100, tz = -500;
+    this.b('trim', tx, tz).cylinder(tx, tz, 2.6, Y, Y + 30, 14, { tileW: 4, tileH: 4 });
+    this.b('facade_glassTeal', tx, tz).cylinder(tx, tz, 5, Y + 30, Y + 34, 16, { tileW: 6, tileH: 4 });
+    this.b('darkmetal', tx, tz).cylinder(tx, tz, 5.6, Y + 34, Y + 34.6, 16);
+    this.b('darkmetal', tx, tz).box(tx - 0.1, Y + 34.6, tz - 0.1, tx + 0.1, Y + 40, tz + 0.1);
+    this.props.glows.push({ x: tx, y: Y + 40, z: tz, color: 0xff3030 });
+    this.collision.addCircle(tx, tz, 2.7, Y + 30);
+    this.collision.addBox(tx - 5, tz - 5, tx + 5, tz + 5, Y + 34.6, 'tower');
+    this.footprints.push({ x0: tx - 5, z0: tz - 5, x1: tx + 5, z1: tz + 5, h: 35, kind: 'tower' });
+    // hangars (doors face the apron to the north)
+    for (const hx of [-275, -215, -155]) {
+      const x0 = hx - 25, x1 = hx + 25, z0 = -514, z1 = -470, h = Y + 11;
+      this.b('corrugated', hx, -490).box(x0, Y, z0 + 0.6, x1, h, z1);
+      this.b('corrBlue', hx, -490).gable(x0, z0 + 0.6, x1, z1, h, 3.5, this.b('corrBlue', hx, -490), this.b('corrugated', hx, -490), 4);
+      this.b('darkmetal', hx, z0).box(x0 + 4, Y, z0, x1 - 4, h - 1.5, z0 + 0.6);
+      this.b('awningYellow', hx, z0).box(x0 + 4, h - 1.5, z0 - 0.05, x1 - 4, h - 0.9, z0 + 0.6);
+      this.collision.addBox(x0, z0, x1, z1, h + 3.5, 'hangar');
+      this.footprints.push({ x0, z0, x1, z1, h: 14, kind: 'hangar' });
+    }
+    // apron, taxiways and grass between
+    const ap = A.apron;
+    for (let x = ap.x0; x < ap.x1; x += 135) this.b('lot', x + 60, -550).top(x, ap.z0, Math.min(ap.x1, x + 135), ap.z1, Y + 0.015, 4);
+    this.footprints.push({ x0: ap.x0, z0: ap.z0, x1: ap.x1, z1: ap.z1, h: 0, kind: 'apron' });
+    for (const cx of [-250, 150]) {
+      this.b('lot', cx, -615).top(cx - 9, A.runway.z1, cx + 9, ap.z0, Y + 0.015, 4);
+      this.footprints.push({ x0: cx - 9, z0: A.runway.z1, x1: cx + 9, z1: ap.z0, h: 0, kind: 'apron' });
+    }
+    // helipad: H in a ring
+    const hp = A.helipad;
+    const st = this.b('stripe', hp.x, hp.z);
+    for (let i = 0; i < 24; i++) { const a0 = (i / 24) * Math.PI * 2; const x = hp.x + Math.cos(a0) * 9, z = hp.z + Math.sin(a0) * 9; st.top(x - 0.9, z - 0.9, x + 0.9, z + 0.9, Y + 0.03, 4); }
+    st.top(hp.x - 3, hp.z - 4, hp.x - 1.8, hp.z + 4, Y + 0.03, 4);
+    st.top(hp.x + 1.8, hp.z - 4, hp.x + 3, hp.z + 4, Y + 0.03, 4);
+    st.top(hp.x - 1.8, hp.z - 0.6, hp.x + 1.8, hp.z + 0.6, Y + 0.03, 4);
+    // runway (textured), threshold bars, edge lights
+    const R = A.runway;
+    for (let x = R.x0; x < R.x1; x += 120) {
+      const xb = Math.min(R.x1, x + 120);
+      this.b('runway', x + 60, -657).flat(x, R.z0, xb, R.z1, Y + 0.02, 0, x / 60, 1, xb / 60, true);
+    }
+    for (const ex of [R.x0 + 6, R.x1 - 18]) for (let k = 0; k < 8; k++) { const z = R.z0 + 3 + k * 3.2; st.top(ex, z, ex + 12, z + 1.6, Y + 0.03, 4); }
+    for (let x = R.x0; x <= R.x1; x += 40) for (const z of [R.z0 - 1, R.z1 + 1]) this.props.glows.push({ x, y: Y, z, color: x === R.x0 || x === R.x1 ? 0x3dff7a : 0xfff1d0, ground: true, radius: 2.2 });
+    this.footprints.push({ x0: R.x0, z0: R.z0, x1: R.x1, z1: R.z1, h: 0, kind: 'runway' });
+    // perimeter lamps on the apron
+    for (let x = ap.x0 + 20; x < ap.x1; x += 60) this.props.lamps.push({ x, z: ap.z1 - 2, y: Y, facing: [0, -1] });
+    this.pois.push({ type: 'airport', x: 0, z: -540 });
   }
 
   addPalm(x, z, y, s = 1, face = null) {
@@ -1076,7 +1160,7 @@ export class CityGenerator {
       if (g.vertexCount === 0) continue;
       const mesh = new THREE.Mesh(g.build(), this.mat(g.matKey));
       const k = g.matKey;
-      const noShadow = ['atlasG', 'road14', 'road16', 'blvd', 'inter', 'sidewalk', 'grass', 'sand', 'plaza', 'parking', 'lot', 'yard', 'pool', 'pond', 'neon', 'canopyLight'].includes(k) || k.startsWith('neon');
+      const noShadow = ['runway', 'atlasG', 'road14', 'road16', 'blvd', 'inter', 'sidewalk', 'grass', 'sand', 'plaza', 'parking', 'lot', 'yard', 'pool', 'pond', 'neon', 'canopyLight'].includes(k) || k.startsWith('neon');
       mesh.castShadow = !noShadow;
       mesh.receiveShadow = true;
       mesh.matrixAutoUpdate = false;

@@ -25,6 +25,7 @@ import { NPCSystem } from '../npc/NPCSystem.js';
 import { PoliceSystem } from '../systems/PoliceSystem.js';
 import { MissionManager } from '../missions/MissionManager.js';
 import { MISSIONS } from '../missions/missions.js';
+import { STORY } from '../missions/story.js';
 import { Locations, POLICE_STATION, HOSPITAL } from '../systems/Locations.js';
 import { route } from '../systems/RoadGraph.js';
 import { terrainHeight } from '../world/Layout.js';
@@ -124,7 +125,7 @@ export class Game {
     this.missions = new MissionSystem(this);
     this.tapes = this.missions.add(new LostTapes(this));
     this.police = new PoliceSystem(this);
-    this.story = new MissionManager(this, MISSIONS);
+    this.story = new MissionManager(this, [...MISSIONS, ...STORY]);
     this.locations = new Locations(this);
     this.economy = new Economy(this);
     this.seagulls = new Seagulls(this.scene);

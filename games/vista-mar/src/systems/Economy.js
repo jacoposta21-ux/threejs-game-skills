@@ -23,7 +23,7 @@ export const PROPERTIES = [
   { id: 'cabs', name: 'Sunshine Cab Co.', x: 291, z: -60, price: 20000, income: 1200, desc: 'A fleet of yellow cabs. Pays $1,200 every morning.' },
   { id: 'spray', name: 'Spray & Go Garage', x: -190.8, z: -48, price: 12000, income: 600, desc: 'Free resprays for life, plus $600 every morning.' },
   { id: 'club', name: 'Club Velvet', x: 284.5, z: 73, price: 40000, income: 2500, desc: 'The hottest club on Neon Mile. Pays $2,500 every morning.' },
-  { id: 'hangar', name: 'Hangar 7', x: -158, z: -506, price: 60000, income: 3000, desc: 'Private airport hangar. Taking aircraft no longer draws stars. $3,000 every morning.' },
+  { id: 'hangar', name: 'Hangar 7', x: -215, z: -467.5, price: 60000, income: 3000, desc: 'Private airport hangar. Taking aircraft no longer draws stars. $3,000 every morning.' },
 ];
 
 export class Economy {

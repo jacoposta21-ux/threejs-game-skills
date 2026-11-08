@@ -2,12 +2,12 @@ import { LINES, xWidths, zWidths, BEACH, DISTRICTS, allBlocks, BOULEVARD_MEDIAN 
 
 // Pre-renders the city once into an offscreen canvas (1 px = 1 m), then the
 // circular radar and the full-screen map sample from it each frame.
-const MAP = { x0: -520, z0: -520, x1: 640, z1: 520 };
+const MAP = { x0: -520, z0: -760, x1: 640, z1: 520 };
 
 const KIND_COLORS = {
   building: '#58606d', tower: '#4e5666', club: '#7b4a80', hotel: '#a8846a', apartment: '#7d7a6c',
   house: '#c7a27e', warehouse: '#6b6a64', container: '#8a6a50', pool: '#3fc3d8', car: '#3a3e45',
-  canopy: '#b8322d', shop: '#8a8a7c', beach: '#c8aa7a',
+  canopy: '#b8322d', shop: '#8a8a7c', beach: '#c8aa7a', runway: '#2b2e34', apron: '#8f8b82', hangar: '#6f7880', road: '#23262c',
 };
 
 export class Minimap {

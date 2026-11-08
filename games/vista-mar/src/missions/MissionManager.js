@@ -18,6 +18,7 @@ export class MissionManager {
     this.markerGroup = new THREE.Group();
     game.scene.add(this.markerGroup);
     this.markers = new Map();
+    this.givers = new Map();
     this.beamMat = new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
     this.ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.9, 0.4), transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
     this.beamGeo = new THREE.CylinderGeometry(1.2, 1.6, 60, 20, 1, true).translate(0, 30, 0);
@@ -48,15 +49,36 @@ export class MissionManager {
   refreshStartMarkers() {
     for (const m of this.markers.values()) this.markerGroup.remove(m);
     this.markers.clear();
-    if (this.active) return;
-    for (const d of this.available()) {
+    // mission contacts stand next to their marker while the mission is available
+    const npcs = this.game.npcs;
+    const avail = this.active || this.starting ? [] : this.available();
+    for (const [id, a] of [...this.givers]) if (!avail.find((d) => d.id === id)) { if (npcs && a.active) npcs.despawn(a); this.givers.delete(id); }
+    if (this.active || this.starting) return;
+    for (const d of avail) {
       const m = this.makeMarker(1);
       m.position.set(d.start.x, terrainHeight(d.start.x, d.start.z), d.start.z);
       this.markers.set(d.id, m);
+      if (d.npc && npcs && !this.givers.has(d.id)) {
+        const h = d.npc.heading;
+        const a = npcs.spawnActor(d.npc.key, d.start.x + Math.sin(h) * 1.8, d.start.z + Math.cos(h) * 1.8, h + Math.PI, d.npc.clip || 'Idle_Talking_Loop');
+        if (a) this.givers.set(d.id, a);
+      }
     }
   }
 
   start(def) {
+    const g = this.game;
+    if (def.intro && g.cutscene && !this.skipIntro) {
+      // story scene first, then the mission proper
+      this.starting = def;
+      this.refreshStartMarkers();
+      g.cutscene.play({ title: def.title, lines: def.intro, video: def.video }, () => { this.starting = null; this.begin(def); });
+      return;
+    }
+    this.begin(def);
+  }
+
+  begin(def) {
     const g = this.game;
     this.active = def;
     this.stepIndex = -1;
@@ -64,6 +86,7 @@ export class MissionManager {
     this.refreshStartMarkers();
     g.hud.banner(def.title, def.giver ? `${def.giver}` : '', 'mission');
     g.audio.missionStart();
+    if (def.onStart) def.onStart(this.ctx);
     this.next();
   }
 
@@ -121,6 +144,7 @@ export class MissionManager {
     this.beamMat.opacity = 0.16 + g.world.night * 0.16 + Math.sin(t * 3) * 0.04;
     for (const m of this.markers.values()) m.children[1].scale.setScalar(1 + Math.sin(t * 4) * 0.08);
 
+    if (this.starting) return;
     if (!this.active) {
       // step into a start marker on foot
       const onMarker = this.available().find((d) => Math.hypot(g.player.pos.x - d.start.x, g.player.pos.z - d.start.z) < 2.2);
