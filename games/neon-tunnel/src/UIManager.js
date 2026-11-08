@@ -251,6 +251,19 @@ export class UIManager {
     setTimeout(() => w.classList.remove('bump'), 160);
   }
 
+  /** On-screen thumb stick under the finger (one-finger mode). */
+  stick(s) {
+    const el = this.stickEl || (this.stickEl = document.getElementById('stick'));
+    if (!s.active) {
+      if (!el.hidden) el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.style.transform = `translate(${s.anchorX}px, ${s.y}px)`;
+    const knob = el.firstElementChild;
+    knob.style.transform = `translateX(${s.value * 46}px)`;
+  }
+
   showTouchHint(v, mode = 'drag') {
     this.el.touchHint.classList.toggle('show', v);
     this.el.touchHint.classList.toggle('drag', mode === 'drag');

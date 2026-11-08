@@ -66,6 +66,7 @@ const TYPE_COLORS = {
   wall: new THREE.Color(0x7ffcff).multiplyScalar(2.2),
   gate: new THREE.Color(0x4d8dff).multiplyScalar(2.5),
 };
+const NO_STICK = { active: false, value: 0 };
 const IGNITE_COLOR = new THREE.Color(3, 0.3, 0.4);
 
 export class Game {
@@ -658,7 +659,7 @@ export class Game {
   tutorialText(step) {
     if (step === 0) {
       if (!this.isTouch) return 'HOLD <b>A / D</b> OR <b>← / →</b> TO ROTATE';
-      return this.input.mode === 'drag' ? 'SLIDE ONE FINGER <b>LEFT</b> OR <b>RIGHT</b> TO ROTATE' : 'HOLD THE <b>LEFT</b> OR <b>RIGHT</b> SIDE TO ROTATE';
+      return this.input.mode === 'drag' ? 'TOUCH, THEN SLIDE AND HOLD <b>LEFT</b> OR <b>RIGHT</b>' : 'HOLD THE <b>LEFT</b> OR <b>RIGHT</b> SIDE TO ROTATE';
     }
     if (step === 1) return 'FOLLOW THE <b class="gold">ENERGY</b> TRAIL';
     return 'SKIM PAST HAZARDS FOR A <b class="pink">NEAR MISS</b> BONUS';
@@ -699,6 +700,7 @@ export class Game {
     this.monitorPerformance(realDt);
     if (this.state !== 'playing') this.input.consumeDrag(); // drop drags made outside play
     if (!this.frozen) this.update(realDt);
+    this.ui.stick(this.state === 'playing' ? this.input.stick() : NO_STICK);
     this.render(realDt);
     this.publishDiagnostics();
   }
@@ -771,23 +773,17 @@ export class Game {
     let dir = this.input.direction();
     // one-finger drag: the finger sets a target angle the sphere chases at its
     // normal (fair) turning speed, so dragging can never out-turn the keys
-    // Touch events arrive in irregular bursts, so the raw finger target is
-    // low-pass filtered and the sphere eases into it with no dead zone.
-    const drag = this.input.consumeDrag();
+    // One-finger floating joystick: the finger's offset from where it landed
+    // sets the turn rate and holds it while the finger stays there. The value
+    // is low-pass filtered because touch events arrive in irregular bursts.
+    const stick = this.input.stick();
+    this.input.consumeDrag();
     let soft = false;
-    if (drag.active) {
-      if (drag.started) {
-        this.dragTarget = this.player.angle;
-        this.dragSmooth = this.player.angle;
-      }
-      this.dragTarget += drag.dx * (3.2 / Math.max(320, window.innerWidth));
-      if (Math.abs(this.dragTarget - this.player.angle) > 1.4) this.dragTarget = this.player.angle + Math.sign(this.dragTarget - this.player.angle) * 1.4;
-      this.dragSmooth += (this.dragTarget - this.dragSmooth) * (1 - Math.exp(-14 * dt));
-      const err = this.dragSmooth - this.player.angle;
-      if (dir === 0) {
-        dir = Math.max(-1, Math.min(1, err * 3.2));
-        soft = true;
-      }
+    const stickTarget = stick.active ? stick.value : 0;
+    this.stickSmooth = (this.stickSmooth ?? 0) + (stickTarget - (this.stickSmooth ?? 0)) * (1 - Math.exp(-16 * dt));
+    if (dir === 0 && (stick.active || Math.abs(this.stickSmooth) > 0.01)) {
+      dir = this.stickSmooth;
+      soft = true;
     }
     if (this.autopilot) dir = this.autopilotDirection();
     this.player.updateMovement(dt, dir, this.speed, soft && !this.autopilot);

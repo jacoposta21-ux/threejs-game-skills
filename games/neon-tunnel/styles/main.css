@@ -1815,3 +1815,38 @@ body.promo-cover .logo-tunnel {
   0%, 100% { transform: translateX(-10px); }
   50% { transform: translateX(10px); }
 }
+
+/* floating thumb stick (one-finger mode) */
+#stick {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+#stick::before {
+  content: '';
+  position: absolute;
+  left: -64px;
+  top: -18px;
+  width: 128px;
+  height: 36px;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 245, 255, 0.35);
+  background: rgba(0, 245, 255, 0.06);
+}
+
+#stick i {
+  position: absolute;
+  left: -15px;
+  top: -15px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(0, 245, 255, 0.35);
+  border: 2px solid rgba(160, 252, 255, 0.85);
+  box-shadow: 0 0 12px rgba(0, 245, 255, 0.6);
+}

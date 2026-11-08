@@ -3,6 +3,10 @@
 // recently pressed one wins, which feels better than cancelling out.
 
 const LEFT_KEYS = new Set(['KeyA', 'ArrowLeft']);
+const STICK_RADIUS = 56; // CSS px of finger travel for full turn speed
+const STICK_DEADZONE = 6;
+const STICK_IDLE = Object.freeze({ active: false, value: 0, anchorX: 0, x: 0, y: 0 });
+const STICK_STATE = { active: false, value: 0, anchorX: 0, x: 0, y: 0 };
 const RIGHT_KEYS = new Set(['KeyD', 'ArrowRight']);
 
 export class InputManager {
@@ -14,7 +18,9 @@ export class InputManager {
     this.order = 0;
     this.enabled = false;
     this.lastPointerType = 'mouse';
-    // 'drag': slide one finger (or the mouse) anywhere, the sphere follows it.
+    // 'drag': one-finger floating joystick. Put a finger anywhere and slide
+    //   it: while it stays left of where it landed the sphere keeps turning
+    //   left (faster the further you slide), until you slide it back.
     // 'sides': hold the left or right half of the screen.
     this.mode = 'drag';
     this.dragDx = 0;
@@ -49,7 +55,7 @@ export class InputManager {
       this.lastPointerType = e.pointerType;
       handlers.onAnyInput?.();
       if (!this.enabled) return;
-      this.pointers.set(e.pointerId, { side: this.sideOf(e.clientX), order: ++this.order, x: e.clientX });
+      this.pointers.set(e.pointerId, { side: this.sideOf(e.clientX), order: ++this.order, x: e.clientX, y: e.clientY, anchorX: e.clientX });
       this.dragStarted = true;
       try {
         touchLayer.setPointerCapture(e.pointerId);
@@ -64,6 +70,11 @@ export class InputManager {
       // only the most recent finger steers in drag mode
       if (this.isLatest(p)) this.dragDx += e.clientX - p.x;
       p.x = e.clientX;
+      p.y = e.clientY;
+      // floating anchor: past the stick radius the anchor is dragged along, so
+      // reversing direction takes only a short slide back
+      const off = p.x - p.anchorX;
+      if (Math.abs(off) > STICK_RADIUS) p.anchorX = p.x - Math.sign(off) * STICK_RADIUS;
       const side = this.sideOf(e.clientX);
       if (side !== p.side) {
         p.side = side;
@@ -94,6 +105,21 @@ export class InputManager {
   setMode(mode) {
     this.mode = mode === 'sides' ? 'sides' : 'drag';
     this.pointers.clear();
+  }
+
+  /** Floating joystick state for the latest finger: value in -1..1 (0 inside the dead zone). */
+  stick() {
+    if (this.mode !== 'drag' || this.pointers.size === 0) return STICK_IDLE;
+    let p = null;
+    for (const q of this.pointers.values()) if (!p || q.order > p.order) p = q;
+    const off = p.x - p.anchorX;
+    const mag = Math.max(0, Math.abs(off) - STICK_DEADZONE) / (STICK_RADIUS - STICK_DEADZONE);
+    STICK_STATE.active = true;
+    STICK_STATE.value = Math.sign(off) * Math.min(1, mag);
+    STICK_STATE.anchorX = p.anchorX;
+    STICK_STATE.x = p.x;
+    STICK_STATE.y = p.y;
+    return STICK_STATE;
   }
 
   /** Drag steering since the last call: { active, started, dx (px) }. */
