@@ -92,3 +92,78 @@ export function emissiveSwitchTexture() {
   t.needsUpdate = true;
   return t;
 }
+
+/**
+ * Same API as LodBatch, but rendered with plain InstancedMeshes grouped by
+ * spatial chunk (one per geometry per chunk). Instancing is natively supported
+ * everywhere, whereas BatchedMesh multi-draw can be emulated as one draw per
+ * instance on some drivers (e.g. ANGLE/D3D11 on integrated GPUs).
+ */
+export class ChunkedLod {
+  constructor(parent, material, geometries, _max, { castShadow = true, depthMaterial = null, chunk = 200 } = {}) {
+    this.parent = parent;
+    this.material = material;
+    this.geos = geometries;
+    this.castShadow = castShadow;
+    this.depthMaterial = depthMaterial;
+    this.size = chunk;
+    this.items = [];
+    this.chunks = [];
+  }
+
+  add(matrix, near, far, { nearDist = 60, farDist = 900, farMatrix = null } = {}) {
+    const e = matrix.elements;
+    const it = { x: e[12], z: e[14], m: matrix.clone(), fm: farMatrix ? farMatrix.clone() : null, near, far, nearDist, farDist };
+    this.items.push(it);
+    return it;
+  }
+
+  finalize() {
+    const groups = new Map();
+    for (const it of this.items) {
+      const cx = Math.floor(it.x / this.size), cz = Math.floor(it.z / this.size);
+      const k = `${cx},${cz},${it.nearDist},${it.farDist}`;
+      if (!groups.has(k)) groups.set(k, { x: (cx + 0.5) * this.size, z: (cz + 0.5) * this.size, nearDist: it.nearDist, farDist: it.farDist, items: [] });
+      groups.get(k).items.push(it);
+    }
+    for (const g of groups.values()) {
+      const build = (key, matKey, shadow) => {
+        const byGeo = new Map();
+        for (const it of g.items) {
+          const gi = it[key];
+          if (gi < 0) continue;
+          if (!byGeo.has(gi)) byGeo.set(gi, []);
+          byGeo.get(gi).push(it);
+        }
+        const meshes = [];
+        for (const [gi, list] of byGeo) {
+          const im = new THREE.InstancedMesh(this.geos[gi], this.material, list.length);
+          list.forEach((it, i) => im.setMatrixAt(i, matKey === 'fm' ? (it.fm || it.m) : it.m));
+          im.castShadow = shadow;
+          im.receiveShadow = true;
+          if (this.depthMaterial) im.customDepthMaterial = this.depthMaterial;
+          im.computeBoundingSphere();
+          im.matrixAutoUpdate = false;
+          im.visible = false;
+          this.parent.add(im);
+          meshes.push(im);
+        }
+        return meshes;
+      };
+      this.chunks.push({ ...g, near: build('near', 'm', this.castShadow), far: build('far', 'fm', false), state: '' });
+    }
+    this.items = [];
+  }
+
+  update(cam, farScale = 1) {
+    const h = this.size / 2;
+    for (const c of this.chunks) {
+      const d = Math.hypot(Math.max(0, Math.abs(cam.x - c.x) - h), Math.max(0, Math.abs(cam.z - c.z) - h));
+      const want = d < c.nearDist ? 'near' : d < c.farDist * farScale ? 'far' : 'none';
+      if (want === c.state) continue;
+      c.state = want;
+      for (const m of c.near) m.visible = want === 'near';
+      for (const m of c.far) m.visible = want === 'far';
+    }
+  }
+}

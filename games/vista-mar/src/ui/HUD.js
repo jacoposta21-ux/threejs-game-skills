@@ -161,7 +161,8 @@ export class HUD {
       if (this.fpsAcc > 0.5) {
         const info = g.renderer.info.render;
         const c = g.renderer.domElement;
-        this.el.fps.textContent = `${Math.round(this.fpsFrames / this.fpsAcc)} fps · ${info.calls} calls · ${c.width}×${c.height}px · ${g.settings.quality} · auto L${g.perfLevel || 0} · ${g.gpuName}`;
+        this.el.fps.textContent = `${Math.round(this.fpsFrames / this.fpsAcc)} fps · frame ${(g.frameMs || 0).toFixed(1)}ms · cpu logic ${(g.cpuUpdate || 0).toFixed(1)}ms · cpu render ${(g.cpuRender || 0).toFixed(1)}ms · ${g.lastCalls || 0} calls · ${c.width}×${c.height}px · ${g.settings.quality} · auto L${g.perfLevel || 0} · ${g.gpuName}`;
+        void info;
         this.fpsAcc = 0; this.fpsFrames = 0;
       }
     }

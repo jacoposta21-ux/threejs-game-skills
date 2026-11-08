@@ -366,6 +366,7 @@ export class Game {
     this.renderer.info.reset();
     const dt = Math.min(rawDt, 1 / 20);
     this.frame++;
+    const tA = performance.now();
     if (!this.pausedForScreenshot) {
       if (this.state === 'playing') this.update(dt);
       else if (this.state === 'ready') {
@@ -378,9 +379,17 @@ export class Game {
         this.menus.showMap(true);
       }
     }
+    const tB = performance.now();
     this.updateChunkVisibility();
     this.renderer.shadowMap.needsUpdate = this.frame % (this.shadowEvery || 2) === 0 || this.state !== 'playing';
     this.composer.render(dt);
+    const tC = performance.now();
+    // CPU time per frame (smoothed): game logic vs. render submission, plus the real frame interval
+    const k = 0.05;
+    this.cpuUpdate = (this.cpuUpdate || 0) * (1 - k) + (tB - tA) * k;
+    this.cpuRender = (this.cpuRender || 0) * (1 - k) + (tC - tB) * k;
+    this.frameMs = (this.frameMs || 16) * (1 - k) + rawDt * 1000 * k;
+    this.lastCalls = this.renderer.info.render.calls;
     this.input.endFrame();
     this.publishDiagnostics();
   }

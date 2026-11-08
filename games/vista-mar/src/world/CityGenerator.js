@@ -4,7 +4,7 @@ import * as T from './textures.js';
 import { createRng } from '../utils/random.js';
 import { bakeStatic } from '../core/AssetLoader.js';
 import { PropInstancer } from './PropInstancer.js';
-import { LodBatch, normalizeGeometry, emissiveSwitchTexture } from './Batches.js';
+import { ChunkedLod as LodBatch, normalizeGeometry, emissiveSwitchTexture } from './Batches.js';
 import { addWind, carPaint } from './Effects.js';
 import {
   LINES, xWidths, zWidths, SIDEWALK, CURB_H, BOULEVARD_MEDIAN, BEACH, WATER_LEVEL, BOUNDS,
@@ -1060,9 +1060,10 @@ export class CityGenerator {
     const veg = new LodBatch(this.group, vegMat, vegGeos, this.props.palms.length + this.props.trees.length + this.props.bushes.length + 8, { depthMaterial: vegDepth });
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     const mat4 = (x, y, z, rot, s) => m4.compose(ps.set(x, y, z), q.setFromAxisAngle(up, rot), sc.setScalar(s));
-    for (const p of this.props.palms) veg.add(mat4(p.x, p.y, p.z, p.rot, p.s), palmModels.length ? PALM0 + (p.v % palmModels.length) : PALMLOW, PALMLOW, { nearDist: 75, farDist: 900 });
-    this.props.trees.forEach((t, i) => veg.add(mat4(t.x, t.y, t.z, t.x * 7.1, t.s), TREE0 + (i % treeNear.length), TREEFAR, { nearDist: 110, farDist: 900 }));
+    for (const p of this.props.palms) veg.add(mat4(p.x, p.y, p.z, p.rot, p.s), palmModels.length ? PALM0 + (p.v % palmModels.length) : PALMLOW, PALMLOW, { nearDist: 35, farDist: 900 });
+    this.props.trees.forEach((t, i) => veg.add(mat4(t.x, t.y, t.z, t.x * 7.1, t.s), TREE0 + (i % treeNear.length), TREEFAR, { nearDist: 60, farDist: 900 }));
     for (const b of this.props.bushes) veg.add(mat4(b.x, b.y, b.z, b.rot, b.s), BUSH, -1, { nearDist: 160, farDist: 160 });
+    veg.finalize();
     this.batches.push(veg);
     for (const t of this.props.trees) this.collision.addCircle(t.x, t.z, 0.4 * t.s);
 
@@ -1102,11 +1103,10 @@ export class CityGenerator {
       this.collision.addCircle(L.x, L.z, 0.2);
       this.props.glows.push({ x: L.head.x, y: 0.03 + (L.y === 0 ? 0 : CURB_H), z: L.head.z, ground: true, color: 0xffd9a0, radius: 9 });
       // the far stand-in has its arm along +z, so it needs the facing angle itself
-      const it = lamps.add(mat4(L.x, L.y, L.z, L.rotY, 1), 0, 1, { nearDist: 70, farDist: 650 });
-      it.farMatrix = mat4(L.x, L.y, L.z, L.rotY + armAngle, 1).clone();
-      it.nearMatrix = mat4(L.x, L.y, L.z, L.rotY, 1).clone();
+      const farMatrix = mat4(L.x, L.y, L.z, L.rotY + armAngle, 1).clone();
+      lamps.add(mat4(L.x, L.y, L.z, L.rotY, 1), 0, 1, { nearDist: 30, farDist: 650, farMatrix });
     }
-    lamps.onSwap = (it, state) => lamps.mesh.setMatrixAt(it.id, state === 'far' ? it.farMatrix : it.nearMatrix);
+    lamps.finalize();
     this.batches.push(lamps);
 
     // ---- benches, bins, hydrants (procedural, shared geometry)
@@ -1176,13 +1176,18 @@ export class CityGenerator {
     if (carKeysUsed.length) {
       const carGeos = [];
       const idx = {};
+      // one shared far stand-in for every model keeps far chunks to a single draw call
+      const proxy = normalizeGeometry(carProxy(carModels[carKeysUsed[0]]).geometry, { uv: [0.06, 0.94] });
       for (const k of carKeysUsed) {
         idx[k] = carGeos.length;
-        carGeos.push(normalizeGeometry(carModels[k].geometry), normalizeGeometry(carProxy(carModels[k]).geometry, { uv: [0.06, 0.94] }));
+        carGeos.push(normalizeGeometry(carModels[k].geometry));
       }
+      const PROXY = carGeos.length;
+      carGeos.push(proxy);
       this.carBatchMaterial = carModels[carKeysUsed[0]].materials[0];
       const cars = new LodBatch(this.group, this.carBatchMaterial, carGeos, this.props.cars.length + 4);
-      for (const k of carKeysUsed) for (const c of carLists[k]) cars.add(mat4(c.x, c.y, c.z, c.rot, 1), idx[k], idx[k] + 1, { nearDist: 70, farDist: 600 });
+      for (const k of carKeysUsed) for (const c of carLists[k]) cars.add(mat4(c.x, c.y, c.z, c.rot, 1), idx[k], PROXY, { nearDist: 40, farDist: 600 });
+      cars.finalize();
       this.batches.push(cars);
     }
     this.carModels = carModels;
