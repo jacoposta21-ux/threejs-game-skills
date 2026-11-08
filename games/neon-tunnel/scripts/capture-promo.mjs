@@ -77,7 +77,7 @@ const shots = ['active-play', 'theme-1', 'theme-2', 'theme-3'];
   }
   await page.close();
   try {
-    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '30', '-i', `${frames}/f%04d.png`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-movflags', '+faststart', `${out}/gameplay.mp4`]);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '30', '-i', `${frames}/f%04d.png`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'slow', '-crf', '27', '-movflags', '+faststart', `${out}/gameplay.mp4`]);
     console.log('wrote', `${out}/gameplay.mp4`);
     await rm(frames, { recursive: true, force: true });
   } catch (err) {
