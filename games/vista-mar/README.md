@@ -139,12 +139,21 @@ Performance: static geometry is merged by material within 200 m chunks, which ar
 
 ## Renderer budget (measured, Low preset, 1280×720)
 
-| Scene | Draw calls | Triangles |
-| --- | --- | --- |
-| Palm Boulevard at golden hour | 731 | 1.45 M |
-| Downtown intersection by day | 458 | 1.06 M |
-| Neon Mile at night | 479 | 1.32 M |
-| Beach at sunset | 265 | 0.84 M |
-| Drift on Ocean Drive | 836 | 1.22 M |
+Before/after the draw-call pass (step 1b). JavaScript game logic costs about 0.8 ms per frame. The bottleneck on a real PC was per-draw-call CPU cost: lowering the resolution did not help.
 
-Counts include the shadow pass. Long sightlines down the palm-lined boulevard are the most expensive views. The levers are the per-chunk LOD distances in `CityGenerator.buildInstances`, `MAX_NPCS` and the traffic pool size. These numbers come from headless Chromium using SwiftShader (software rendering), so frame rates on a real GPU were not measured here. The canvas inspector's 10 s preparation deadline is also shorter than the software-rendered load, so its pixel metrics could not be captured in this environment.
+| Scene | Draw calls before → after | Triangles before → after |
+| --- | --- | --- |
+| Palm Boulevard at golden hour | 731 → 216 | 1.45 M → 0.30 M |
+| Neon Mile at night | 479 → 235 | 1.32 M → 0.27 M |
+| Drift on Ocean Drive | 836 → 325 | 1.22 M → 0.45 M |
+
+What changed:
+- Vegetation (palms, trees, bushes), streetlights and parked cars are each one `BatchedMesh` with per-instance LOD.
+- Traffic bodies and lamps are two batches.
+- Flat-colour building materials are one vertex-coloured material per chunk.
+- Far buildings use a single-material LOD.
+- Each car's lamps are one mesh, and the lost tapes are 3 instanced meshes.
+- Small props cast no shadows, and the shadow map refreshes every other frame.
+- Automatic performance scales resolution and crowd density from the measured FPS.
+
+The triangle counts reported for `BatchedMesh` multi-draw may under-count. The draw-call numbers are the meaningful ones here. Frame rate on a real GPU was not measured in this environment (SwiftShader software rendering).
