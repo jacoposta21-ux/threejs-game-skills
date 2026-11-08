@@ -55,8 +55,24 @@ export class VehicleSystem {
 
   update(dt, driven) {
     this.night = this.game.world.night;
-    for (const v of this.vehicles) {
+    const cam = this.game.camera.position, pl = this.game.player.pos;
+    for (const v of [...this.vehicles]) {
+      // far vehicles are not drawn; abandoned ones are recycled (GTA-style streaming)
+      const dc = Math.hypot(v.pos.x - cam.x, v.pos.z - cam.z);
+      v.root.visible = v === driven || dc < 230;
+      if (v !== driven && !v.police && !v.missionVehicle) {
+        const dp = Math.hypot(v.pos.x - pl.x, v.pos.z - pl.z);
+        if (dp > 260) {
+          if (v.dynamic) { this.removeVehicle(v); continue; }
+          const s = v.spawn;
+          if (Math.hypot(v.pos.x - s.x, v.pos.z - s.z) > 1 || v.health < 100) {
+            const sd = Math.hypot(s.x - pl.x, s.z - pl.z);
+            if (sd > 200) v.reset(); // the car you left behind is gone; its parking spot gets a fresh one
+          }
+        }
+      }
       if (v === driven || v.aiDriven) continue;
+      if (!v.root.visible && v.vel.lengthSq() < 0.01) continue;
       v.idle(dt);
     }
     // skid marks + tyre smoke from sliding or hard-braking cars

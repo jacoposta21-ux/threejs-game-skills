@@ -156,7 +156,7 @@ export class TrafficSystem {
     const late = hour >= 1 && hour < 5.5;
     const district = blockDistrictAt(p.x, p.z);
     const base = { downtown: 26, midtown: 22, nightlife: 20, beach: 18, apartments: 14, residential: 9, industrial: 12, park: 14, sand: 12 }[district] ?? 14;
-    const target = Math.round(base * (late ? 0.4 : 1));
+    const target = Math.round(base * (late ? 0.4 : 1) * (g.perfScale ?? 1));
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0 && this.cars.length < target) {
       this.spawnTimer = 0.15;

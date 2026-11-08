@@ -262,7 +262,7 @@ export class World {
     u.groundColor.value.setRGB(col.hor[0] * 0.35, col.hor[1] * 0.4, col.hor[2] * 0.45);
 
     this.scene.fog.color.setRGB(...col.hor);
-    const fogFar = lerp(1100, 650, this.night);
+    const fogFar = lerp(1100, 650, this.night) * (this.game.settings.drawDistance || 1);
     this.scene.fog.near = 90;
     this.scene.fog.far = fogFar;
 

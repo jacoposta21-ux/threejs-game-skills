@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 
-const DEFAULTS = { quality: 'high', sensitivity: 1, invertY: false, cameraDistance: 4.6, fov: 68, volume: 0.8, dayMinutes: 16, showFps: false };
+const DEFAULTS = { quality: 'high', sensitivity: 1, invertY: false, cameraDistance: 4.6, fov: 68, volume: 0.8, dayMinutes: 16, showFps: false, drawDistance: 1, autoPerf: true };
 
 export function loadSettings() {
   let saved = {};
@@ -8,6 +8,7 @@ export function loadSettings() {
   const out = { ...DEFAULTS, ...saved };
   const q = new URLSearchParams(location.search).get('quality');
   if (q && ['low', 'medium', 'high'].includes(q)) out.quality = q;
+  if (new URLSearchParams(location.search).get('autoperf') === '0') out.autoPerf = false;
   return out;
 }
 
@@ -90,6 +91,8 @@ export class Menus {
     on('set-day', 'change', (t) => { s.dayMinutes = +t.value; g.applyDaySpeed(); });
     on('set-time', 'input', (t) => { g.world.setTime(+t.value); });
     on('set-fps', 'change', (t) => { s.showFps = t.checked; });
+    on('set-draw', 'input', (t) => { s.drawDistance = +t.value; });
+    on('set-autoperf', 'change', (t) => { s.autoPerf = t.checked; if (!t.checked) g.applyQuality(); });
   }
 
   syncSettings() {
@@ -103,5 +106,7 @@ export class Menus {
     $('set-day').value = String(s.dayMinutes);
     $('set-time').value = this.game.world.timeOfDay.toFixed(1); $('val-time').textContent = this.game.world.clockString;
     $('set-fps').checked = s.showFps;
+    $('set-draw').value = s.drawDistance; $('val-draw').textContent = `${Math.round(s.drawDistance * 100)}%`;
+    $('set-autoperf').checked = s.autoPerf;
   }
 }

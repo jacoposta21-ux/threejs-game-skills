@@ -62,7 +62,8 @@ export class PropInstancer {
     for (const s of this.sets) {
       const farLimit = Math.min(s.farDist, fogFar + 60);
       for (const c of s.chunks) {
-        const d = Math.max(0, Math.hypot(camPos.x - c.x, camPos.z - c.z) - CHUNK * 0.5);
+        // distance from the camera to the chunk's square (0 when inside it)
+        const d = Math.hypot(Math.max(0, Math.abs(camPos.x - c.x) - CHUNK / 2), Math.max(0, Math.abs(camPos.z - c.z) - CHUNK / 2));
         const isNear = d < s.nearDist;
         c.near.visible = isNear || (!c.far && d < farLimit);
         if (c.far) c.far.visible = !isNear && d < farLimit;

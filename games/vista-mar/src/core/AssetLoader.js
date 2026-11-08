@@ -65,7 +65,7 @@ export async function loadAssets(onProgress) {
 
 // Bakes a static GLTF scene into one geometry (with material groups) so it can be
 // drawn as an InstancedMesh. Scales it so that the chosen axis measures `size`.
-export function bakeStatic(gltf, { size = 1, axis = 'y', groundAlign = true, centerXZ = true } = {}) {
+export function bakeStatic(gltf, { size = 1, axis = 'y', groundAlign = true, centerXZ = true, baseAlign = false, vertexColors = false } = {}) {
   if (!gltf) return null;
   const root = gltf.scene;
   root.updateMatrixWorld(true);
@@ -89,18 +89,41 @@ export function bakeStatic(gltf, { size = 1, axis = 'y', groundAlign = true, cen
     }
   });
   const geos = [];
-  const materials = [];
+  let materials = [];
   for (const [mat, list] of byMat) {
-    geos.push(mergeGeometries(list, false));
+    const g = mergeGeometries(list, false);
+    if (vertexColors) {
+      // bake the flat material colour into the vertices: one material, one draw call
+      const n = g.attributes.position.count, col = new Float32Array(n * 3);
+      const c = mat.color || new THREE.Color(1, 1, 1);
+      for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
+    geos.push(g);
     materials.push(mat);
   }
-  const merged = mergeGeometries(geos, true);
+  const merged = mergeGeometries(geos, !vertexColors);
+  if (vertexColors) materials = [new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, side: THREE.DoubleSide })];
   merged.computeBoundingBox();
   const bb = merged.boundingBox;
   const dim = bb.max[axis] - bb.min[axis];
   const s = dim > 0 ? size / dim : 1;
-  const cx = centerXZ ? (bb.min.x + bb.max.x) / 2 : 0;
-  const cz = centerXZ ? (bb.min.z + bb.max.z) / 2 : 0;
+  let cx = centerXZ ? (bb.min.x + bb.max.x) / 2 : 0;
+  let cz = centerXZ ? (bb.min.z + bb.max.z) / 2 : 0;
+  let lean = null;
+  if (baseAlign) {
+    // centre on the trunk base (lowest vertices), not the bounding box: curved palms lean
+    const pos = merged.attributes.position;
+    const h = bb.max.y - bb.min.y;
+    let bx = 0, bz = 0, bn = 0, tx = 0, tz = 0, tn = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i);
+      if (y < bb.min.y + h * 0.06) { bx += pos.getX(i); bz += pos.getZ(i); bn++; }
+      if (y > bb.min.y + h * 0.8) { tx += pos.getX(i); tz += pos.getZ(i); tn++; }
+    }
+    if (bn) { cx = bx / bn; cz = bz / bn; }
+    if (tn) { const lx = tx / tn - cx, lz = tz / tn - cz, L = Math.hypot(lx, lz); lean = L > 1e-4 ? { x: lx / L, z: lz / L, len: L * s } : null; }
+  }
   merged.translate(-cx, groundAlign ? -bb.min.y : 0, -cz);
   merged.scale(s, s, s);
   merged.computeBoundingBox();
@@ -108,7 +131,7 @@ export function bakeStatic(gltf, { size = 1, axis = 'y', groundAlign = true, cen
   for (const m of materials) {
     if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
   }
-  return { geometry: merged, materials, size: merged.boundingBox.getSize(new THREE.Vector3()) };
+  return { geometry: merged, materials, size: merged.boundingBox.getSize(new THREE.Vector3()), lean };
 }
 
 function pushMat(map, mat, geo) {

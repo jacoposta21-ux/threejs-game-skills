@@ -160,7 +160,7 @@ export class HUD {
       this.fpsAcc += dt; this.fpsFrames++;
       if (this.fpsAcc > 0.5) {
         const info = g.renderer.info.render;
-        this.el.fps.textContent = `${Math.round(this.fpsFrames / this.fpsAcc)} fps · ${info.calls} calls · ${(info.triangles / 1000).toFixed(0)}k tris`;
+        this.el.fps.textContent = `${Math.round(this.fpsFrames / this.fpsAcc)} fps · ${info.calls} calls · ${(info.triangles / 1000).toFixed(0)}k tris · scale ${Math.round((g.perfScale ?? 1) * 100)}%`;
         this.fpsAcc = 0; this.fpsFrames = 0;
       }
     }

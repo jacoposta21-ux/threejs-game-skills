@@ -228,7 +228,7 @@ export class NPCSystem {
     const night = hour < 6 || hour > 21;
     const late = hour >= 1 && hour < 5.5;
     const base = { downtown: 22, nightlife: night ? 26 : 16, midtown: 20, beach: night ? 10 : 20, sand: night ? 6 : 18, apartments: 12, residential: 8, park: night ? 4 : 14, industrial: night ? 3 : 8 }[district] ?? 12;
-    const target = Math.min(MAX_NPCS, Math.round(base * (late ? 0.35 : 1)));
+    const target = Math.min(MAX_NPCS, Math.round(base * (late ? 0.35 : 1) * (g.perfScale ?? 1)));
 
     // spawn / despawn
     this.spawnTimer -= dt;

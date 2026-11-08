@@ -79,30 +79,46 @@ export class Vehicle {
   }
 
   buildLights() {
+    // every lamp of the car lives in ONE vertex-coloured mesh (one draw call);
+    // each lamp group exposes `emissiveIntensity` and rewrites its own vertex colours
     const w = this.halfW, l = this.halfL, h = this.height;
-    const mk = (color, intensity) => new THREE.MeshStandardMaterial({ color: 0x111111, emissive: color, emissiveIntensity: intensity, roughness: 0.3 });
-    this.headMat = mk(0xfff4dd, 0.2);
-    this.tailMat = mk(0xff2a1a, 0.3);
-    this.reverseMat = mk(0xffffff, 0);
-    const lamp = new THREE.BoxGeometry(0.34, 0.14, 0.06);
-    const add = (mat, x, y, z) => { const m = new THREE.Mesh(lamp, mat); m.position.set(x, y, z); this.body.add(m); return m; };
+    const pos = [], groups = [];
+    const box = (cx, cy, cz, sx, sy, sz) => {
+      const g = new THREE.BoxGeometry(sx, sy, sz).translate(cx, cy, cz).toNonIndexed();
+      const start = pos.length / 3;
+      pos.push(...g.attributes.position.array);
+      return { start, count: g.attributes.position.count };
+    };
+    const group = (hex, init, boxes) => {
+      const grp = { color: new THREE.Color(hex), ranges: boxes, value: -1 };
+      groups.push(grp);
+      const self = this;
+      const api = { get emissiveIntensity() { return grp.value; }, set emissiveIntensity(v) { if (Math.abs(v - grp.value) > 0.01) { grp.value = v; self.paintLamp(grp); } } };
+      grp.init = init;
+      return api;
+    };
     const fy = h * 0.36, ry = h * 0.42;
-    add(this.headMat, w * 0.62, fy, l - 0.02);
-    add(this.headMat, -w * 0.62, fy, l - 0.02);
-    add(this.tailMat, w * 0.66, ry, -l + 0.02);
-    add(this.tailMat, -w * 0.66, ry, -l + 0.02);
-    add(this.reverseMat, w * 0.3, ry, -l + 0.02);
+    this.headMat = group(0xfff4dd, 0.15, [box(w * 0.62, fy, l - 0.02, 0.34, 0.14, 0.06), box(-w * 0.62, fy, l - 0.02, 0.34, 0.14, 0.06)]);
+    this.tailMat = group(0xff2a1a, 0.25, [box(w * 0.66, ry, -l + 0.02, 0.34, 0.14, 0.06), box(-w * 0.66, ry, -l + 0.02, 0.34, 0.14, 0.06)]);
+    this.reverseMat = group(0xffffff, 0.02, [box(w * 0.3, ry, -l + 0.02, 0.2, 0.1, 0.06)]);
     if (this.spec.siren) {
-      const bar = new THREE.Group();
-      this.sirenRed = mk(0xff1a1a, 0.2);
-      this.sirenBlue = mk(0x1a4dff, 0.2);
-      const g = new THREE.BoxGeometry(0.55, 0.16, 0.3);
-      const r = new THREE.Mesh(g, this.sirenRed); r.position.x = 0.3;
-      const b = new THREE.Mesh(g, this.sirenBlue); b.position.x = -0.3;
-      bar.add(r, b);
-      bar.position.set(0, h + 0.02, -0.15);
-      this.body.add(bar);
+      this.sirenRed = group(0xff1a1a, 0.15, [box(0.3, h + 0.1, -0.15, 0.55, 0.16, 0.3)]);
+      this.sirenBlue = group(0x1a4dff, 0.15, [box(-0.3, h + 0.1, -0.15, 0.55, 0.16, 0.3)]);
     }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(pos.length), 3));
+    this.lampMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }));
+    this.body.add(this.lampMesh);
+    this.lampGroups = groups;
+    for (const g of groups) { g.value = g.init; this.paintLamp(g); }
+  }
+
+  paintLamp(grp) {
+    const col = this.lampMesh.geometry.attributes.color;
+    const k = Math.max(0.05, grp.value);
+    for (const r of grp.ranges) for (let i = r.start; i < r.start + r.count; i++) col.setXYZ(i, grp.color.r * k, grp.color.g * k, grp.color.b * k);
+    col.needsUpdate = true;
   }
 
   reset() {

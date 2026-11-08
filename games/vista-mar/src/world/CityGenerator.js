@@ -11,6 +11,9 @@ import {
 } from './Layout.js';
 
 const CHUNK = 300;
+const BCHUNK = 150;
+const BUILDING_KEYS = new Set(['shop', 'roof', 'trim', 'trimDark', 'metal', 'darkmetal', 'corrugated', 'corrBlue', 'corrRust', 'tileroof', 'awningRed', 'awningTeal', 'awningYellow', 'stripe', 'canopyLight', 'hedge', 'wood']);
+function isBuildingKey(k) { return k.startsWith('facade_') || BUILDING_KEYS.has(k); }
 
 // Builds the whole city: merged static geometry per (chunk, material), instanced
 // props, collision volumes, minimap footprints and points of interest.
@@ -24,6 +27,7 @@ export class CityGenerator {
     this.materials = {};
     this.nightMaterials = { windows: [], neon: [], lamps: [], shops: [] };
     this.wetMaterials = [];
+    this.farBuckets = new Map();
     this.footprints = []; // {x0,z0,x1,z1,h,kind}
     this.props = {
       palms: [], trees: [], lamps: [], benches: [], bins: [], hydrants: [], umbrellas: [], loungers: [],
@@ -124,11 +128,26 @@ export class CityGenerator {
   }
 
   b(key, x, z) {
-    const cx = Math.floor((x + 1000) / CHUNK), cz = Math.floor((z + 1000) / CHUNK);
-    const k = `${cx},${cz}|${key}`;
+    // building detail uses smaller chunks so it can swap to the far LOD sooner
+    const isB = isBuildingKey(key);
+    const size = isB ? BCHUNK : CHUNK;
+    const cx = Math.floor((x + 1000) / size), cz = Math.floor((z + 1000) / size);
+    const k = `${size}:${cx},${cz}|${key}`;
     let g = this.buckets.get(k);
-    if (!g) { g = new GeoBuilder(); g.matKey = key; g.chunk = [cx, cz]; this.buckets.set(k, g); }
+    if (!g) { g = new GeoBuilder(); g.matKey = key; g.chunk = [cx, cz]; g.building = isB; this.buckets.set(k, g); }
     return g;
+  }
+
+  /** Simplified stand-in for a building volume, drawn when its chunk is far away. */
+  far(x0, z0, x1, z1, y0, y1, colorHex) {
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+    const k = `${Math.floor((cx + 1000) / BCHUNK)},${Math.floor((cz + 1000) / BCHUNK)}`;
+    let g = this.farBuckets.get(k);
+    if (!g) { g = new GeoBuilder(); g.c = []; this.farBuckets.set(k, g); }
+    g.cur = new THREE.Color(colorHex);
+    g.box(x0, y0, z0, x1, y1, z1, { tileW: 12, tileH: 14, vBase: y0 });
+    g.cur = new THREE.Color(0x55575c);
+    g.top(x0, z0, x1, z1, y1, 8);
   }
 
   // ---------------------------------------------------------------- generate
@@ -191,7 +210,7 @@ export class CityGenerator {
       if (rng.chance(0.5)) this.props.loungers.push({ x: x - 1.2, z: z + rng.range(-1, 1), y: terrainHeight(x - 1.2, z), rot: Math.PI / 2 + rng.range(-0.2, 0.2) });
     }
     // Beach palms in clusters
-    for (let i = 0; i < 70; i++) {
+    for (let i = 0; i < 45; i++) {
       const x = rng.range(416, 440), z = rng.range(-470, 470);
       if (this.collision.blockedCircle(x, z, 1.5)) continue;
       this.addPalm(x, z, terrainHeight(x, z), rng.range(0.9, 1.3));
@@ -239,7 +258,7 @@ export class CityGenerator {
           // median island
           this.b('curb', cx, z).box(x0 + 2, 0, -hm, x1 - 2, CURB_H, hm);
           this.b('grass', cx, z).top(x0 + 2, -hm, x1 - 2, hm, CURB_H + 0.01, 6);
-          for (let x = x0 + 8; x < x1 - 6; x += 11) this.addPalm(x, 0, CURB_H, this.rng.range(1.05, 1.3));
+          for (let x = x0 + 8; x < x1 - 6; x += 16) this.addPalm(x, 0, CURB_H, this.rng.range(1.05, 1.25), [this.rng.chance(0.5) ? 1 : -1, 0]);
           for (let x = x0 + 13.5; x < x1 - 6; x += 22) this.props.bushes.push({ x, z: 0, y: CURB_H, s: this.rng.range(0.8, 1.2), rot: this.rng.range(0, 6) });
         } else {
           this.b('road14', cx, z).flat(x0, z - w / 2, x1, z + w / 2, 0.01, 0, x0 / 12, 1, x1 / 12, true);
@@ -325,6 +344,7 @@ export class CityGenerator {
     }
     if (height > yb + 0.5) {
       this.b(fk, cx, cz).box(x0, yb, z0, x1, height, z1, { tileW: tw, tileH: th, vBase: o.shop ? y0 + 4.85 : y0, uOffset: this.rng.int(0, 7) / 8 });
+      this.far(x0, z0, x1, z1, CURB_H, height, T.FACADE_STYLES[style].wall);
     }
     this.b('roof', cx, cz).top(x0, z0, x1, z1, height, 4);
     // parapet
@@ -457,6 +477,7 @@ export class CityGenerator {
     const [tw, th] = this.tileOf(fk);
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
     this.b(fk, cx, cz).box(x0, y0, z0, x1, y1, z1, { tileW: tw, tileH: th, vBase: y0, uOffset: this.rng.int(0, 7) / 8 });
+    this.far(x0, z0, x1, z1, y0, y1, T.FACADE_STYLES[style].wall);
     this.b('roof', cx, cz).top(x0, z0, x1, z1, y1, 4);
     // thin trim band at each setback
     this.b('trimDark', cx, cz).box(x0 - 0.15, y1 - 0.6, z0 - 0.15, x1 + 0.15, y1 + 0.4, z1 + 0.15, { top: true });
@@ -584,6 +605,7 @@ export class CityGenerator {
       const wallKey = rng.pick(['facade_house', 'facade_stuccoPeach', 'facade_stuccoWhite', 'facade_decoMint']);
       const [tw, th] = this.tileOf(wallKey);
       this.b(wallKey, cx, cz).box(x0, CURB_H, z0, x1, h, z1, { tileW: tw, tileH: th, vBase: CURB_H });
+      this.far(x0, z0, x1, z1, CURB_H, h + 1.2, 0xe8d8bc);
       this.b('trim', cx, cz).box(x0 - 0.3, h, z0 - 0.3, x1 + 0.3, h + 0.25, z1 + 0.3);
       this.gableRoof(x0 - 0.6, z0 - 0.6, x1 + 0.6, z1 + 0.6, h + 0.25, rng.range(1.8, 2.8), wallKey);
       this.collision.addBox(x0, z0, x1, z1, h + 3, 'house');
@@ -658,6 +680,7 @@ export class CityGenerator {
       const key = rng.pick(['corrugated', 'corrBlue', 'corrRust']);
       const cx = (w.x0 + w.x1) / 2, cz = (w.z0 + w.z1) / 2;
       this.b(key, cx, cz).box(w.x0, CURB_H, w.z0, w.x1, h, w.z1, { tileW: 6, tileH: 6 });
+      this.far(w.x0, w.z0, w.x1, w.z1, CURB_H, h + 1, key === 'corrBlue' ? 0x5f7f95 : key === 'corrRust' ? 0x9a6a4a : 0x8d9396);
       this.gableRoof(w.x0 - 0.4, w.z0 - 0.4, w.x1 + 0.4, w.z1 + 0.4, h, 2.2, key, 'metal');
       this.collision.addBox(w.x0, w.z0, w.x1, w.z1, h + 2, 'warehouse');
       this.footprints.push({ x0: w.x0, z0: w.z0, x1: w.x1, z1: w.z1, h, kind: 'warehouse' });
@@ -819,10 +842,10 @@ export class CityGenerator {
           if (k > 0) this.props.lamps.push({ x: x - hw - 0.8, z, y: CURB_H, facing: [1, 0] });
           if (k < 8 || true) this.props.lamps.push({ x: x + hw + 0.8, z: z + 16 < z1 ? z + 16 : z, y: CURB_H, facing: [-1, 0] });
         }
-        const palmy = k === 8 || k === 6 || k === 7 || k === 4;
-        for (let z = z0 + 8; z < z1 - 2; z += palmy ? 12 : 24) {
-          if (k > 0) this.addPalm(x - hw - 1.6, z, CURB_H, rng.range(0.95, 1.2));
-          this.addPalm(x + hw + 1.6, z + 6, CURB_H, rng.range(0.95, 1.2));
+        const palmy = k === 8 || k === 6 || k === 4;
+        for (let z = z0 + 8; z < z1 - 2; z += palmy ? 22 : 44) {
+          if (k > 0) this.addPalm(x - hw - 1.4, z, CURB_H, rng.range(0.95, 1.15), [1, 0]);
+          if (k < 8) this.addPalm(x + hw + 1.4, z + 11, CURB_H, rng.range(0.95, 1.15), [-1, 0]);
         }
         for (let z = z0 + 3; z < z1; z += 40) {
           if (rng.chance(0.5)) this.props.benches.push({ x: x + hw + 2.6, z, y: CURB_H, rot: -Math.PI / 2 });
@@ -847,18 +870,18 @@ export class CityGenerator {
           if (k < 8) this.props.lamps.push({ x: x + 16 < x1 ? x + 16 : x, z: z + hw + 0.8, y: CURB_H, facing: [0, -1] });
         }
         if (z !== 0) {
-          for (let x = x0 + 8; x < x1 - 2; x += 24) {
-            if (k > 0) this.addPalm(x, z - hw - 1.6, CURB_H, rng.range(0.95, 1.2));
-            if (k < 8) this.addPalm(x + 6, z + hw + 1.6, CURB_H, rng.range(0.95, 1.2));
+          for (let x = x0 + 8; x < x1 - 2; x += 44) {
+            if (k > 0) this.addPalm(x, z - hw - 1.4, CURB_H, rng.range(0.95, 1.15), [0, 1]);
+            if (k < 8) this.addPalm(x + 22, z + hw + 1.4, CURB_H, rng.range(0.95, 1.15), [0, -1]);
           }
           for (let x = x0 + 4; x < x1 - 4; x += 7) {
             if (rng.chance(0.15)) this.props.cars.push({ x, z: z - hw + 1.2, y: 0, rot: -Math.PI / 2, street: true });
             if (rng.chance(0.15)) this.props.cars.push({ x: x + 3, z: z + hw - 1.2, y: 0, rot: Math.PI / 2, street: true });
           }
         } else {
-          for (let x = x0 + 4; x < x1 - 4; x += 12) {
-            this.addPalm(x, -hw - 1.6, CURB_H, rng.range(1, 1.25));
-            this.addPalm(x + 6, hw + 1.6, CURB_H, rng.range(1, 1.25));
+          for (let x = x0 + 4; x < x1 - 4; x += 20) {
+            this.addPalm(x, -hw - 1.4, CURB_H, rng.range(1, 1.2), [0, 1]);
+            this.addPalm(x + 10, hw + 1.4, CURB_H, rng.range(1, 1.2), [0, -1]);
           }
         }
         for (let x = x0 + 3; x < x1; x += 40) {
@@ -930,8 +953,8 @@ export class CityGenerator {
     this.group.add(hills);
   }
 
-  addPalm(x, z, y, s = 1) {
-    this.props.palms.push({ x, z, y, s, rot: this.rng.range(0, Math.PI * 2), v: this.rng.int(0, 2) });
+  addPalm(x, z, y, s = 1, face = null) {
+    this.props.palms.push({ x, z, y, s, rot: this.rng.range(0, Math.PI * 2), v: this.rng.int(0, 2), face });
     this.collision.addCircle(x, z, 0.35);
   }
 
@@ -947,10 +970,45 @@ export class CityGenerator {
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
       mesh.userData.chunk = g.chunk;
+      mesh.userData.building = g.building;
       this.group.add(mesh);
       this.chunkMeshes.push(mesh);
     }
     this.buckets.clear();
+    // far-LOD buildings: one vertex-coloured material with a generic window grid
+    const farMat = this.farMaterial();
+    for (const g of this.farBuckets.values()) {
+      const mesh = new THREE.Mesh(g.build(), farMat);
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      mesh.userData.chunk = true;
+      mesh.userData.far = true;
+      mesh.visible = false;
+      this.group.add(mesh);
+      this.chunkMeshes.push(mesh);
+    }
+    this.farBuckets.clear();
+  }
+
+  farMaterial() {
+    const mk = (lit) => {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const x = c.getContext('2d');
+      x.fillStyle = lit ? '#000' : '#e6e6e6'; x.fillRect(0, 0, 128, 128);
+      const rng = createRng(lit ? 11 : 12);
+      for (let fy = 0; fy < 4; fy++) for (let bx = 0; bx < 4; bx++) {
+        if (lit) { if (rng.chance(0.45)) { x.fillStyle = rng.chance(0.75) ? '#ffcf8a' : '#bcd8ff'; x.fillRect(bx * 32 + 6, fy * 32 + 8, 20, 16); } }
+        else { x.fillStyle = '#7c838c'; x.fillRect(bx * 32 + 6, fy * 32 + 8, 20, 16); }
+      }
+      const t = new THREE.CanvasTexture(c);
+      t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      return t;
+    };
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, map: mk(false), emissive: 0xffffff, emissiveMap: mk(true), emissiveIntensity: 0, roughness: 0.85 });
+    this.nightMaterials.windows.push(m);
+    return m;
   }
 
   buildInstances() {
@@ -974,15 +1032,19 @@ export class CityGenerator {
 
     // ---- palms (CC0 Quaternius models near, cheap procedural palm far)
     this.instancer = new PropInstancer(this.group);
-    const palmModels = [A.palm2, A.palm3].map((g) => bakeStatic(g, { size: 9.5 })).filter(Boolean);
-    for (const m of palmModels) for (const mat of m.materials) { mat.roughness = 0.85; mat.metalness = 0; mat.side = THREE.DoubleSide; }
+    const palmModels = [A.palm2, A.palm3].map((g) => bakeStatic(g, { size: 9.5, baseAlign: true, vertexColors: true })).filter(Boolean);
     const palmLow = proceduralPalm();
     const palmsByVar = [[], []];
     for (const p of this.props.palms) palmsByVar[palmModels.length ? p.v % palmModels.length : 0].push(p);
+    // street palms lean out over the road, away from the buildings
+    for (const p of this.props.palms) {
+      const model = palmModels[p.v % Math.max(1, palmModels.length)];
+      if (p.face && model && model.lean) p.rot = Math.atan2(p.face[0], p.face[1]) - Math.atan2(model.lean.x, model.lean.z) + this.rng.range(-0.35, 0.35);
+    }
     const palmPlace = (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(it.s); };
     const palmDepth = addWind([...palmModels.flatMap((m) => m.materials), ...palmLow.materials], { height: 9.5, amp: 0.45, freq: 1.1 });
     palmsByVar.forEach((list, v) => {
-      this.instancer.add({ near: palmModels[v] || palmLow, far: palmModels[v] ? palmLow : null, items: list, place: palmPlace, nearDist: 70, farDist: 900, depthMaterial: palmDepth });
+      this.instancer.add({ near: palmModels[v] || palmLow, far: palmModels[v] ? palmLow : null, items: list, place: palmPlace, nearDist: 35, farDist: 900, depthMaterial: palmDepth });
     });
 
     // ---- broadleaf trees (procedural)
@@ -1038,7 +1100,7 @@ export class CityGenerator {
       this.props.glows.push({ x: L.head.x, y: 0.03 + (L.y === 0 ? 0 : CURB_H), z: L.head.z, ground: true, color: 0xffd9a0, radius: 9 });
     }
     this.instancer.add({
-      near: lampModel || lampProc, far: lampModel ? lampProc : null, items: this.props.lamps, nearDist: 35, farDist: 700,
+      near: lampModel || lampProc, far: lampModel ? lampProc : null, items: this.props.lamps, nearDist: 15, farDist: 700,
       place: (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rotY, 0); d.scale.setScalar(1); },
       placeFar: (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rotY + armAngle, 0); d.scale.setScalar(1); },
     });
@@ -1106,7 +1168,7 @@ export class CityGenerator {
       this.footprints.push({ x0: c.x - ex, z0: c.z - ez, x1: c.x + ex, z1: c.z + ez, h: 1.5, kind: 'car' });
     });
     for (const [k, list] of Object.entries(carLists)) {
-      this.instancer.add({ near: carModels[k], far: carProxy(carModels[k]), items: list, nearDist: 60, farDist: 600, place: (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); } });
+      this.instancer.add({ near: carModels[k], far: carProxy(carModels[k]), items: list, nearDist: 40, farDist: 600, place: (d, it) => { d.position.set(it.x, it.y, it.z); d.rotation.set(0, it.rot, 0); d.scale.setScalar(1); } });
     }
     this.carModels = carModels;
   }
@@ -1177,13 +1239,29 @@ function proceduralPalm() {
     g.computeVertexNormals();
     frond.push(g);
   }
-  const trunkM = new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 1 });
-  const leafM = new THREE.MeshStandardMaterial({ color: 0x3f7a35, roughness: 0.9, side: THREE.DoubleSide });
   const t = mergeGeometriesSafe(parts), f = mergeGeometriesSafe(frond);
-  const geo = mergeGeometriesSafe([t, f]);
-  geo.addGroup(0, t.attributes.position.count, 0);
-  geo.addGroup(t.attributes.position.count, f.attributes.position.count, 1);
-  return { geometry: geo, materials: [trunkM, leafM] };
+  const paint = (g, hex) => { const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); };
+  paint(t, 0x6e5238); paint(f, 0x3f7a35);
+  const geo = mergeColored([t, f]);
+  return { geometry: geo, materials: [new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide })] };
+}
+
+function mergeColored(geos) {
+  let n = 0;
+  for (const g of geos) n += g.attributes.position.count;
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3), uv = new Float32Array(n * 2);
+  let o = 0;
+  for (const g of geos) {
+    pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); col.set(g.attributes.color.array, o * 3);
+    o += g.attributes.position.count;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  out.computeBoundingSphere();
+  return out;
 }
 
 function proceduralLamp(lampList) {

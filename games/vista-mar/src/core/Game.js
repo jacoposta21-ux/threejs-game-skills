@@ -350,6 +350,7 @@ export class Game {
   tick() {
     this.timer.update();
     const rawDt = this.timer.getDelta();
+    if (this.state === 'playing' && !this.pausedForScreenshot) this.autoPerformance(rawDt);
     this.renderer.info.reset();
     const dt = Math.min(rawDt, 1 / 20);
     this.frame++;
@@ -440,12 +441,40 @@ export class Game {
 
   updateChunkVisibility() {
     const cam = this.camera.position;
-    const far = (this.scene.fog ? this.scene.fog.far : 1000) + 160;
-    this.city.instancer.update(cam, this.scene.fog ? this.scene.fog.far : 1000);
+    const dd = this.settings.drawDistance || 1;
+    const fogFar = this.scene.fog ? this.scene.fog.far : 1000;
+    const far = fogFar + 160;
+    const near = 170 * dd; // full-detail buildings within this distance, simplified beyond
+    this.city.instancer.update(cam, fogFar);
     for (const m of this.city.chunkMeshes) {
       const bs = m.geometry.boundingSphere;
       const d = Math.hypot(cam.x - bs.center.x, cam.z - bs.center.z) - bs.radius;
-      m.visible = d < far;
+      if (m.userData.building) m.visible = d < near;
+      else if (m.userData.far) m.visible = d >= near * 0.92 && d < far;
+      else m.visible = d < far;
+    }
+  }
+
+  /** Watches real frame times and trades resolution / crowd density for frame rate. */
+  autoPerformance(rawDt) {
+    if (!this.settings.autoPerf) { this.perfScale = 1; return; }
+    this.perfAcc = (this.perfAcc || 0) + rawDt;
+    this.perfFrames = (this.perfFrames || 0) + 1;
+    if (this.perfAcc < 2) return;
+    const fps = this.perfFrames / this.perfAcc;
+    this.perfAcc = 0; this.perfFrames = 0;
+    this.measuredFps = fps;
+    const prev = this.perfScale ?? 1;
+    let s = prev;
+    if (fps < 40) s = Math.max(0.55, s - 0.1);
+    else if (fps > 57) s = Math.min(1, s + 0.05);
+    if (s !== prev) {
+      this.perfScale = s;
+      const q = QUALITY[this.settings.quality] || QUALITY.high;
+      const dpr = Math.min(window.devicePixelRatio || 1, q.dpr) * (0.6 + 0.4 * s);
+      this.renderer.setPixelRatio(dpr);
+      this.composer.setPixelRatio(dpr);
+      this.resize();
     }
   }
 
@@ -515,6 +544,24 @@ export class Game {
         codes.forEach((c) => inp.keys.delete(c));
         game.publishDiagnostics();
         return { ...window.__THREE_GAME_DIAGNOSTICS__, maxY };
+      },
+      callBreakdown() {
+        // which visible meshes cost draw calls (one per material group), grouped by role
+        game.updateChunkVisibility();
+        const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(game.camera.projectionMatrix, game.camera.matrixWorldInverse));
+        const out = {};
+        game.scene.traverseVisible((o) => {
+          if (!o.isMesh && !o.isSprite) return;
+          if (o.frustumCulled !== false && o.geometry && o.geometry.boundingSphere) {
+            const bs = (o.isInstancedMesh ? o.boundingSphere || o.geometry.boundingSphere : o.geometry.boundingSphere).clone().applyMatrix4(o.matrixWorld);
+            if (!fr.intersectsSphere(bs)) return;
+          }
+          const calls = Array.isArray(o.material) ? o.material.length : 1;
+          let key = o.userData.chunk ? 'chunk:' + (o.material.name || '') : o.isInstancedMesh ? 'instanced' : o.isSkinnedMesh ? 'skinned' : o.isSprite ? 'sprite' : 'mesh';
+          if (o.userData.chunk) key = 'chunkStatic';
+          out[key] = (out[key] || 0) + calls;
+        });
+        return out;
       },
       tapes() { return game.tapes.tapes.map((t) => ({ x: t.x, z: t.z, collected: t.collected })); },
     };
