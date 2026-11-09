@@ -63,3 +63,15 @@ test('pause and resume via keyboard', async ({ page }, info) => {
   await expect(page.locator('#pause')).toBeHidden();
   await expect.poll(async () => (await diag(page)).timeLeft, { timeout: 60_000 }).toBeLessThan(t0);
 });
+
+test('Q switches the controlled teammate', async ({ page }, info) => {
+  test.skip(info.project.name.includes('mobile'), 'keyboard path');
+  test.setTimeout(420_000);
+  await startMatch(page);
+  // Stand still: the AI presses and wins the ball, so we are defending.
+  await expect.poll(async () => (await diag(page)).possession.team, { timeout: 300_000, intervals: [1000] }).toBe('away');
+  const before = (await diag(page)).player.name;
+  await page.keyboard.press('KeyQ');
+  await expect.poll(async () => (await diag(page)).player.name, { timeout: 60_000 }).not.toBe(before);
+  await expect(page.locator('#player-name')).not.toHaveText(before);
+});

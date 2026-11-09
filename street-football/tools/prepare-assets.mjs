@@ -13,6 +13,8 @@ import { MeshoptEncoder } from 'meshoptimizer';
 const KEEP = new Set([
   'Idle_Loop', 'Walk_Loop', 'Jog_Fwd_Loop', 'Sprint_Loop',
   'Dance_Loop', 'Jump_Loop', 'Idle_Talking_Loop',
+  // Phase 2: reaction when tackled.
+  'Hit_Chest',
 ]);
 
 const input = process.argv[2];

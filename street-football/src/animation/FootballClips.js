@@ -13,6 +13,7 @@ export const CLIP_EVENTS = {
   Kick_Shot: { contact: 0.21 },
   Kick_Pass: { contact: 0.16 },
   Keeper_Throw: { release: 0.42 },
+  Tackle_Poke: { contact: 0.2 },
 };
 
 function makeAuthor(lib) {
@@ -284,6 +285,41 @@ export function authorFootballClips(lib) {
     { t: dur, pose: wing(-16) },
   ]);
   clips.push(new THREE.AnimationClip('Celebrate_Airplane', dur, [...legTracks, ...armTracks]));
+
+  // Standing poke tackle: drop the hips, lunge the right leg across into the ball.
+  clips.push(
+    new THREE.AnimationClip('Tackle_Poke', 0.62, tracks(
+      [
+        { t: 0, pose: {} },
+        {
+          t: 0.1,
+          pose: {
+            [B.thighL]: [['pitch', -35]], [B.shinL]: [['pitch', 60]],
+            [B.thighR]: [['pitch', 15]], [B.shinR]: [['pitch', 55]],
+            [B.spine1]: [['pitch', 22]], [B.upperArmL]: [['roll', 45]], [B.upperArmR]: [['roll', -45]],
+          },
+        },
+        {
+          t: 0.2,
+          pose: {
+            [B.thighL]: [['pitch', -45]], [B.shinL]: [['pitch', 75]],
+            [B.thighR]: [['pitch', -62], ['yaw', -18]], [B.shinR]: [['pitch', 8]], [B.footR]: [['pitch', -25], ['yaw', -25]],
+            [B.spine1]: [['pitch', 16], ['roll', -6]], [B.upperArmL]: [['roll', 60], ['pitch', -20]], [B.upperArmR]: [['roll', -55], ['pitch', 25]],
+          },
+        },
+        {
+          t: 0.38,
+          pose: {
+            [B.thighL]: [['pitch', -42]], [B.shinL]: [['pitch', 70]],
+            [B.thighR]: [['pitch', -50], ['yaw', -12]], [B.shinR]: [['pitch', 15]],
+            [B.spine1]: [['pitch', 18]], [B.upperArmL]: [['roll', 50]], [B.upperArmR]: [['roll', -45]],
+          },
+        },
+        { t: 0.62, pose: {} },
+      ],
+      { plant: 'L' },
+    )),
+  );
 
   // Dejected: hands on head (keeper after conceding).
   const dejected = (s) => ({

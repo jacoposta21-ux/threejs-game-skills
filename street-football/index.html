@@ -57,6 +57,8 @@
           <button type="button" data-action="sprint" class="tbtn sprint">SPRINT</button>
           <button type="button" data-action="pass" class="tbtn pass">PASS</button>
           <button type="button" data-action="shoot" class="tbtn shoot">SHOOT</button>
+          <button type="button" data-action="tackle" class="tbtn tackle">TACKLE</button>
+          <button type="button" data-action="switch" class="tbtn switch">SWITCH</button>
         </div>
       </div>
 
@@ -97,11 +99,13 @@
           <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>←↑↓→</kbd><span>Move — the ball is loose, keep touching it forward</span></div>
           <div><kbd>SHIFT</kbd><span>Sprint — longer, riskier touches; drains stamina</span></div>
           <div><kbd>J</kbd> / <kbd>LMB</kbd><span>Hold to power up, release to shoot. Steer with ↑/↓ to aim for a post</span></div>
-          <div><kbd>SPACE</kbd><span>Pass — ping it off the boards for a wall pass</span></div>
+          <div><kbd>SPACE</kbd><span>Pass to the teammate in the direction you are moving (or facing)</span></div>
+          <div><kbd>F</kbd><span>Tackle — lunge for the ball when defending; from behind is risky</span></div>
+          <div><kbd>Q</kbd><span>Switch to the teammate closest to the ball (control also follows the ball automatically)</span></div>
           <div><kbd>ESC</kbd> / <kbd>P</kbd><span>Pause</span></div>
-          <div class="soon"><kbd>E</kbd><kbd>Q</kbd><kbd>F</kbd><span>Skill moves, player switch and tackles arrive with the 3v3 update</span></div>
+          <div class="soon"><kbd>E</kbd><span>Skill moves arrive with the freestyle update</span></div>
         </div>
-        <p class="hint">Beat the keeper as many times as you can in 2:30. Power shots fly but spray; placed shots near the posts beat the keeper more often. Touch screens get a stick and buttons.</p>
+        <p class="hint">3 v 3 plus keepers, 3 minutes. Win the ball back, keep it moving, and finish. Power shots fly but spray; placed shots near the posts beat the keeper more often. Touch screens get a stick and buttons.</p>
         <button type="button" class="menu-btn back" data-back>BACK</button>
       </section>
 
@@ -113,7 +117,7 @@
           <label>CROWD &amp; STREET<input type="range" min="0" max="1" step="0.05" id="vol-ambience" /></label>
           <label class="check">MUTE<input type="checkbox" id="mute-check" /></label>
           <div class="seg" data-setting="quality"><span>GRAPHICS</span><button type="button" data-value="low">LOW</button><button type="button" data-value="medium">MED</button><button type="button" data-value="high">HIGH</button></div>
-          <div class="seg" data-setting="difficulty"><span>KEEPER</span><button type="button" data-value="easy">EASY</button><button type="button" data-value="normal">NORMAL</button><button type="button" data-value="hard">HARD</button></div>
+          <div class="seg" data-setting="difficulty"><span>AI LEVEL</span><button type="button" data-value="easy">EASY</button><button type="button" data-value="normal">NORMAL</button><button type="button" data-value="hard">HARD</button></div>
           <label class="check">CAMERA SHAKE<input type="checkbox" id="shake-check" /></label>
         </div>
         <p class="hint" id="settings-note"></p>

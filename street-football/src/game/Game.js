@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { BALL, CAMERA, COURT, MATCH, QUALITY, TEAMS } from '../config.js';
+import { BALL, CAMERA, COURT, FORMATION, MATCH, QUALITY, ROSTERS, TEAMS } from '../config.js';
+import { TeamAI } from '../ai/TeamAI.js';
+import { MatchState } from './MatchState.js';
+import { Indicators } from '../systems/Indicators.js';
 import { Events } from '../core/Events.js';
 import { Input } from '../core/Input.js';
 import { Loop } from '../core/Loop.js';
@@ -19,29 +22,13 @@ import { Crowd } from '../world/Crowd.js';
 import { buildEnvironment } from '../world/Environment.js';
 import { buildNeighborhood } from '../world/Neighborhood.js';
 
-const PLAYER_LOOK = {
-  name: 'ZÉ',
-  number: 10,
-  team: TEAMS.home,
-  teamId: 'home',
-  skin: '#7a4a2a',
-  hair: 'twists',
-  hairColor: '#17100b',
-  headband: '#1f8a4c',
-  height: 1.76,
-};
+function outfieldLook(teamId, r) {
+  return { ...r, team: TEAMS[teamId], teamId };
+}
 
-const KEEPER_LOOK = {
-  name: 'BETO',
-  number: 1,
-  team: { ...TEAMS.away, jersey: '#00a88f', jersey2: '#141414', shorts: '#141414', socks: '#00a88f', sockStripe: '#141414', pattern: 1 },
-  teamId: 'away',
-  skin: '#d9a066',
-  hair: 'buzz',
-  hairColor: '#2a1a10',
-  shoes: '#141414',
-  height: 1.86,
-};
+function keeperLook(teamId, r) {
+  return { ...r, team: { ...TEAMS[teamId], ...r.kit }, teamId };
+}
 
 const SETTINGS_KEY = 'settings';
 const BEST_KEY = 'best';
@@ -86,19 +73,34 @@ export class Game {
     // World.
     this.env = buildEnvironment(this.scene, this.renderer, this.quality);
     this.court = buildCourt(this.scene, physics, this.rng);
-    this.hood = buildNeighborhood(this.scene, this.rng, this.settings.quality);
+    this.hood = buildNeighborhood(this.scene, this.rng, this.settings.quality, { boardTexture: this.court.boardTexture });
     this.crowd = new Crowd(this.scene, lib, this.rng, this.quality.crowd);
 
-    // Actors.
+    // Actors: two teams of three outfield players plus a keeper each.
     this.ball = new Ball(physics, this.scene, this.rng);
-    this.player = new Footballer({ lib, physics, scene: this.scene, look: PLAYER_LOOK, tag: 'player' });
-    this.controller = new PlayerController(this.player, this.ball, this.events, this.rng);
-    this.keeper = new Footballer({ lib, physics, scene: this.scene, look: KEEPER_LOOK, tag: 'keeper' });
-    this.keeperAI = new KeeperAI(this.keeper, this.ball, this.events, this.rng, -1);
-    this.keeperAI.difficulty = this.settings.difficulty;
-    this.player.anim.onFootstep = (speed) => {
-      this.audio.play('step', { volume: 0.12 + speed * 0.025, at: this.player.holder.position, cooldown: 0.12, variance: 0.15 });
-    };
+    this.match = new MatchState(this.ball);
+    this.footballers = [];
+    for (const teamId of ['home', 'away']) {
+      const team = this.match.teams[teamId];
+      for (const r of ROSTERS[teamId]) {
+        const f = new Footballer({ lib, physics, scene: this.scene, look: outfieldLook(teamId, r) });
+        const c = new PlayerController(f, this.ball, this.events, this.rng, this.match);
+        f.anim.onFootstep = (speed) => {
+          if (c === this.human) this.audio.play('step', { volume: 0.12 + speed * 0.025, at: f.holder.position, cooldown: 0.12, variance: 0.15 });
+        };
+        team.players.push(c);
+        this.footballers.push(f);
+      }
+      // Home defends +X (attacks -X); away defends -X.
+      const kf = new Footballer({ lib, physics, scene: this.scene, look: keeperLook(teamId, ROSTERS[`${teamId}Keeper`]) });
+      team.keeper = new KeeperAI(kf, this.ball, this.events, this.rng, -team.attackSign, this.match);
+      team.keeper.difficulty = this.settings.difficulty;
+      team.ai = new TeamAI(this.match, teamId, this.rng);
+      team.ai.difficulty = this.settings.difficulty;
+      this.footballers.push(kf);
+    }
+    this.human = null;
+    this.setHuman(this.match.teams.home.players[0]);
 
     // Systems.
     this.cameraRig = new CameraRig(this.camera);
@@ -107,7 +109,8 @@ export class Game {
     this.audio = new AudioSystem(this.rng, storage);
     this.audio.setCamera(this.camera);
     this.hud = new Hud();
-    this.hud.setPlayer(PLAYER_LOOK);
+    this.hud.setPlayer(this.human.p.look);
+    this.indicators = new Indicators(this.scene);
     this.input = new Input(canvas, document.getElementById('touch-controls'));
     this.menus = new Menus(
       {
@@ -131,7 +134,7 @@ export class Game {
     this.resetPositions();
     this.enterMenu();
     resizeRenderer(this.renderer, this.camera, this.quality.dpr);
-    this.cameraRig.snap(this.player, this.ball);
+    this.cameraRig.snap(this.human.p, this.ball);
     this.installTestHooks();
     this.loop = new Loop((dt) => this.update(dt), () => this.render());
   }
@@ -147,7 +150,7 @@ export class Game {
   }
 
   freshStats() {
-    return { shots: 0, onTarget: 0, saves: 0, goals: 0, bestCombo: 0 };
+    return { shots: 0, onTarget: 0, saves: 0, goals: 0, conceded: 0, tackles: 0, interceptions: 0, passes: 0, awayShots: 0, bestCombo: 0 };
   }
 
   freshFlight() {
@@ -216,7 +219,12 @@ export class Game {
   setSetting(key, value) {
     this.settings[key] = value;
     this.storage.set(SETTINGS_KEY, JSON.stringify(this.settings));
-    if (key === 'difficulty') this.keeperAI.difficulty = value;
+    if (key === 'difficulty') {
+      for (const t of Object.values(this.match.teams)) {
+        t.keeper.difficulty = value;
+        t.ai.difficulty = value;
+      }
+    }
     if (key === 'shake') this.cameraRig.shakeEnabled = value;
     if (key === 'quality') {
       this.quality = QUALITY[value];
@@ -258,14 +266,57 @@ export class Game {
     this.input.enabled = false;
   }
 
-  resetPositions() {
+  /** Kick-off shape. The kicking team's first player stands on the ball. */
+  resetPositions(kickoffTeam = 'home') {
     this.ball.placeAt(0, BALL.radius + 0.002, 0);
-    // Ball at the feet, attacking toward -X.
-    this.player.teleport(0.55, 0, -Math.PI / 2);
-    this.controller.reset();
-    this.keeperAI.reset();
+    this.match.owner = null;
+    this.match.passTarget = null;
+    this.match.lastPossessionTeam = kickoffTeam;
+    for (const teamId of ['home', 'away']) {
+      const team = this.match.teams[teamId];
+      const s = team.attackSign;
+      const heading = s < 0 ? -Math.PI / 2 : Math.PI / 2;
+      team.players.forEach((c, i) => {
+        const f = FORMATION.kickoff[i];
+        let x = -s * f[0] * COURT.halfLength;
+        const z = f[1] * COURT.halfWidth;
+        if (teamId === kickoffTeam && i === 0) x = -s * 0.55;
+        else if (Math.abs(x) < COURT.centerCircleRadius + 0.6) x = -s * (COURT.centerCircleRadius + 0.6);
+        c.reset();
+        c.p.anim.stopAll();
+        c.p.teleport(x, z, heading);
+        c.p.setGhost(false);
+      });
+      team.keeper.reset();
+      team.ai.reset();
+    }
+    if (kickoffTeam === 'home') this.setHuman(this.match.teams.home.players[0]);
     this.flight = this.freshFlight();
-    this.player.anim.stopAll();
+  }
+
+  /** Give keyboard/touch control to a home outfield player. */
+  setHuman(ctrl) {
+    if (!ctrl || ctrl === this.human) return;
+    if (this.human) {
+      this.human.isHuman = false;
+      this.human.charge.active = false;
+    }
+    this.human = ctrl;
+    // Autoplay (QA): the "human" slot is tracked for the camera but driven by AI.
+    ctrl.isHuman = !this.autoplay;
+    this.hud?.setPlayer(ctrl.p.look);
+  }
+
+  /** Q: switch to the teammate best placed for the ball (cycles on repeat presses). */
+  switchPlayer() {
+    const ball = this.ball.position;
+    const mates = this.match.teams.home.players
+      .filter((c) => c !== this.human)
+      .sort((a, b) => Math.hypot(a.p.position.x - ball.x, a.p.position.z - ball.z) - Math.hypot(b.p.position.x - ball.x, b.p.position.z - ball.z));
+    const pick = mates[0];
+    if (!pick || this.human?.possession) return;
+    this.setHuman(pick);
+    this.audio.play('click', { group: 'ui', variance: 0, volume: 0.6 });
   }
 
   startMatch() {
@@ -279,7 +330,7 @@ export class Game {
     this.hud.reset();
     this.hud.show(true);
     this.cameraRig.setMode('play');
-    this.cameraRig.snap(this.player, this.ball);
+    this.cameraRig.snap(this.human.p, this.ball);
     this.paused = false;
     this.countdownStep = -1;
     this.setPhase('countdown');
@@ -326,41 +377,81 @@ export class Game {
 
   // ------------------------------------------------------------- feedback
 
+  isHome(footballer) {
+    return footballer?.team === 'home';
+  }
+
   wireFeedback() {
     const ev = this.events;
     ev.on('touch', ({ player, strength }) => {
-      this.audio.play('touch', { volume: 0.35 + strength * 0.04, at: player.holder.position, cooldown: 0.05 });
+      this.audio.play('touch', { volume: (player === this.human?.p ? 0.35 : 0.2) + strength * 0.04, at: player.holder.position, cooldown: 0.05 });
     });
-    ev.on('control', ({ relSpeed }) => {
+    ev.on('control', ({ player, relSpeed, stolenFrom }) => {
       this.audio.play('touch', { volume: 0.5 + relSpeed * 0.05, at: this.ball.mesh.position });
       this.flight.controlTime = this.time;
+      if (this.phase !== 'playing') return;
+      const home = this.isHome(player);
+      // Interception: won a ball the other team had just played or was dribbling.
+      const fromPass = this.flight.type === 'pass' && this.flight.team && this.flight.team !== player.team && this.time - this.flight.kickTime < 2;
+      if (stolenFrom || fromPass) {
+        if (home) {
+          this.stats.interceptions += 1;
+          this.addStyle(100, stolenFrom ? 'STEAL' : 'INTERCEPTION', new THREE.Vector3(player.position.x, 2.2, player.position.z));
+        }
+        this.crowd.react(0.3);
+      }
+      // Control follows the ball inside the human's team.
+      if (home && player.ctrl && player.ctrl !== this.human) this.setHuman(player.ctrl);
     });
     ev.on('chargeStart', () => this.audio.play('charge', { volume: 0.12, variance: 0 }));
-    ev.on('kick', ({ type, power, speed }) => {
+    ev.on('kick', ({ type, power, player, target }) => {
       const at = this.ball.mesh.position;
       const firstTime = this.flight.controlTime != null && this.time - this.flight.controlTime < 0.55;
-      this.flight = { ...this.freshFlight(), kickTime: this.time, power, type, firstTime, scorerX: this.player.position.x };
+      this.flight = { ...this.freshFlight(), kickTime: this.time, power, type, firstTime, scorerX: player.position.x, team: player.team, kicker: player };
+      const home = this.isHome(player);
       if (type === 'shot') {
-        this.stats.shots += 1;
+        if (home) this.stats.shots += 1;
+        else this.stats.awayShots += 1;
         this.audio.play(power > 0.6 ? 'kickHard' : 'kickSoft', { volume: 0.7 + power * 0.5, at });
-        this.cameraRig.addTrauma(0.12 + power * 0.28);
+        this.cameraRig.addTrauma((0.12 + power * 0.28) * (home ? 1 : 0.6));
         this.cameraRig.punchFov(1.5 + power * 4);
-        this.vfx.dust(this.player.footPoint(new THREE.Vector3(), 0.5), 0.6 + power);
-        if (power > 0.85) this.hitstop(0.06);
+        this.vfx.dust(player.footPoint(new THREE.Vector3(), 0.5), 0.6 + power);
+        if (power > 0.85 && home) this.hitstop(0.06);
+        this.shotTracking = 1.6;
       } else {
+        if (home) this.stats.passes += 1;
         this.audio.play('kickSoft', { volume: 0.55, at, rate: 1.15 });
         this.vfx.dust(at, 0.4);
+        this.passFocus = target ?? null;
       }
-      this.shotTracking = type === 'shot' ? 1.6 : 0;
     });
-    ev.on('whiff', () => this.hud.toast('Missed the ball — get closer before you strike', 1.5));
-    ev.on('possessionLost', () => {
-      if (this.phase === 'playing' && this.player.speed > 5) this.hud.toast('Heavy touch!', 1);
+    ev.on('whiff', ({ player }) => {
+      if (player === this.human?.p) this.hud.toast('Missed the ball — get closer before you strike', 1.5);
+    });
+    ev.on('possessionLost', ({ player, reason }) => {
+      if (this.phase === 'playing' && player === this.human?.p && reason === 'heavy' && player.speed > 5) this.hud.toast('Heavy touch!', 1);
+    });
+    ev.on('tackleStart', ({ player }) => this.audio.play('step', { volume: 0.5, rate: 0.8, at: player.holder.position }));
+    ev.on('tackle', ({ tackler, success, victim }) => {
+      if (!success) return;
+      const at = this.ball.mesh.position;
+      this.audio.play('kickSoft', { volume: 0.7, rate: 0.85, at });
+      this.vfx.dust(at, 0.8);
+      if (victim) {
+        this.cameraRig.addTrauma(0.22);
+        this.crowd.react(0.35);
+        if (this.isHome(tackler)) {
+          this.stats.tackles += 1;
+          this.addStyle(150, 'TACKLE', new THREE.Vector3(tackler.position.x, 2.2, tackler.position.z));
+        }
+      }
     });
     ev.on('save', ({ keeper, type }) => {
       if (type === 'claim') return;
-      this.stats.saves += 1;
-      this.stats.onTarget += 1;
+      if (keeper.team === 'away') {
+        this.stats.saves += 1;
+        this.stats.onTarget += 1;
+      }
       this.audio.play('ooh', { group: 'crowd', volume: 0.9 });
       this.audio.play(type === 'catch' ? 'touch' : 'kickSoft', { volume: 0.9, at: this.ball.mesh.position });
       this.crowd.react(0.55);
@@ -410,9 +501,17 @@ export class Game {
       case 'net':
         this.audio.play('net', { volume: 0.4 + vol * 0.6, at, cooldown: 0.2 });
         break;
-      case 'player':
+      case 'player': {
         this.audio.play('touch', { volume: 0.3 + vol * 0.6, at, cooldown: 0.08 });
+        // A defender's body in the way of a shot.
+        const who = other.who;
+        if (this.flight.type === 'shot' && who && who.team !== this.flight.team && speed > 8 && !this.flight.blocked) {
+          this.flight.blocked = true;
+          this.hud.popup('BLOCKED!', new THREE.Vector3(who.position.x, 2.2, who.position.z), this.camera);
+          if (this.isHome(who)) this.addStyle(100, 'BLOCK', new THREE.Vector3(who.position.x, 1.8, who.position.z));
+        }
         break;
+      }
       default:
         break;
     }
@@ -444,18 +543,30 @@ export class Game {
   fixedUpdate(dt) {
     const it = this.stepIntents ?? NEUTRAL_INTENTS;
     const active = this.phase === 'playing';
+    if (this.phase === 'menu') {
+      for (const f of this.footballers) {
+        f.beginStep();
+        f.commitStep();
+      }
+      this.ball.preStep(dt);
+      return;
+    }
+    if (active && it.switchPressed) this.switchPlayer();
+    if (active) {
+      this.match.teams.home.ai.update(dt, this.time);
+      this.match.teams.away.ai.update(dt, this.time);
+    }
     if (this.phase === 'goal') {
       this.updateCelebration(dt);
     } else {
-      this.controller.frozen = !active;
-      this.controller.update(dt, active ? it : NEUTRAL_INTENTS, this.cameraRig.yaw, this.time);
+      for (const c of this.match.allOutfield()) {
+        c.frozen = !active;
+        const intents = !active ? NEUTRAL_INTENTS : c.isHuman ? it : c.aiIntents ?? NEUTRAL_INTENTS;
+        c.update(dt, intents, this.cameraRig.yaw, this.time);
+      }
     }
-    if (this.phase !== 'menu') this.keeperAI.update(dt, this.time);
-    else {
-      this.keeper.beginStep();
-      this.keeper.commitStep();
-    }
-    this.separate(this.player, this.keeper);
+    for (const t of Object.values(this.match.teams)) t.keeper.update(dt, this.time);
+    this.separateAll();
     this.ball.preStep(dt);
     // Edge-triggered intents only fire on the first sub-step of a frame.
     if (this.stepIntents && this.stepIntents !== NEUTRAL_INTENTS) {
@@ -471,15 +582,26 @@ export class Game {
     }
   }
 
-  separate(a, b) {
-    const dx = a.position.x - b.position.x;
-    const dz = a.position.z - b.position.z;
-    const d = Math.hypot(dx, dz);
+  /** Bodies never overlap: pairwise circle separation (keepers mid-dive excluded). */
+  separateAll() {
+    const fs = this.footballers;
     const min = 0.62;
-    if (d < min && d > 1e-4 && Math.abs(b.roll) < 0.2) {
-      const push = (min - d) / d;
-      a.position.x += dx * push;
-      a.position.z += dz * push;
+    for (let i = 0; i < fs.length; i += 1) {
+      for (let j = i + 1; j < fs.length; j += 1) {
+        const a = fs[i];
+        const b = fs[j];
+        if (Math.abs(a.roll) > 0.2 || Math.abs(b.roll) > 0.2) continue;
+        const dx = a.position.x - b.position.x;
+        const dz = a.position.z - b.position.z;
+        const d = Math.hypot(dx, dz);
+        if (d < min && d > 1e-4) {
+          const push = ((min - d) / d) * 0.5;
+          a.position.x += dx * push;
+          a.position.z += dz * push;
+          b.position.x -= dx * push;
+          b.position.z -= dz * push;
+        }
+      }
     }
   }
 
@@ -497,14 +619,13 @@ export class Game {
     if (Math.abs(p.x) < line || Math.abs(p.z) > COURT.goalHalfWidth || p.y > COURT.goalHeight) return;
     if (this.phase !== 'playing') return;
     this.ball.inGoal = true;
-    // Home attacks -X; a ball into +X is an own goal.
+    // Home attacks -X, away attacks +X.
     this.onGoal(p.x < 0 ? 'home' : 'away');
   }
 
   checkStuckBall(dt) {
     const p = this.ball.position;
     const v = this.ball.velocity;
-    // Resting on a goal roof or wedged high up: knock it back into play.
     if (!this.ball.heldBy && p.y > 1.0 && v.length() < 0.4) {
       this.stuckTime += dt;
       if (this.stuckTime > 1.2) {
@@ -521,74 +642,95 @@ export class Game {
     this.score[team] += 1;
     const home = team === 'home';
     const at = this.ball.position.clone();
+    this.events.emit('goal', { team, flight: { ...this.flight, kicker: undefined }, lastTouch: this.ball.lastTouch?.look?.name, lastTouchTeam: this.ball.lastTouch?.team, lastTouchKeeper: !this.ball.lastTouch?.ctrl, at: { x: at.x, y: at.y, z: at.z }, since: this.time - this.flight.kickTime });
     this.setPhase('goal');
     this.input.enabled = false;
     this.slowMo = 1.0;
-    this.audio.play('cheer', { group: 'crowd', volume: home ? 1 : 0.5, variance: 0 });
+    this.kickoffTeam = home ? 'away' : 'home';
+    this.audio.play('cheer', { group: 'crowd', volume: home ? 1 : 0.55, variance: 0 });
     this.audio.play('whistle', { volume: 0.5, variance: 0 });
     this.audio.play('net', { volume: 1, at });
-    this.audio.setLoopIntensity('crowdBed', 2.2);
-    this.crowd.react(home ? 1 : 0.4);
-    this.cameraRig.addTrauma(0.45);
+    this.audio.setLoopIntensity('crowdBed', home ? 2.2 : 1.4);
+    this.crowd.react(home ? 1 : 0.45);
+    this.cameraRig.addTrauma(home ? 0.45 : 0.25);
     this.cameraRig.punchFov(6);
     const colors = home ? ['#f6c915', '#1f8a4c', '#1d4fa3', '#ffffff'] : ['#c8102e', '#141414', '#ffffff'];
     this.vfx.confetti(new THREE.Vector3(Math.sign(at.x) * (COURT.halfLength + 0.4), 0.6, 0), colors);
-    this.vfx.confetti(new THREE.Vector3(at.x * 0.7, 3, COURT.halfWidth + 1.5), colors);
-    this.platform.happytime();
+    if (home) this.vfx.confetti(new THREE.Vector3(at.x * 0.7, 3, COURT.halfWidth + 1.5), colors);
+    if (home) this.platform.happytime();
+    this.match.owner = null;
 
+    // Scorer: last touch if it was the scoring team, otherwise (own goal) their nearest player.
+    const last = this.ball.lastTouch;
+    let scorer = last?.ctrl && last.team === team ? last : null;
+    const ownGoal = !scorer && last && last.team && last.team !== team;
+    if (!scorer) scorer = this.match.closest(team, at)?.p ?? null;
+    const concedingKeeper = this.match.teams[this.match.opponent(team)].keeper;
+    concedingKeeper.concede();
+
+    for (const c of this.match.allOutfield()) {
+      c.frozen = true;
+      c.charge.active = false;
+      c.p.anim.stopAll();
+      if (c.team !== team) c.p.anim.setOverlay('Dejected', { fade: 0.4 });
+    }
+    if (scorer) {
+      scorer.anim.stopAll();
+      scorer.anim.setOverlay('Celebrate_Airplane', { fade: 0.25 });
+    }
+    this.celebration = { scorer, turn: (Math.sign(scorer?.position.z ?? 1) || 1) * 0.9 };
+    this.cameraRig.setMode('goal', scorer ?? this.human.p);
+
+    const scoreLine = `${TEAMS.home.short} ${this.score.home} - ${this.score.away} ${TEAMS.away.short}`;
     if (home) {
       this.stats.goals += 1;
       this.stats.onTarget += 1;
       const f = this.flight;
       const pos = new THREE.Vector3(at.x, 2.4, at.z);
-      this.addStyle(1000, 'GOAL', pos, true);
+      this.addStyle(1000, ownGoal ? 'OWN GOAL' : 'GOAL', pos, true);
       const bonus = [];
-      if (f.power > 0.85) bonus.push([500, 'ROCKET']);
-      if (at.y > 1.35 && Math.abs(at.z) > COURT.goalHalfWidth * 0.55) bonus.push([500, 'TOP BINS']);
-      if (f.post) bonus.push([300, 'OFF THE POST']);
-      if (f.bank) bonus.push([400, 'WALL BANK']);
-      if (f.firstTime) bonus.push([250, 'FIRST TIME']);
-      if (f.scorerX != null && Math.abs(f.scorerX - Math.sign(at.x) * COURT.halfLength) > 13) bonus.push([600, 'FROM DISTANCE']);
+      if (!ownGoal) {
+        if (f.power > 0.85) bonus.push([500, 'ROCKET']);
+        if (at.y > 1.35 && Math.abs(at.z) > COURT.goalHalfWidth * 0.55) bonus.push([500, 'TOP BINS']);
+        if (f.post) bonus.push([300, 'OFF THE POST']);
+        if (f.bank) bonus.push([400, 'WALL BANK']);
+        if (f.firstTime) bonus.push([250, 'FIRST TIME']);
+        if (f.scorerX != null && Math.abs(f.scorerX - Math.sign(at.x) * COURT.halfLength) > 13) bonus.push([600, 'FROM DISTANCE']);
+      }
       bonus.forEach(([pts, label], i) => {
         setTimeout(() => this.addStyle(pts, label, pos.clone().add(new THREE.Vector3(0, -0.5 - i * 0.45, 0))), 350 + i * 260);
       });
-      this.hud.banner('GOOOL!', `${TEAMS.home.name} ${this.score.home} - ${this.score.away}`);
-      this.keeperAI.concede();
-      this.player.anim.stopAll();
-      this.player.anim.setOverlay('Celebrate_Airplane', { fade: 0.25 });
-      this.celebration = { scorer: this.player, turn: (Math.sign(this.player.position.z) || 1) * 0.9 };
-      this.cameraRig.setMode('goal', this.player);
+      this.hud.banner('GOOOL!', `${scorer?.look.name ?? ''} • ${scoreLine}`);
     } else {
-      this.hud.banner('OWN GOAL', `${TEAMS.home.name} ${this.score.home} - ${this.score.away}`);
-      this.player.anim.stopAll();
-      this.player.anim.setOverlay('Dejected', { fade: 0.3 });
-      this.celebration = { scorer: null };
-      this.cameraRig.setMode('goal', this.player);
+      this.stats.conceded += 1;
+      this.hud.banner(ownGoal ? 'OWN GOAL' : 'GOAL', `${TEAMS.away.name} • ${scoreLine}`);
     }
   }
 
   updateCelebration(dt) {
-    const p = this.player;
-    p.beginStep();
     const c = this.celebration;
-    if (c?.scorer === p) {
-      // Run arcs at the celebration clip's natural jog speed: feet stay planted.
-      const speed = this.lib.locomotion.Jog_Fwd_Loop.natural;
-      p.speed = 0; // locomotion layer is replaced by the celebration overlay
-      const f = p.facing(new THREE.Vector3());
-      const nx = p.position.x + f.x * 1.5;
-      const nz = p.position.z + f.z * 1.5;
-      const nearWall = Math.abs(nx) > COURT.halfLength - 1.2 || Math.abs(nz) > COURT.halfWidth - 1.2;
-      p.heading += (nearWall ? 2.6 * Math.sign(c.turn) : c.turn) * dt;
-      p.position.addScaledVector(p.facing(f), speed * dt);
-      p.position.x = THREE.MathUtils.clamp(p.position.x, -COURT.halfLength + 0.4, COURT.halfLength - 0.4);
-      p.position.z = THREE.MathUtils.clamp(p.position.z, -COURT.halfWidth + 0.4, COURT.halfWidth - 0.4);
-    } else {
-      p.speed = Math.max(0, p.speed - 12 * dt);
-      p.position.addScaledVector(p.facing(new THREE.Vector3()), p.speed * dt);
+    for (const ctrl of this.match.allOutfield()) {
+      const p = ctrl.p;
+      p.beginStep();
+      if (c?.scorer === p) {
+        // Run arcs at the celebration clip's natural jog speed: feet stay planted.
+        const speed = this.lib.locomotion.Jog_Fwd_Loop.natural;
+        p.speed = 0; // locomotion layer is replaced by the celebration overlay
+        const f = p.facing(new THREE.Vector3());
+        const nx = p.position.x + f.x * 1.5;
+        const nz = p.position.z + f.z * 1.5;
+        const nearWall = Math.abs(nx) > COURT.halfLength - 1.2 || Math.abs(nz) > COURT.halfWidth - 1.2;
+        p.heading += (nearWall ? 2.6 * Math.sign(c.turn) : c.turn) * dt;
+        p.position.addScaledVector(p.facing(f), speed * dt);
+        p.position.x = THREE.MathUtils.clamp(p.position.x, -COURT.halfLength + 0.4, COURT.halfLength - 0.4);
+        p.position.z = THREE.MathUtils.clamp(p.position.z, -COURT.halfWidth + 0.4, COURT.halfWidth - 0.4);
+      } else {
+        p.speed = Math.max(0, p.speed - 12 * dt);
+        p.position.addScaledVector(p.facing(new THREE.Vector3()), p.speed * dt);
+      }
+      p.setGhost(true);
+      p.commitStep();
     }
-    p.setGhost(true);
-    p.commitStep();
   }
 
   // ------------------------------------------------------------- frame
@@ -611,13 +753,8 @@ export class Game {
     this.phaseTime += dt;
     this.updatePhase(dt, it);
 
-    if (this.phase === 'playing') {
-      if (it.skillPressed) this.hud.toast('Skill moves (stepovers, roulettes, nutmegs) arrive in Phase 3');
-      if (it.switchPressed) this.hud.toast('Player switching arrives with 3v3 in Phase 2');
-      if (it.tacklePressed) this.hud.toast('Tackles arrive with opponents in Phase 2');
-    }
+    if (this.phase === 'playing' && it.skillPressed) this.hud.toast('Skill moves (stepovers, roulettes, nutmegs) arrive in Phase 3');
 
-    // Gameplay time scaling: goal slow-mo and heavy-contact hitstop.
     let scale = 1;
     if (this.slowMo > 0) {
       this.slowMo -= dt;
@@ -631,20 +768,25 @@ export class Game {
     const alpha = this.physics.update(dt * scale);
     this.stepIntents = null;
 
-    const animDt = dt * scale;
-    this.ball.syncVisual(alpha);
-    this.player.syncVisual(alpha, animDt);
-    this.keeper.syncVisual(alpha, animDt);
+    this.syncVisuals(alpha, dt * scale);
     this.crowd.update(this.reducedMotion ? 0 : dt);
     if (this.shotTracking > 0) this.shotTracking -= dt;
     if (this.cameraRig.mode === 'menu') this.updateMenuCamera(dt);
-    else this.cameraRig.update(dt, { player: this.player, ball: this.ball, shotTracking: this.shotTracking > 0 && this.phase === 'playing' });
+    else this.cameraRig.update(dt, { player: this.human.p, ball: this.ball, shotTracking: this.shotTracking > 0 && this.phase === 'playing' });
     this.vfx.update(dt * scale, this.ball, this.camera);
     this.court.nearFenceMaterial.opacity = this.cameraRig.mode === 'goal' ? 0.15 : 0.32;
+    const pt = this.match.passTarget;
+    const showTarget = pt && pt.ctrl.team === 'home' && !this.match.owner && this.time - pt.time < 1.5 ? pt.ctrl : null;
+    this.indicators.update(dt, this.human, showTarget, ['playing', 'countdown', 'kickoff'].includes(this.phase));
 
     this.hud.update(dt, this.hudState());
     if (!this.pausedForScreenshot) this.watchPerformance(dt);
     this.publishDiagnostics();
+  }
+
+  syncVisuals(alpha, animDt) {
+    this.ball.syncVisual(alpha);
+    for (const f of this.footballers) f.syncVisual(alpha, animDt);
   }
 
   /** One-time automatic downgrade when the first seconds of play run slowly. */
@@ -662,19 +804,20 @@ export class Game {
   }
 
   hudState() {
+    const h = this.human;
     return {
       score: this.score,
       timeLeft: this.timeLeft,
       style: this.style,
-      stamina: this.controller.stamina,
-      possession: this.controller.possession,
-      charge: this.controller.chargeLevel,
+      stamina: h.stamina,
+      possession: h.possession,
+      charge: h.chargeLevel,
       phase: this.phase,
-      screenPos: this.screenPos(this.player.holder.position, 1.9),
+      screenPos: this.screenPos(h.p.holder.position, 1.9),
     };
   }
 
-  updatePhase(dt, it) {
+  updatePhase(dt) {
     switch (this.phase) {
       case 'countdown': {
         const step = Math.floor(this.phaseTime);
@@ -685,7 +828,7 @@ export class Game {
             this.hud.banner(String(left), '', { seconds: 0.95, count: true });
             this.audio.play('beep', { group: 'ui', variance: 0 });
           } else {
-            this.hud.banner('JOGA!', 'Beat the keeper', { seconds: 1.1 });
+            this.hud.banner('JOGA!', '3 v 3 • first to the most goals', { seconds: 1.1 });
             this.audio.play('beepGo', { group: 'ui', variance: 0 });
             this.audio.play('whistle', { variance: 0 });
             this.setPhase('playing');
@@ -704,11 +847,11 @@ export class Game {
       case 'goal':
         if (this.phaseTime >= MATCH.goalCelebration) {
           this.audio.setLoopIntensity('crowdBed', 1);
-          this.resetPositions();
+          this.resetPositions(this.kickoffTeam ?? 'home');
           this.cameraRig.setMode('play');
-          this.cameraRig.snap(this.player, this.ball);
+          this.cameraRig.snap(this.human.p, this.ball);
           this.setPhase('kickoff');
-          this.hud.banner('READY', '', { seconds: 0.8, count: true });
+          this.hud.banner('READY', this.kickoffTeam === 'away' ? `${TEAMS.away.name} kick off` : '', { seconds: 0.8, count: true });
         }
         break;
       case 'kickoff':
@@ -734,9 +877,11 @@ export class Game {
     this.setPhase('fulltime');
     this.resultsShown = false;
     this.input.enabled = false;
+    for (const c of this.match.allOutfield()) c.frozen = true;
     this.audio.play('whistleLong', { variance: 0 });
-    this.crowd.react(0.6);
-    this.hud.banner('FULL TIME', `${this.score.home} - ${this.score.away}`, { seconds: 2.2 });
+    const won = this.score.home > this.score.away;
+    this.crowd.react(won ? 1 : 0.4);
+    this.hud.banner(won ? 'YOU WIN!' : this.score.home === this.score.away ? 'DRAW' : 'FULL TIME', `${this.score.home} - ${this.score.away}`, { seconds: 2.2 });
     this.platform.gameplayStop();
   }
 
@@ -747,17 +892,18 @@ export class Game {
     this.hud.show(false);
     this.hud.hideBanner();
     this.syncTouchUi();
+    const s = this.stats;
     this.menus.showResults(this.score, {
-      GOALS: this.stats.goals,
-      SHOTS: this.stats.shots,
-      'KEEPER SAVES': this.stats.saves,
+      SHOTS: `${s.shots} - ${s.awayShots}`,
+      'PASSES': s.passes,
+      'TACKLES WON': s.tackles,
+      'STEALS & INTERCEPTIONS': s.interceptions,
       'STYLE POINTS': this.style,
-      [newBest ? 'NEW BEST!' : 'BEST']: newBest ? `${this.stats.goals} / ${this.style}` : `${best.goals} / ${best.style}`,
+      [newBest ? 'NEW BEST!' : 'BEST']: newBest ? `${s.goals} goals / ${this.style}` : `${best.goals} goals / ${best.style}`,
     });
   }
 
   updateMenuCamera(dt) {
-    // Attract mode: slow orbit high over the court.
     this.menuOrbit = (this.menuOrbit ?? 0.6) + dt * 0.05;
     const a = this.menuOrbit;
     this.camera.position.set(Math.sin(a) * 6 - 4, 6.5, -Math.cos(a) * 3 - 15);
@@ -780,6 +926,9 @@ export class Game {
   publishDiagnostics() {
     const info = this.renderer.info;
     const b = this.ball.position;
+    const h = this.human;
+    const owner = this.match.owner;
+    const pos = (f) => ({ x: +f.position.x.toFixed(3), z: +f.position.z.toFixed(3) });
     window.__THREE_GAME_DIAGNOSTICS__ = {
       frame: this.frame,
       phase: this.phase,
@@ -790,14 +939,26 @@ export class Game {
       style: this.style,
       stats: { ...this.stats },
       player: {
-        position: { x: this.player.position.x, y: this.player.position.y, z: this.player.position.z },
-        speed: this.player.speed,
-        heading: this.player.heading,
-        possession: this.controller.possession,
-        stamina: this.controller.stamina,
-        kicking: !!this.controller.kick,
+        name: h.p.look.name,
+        position: { x: h.p.position.x, y: h.p.position.y, z: h.p.position.z },
+        speed: h.p.speed,
+        heading: h.p.heading,
+        possession: h.possession,
+        stamina: h.stamina,
+        kicking: !!h.kick,
+        tackling: !!h.tackle,
       },
-      keeper: { state: this.keeperAI.state, position: { x: this.keeper.position.x, z: this.keeper.position.z } },
+      possession: { team: this.match.possessionTeam, owner: owner ? owner.p.look.name : null },
+      teams: Object.fromEntries(
+        Object.entries(this.match.teams).map(([id, t]) => [
+          id,
+          {
+            players: t.players.map((c) => ({ name: c.p.look.name, ...pos(c.p), role: t.ai.roles.get(c)?.type ?? (c.isHuman ? 'human' : null), human: c.isHuman })),
+            keeper: { state: t.keeper.state, ...pos(t.keeper.k) },
+          },
+        ]),
+      ),
+      keeper: { state: this.match.teams.away.keeper.state, position: pos(this.match.teams.away.keeper.k) },
       ball: {
         position: { x: b.x, y: b.y, z: b.z },
         speed: this.ball.velocity.length(),
@@ -829,26 +990,36 @@ export class Game {
     for (let i = 0; i < steps; i += 1) {
       this.stepIntents = intents;
       this.physics.update(1 / 60);
-      this.updatePhase(1 / 60, intents);
+      this.updatePhase(1 / 60);
       this.phaseTime += 1 / 60;
-      this.ball.syncVisual(1);
-      this.player.syncVisual(1, 1 / 60);
-      this.keeper.syncVisual(1, 1 / 60);
+      this.syncVisuals(1, 1 / 60);
       this.crowd.update(1 / 60);
-      if (this.cameraRig.mode !== 'menu') this.cameraRig.update(1 / 60, { player: this.player, ball: this.ball, shotTracking: false });
+      if (this.cameraRig.mode !== 'menu') this.cameraRig.update(1 / 60, { player: this.human.p, ball: this.ball, shotTracking: false });
       this.vfx.update(1 / 60, this.ball, this.camera);
     }
     this.stepIntents = null;
+    this.indicators.update(0, this.human, null, this.phase === 'playing');
+  }
+
+  /** Place a team's players (test hooks). */
+  place(teamId, spots) {
+    const team = this.match.teams[teamId];
+    team.players.forEach((c, i) => {
+      if (spots[i]) c.p.teleport(spots[i][0], spots[i][1], spots[i][2] ?? (team.attackSign < 0 ? -Math.PI / 2 : Math.PI / 2));
+    });
   }
 
   installTestHooks() {
-    const STATES = ['menu', 'active-play', 'dribble', 'shot', 'keeper-save', 'goal', 'fulltime'];
+    const STATES = ['menu', 'active-play', 'dribble', 'shot', 'pass', 'defending', 'tackle', 'keeper-save', 'goal', 'fulltime'];
     window.__THREE_GAME_TEST_HOOKS__ = {
       states: STATES,
       seed: (value) => {
         this.rng = createRng(value);
-        this.controller.rng = this.rng;
-        this.keeperAI.rng = this.rng;
+        for (const c of this.match.allOutfield()) c.rng = this.rng;
+        for (const t of Object.values(this.match.teams)) {
+          t.keeper.rng = this.rng;
+          t.ai.rng = this.rng;
+        }
         this.vfx.rng = this.rng;
       },
       setState: (name) => {
@@ -865,40 +1036,70 @@ export class Game {
           this.input.enabled = true;
           this.hud.hideBanner();
           const run = { ...NEUTRAL_INTENTS, moveX: 1, moveY: 0.25 };
+          const home = this.match.teams.home.players;
+          const away = this.match.teams.away.players;
+          const hk = this.human;
           if (name === 'active-play') {
-            this.player.teleport(4, 0, -Math.PI / 2);
+            this.place('home', [[4, 0], [2, 4.5], [7, -4]]);
+            this.place('away', [[-3, -1.5], [-6, 3], [-9, -2]]);
             this.ball.placeAt(3.4, BALL.radius, 0.1);
             this.simulate(1.2, run);
           } else if (name === 'dribble') {
-            this.player.teleport(6, 0, -Math.PI / 2);
+            this.place('home', [[6, 0], [4, 5], [9, -4]]);
+            this.place('away', [[-4, 2], [-7, -3], [-10, 1]]);
             this.ball.placeAt(5.4, BALL.radius, 0);
             this.simulate(1.6, { ...run, sprint: true });
           } else if (name === 'shot') {
-            this.player.teleport(-6, 0, -Math.PI / 2);
+            this.place('home', [[-6, 0], [-3, 5], [1, -4]]);
+            this.place('away', [[-10, 3.5], [-4, -5], [2, 2]]);
             this.ball.placeAt(-6.6, BALL.radius, 0.3);
             this.simulate(0.4, run);
-            this.controller.requestKick('shot', 0.9);
+            hk.requestKick('shot', 0.9);
             this.simulate(0.36, run);
+          } else if (name === 'pass') {
+            this.place('home', [[4, -2], [-2, 4], [8, 3]]);
+            this.place('away', [[0, -4], [-6, 0], [-9, -3]]);
+            this.ball.placeAt(3.45, BALL.radius, -2);
+            this.simulate(0.3, { ...NEUTRAL_INTENTS, moveX: 1, moveY: 0.6 });
+            hk.requestPass();
+            this.simulate(0.45, NEUTRAL_INTENTS);
+          } else if (name === 'defending') {
+            this.place('home', [[-1, 0, Math.PI / 2], [-4, 4], [5, -3]]);
+            this.place('away', [[2, 0.3], [-2, -4], [6, 4]]);
+            this.ball.placeAt(2.6, BALL.radius, 0.3);
+            this.simulate(1.0, { ...NEUTRAL_INTENTS, moveX: -0.6 });
+          } else if (name === 'tackle') {
+            this.place('home', [[1.4, 0, Math.PI / 2], [-4, 4], [5, -3]]);
+            this.place('away', [[2.6, 0, -Math.PI / 2], [-2, -4], [7, 4]]);
+            this.ball.placeAt(2.15, BALL.radius, 0);
+            this.simulate(0.15, NEUTRAL_INTENTS);
+            hk.requestTackle();
+            this.simulate(0.24, NEUTRAL_INTENTS);
           } else if (name === 'keeper-save') {
-            this.keeperAI.difficulty = 'hard';
-            this.player.teleport(-8, 0, -Math.PI / 2);
+            const k = this.match.teams.away.keeper;
+            k.difficulty = 'hard';
+            this.place('home', [[-8, 0], [-3, 5], [1, -4]]);
+            this.place('away', [[2, 3], [4, -5], [6, 2]]);
             this.ball.placeAt(-8.6, BALL.radius, 0.6);
             this.simulate(0.3, run);
-            this.controller.requestKick('shot', 0.45);
+            hk.requestKick('shot', 0.45);
             this.simulate(0.62, NEUTRAL_INTENTS);
-            this.keeperAI.difficulty = this.settings.difficulty;
+            k.difficulty = this.settings.difficulty;
           } else if (name === 'goal') {
-            this.player.teleport(-11, 0, -Math.PI / 2);
+            this.place('home', [[-11, 0], [-6, 4], [-2, -4]]);
+            this.place('away', [[-9, 4], [-8, -3], [0, 2]]);
             this.ball.placeAt(-COURT.halfLength - 0.4, BALL.radius, 0.6);
-            this.flight = { ...this.freshFlight(), kickTime: this.time, power: 0.9, type: 'shot', scorerX: -11 };
+            this.ball.lastTouch = home[0].p;
+            this.flight = { ...this.freshFlight(), kickTime: this.time, power: 0.9, type: 'shot', scorerX: -11, team: 'home' };
             this.simulate(1.4, NEUTRAL_INTENTS);
           } else if (name === 'fulltime') {
-            this.score = { home: 3, away: 1 };
-            this.stats = { shots: 9, onTarget: 6, saves: 3, goals: 3, bestCombo: 0 };
-            this.style = 4150;
+            this.score = { home: 3, away: 2 };
+            this.stats = { ...this.freshStats(), shots: 9, awayShots: 7, onTarget: 6, saves: 3, goals: 3, conceded: 2, tackles: 4, interceptions: 5, passes: 21 };
+            this.style = 4950;
             this.timeLeft = 0.01;
             this.simulate(2.6, NEUTRAL_INTENTS);
           }
+          void away;
         }
         this.hud.update(0, this.hudState());
         this.render();
@@ -908,6 +1109,11 @@ export class Game {
       setPausedForScreenshot: (paused) => {
         this.pausedForScreenshot = paused;
       },
+      setAutoplay: (enabled) => {
+        this.autoplay = enabled;
+        this.human.isHuman = !enabled;
+      },
+      setDifficulty: (level) => this.setSetting('difficulty', level),
       setReducedMotion: (enabled) => {
         this.reducedMotion = enabled;
       },

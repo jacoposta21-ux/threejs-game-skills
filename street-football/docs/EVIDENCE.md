@@ -1,3 +1,46 @@
+# Verification evidence
+
+## Phase 2 (3v3)
+
+Same sandbox caveat as below: the GPU is software (SwiftShader), so there is no FPS claim.
+
+### Automated tests (`npx playwright test`)
+
+| Test | Result |
+| --- | --- |
+| Desktop: menu → match, WASD moves the player, no console errors | ✓ |
+| Desktop: Esc pause / resume | ✓ |
+| Desktop: **Q switches the controlled teammate** (stand still until the AI wins the ball, press Q; HUD name changes) | ✓ |
+| Mobile: touch stick moves the player | ✓ |
+| Desktop: keyboard-only bot in the full 3v3 (WASD, J, F tackles, Q switches) | ✓ — the bot lost 1-2, made 11 tackle attempts and 1 switch, and saw goal → kick-off |
+
+### AI vs AI (`node tools/qa/aimatch.mjs <level>`, full 3:00 matches)
+
+| Level | Score | Shots H/A | Passes completed | Tackles (won by ball-winner) | Steals between touches | Possession H / A / loose |
+| --- | --- | --- | --- | --- | --- | --- |
+| Normal (seed 100) | 2–1 | 9 / 7 | 32 / 34 | 21 (6 won, 3 out of reach) | 11 | 35 / 24 / 41 % |
+| Normal (seed 101) | 1–0 | 8 / 6 | 35 / 48 | 27 (8 won, 2 out of reach) | 17 | 34 / 20 / 47 % |
+| Easy | 2–3 | 7 / 9 | 31 / 37 | 15 (3 won) | 15 | 23 / 38 / 39 % |
+| Hard | 1–2 | 6 / 9 | 53 / 69 | 46 (12 won) | 29 | 30 / 31 / 39 % |
+
+The table tracks the fixes made from this probe. The first runs showed 15 of 29 AI tackles whiffing out of reach; a predictive lunge trigger, a lunge that tracks the ball, and a longer reach brought that to 2–4. Goals also came from carriers dribbling into the net; the keeper's 1-v-1 rush and smother fixed it, and after the fix every goal in these runs came from a real shot. Hard presses about three times as often as Easy, and wins about four times as many tackles.
+
+### Canvas inspector, production build (`phase2-pass-2`)
+
+Result: 11/11 PASS, all within budget. `check_evidence.py` passed.
+
+| Capture | calls | triangles | textures |
+| --- | --- | --- | --- |
+| desktop active-play / defending | 75 | 249k | 34 |
+| desktop goal | 61 | 235k | 32 |
+| mobile active-play / defending | 61–62 | 237k | 32–33 |
+
+The first Phase 2 pass went over the mobile texture budget (43–44 > 40). Sharing the sponsor atlas between boards and shop signs, dropping an unused asphalt texture, and moving the shirt numbers into one tinted mask atlas brought it to 32–34.
+
+Screenshots: `screenshots/p2-*.jpg`. Tackle motion: `screenshots/motion-tackle.jpg` shows the lunge, the ball knocked away, and the victim's recoil.
+
+---
+
 # Phase 1 — verification evidence
 
 Everything below was run against this commit. The build sandbox has **no GPU**: WebGL ran on SwiftShader (CPU), at about 0.5 fps at 1280×720 Medium and about 2 fps at 640×360 Low. Pixel, budget and gameplay checks are valid. **FPS and frame-time numbers are not**, and none are claimed. Measure frame rate on real hardware (see the bottom of this file).

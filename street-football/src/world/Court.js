@@ -296,5 +296,5 @@ export function buildCourt(scene, physics, rng) {
   );
   group.add(headMesh);
 
-  return { group, nearFenceMaterial: nearMat, nearSteelMaterial: nearSteel };
+  return { group, nearFenceMaterial: nearMat, nearSteelMaterial: nearSteel, boardTexture: boardTex };
 }

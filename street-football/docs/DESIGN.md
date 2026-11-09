@@ -1,5 +1,30 @@
 # RUA 10 — Design
 
+> Phase 2 update: the slice is now a 3v3 match. The Phase 1 brief below still holds for the individual verbs; the 3v3 additions are summarised first.
+
+## Phase 2 brief (3v3)
+
+- **Player promise:** run the game for your trio — keep the ball moving, win it back, and finish.
+- **Verbs added:** pass to teammates (Space), tackle (F), switch player (Q); interceptions and shot blocks by positioning.
+- **5–30 s loop:** win the ball → combine or dribble past a defender → shoot; or lose it → switch, press goal-side, tackle or intercept → counter.
+- **Pressure:** a pressing defender closes down every carrier; tackles land when the ball strays; passes into crowded lanes are cut out; the keeper rushes 1-v-1s.
+- **Reward / failure:** goals, tackles (+150), steals and interceptions (+100), blocks (+100) feed style points; conceding hands the opponent momentum and a kick-off is taken against you.
+- **Mastery:** jog-dribble near defenders, pass before the press arrives, tackle from the front at the right distance, switch early on defence.
+
+### Core loop contract (3v3)
+
+> The player **combines and dribbles** to **score more than the opposing trio in 3:00** while **AI pressing, marking, tackling and a rushing keeper** create risk. Success gives **goals, style and momentum**; failure **turns the ball over** and the AI counter-attacks.
+
+| Clause | Proven in code |
+| --- | --- |
+| Verbs on real input | `PlayerController.requestPass/requestTackle`, `Game.switchPlayer`; touch PASS/TACKLE/SWITCH buttons |
+| Opponent pressure | `TeamAI` roles press / mark / cover, `tackleInReach`, `MatchState.canTake` (steals between touches) |
+| Reward changes state | possession, score, style, kick-off ownership |
+| Failure teaches | STEAL / TACKLE / BLOCKED popups, stagger reaction, possession tag |
+
+AI-vs-AI evidence (`tools/qa/aimatch.mjs`) is in `docs/EVIDENCE.md`.
+
+
 ## Design brief
 
 - **Player promise:** you are the best footballer on the street, and the cage is your stage.

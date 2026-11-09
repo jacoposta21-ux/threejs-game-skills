@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { COURT } from '../config.js';
 import {
-  createAsphaltTexture,
   createBoardTexture,
   createBrickTexture,
   createMuralTexture,
@@ -24,14 +23,15 @@ const SHUTTER_COLORS = ['#2a9d8f', '#e76f51', '#264653', '#f4a261', '#1d4fa3', '
  * Everything outside the cage. Repeated pieces are merged per material or
  * instanced, so the whole neighbourhood costs roughly 20 draw calls.
  */
-export function buildNeighborhood(scene, rng, quality) {
+export function buildNeighborhood(scene, rng, quality, shared = {}) {
   const group = new THREE.Group();
   group.name = 'neighborhood';
   scene.add(group);
 
   const plasterTex = createPlasterTexture(rng);
   const brickTex = createBrickTexture(rng);
-  const signTex = createBoardTexture(rng);
+  // Shop signs reuse the court's sponsor atlas (one texture, not two).
+  const signTex = shared.boardTexture ?? createBoardTexture(rng);
   const plaster = [];
   const bricks = [];
   const concrete = [];
@@ -44,8 +44,6 @@ export function buildNeighborhood(scene, rng, quality) {
   const dark = [];
 
   // --- Sidewalks and streets ----------------------------------------------
-  const asphaltTex = createAsphaltTexture(rng);
-  asphaltTex.repeat.set(8, 2);
   const curb = (x, z, w, d) => concrete.push(paint(place(worldBox(w, 0.16, d, 2), x, 0.08, z), '#b8b2a6'));
   curb(0, W + 2.2, 70, 3.2);
   curb(0, -W - 2.2, 70, 3.2);

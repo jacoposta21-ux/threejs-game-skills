@@ -489,7 +489,7 @@ body {
   right: calc(18px + var(--safe-r));
   bottom: calc(30px + var(--safe-b));
   display: grid;
-  grid-template-columns: repeat(2, 76px);
+  grid-template-columns: repeat(3, 68px);
   grid-template-rows: 64px 84px;
   gap: 12px;
   pointer-events: auto;
@@ -525,6 +525,19 @@ body {
   grid-column: 1;
   grid-row: 1;
   font-size: 13px;
+}
+
+.tbtn.tackle {
+  grid-column: 3;
+  grid-row: 2;
+  background: #2c2c2c;
+  font-size: 12px;
+}
+
+.tbtn.switch {
+  grid-column: 3;
+  grid-row: 1;
+  font-size: 12px;
 }
 
 .tbtn.pressed {

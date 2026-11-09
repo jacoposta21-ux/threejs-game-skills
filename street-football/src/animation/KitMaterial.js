@@ -3,28 +3,35 @@ import { BONES } from './CharacterLibrary.js';
 
 export const REGION = { SKIN: 0, JERSEY: 1, SHORTS: 2, SOCKS: 3, SHOES: 4, SOLE: 5 };
 
-const numberCache = new Map();
-function numberTexture(number, fill, outline) {
-  const key = `${number}|${fill}|${outline}`;
-  if (numberCache.has(key)) return numberCache.get(key);
+// One shared atlas for every shirt number (1–25, 5×5 cells). Channels are
+// masks — R = number fill, G = outline — so the kit shader tints them per team.
+let numberAtlas = null;
+function getNumberAtlas() {
+  if (numberAtlas) return numberAtlas;
+  const cell = 128;
   const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 128;
+  c.width = cell * 5;
+  c.height = cell * 5;
   const g = c.getContext('2d');
-  g.clearRect(0, 0, 128, 128);
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, c.width, c.height);
   g.font = '900 104px "Arial Black", Impact, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.lineJoin = 'round';
-  g.lineWidth = 10;
-  g.strokeStyle = outline;
-  g.strokeText(String(number), 64, 70);
-  g.fillStyle = fill;
-  g.fillText(String(number), 64, 70);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  numberCache.set(key, tex);
-  return tex;
+  for (let n = 1; n <= 25; n += 1) {
+    const i = n - 1;
+    const x = (i % 5) * cell + cell / 2;
+    const y = Math.floor(i / 5) * cell + cell / 2 + 6;
+    g.lineWidth = 12;
+    g.strokeStyle = 'rgb(0,255,0)';
+    g.strokeText(String(n), x, y);
+    g.fillStyle = 'rgb(255,0,0)';
+    g.fillText(String(n), x, y);
+  }
+  numberAtlas = new THREE.CanvasTexture(c);
+  numberAtlas.colorSpace = THREE.NoColorSpace;
+  return numberAtlas;
 }
 
 /**
@@ -66,7 +73,11 @@ export function createKitMaterial(lib, look) {
     uSpineZ: { value: spine.z },
     uHeadC: { value: lib.head.center.clone() },
     uHeadS: { value: lib.head.size.clone() },
-    uNumber: { value: numberTexture(look.number ?? 10, team.jersey2, team.pattern === 2 ? '#f4f1e8' : '#0b2a14') },
+    uNumber: { value: getNumberAtlas() },
+    uNumberCell: {
+      value: new THREE.Vector2(((look.number ?? 10) - 1) % 5, Math.floor(((look.number ?? 10) - 1) / 5)),
+    },
+    uNumberOutline: { value: new THREE.Color(team.pattern === 2 ? '#f4f1e8' : '#0b2a14') },
     uHighlight: { value: 0 },
   };
   mat.userData.uniforms = uniforms;
@@ -90,6 +101,8 @@ uniform float uPattern, uSpineZ, uHighlight;
 uniform vec4 uFrame, uLimbs;
 uniform vec3 uHeadC, uHeadS;
 uniform sampler2D uNumber;
+uniform vec2 uNumberCell;
+uniform vec3 uNumberOutline;
 float kitHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 float kitRough = 0.75;
 `,
@@ -126,9 +139,11 @@ float kitRough = 0.75;
     if (!torso && ax > uLimbs.x - 0.035) col = uJersey2;
     // Back number.
     if (torso && vBind.z < uSpineZ - 0.01 && hh > 0.6 && hh < 0.765 && ax < 0.1) {
-      vec2 nuv = vec2(0.5 - vBind.x / 0.2, (hh - 0.6) / 0.165);
-      vec4 n = texture2D(uNumber, nuv);
-      col = mix(col, n.rgb, n.a);
+      vec2 nuv = clamp(vec2(0.5 - vBind.x / 0.2, (hh - 0.6) / 0.165), 0.02, 0.98);
+      vec2 auv = vec2((uNumberCell.x + nuv.x) / 5.0, 1.0 - (uNumberCell.y + 1.0) / 5.0 + nuv.y / 5.0);
+      vec4 n = texture2D(uNumber, auv);
+      col = mix(col, uNumberOutline, n.g);
+      col = mix(col, uJersey2, n.r);
     }
     // Small crest on the front-left chest.
     vec2 crest = vec2(vBind.x - 0.075, hh - 0.735);
@@ -157,6 +172,6 @@ float kitRough = 0.75;
       )
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = kitRough;');
   };
-  mat.customProgramCacheKey = () => 'footballer-kit-v1';
+  mat.customProgramCacheKey = () => 'footballer-kit-v2';
   return mat;
 }

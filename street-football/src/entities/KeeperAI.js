@@ -16,8 +16,10 @@ const easeOut = (t) => 1 - (1 - t) * (1 - t);
  *   beaten — dejected after conceding
  */
 export class KeeperAI {
-  constructor(footballer, ball, events, rng, side = -1) {
+  constructor(footballer, ball, events, rng, side = -1, match = null) {
     this.k = footballer;
+    this.match = match;
+    this.team = footballer.team;
     this.ball = ball;
     this.events = events;
     this.rng = rng;
@@ -112,7 +114,14 @@ export class KeeperAI {
     const dist = Math.hypot(this.goalX - b.x, b.z);
     tz = THREE.MathUtils.clamp(tz, -COURT.goalHalfWidth + 0.35, COURT.goalHalfWidth - 0.35);
     const stepOut = THREE.MathUtils.clamp((9 - dist) * 0.12, 0, 1.0);
-    const tx = this.homeX - this.side * stepOut;
+    let tx = this.homeX - this.side * stepOut;
+    // 1-v-1: an opponent dribbling into the area — rush out and smother.
+    const owner = this.match?.owner;
+    const rushing = owner && owner.team !== this.team && dist < 6.5 && Math.abs(b.z) < COURT.goalHalfWidth + 2.5;
+    if (rushing) {
+      tx = b.x;
+      tz = b.z;
+    }
 
     const dx = tx - k.position.x;
     const dz = tz - k.position.z;
@@ -121,7 +130,7 @@ export class KeeperAI {
     let targetSpeed = 0;
     let desired = faceBall;
     if (gap > 0.35) {
-      targetSpeed = Math.min(KEEPER.moveSpeed, gap * 3.2);
+      targetSpeed = Math.min(rushing ? KEEPER.moveSpeed * 1.35 : KEEPER.moveSpeed, gap * 3.2);
       desired = Math.atan2(dx, dz);
     }
     const diff = wrap(desired - k.heading);
@@ -140,7 +149,10 @@ export class KeeperAI {
     // Loose ball in the area: claim it.
     const near = Math.hypot(b.x - k.position.x, b.z - k.position.z);
     const speed = Math.hypot(v.x, v.z);
-    if (near < 0.9 && b.y < 1.6 && speed < 6 && this.ball.lastKickTime < time - 0.15) {
+    const teammateHasIt = owner && owner.team === this.team;
+    const claimRadius = rushing ? 1.15 : 0.9;
+    const claimSpeed = rushing ? 9.5 : 6;
+    if (!teammateHasIt && near < claimRadius && b.y < 1.6 && speed < claimSpeed && this.ball.lastKickTime < time - 0.12) {
       this.catchBall(false);
       return;
     }
@@ -252,6 +264,8 @@ export class KeeperAI {
   }
 
   catchBall(fromShot) {
+    const owner = this.match?.owner;
+    if (owner) owner.losePossession('stolen');
     this.ball.hold(this);
     this.events.emit('save', { keeper: this.k, type: fromShot ? 'catch' : 'claim' });
     if (this.state === 'dive' && this.plan?.needsDive) {
@@ -298,15 +312,44 @@ export class KeeperAI {
     }
   }
 
+  pickThrowTarget(from) {
+    if (!this.match) return null;
+    let best = null;
+    let bestScore = -Infinity;
+    for (const mate of this.match.outfield(this.team)) {
+      const tp = mate.p.position;
+      const dist = Math.hypot(tp.x - from.x, tp.z - from.z);
+      if (dist < 3 || dist > 20) continue;
+      const score = this.match.laneOpenness(from, tp, this.team) * 1.5 + Math.min(1, this.match.pressureAt(tp, this.team) / 4) - dist * 0.03;
+      if (score > bestScore) {
+        bestScore = score;
+        best = mate;
+      }
+    }
+    return best;
+  }
+
   updateThrow(dt, time) {
     if (!this.released && this.stateTime >= this.releaseAt) {
       this.released = true;
-      const z = this.rng.range(-5, 5);
-      const dir = new THREE.Vector3(-this.side * 9, 0, z - this.k.position.z).normalize();
-      this.ball.release();
+      // Distribute to the most open teammate; otherwise roll it wide.
       const p = this.holdPoint();
+      const target = this.pickThrowTarget(p);
+      let dir;
+      let speed = 9.5;
+      if (target) {
+        const tp = target.p.position;
+        const lead = { x: tp.x + target.p.velocity.x * 0.5, z: tp.z + target.p.velocity.z * 0.5 };
+        dir = new THREE.Vector3(lead.x - p.x, 0, lead.z - p.z);
+        speed = THREE.MathUtils.clamp(5 + dir.length() * 0.75, 7, 14);
+        dir.normalize();
+        this.match.setPassTarget(target, time);
+      } else {
+        dir = new THREE.Vector3(-this.side * 9, 0, this.rng.range(-5, 5) - this.k.position.z).normalize();
+      }
+      this.ball.release();
       this.ball.body.setTranslation({ x: p.x - this.side * 0.3, y: 0.25, z: p.z }, true);
-      this.ball.kick(new THREE.Vector3(dir.x * 9.5, 0.6, dir.z * 9.5), null, this.k, time);
+      this.ball.kick(new THREE.Vector3(dir.x * speed, 0.6, dir.z * speed), null, this.k, time);
       this.events.emit('keeperThrow', { keeper: this.k });
     }
     if (this.stateTime >= this.throwDuration) {
