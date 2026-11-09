@@ -1,8 +1,8 @@
-# RUA 10 — Street Football (Phase 2: 3v3)
+# RUA 10 — Street Football (Phase 3: freestyle)
 
 A 3D arcade street-football game for the browser: Three.js rendering, Rapier physics, a loose physically simulated ball, skeletal animation, and a Brazilian street court. It is built for CrazyGames-style distribution: one static bundle that loads fast.
 
-**Phases 1 and 2 are done:** a full 3v3 match (three outfield players plus a keeper per side) against AI opponents with AI teammates. Implemented features and planned features are listed separately below.
+**Phases 1–3 are done:** a full 3v3 match (three outfield players plus a keeper per side) against AI opponents with AI teammates, plus a freestyle trick system with combos. Implemented features and planned features are listed separately below.
 
 ## Run it
 
@@ -32,9 +32,39 @@ Requirements: Node 18+ and a WebGL2-capable browser. Nothing else needs download
 | Tackle (poke lunge; from behind is risky) | F | TACKLE |
 | Switch to the teammate nearest the ball | Q | SWITCH |
 | Pause | Esc / P | ❚❚ button |
-| Skill move | E — shows a "coming in Phase 3" notice | — |
+| Skill move (see the table below) | E + direction relative to where you face | SKILL + stick |
 
 Control follows the ball automatically: when a teammate wins it or receives your pass, you take control of them.
+
+## Freestyle tricks (Phase 3)
+
+| Input (relative to facing) | Trick | Points vs a defender |
+| --- | --- | --- |
+| E | Stepover | 100 |
+| E + left/right | Body feint | 100 |
+| E + left/right while standing | Ball roll | 150 |
+| E + left/right + Shift | Quick cut | 150 |
+| E while charging a shot (J held) | Fake shot (a keeper near goal buys it) | 200 |
+| E + back | Roulette | 250 |
+| E + back + Shift | Heel flick (backheel turn) | 300 |
+| E + forward + Shift | Rainbow flick over the defender | 400 (when you get the ball back) |
+| E + forward, defender right in front | Nutmeg through the legs | 500 (when you get past with the ball) |
+
+- **Points only against an opponent** within about 3 m in front. Alone, the trick plays and shows its name, but scores nothing.
+- **Every trick can fail.** Risk rises with speed above the trick's limit, low stamina, a Hard defence, and repeating the same trick twice in a row. A failed trick knocks the ball loose (FAILED!).
+- **Beaten defenders are wrong-footed.** For 0.5–1.3 s they stumble the way they bit, cannot tackle, and cannot touch the ball.
+- **Combo:** consecutive successful tricks multiply the points (x2, x3 … x5). The combo ends when you fail a trick or the other team wins the ball; passing between teammates keeps it alive. Scoring with a combo of x2 or more adds STYLE BONUS = 250 × combo (x3 → +750).
+- **AI attackers use tricks too** (stepover, feint, cut, roulette) when you press them. If they beat you, your player is wrong-footed for a moment.
+
+## How to test Phase 3
+
+1. Kick off with the ball and walk at a defender. Press **E** (stepover), then **E + a side** (feint). Watch for STEPOVER +100, then BODY FEINT +200 with COMBO x2 and the combo badge by your style score.
+2. Stand still with the ball and press **E + side** (ball roll); jog and press **E + back** (roulette, a full spin).
+3. Sprint and press **E + forward** (rainbow flick over the defender), then collect the ball behind them.
+4. Walk straight at a defender who is right in front and press **E + forward** (nutmeg), then run past them to collect.
+5. Near goal, hold **J** and press **E** (fake shot): the keeper shuffles the wrong way.
+6. Keep a combo running and score: STYLE BONUS appears with the GOOOL banner.
+7. Spam the same trick and watch it start failing; let the AI win the ball and the combo badge disappears.
 
 ## How to test Phase 2 (3v3)
 
@@ -64,7 +94,9 @@ npx playwright test                           # smoke (desktop + mobile), pause/
 npm run inspect:canvas -- --manifest artifacts/evidence.json --url http://127.0.0.1:5188
 node tools/qa/dribble.mjs                     # possession % for jog / sprint / zigzag / sprint-turn (dev server running)
 node tools/qa/motion.mjs <dir> [name]         # close-up animation frame sequences (jog-dribble, shot, tackle, ...)
-node tools/qa/aimatch.mjs [easy|normal|hard] [n]  # full AI-vs-AI matches: shots, passes, tackles, steals, goals, possession
+node tools/qa/aimatch.mjs [easy|normal|hard] [n]  # full AI-vs-AI matches: shots, passes, tackles, steals, goals, possession, AI tricks
+node tools/qa/trickcheck.mjs                  # rainbow height, nutmeg through the legs, pending awards, forced fail
+node tools/qa/trickmotion.mjs <dir>           # every trick as a close-up frame row
 ```
 
 ## Architecture
@@ -76,6 +108,7 @@ src/
   core/        Loop, Renderer (resize, DPR cap), Input (keyboard/mouse/touch → intents), Events, seeded rng
   physics/     PhysicsWorld — Rapier world, fixed 120 Hz step, collision groups, contact events
   ai/          TeamAI — role assignment + per-step steering for outfield players
+  skills/      Tricks — trick definitions, input mapping, risk model
   entities/    Ball (independent rigid body: rolling resistance, drag, Magnus spin)
                Footballer (character + kinematic capsule + interpolation)
                PlayerController (momentum movement, touch dribbling, charged shots/passes)
@@ -91,6 +124,19 @@ src/
 ```
 
 Fixed-step update order: input intents → team AI (roles, intents) → every outfield controller → keepers → body separation → ball forces → Rapier step → contact events → goal check. Rendering interpolates physics poses, so motion is smooth at any refresh rate.
+
+## Implemented (Phase 3)
+
+- **Nine tricks** (`src/skills/Tricks.js`), each with:
+  - its own authored skeletal clip in left and right versions, mirrored automatically (`FootballClips.js`);
+  - a scripted body path: speed, turn, sideways travel, and a full-body spin for the roulette;
+  - a physical ball script: holds the ball on a line, then plays it with an impulse;
+  - a duration, a key moment where success or failure is decided, and a risk model.
+- **Defender reactions:** beaten players are wrong-footed and cannot tackle or control the ball. A nutmeg or rainbow lets the ball, and the attacker, slip through the victim.
+- **Pending awards:** a rainbow or nutmeg only scores once you get past with the ball or win it back.
+- **Combo multiplier** up to x5, a combo badge in the HUD, trick, COMBO and STYLE BONUS popups, and a rising combo chime, trick whoosh and fail thud.
+- **AI attackers** perform tricks under pressure. A keeper buys a fake shot near goal.
+- **Full-time stats:** tricks landed, nutmegs, best combo.
 
 ## Implemented (Phase 2)
 
@@ -118,6 +164,5 @@ Fixed-step update order: input intents → team AI (roles, intents) → every ou
 
 ## Planned
 
-- **Phase 3:** skill moves (E: stepover, roulette, rainbow flick, nutmeg, heel flick, body feint, ball roll, fake shot) with success/risk, trick scoring and combo multipliers.
 - **Phase 4:** dressed character models (Quaternius Universal Base Characters or Mixamo, retargeted), photo-scanned textures, recorded audio, more VFX and UI animation.
 - **Phase 5:** New York, London, Tokyo and Barcelona courts; profiling on low-end devices; verified CrazyGames submission.

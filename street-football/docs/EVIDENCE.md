@@ -1,5 +1,48 @@
 # Verification evidence
 
+## Phase 3 (freestyle tricks)
+
+### Automated tests (`npx playwright test`)
+
+All passing (6 passed, 4 skipped by design: keyboard-only tests on mobile, touch-only on desktop). New test: **E with the ball performs a stepover** through real keyboard input. The keyboard bot still plays full 3v3 matches without errors.
+
+### Trick mechanics (`node tools/qa/trickcheck.mjs`, forced success/fail rolls, real controller and AI)
+
+| Check | Result |
+| --- | --- |
+| Rainbow flick vs a defender 2.2 m ahead | ball peaks at **1.61 m** and passes over; RAFA wrong-footed; **RAINBOW FLICK +400** once ZÉ collects behind him |
+| Nutmeg vs a defender in front | ball passes **through the defender's position** (no body collision during the trick); **NUTMEG +500** when ZÉ is past him with the ball |
+| Nutmeg, forced failed roll | ball knocked loose, **FAILED**, combo reset |
+| Stepover / roulette vs a pressing defender | defender wrong-footed; **+100 / +250**; AI attackers answer with their own tricks and can wrong-foot ZÉ |
+
+What this probe found and fixed:
+- A just-nutmegged defender could still trap the ball, so wrong-footed players can no longer control it.
+- Bodies collided during a nutmeg, so the trickster now slips past the victim.
+- The nutmeg knock was too long; it is now a 4.4 m/s touch.
+- A nutmeg that kept possession was never awarded; awards now trigger once the player is past the defender with the ball.
+- A trick interrupted by a tackle was silent; it now shows LOST IT and ends the combo.
+- Popups were removed on a fixed timer and could vanish before their animation had played on slow devices; they are now removed on `animationend`.
+- The reduced-motion stylesheet ended popups at opacity 0, so players with reduced motion never saw them; reduced motion now uses a readable fade.
+
+### Motion (`node tools/qa/trickmotion.mjs`)
+
+`screenshots/motion-tricks-1.jpg` (stepover, body feint, ball roll, quick cut, roulette) and `screenshots/motion-tricks-2.jpg` (heel flick, rainbow, nutmeg, fake shot). Each row is the trick played against a defender, six frames, side close-up. The roulette shows the full spin, the heel flick sends the ball behind the player and turns him, and the fake shot shows a full backswing that checks over the ball. Combo popups (paused mid-animation): `screenshots/p3-combo-popups.jpg`.
+
+### AI vs AI with tricks (`node tools/qa/aimatch.mjs normal 1`)
+
+A full 3:00 match ended 3–4 with no errors. AI attackers landed a cut and two roulettes under pressure (rates were raised slightly afterwards).
+
+### Canvas inspector, production build
+
+`phase3-pass-2`: **14/14 PASS**, all within budget, and `check_evidence.py` passed (15 artifacts). This run adds the `trick` (roulette mid-spin vs a defender) and `combo` (COMBO x3) states on desktop, and `trick` on mobile.
+
+| Capture | calls | triangles | textures |
+| --- | --- | --- | --- |
+| desktop trick / combo | 75 | 249k | 34 |
+| mobile trick | 65 | 242k | 32 |
+
+The first pass showed the portrait camera framing the player under the touch stick. The attack-bias look-ahead was reduced for portrait, and the player now sits above the controls (`screenshots/p3-mobile-trick.jpg`).
+
 ## Phase 2 (3v3)
 
 Same sandbox caveat as below: the GPU is software (SwiftShader), so there is no FPS claim.

@@ -39,6 +39,16 @@ export class Hud {
     this.bannerTimer = 0;
   }
 
+  /** Combo multiplier badge (hidden below x2). */
+  setCombo(count) {
+    const tag = this.el.combo;
+    if (count >= 2) {
+      tag.textContent = `COMBO x${count}`;
+      tag.classList.remove('hidden');
+      this.punch(tag);
+    } else tag.classList.add('hidden');
+  }
+
   show(visible) {
     this.root.classList.toggle('hidden', !visible);
   }
@@ -103,7 +113,10 @@ export class Hud {
     div.style.left = `${((_v.x + 1) / 2) * w}px`;
     div.style.top = `${((1 - _v.y) / 2) * h}px`;
     this.el.popups.appendChild(div);
-    setTimeout(() => div.remove(), 1350);
+    // Remove when the animation finishes (frame-driven), with a safety timeout,
+    // so popups still show on slow devices where animation time lags wall time.
+    div.addEventListener('animationend', () => div.remove(), { once: true });
+    setTimeout(() => div.remove(), 6000);
   }
 
   toast(text, seconds = 2.2) {

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BALL, COURT, DRIBBLE, KICK, PLAYER, TACKLE } from '../config.js';
 import { CLIP_EVENTS } from '../animation/FootballClips.js';
+import { DEFENDER_READ, TRICKS, chooseTrick, rotateToward } from '../skills/Tricks.js';
 
 const _rel = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
@@ -51,6 +52,14 @@ export class PlayerController {
     this.frozen = false;
     this.lastShotPower = 0;
     this.aimZ = null;
+    this.trick = null;
+    this.pendingTrick = null;
+    this.trickCooldown = 0;
+    this.lastTrickKind = null;
+    this.fooled = 0;
+    this.fooledDir = new THREE.Vector3();
+    this.ghostUntil = 0;
+    if (this.p) this.p.extraYaw = 0;
   }
 
   get chargeLevel() {
@@ -58,7 +67,7 @@ export class PlayerController {
   }
 
   get busy() {
-    return !!(this.kick || this.tackle || this.stagger > 0);
+    return !!(this.kick || this.tackle || this.trick || this.stagger > 0);
   }
 
   /**
@@ -68,7 +77,11 @@ export class PlayerController {
     const p = this.p;
     p.beginStep();
     this.tackleCooldown -= dt;
+    this.trickCooldown -= dt;
+    this.fooled = Math.max(0, this.fooled - dt);
+    this.updatePendingTrick(time);
     if (this.frozen) {
+      if (this.trick) this.endTrick(time, true);
       p.speed = Math.max(0, p.speed - PLAYER.decel * dt);
       p.position.addScaledVector(p.facing(_fwd), p.speed * dt);
       this.charge.active = false;
@@ -102,9 +115,19 @@ export class PlayerController {
       this.hasInput = false;
       this.charge.active = false;
     } else {
-      this.updateCharge(dt, it);
-      if (it.passPressed) this.requestPass();
-      if (it.tacklePressed && !this.possession) this.requestTackle();
+      if (it.skillPressed) this.requestTrickFromInput(it);
+      if (!this.trick) {
+        this.updateCharge(dt, it);
+        if (it.passPressed) this.requestPass();
+        if (it.tacklePressed && !this.possession && this.fooled <= 0) this.requestTackle();
+      }
+    }
+
+    if (this.trick) {
+      this.updateTrick(dt, time);
+      p.setGhost(true);
+      p.commitStep();
+      return;
     }
 
     // Movement with momentum: heading turns at a limited rate; turning bleeds speed.
@@ -130,6 +153,8 @@ export class PlayerController {
     if (this.kick) targetSpeed *= 0.25;
     if (this.charge.active) targetSpeed *= 0.8;
     if (this.stagger > 0) targetSpeed = 0;
+    // Wrong-footed by an opponent's trick: heavy legs for a moment.
+    if (this.fooled > 0) targetSpeed *= 0.45;
 
     let desiredHeading = p.heading;
     if (this.kick) desiredHeading = this.kick.heading;
@@ -157,8 +182,202 @@ export class PlayerController {
 
     this.updateBall(dt, time);
     this.updateKick(dt, time);
-    p.setGhost(this.possession || !!this.kick || this.regainCooldown > 0);
+    p.setGhost(this.possession || !!this.kick || this.regainCooldown > 0 || time < this.ghostUntil);
     p.commitStep();
+  }
+
+  // ------------------------------------------------------------------ tricks
+
+  /** Human input → trick, relative to the player's facing. */
+  requestTrickFromInput(it) {
+    if (!this.possession) return;
+    const f = this.p.facing(new THREE.Vector3());
+    const right = rotateToward(f, 1, 90);
+    const relForward = this.hasInput ? this.moveDir.dot(f) : 0;
+    const relSide = this.hasInput ? this.moveDir.dot(right) : 0;
+    const victim = this.findVictim(f, 'nutmeg');
+    const choice = chooseTrick({
+      hasInput: this.hasInput,
+      relForward,
+      relSide,
+      sprint: it.sprint,
+      speed: this.p.speed,
+      charging: this.charge.active,
+      victimAhead: !!victim,
+    });
+    this.charge.active = false;
+    this.requestTrick(choice.kind, choice.side, { solo: choice.solo });
+  }
+
+  /** The opponent the trick is played against: close and in front. */
+  findVictim(f, kind = null) {
+    const pos = this.p.position;
+    let best = null;
+    let bd = Infinity;
+    for (const o of this.match.outfield(this.match.opponent(this.team))) {
+      const dx = o.p.position.x - pos.x;
+      const dz = o.p.position.z - pos.z;
+      const d = Math.hypot(dx, dz);
+      const ahead = (dx * f.x + dz * f.z) / Math.max(d, 1e-3);
+      const lateral = Math.abs(dx * f.z - dz * f.x);
+      if (kind === 'nutmeg' && (d > 2.8 || lateral > 0.7 || ahead < 0.5)) continue;
+      if (d < 3.2 && ahead > -0.15 && d < bd) {
+        bd = d;
+        best = o;
+      }
+    }
+    return best;
+  }
+
+  requestTrick(kind, side = 0, { solo = false } = {}) {
+    if (this.busy || !this.possession || this.trickCooldown > 0 || this.stagger > 0) return false;
+    const def = TRICKS[kind];
+    const p = this.p;
+    const f = p.facing(new THREE.Vector3());
+    const victim = this.findVictim(f, kind === 'nutmeg' ? 'nutmeg' : null);
+    if (side === 0) {
+      // Go away from the defender's side (or anywhere when alone).
+      if (victim) side = (victim.p.position.x - p.position.x) * -f.z + (victim.p.position.z - p.position.z) * f.x > 0 ? -1 : 1;
+      else side = this.rng() < 0.5 ? 1 : -1;
+    }
+    const opponentsLevel = this.match.teams[this.match.opponent(this.team)].ai?.difficulty ?? 'normal';
+    let risk = def.risk + Math.max(0, p.speed - def.maxSpeed) * 0.08;
+    if (this.stamina < 0.3) risk += 0.08;
+    if (victim) risk += DEFENDER_READ[opponentsLevel] ?? 0.05;
+    if (kind === this.lastTrickKind) risk += 0.1; // spamming one move gets read
+    if (!this.isHuman) risk += 0.05;
+    const fail = this.rng() < risk;
+    p.anim.play(`${def.clip}_${side > 0 ? 'R' : 'L'}`, { fadeIn: 0.06, fadeOut: 0.12 });
+    this.trick = {
+      kind, def, side, t: 0, f, e: rotateToward(f, side, 90), entrySpeed: p.speed, startHeading: p.heading,
+      victim, fail, solo: solo || !victim, resolved: false, impulsed: false, byHuman: this.isHuman,
+    };
+    this.lastTrickKind = kind;
+    this.events.emit('trickStart', { player: p, kind, label: def.label, side, victim: victim?.p ?? null, byHuman: this.isHuman });
+    return true;
+  }
+
+  updateTrick(dt, time) {
+    const tr = this.trick;
+    const def = tr.def;
+    const p = this.p;
+    const ball = this.ball;
+    tr.t += dt;
+    const u = Math.min(1, tr.t / def.dur);
+    const smooth = (k) => k * k * (3 - 2 * k);
+
+    // Body: speed, heading change, visual spin, sideways travel.
+    p.speed = typeof def.speed === 'function' ? def.speed(u, tr.entrySpeed) : def.speed;
+    if (def.turn) {
+      const [a, b, deg] = def.turn;
+      const k = THREE.MathUtils.clamp((u - a) / (b - a), 0, 1);
+      p.heading = wrap(tr.startHeading - tr.side * THREE.MathUtils.degToRad(deg) * smooth(k));
+    }
+    p.extraYaw = def.spin ? -tr.side * def.spin * smooth(THREE.MathUtils.clamp((u - 0.1) / 0.8, 0, 1)) : 0;
+    p.facing(_fwd);
+    p.velocity.copy(_fwd).multiplyScalar(p.speed);
+    if (def.lateral) p.velocity.addScaledVector(tr.e, def.lateral);
+    p.position.addScaledVector(p.velocity, dt);
+    p.position.x = THREE.MathUtils.clamp(p.position.x, -COURT.halfLength + 0.35, COURT.halfLength - 0.35);
+    p.position.z = THREE.MathUtils.clamp(p.position.z, -COURT.halfWidth + 0.35, COURT.halfWidth - 0.35);
+
+    // Ball: held on a scripted line until it is played (stays a physical body).
+    const [h0, h1, holdFn] = def.hold;
+    if (!tr.impulsed && !(tr.fail && tr.resolved) && u >= h0 && u <= h1 && !ball.heldBy) {
+      const local = holdFn(u);
+      _dir.copy(p.position).addScaledVector(tr.f, local.f).addScaledVector(tr.e, local.e).sub(ball.position);
+      _dir.y = 0;
+      _vel.copy(_dir).multiplyScalar(12).add(p.velocity);
+      if (_vel.length() > 8) _vel.setLength(8);
+      const v = ball.velocity;
+      ball.body.setLinvel({ x: _vel.x, y: Math.min(v.y, 0.5), z: _vel.z }, true);
+    }
+
+    // Key moment: success or failure is decided, the defender bites.
+    if (!tr.resolved && u >= def.key) {
+      tr.resolved = true;
+      if (tr.fail) {
+        const a = (this.rng() < 0.5 ? -1 : 1) * THREE.MathUtils.degToRad(30 + this.rng() * 50);
+        _dir.copy(tr.f).applyAxisAngle(UP, a);
+        _vel.copy(_dir).multiplyScalar(3.5 + this.rng() * 1.5);
+        _vel.y = 0.25;
+        ball.kick(_vel, null, p, time);
+        this.possession = false;
+        this.match.clearOwner(this);
+        this.regainCooldown = 0.4;
+        this.events.emit('trick', { player: p, kind: tr.kind, label: def.label, outcome: 'fail', victim: tr.victim?.p ?? null, byHuman: tr.byHuman });
+      } else if (tr.victim && !tr.solo) {
+        tr.victim.fooled = def.fool;
+        tr.victim.fooledDir.copy(tr.e).multiplyScalar(-1);
+        if (def.ghostVictim) tr.victim.ghostUntil = time + def.ghostVictim;
+        tr.victim.charge.active = false;
+        this.events.emit('fooled', { player: p, victim: tr.victim.p, kind: tr.kind });
+      }
+    }
+
+    // The ball is played.
+    const imp = def.impulse;
+    if (!tr.impulsed && !tr.fail && u >= imp.u) {
+      tr.impulsed = true;
+      rotateToward(tr.f, tr.side, imp.angle, _dir);
+      const speed = typeof imp.speed === 'function' ? imp.speed(tr.entrySpeed) : imp.speed;
+      _vel.copy(_dir).multiplyScalar(speed);
+      _vel.y = imp.vy ?? 0.15;
+      _spin.copy(UP).cross(_dir).multiplyScalar(speed / BALL.radius * 0.6);
+      ball.kick(_vel, _spin, p, time);
+      this.touchCooldown = 0.25;
+      this.events.emit('trickTouch', { player: p, kind: tr.kind, lift: (imp.vy ?? 0) > 1 });
+    }
+
+    if (u >= 1) this.endTrick(time, false);
+  }
+
+  endTrick(time, aborted) {
+    const tr = this.trick;
+    this.trick = null;
+    this.p.extraYaw = 0;
+    this.trickCooldown = 0.22;
+    if (aborted || tr.fail) return;
+    const def = tr.def;
+    if (def.pending && !tr.solo) {
+      this.pendingTrick = { kind: tr.kind, label: def.label, points: def.points, victim: tr.victim, until: time + def.pending, byHuman: tr.byHuman, f: tr.f.clone() };
+      return;
+    }
+    const b = this.ball.position;
+    const kept = this.match.owner === this || (!this.match.owner && Math.hypot(b.x - this.p.position.x, b.z - this.p.position.z) < 2.2);
+    this.events.emit('trick', {
+      player: this.p, kind: tr.kind, label: def.label, points: def.points,
+      outcome: kept ? 'success' : 'lost', solo: tr.solo, victim: tr.victim?.p ?? null, byHuman: tr.byHuman,
+    });
+  }
+
+  /** Rainbow / nutmeg: they count once the player gets the ball back behind the defender. */
+  updatePendingTrick(time) {
+    const pt = this.pendingTrick;
+    if (!pt) return;
+    const owner = this.match.owner;
+    // Still on the ball and now beyond the beaten defender: it counts.
+    if (owner === this && pt.victim) {
+      const v = pt.victim.p.position;
+      const past = (this.p.position.x - v.x) * pt.f.x + (this.p.position.z - v.z) * pt.f.z;
+      const ballPast = (this.ball.position.x - v.x) * pt.f.x + (this.ball.position.z - v.z) * pt.f.z;
+      if (past > 0.2 && ballPast > 0.2) {
+        this.resolvePendingOnControl();
+        return;
+      }
+    }
+    const lostToOpponent = (owner && owner.team !== this.team) || this.ball.heldBy;
+    if (time > pt.until || lostToOpponent) {
+      this.pendingTrick = null;
+      this.events.emit('trick', { player: this.p, kind: pt.kind, label: pt.label, outcome: 'lost', victim: pt.victim?.p ?? null, byHuman: pt.byHuman });
+    }
+  }
+
+  resolvePendingOnControl() {
+    const pt = this.pendingTrick;
+    if (!pt) return;
+    this.pendingTrick = null;
+    this.events.emit('trick', { player: this.p, kind: pt.kind, label: pt.label, points: pt.points, outcome: 'success', solo: false, victim: pt.victim?.p ?? null, byHuman: pt.byHuman });
   }
 
   updateCharge(dt, it) {
@@ -192,6 +411,13 @@ export class PlayerController {
 
   /** Called by the MatchState when someone else takes the ball, or by a tackle. */
   losePossession(reason) {
+    if (this.trick) {
+      const tr = this.trick;
+      this.endTrick(0, true);
+      if (reason !== 'handoff') {
+        this.events.emit('trick', { player: this.p, kind: tr.kind, label: tr.def.label, outcome: 'lost', victim: tr.victim?.p ?? null, byHuman: tr.byHuman });
+      }
+    }
     if (!this.possession) return;
     this.possession = false;
     this.regainCooldown = reason === 'tackled' ? 0.7 : 0.45;
@@ -226,7 +452,8 @@ export class PlayerController {
       dist < DRIBBLE.controlRadius && height < DRIBBLE.controlMaxHeight && relSpeed < DRIBBLE.controlMaxRelSpeed;
 
     if (!this.possession) {
-      if (controllable && this.regainCooldown <= 0 && !this.kick && !this.tackle && this.stagger <= 0 && this.match.canTake(this, dist)) {
+      // A wrong-footed defender cannot react to the ball until they recover.
+      if (controllable && this.regainCooldown <= 0 && !this.kick && !this.tackle && this.stagger <= 0 && this.fooled <= 0 && this.match.canTake(this, dist)) {
         const previous = this.match.owner;
         if (previous && previous !== this) previous.losePossession(previous.team === this.team ? 'handoff' : 'stolen');
         this.possession = true;
@@ -236,6 +463,7 @@ export class PlayerController {
         const cushion = Math.min(1, relSpeed / DRIBBLE.controlMaxRelSpeed);
         this.firstTouch(cushion, time);
         this.events.emit('control', { player: p, relSpeed, stolenFrom: previous && previous.team !== this.team ? previous.p : null });
+        this.resolvePendingOnControl();
       }
       return;
     }

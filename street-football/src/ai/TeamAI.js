@@ -154,6 +154,14 @@ export class TeamAI {
     const ball = m.ball.position;
     const pos = c.p.position;
     const out = { world: true, worldX: 0, worldZ: 0, sprint: false, faceX: ball.x - pos.x, faceZ: ball.z - pos.z };
+    // Wrong-footed by a trick: stumble the way they bit, no tackling.
+    if (c.fooled > 0) {
+      out.worldX = c.fooledDir.x * 0.55;
+      out.worldZ = c.fooledDir.z * 0.55;
+      out.faceX = c.fooledDir.x;
+      out.faceZ = c.fooledDir.z;
+      return out;
+    }
     let target = null;
     let sprintBeyond = 7;
 
@@ -283,6 +291,15 @@ export class TeamAI {
         const power = THREE.MathUtils.clamp(0.42 + distGoal * 0.035 + this.rng() * 0.15, 0.4, 0.95);
         c.requestKick('shot', power, { aimZ });
         return out;
+      }
+      // Pressed from the front: sometimes try to beat the defender with a move.
+      if (nearest && nd < 2.3) {
+        const rel = new THREE.Vector3(nearest.p.position.x - pos.x, 0, nearest.p.position.z - pos.z);
+        if (rel.dot(facing) > 0.3 && this.rng() < cfg.trickRate) {
+          const kinds = ['stepover', 'feint', 'cut', 'roulette', 'stepover', 'feint'];
+          const kind = kinds[Math.floor(this.rng() * kinds.length)];
+          if (c.requestTrick(kind, 0)) return out;
+        }
       }
       const pressured = nearest && nd < 1.9;
       if (pressured || this.rng() < 0.12) {

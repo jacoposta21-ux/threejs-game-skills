@@ -75,3 +75,18 @@ test('Q switches the controlled teammate', async ({ page }, info) => {
   await expect.poll(async () => (await diag(page)).player.name, { timeout: 60_000 }).not.toBe(before);
   await expect(page.locator('#player-name')).not.toHaveText(before);
 });
+
+test('E performs a skill move with the ball (real keyboard input)', async ({ page }, info) => {
+  test.skip(info.project.name.includes('mobile'), 'keyboard path');
+  await startMatch(page);
+  // Observe gameplay events (input stays real keyboard).
+  await page.evaluate(() => {
+    window.__tricks = [];
+    window.__RUA10__.events.on('trickStart', (e) => window.__tricks.push(e.kind));
+  });
+  // We kick off with the ball at our feet.
+  await expect.poll(async () => (await diag(page)).player.possession, { timeout: 60_000 }).toBe(true);
+  await page.keyboard.press('KeyE');
+  await expect.poll(() => page.evaluate(() => window.__tricks.length), { timeout: 60_000 }).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.__tricks[0])).toBe('stepover');
+});

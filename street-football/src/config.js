@@ -117,9 +117,9 @@ export const TACKLE = {
 // defender attempts a tackle when in range (per second), tackle success, speed
 // factor, pass error (rad), and how far out it will shoot from.
 export const AI = {
-  easy: { think: 0.42, tackleRate: 0.55, tackleSuccess: 0.42, speed: 0.86, passError: 0.11, shootRange: 8, pressDistance: 4.5 },
-  normal: { think: 0.3, tackleRate: 1.0, tackleSuccess: 0.55, speed: 0.95, passError: 0.06, shootRange: 10, pressDistance: 6.5 },
-  hard: { think: 0.2, tackleRate: 1.7, tackleSuccess: 0.68, speed: 1.0, passError: 0.03, shootRange: 12, pressDistance: 9 },
+  easy: { think: 0.42, tackleRate: 0.55, tackleSuccess: 0.42, speed: 0.86, passError: 0.11, shootRange: 8, pressDistance: 4.5, trickRate: 0.12 },
+  normal: { think: 0.3, tackleRate: 1.0, tackleSuccess: 0.55, speed: 0.95, passError: 0.06, shootRange: 10, pressDistance: 6.5, trickRate: 0.35 },
+  hard: { think: 0.2, tackleRate: 1.7, tackleSuccess: 0.68, speed: 1.0, passError: 0.03, shootRange: 12, pressDistance: 9, trickRate: 0.5 },
 };
 
 // Base shape for a team attacking -X (home), as fractions of the half-court.

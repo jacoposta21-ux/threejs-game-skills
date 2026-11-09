@@ -35,6 +35,7 @@ for (let m = 0; m < +matches; m += 1) {
       }),
       g.events.on('tackle', (e) => { const { success, victim, reason } = e; if (reason === 'reach') (counts.miss ??= []).push([+e.dBall.toFixed(2), +e.ballY.toFixed(2), e.held]); counts.tackles += 1; if (success && victim) counts.tacklesWon += 1; counts.tackleReasons[reason] = (counts.tackleReasons[reason] ?? 0) + 1; }),
       g.events.on('save', ({ type }) => { if (type !== 'claim') counts.saves += 1; }),
+      g.events.on('trick', (e) => { const k = `${e.kind}:${e.outcome}`; (counts.tricks ??= {})[k] = (counts.tricks[k] ?? 0) + 1; }),
       g.events.on('goal', (e) => (counts.goalLog ??= []).push(`${e.team}:${e.flight.type ?? 'none'}:${e.lastTouchTeam}${e.lastTouchKeeper ? '(GK)' : ''}:since=${e.since.toFixed(1)}:fromX=${e.flight.scorerX?.toFixed?.(1)}`)),
     ];
     let guard = 0;

@@ -150,7 +150,7 @@ export class Game {
   }
 
   freshStats() {
-    return { shots: 0, onTarget: 0, saves: 0, goals: 0, conceded: 0, tackles: 0, interceptions: 0, passes: 0, awayShots: 0, bestCombo: 0 };
+    return { shots: 0, onTarget: 0, saves: 0, goals: 0, conceded: 0, tackles: 0, interceptions: 0, passes: 0, awayShots: 0, bestCombo: 0, tricks: 0, nutmegs: 0, failedTricks: 0 };
   }
 
   freshFlight() {
@@ -324,6 +324,8 @@ export class Game {
     this.score = { home: 0, away: 0 };
     this.timeLeft = MATCH.duration;
     this.style = 0;
+    this.combo = 0;
+    this.hud.setCombo(0);
     this.stats = this.freshStats();
     this.resetPositions();
     this.menus.hideAll();
@@ -400,10 +402,13 @@ export class Game {
         }
         this.crowd.react(0.3);
       }
+      // The other team won the ball: the combo is over.
+      if (!home) this.endCombo();
       // Control follows the ball inside the human's team.
       if (home && player.ctrl && player.ctrl !== this.human) this.setHuman(player.ctrl);
     });
     ev.on('chargeStart', () => this.audio.play('charge', { volume: 0.12, variance: 0 }));
+    this.wireTricks();
     ev.on('kick', ({ type, power, player, target }) => {
       const at = this.ball.mesh.position;
       const firstTime = this.flight.controlTime != null && this.time - this.flight.controlTime < 0.55;
@@ -460,6 +465,74 @@ export class Game {
     });
     ev.on('keeperDive', () => this.audio.play('step', { volume: 0.5, rate: 0.7 }));
     ev.on('keeperThrow', () => this.audio.play('kickSoft', { volume: 0.35, rate: 1.3 }));
+  }
+
+  // ------------------------------------------------------------- freestyle
+
+  wireTricks() {
+    this.combo = 0;
+    const ev = this.events;
+    ev.on('trickStart', ({ player, kind }) => {
+      this.audio.play('swish', { volume: player === this.human?.p ? 0.6 : 0.35, at: player.holder.position, variance: 0.12 });
+      // Fake shot near goal: the keeper buys it.
+      if (kind === 'fakeshot') {
+        const opp = this.match.teams[this.match.opponent(player.team)].keeper;
+        if (Math.abs(player.position.x - opp.goalX) < 13) opp.bite((this.rng() < 0.5 ? -1 : 1) * 0.8, this.time);
+      }
+    });
+    ev.on('trickTouch', ({ player, lift }) => this.audio.play(lift ? 'kickSoft' : 'touch', { volume: 0.45, rate: lift ? 1.3 : 1, at: player.holder.position }));
+    ev.on('fooled', ({ player }) => {
+      this.crowd.react(0.35);
+      if (this.isHome(player)) this.cameraRig.addTrauma(0.06);
+    });
+    ev.on('trick', (e) => this.onTrick(e));
+  }
+
+  onTrick({ player, label, points, outcome, solo, kind, byHuman }) {
+    const at = new THREE.Vector3(player.position.x, 2.3, player.position.z);
+    const home = this.isHome(player);
+    if (this.phase !== 'playing') return;
+    if (!home) {
+      // AI opponents' moves: crowd reaction only.
+      if (outcome === 'success' && !solo) {
+        this.hud.popup(label, at, this.camera);
+        this.crowd.react(0.3);
+      }
+      return;
+    }
+    if (outcome === 'fail' || outcome === 'lost') {
+      if (byHuman) {
+        this.stats.failedTricks += 1;
+        this.hud.popup(outcome === 'fail' ? 'FAILED!' : 'LOST IT', at, this.camera);
+        this.audio.play('fail', { volume: 0.5, variance: 0.05 });
+      }
+      this.endCombo();
+      return;
+    }
+    if (solo || !points) {
+      // No defender to beat: show the move, no score.
+      if (byHuman) this.hud.popup(label, at, this.camera);
+      return;
+    }
+    this.combo += 1;
+    const mult = Math.min(5, this.combo);
+    const pts = points * mult;
+    this.stats.tricks += 1;
+    if (kind === 'nutmeg') this.stats.nutmegs += 1;
+    this.stats.bestCombo = Math.max(this.stats.bestCombo, this.combo);
+    this.addStyle(pts, label, at, kind === 'nutmeg' || kind === 'rainbow');
+    if (this.combo >= 2) {
+      setTimeout(() => this.hud.popup(`COMBO x${this.combo}`, at.clone().add(new THREE.Vector3(0, 0.6, 0)), this.camera, { big: true }), 220);
+    }
+    this.hud.setCombo(this.combo);
+    this.audio.play('combo', { group: 'ui', volume: 0.5, rate: 1 + Math.min(4, this.combo - 1) * 0.12, variance: 0 });
+    this.crowd.react(Math.min(0.9, 0.35 + this.combo * 0.1));
+  }
+
+  endCombo() {
+    if (this.combo >= 2) this.hud.toast(`Combo x${this.combo} ended`, 1.2);
+    this.combo = 0;
+    this.hud.setCombo(0);
   }
 
   onContact(a, b) {
@@ -591,6 +664,8 @@ export class Game {
         const a = fs[i];
         const b = fs[j];
         if (Math.abs(a.roll) > 0.2 || Math.abs(b.roll) > 0.2) continue;
+        // A nutmeg / rainbow victim is slipped past, not bumped into.
+        if ((a.ctrl && a.ctrl.ghostUntil > this.time) || (b.ctrl && b.ctrl.ghostUntil > this.time)) continue;
         const dx = a.position.x - b.position.x;
         const dz = a.position.z - b.position.z;
         const d = Math.hypot(dx, dz);
@@ -700,6 +775,13 @@ export class Game {
       bonus.forEach(([pts, label], i) => {
         setTimeout(() => this.addStyle(pts, label, pos.clone().add(new THREE.Vector3(0, -0.5 - i * 0.45, 0))), 350 + i * 260);
       });
+      // A goal at the end of a trick combo cashes in a style bonus.
+      if (this.combo >= 2) {
+        const bonusPts = 250 * this.combo;
+        setTimeout(() => this.addStyle(bonusPts, 'STYLE BONUS', pos.clone().add(new THREE.Vector3(0, 0.7, 0)), true), 200);
+      }
+      this.combo = 0;
+      this.hud.setCombo(0);
       this.hud.banner('GOOOL!', `${scorer?.look.name ?? ''} • ${scoreLine}`);
     } else {
       this.stats.conceded += 1;
@@ -753,7 +835,6 @@ export class Game {
     this.phaseTime += dt;
     this.updatePhase(dt, it);
 
-    if (this.phase === 'playing' && it.skillPressed) this.hud.toast('Skill moves (stepovers, roulettes, nutmegs) arrive in Phase 3');
 
     let scale = 1;
     if (this.slowMo > 0) {
@@ -898,6 +979,8 @@ export class Game {
       'PASSES': s.passes,
       'TACKLES WON': s.tackles,
       'STEALS & INTERCEPTIONS': s.interceptions,
+      'TRICKS LANDED': `${s.tricks}${s.nutmegs ? ` (${s.nutmegs} nutmeg${s.nutmegs > 1 ? 's' : ''})` : ''}`,
+      'BEST COMBO': s.bestCombo >= 2 ? `x${s.bestCombo}` : '—',
       'STYLE POINTS': this.style,
       [newBest ? 'NEW BEST!' : 'BEST']: newBest ? `${s.goals} goals / ${this.style}` : `${best.goals} goals / ${best.style}`,
     });
@@ -949,6 +1032,8 @@ export class Game {
         tackling: !!h.tackle,
       },
       possession: { team: this.match.possessionTeam, owner: owner ? owner.p.look.name : null },
+      combo: this.combo,
+      trick: h.trick ? h.trick.kind : null,
       teams: Object.fromEntries(
         Object.entries(this.match.teams).map(([id, t]) => [
           id,
@@ -1010,7 +1095,7 @@ export class Game {
   }
 
   installTestHooks() {
-    const STATES = ['menu', 'active-play', 'dribble', 'shot', 'pass', 'defending', 'tackle', 'keeper-save', 'goal', 'fulltime'];
+    const STATES = ['menu', 'active-play', 'dribble', 'shot', 'pass', 'defending', 'tackle', 'trick', 'combo', 'keeper-save', 'goal', 'fulltime'];
     window.__THREE_GAME_TEST_HOOKS__ = {
       states: STATES,
       seed: (value) => {
@@ -1075,6 +1160,23 @@ export class Game {
             this.simulate(0.15, NEUTRAL_INTENTS);
             hk.requestTackle();
             this.simulate(0.24, NEUTRAL_INTENTS);
+          } else if (name === 'trick' || name === 'combo') {
+            // Ball at the feet, a defender closing in: a roulette mid-spin (or a landed combo).
+            this.place('home', [[3, 0], [0, 5], [7, -4]]);
+            this.place('away', [[1.2, 0.2, Math.PI / 2], [-3, -4], [-8, 2]]);
+            this.ball.placeAt(2.55, BALL.radius, 0);
+            this.simulate(0.25, { ...NEUTRAL_INTENTS, moveX: 0.4 });
+            if (name === 'combo') {
+              this.combo = 2;
+              hk.lastTrickKind = null;
+            }
+            const rng = this.rng;
+            hk.rng = () => 0.99; // force the success roll for a deterministic capture
+            hk.rng.gauss = rng.gauss;
+            hk.rng.range = rng.range;
+            hk.requestTrick(name === 'combo' ? 'stepover' : 'roulette', 1);
+            this.simulate(name === 'combo' ? 0.78 : 0.45, NEUTRAL_INTENTS);
+            hk.rng = rng;
           } else if (name === 'keeper-save') {
             const k = this.match.teams.away.keeper;
             k.difficulty = 'hard';

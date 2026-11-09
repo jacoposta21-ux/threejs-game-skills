@@ -534,6 +534,26 @@ body {
   font-size: 12px;
 }
 
+.tbtn.skill {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+  width: 60px;
+  height: 44px;
+  margin-top: -52px;
+  border-radius: 22px;
+  background: #e8338b;
+  font-size: 12px;
+}
+
+.howto-grid .tricks {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
 .tbtn.switch {
   grid-column: 3;
   grid-row: 1;
@@ -954,8 +974,24 @@ input[type='checkbox'] {
   }
 }
 
+@keyframes popupFade {
+  0% {
+    opacity: 0;
+  }
+  10%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .popup,
+  /* No movement, but popups must still be readable. */
+  .popup {
+    animation: popupFade 1.3s linear forwards;
+  }
   #banner.show #banner-text,
   #banner.count #banner-text {
     animation-duration: 0.01s;

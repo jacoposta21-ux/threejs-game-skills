@@ -187,6 +187,21 @@ function synthLibrary(rng) {
   lib.beep = make(0.16, (t) => Math.sin(2 * Math.PI * 880 * t) * Math.min(1, (0.16 - t) / 0.04));
   lib.beepGo = make(0.4, (t) => (Math.sin(2 * Math.PI * 1320 * t) + 0.4 * Math.sin(2 * Math.PI * 1980 * t)) * Math.min(1, (0.4 - t) / 0.1));
   lib.charge = make(0.9, (t) => Math.sin(2 * Math.PI * (300 + 500 * t) * t) * 0.3 * Math.min(1, t / 0.05));
+  {
+    // Trick whoosh: band-passed noise sweeping upward.
+    const len = 0.32;
+    let ph = 0;
+    lib.swish = make(len, (t) => {
+      ph += (600 + 3200 * (t / len)) / SR;
+      const n = N();
+      return n * Math.sin(Math.PI * (t / len)) ** 2 * (0.6 + 0.4 * Math.sin(2 * Math.PI * ph));
+    });
+  }
+  lib.combo = make(0.5, (t) => {
+    const f = t < 0.09 ? 988 : t < 0.18 ? 1318 : 1760;
+    return (Math.sin(2 * Math.PI * f * t) + 0.3 * Math.sin(4 * Math.PI * f * t)) * Math.exp(-(t % 0.09) * 18) * Math.min(1, (0.5 - t) / 0.1);
+  });
+  lib.fail = make(0.45, (t) => Math.sin(2 * Math.PI * (180 - 120 * t) * t) * Math.exp(-t * 6) + N() * Math.exp(-t * 40) * 0.3);
   return lib;
 }
 

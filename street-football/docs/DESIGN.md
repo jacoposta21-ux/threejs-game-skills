@@ -1,5 +1,7 @@
 # RUA 10 — Design
 
+> Phase 3 update: freestyle tricks are the expressive layer on top of 3v3. Their contract: **beat the defender in front of you with a move** (verb), **for style points that multiply in a combo and cash in on a goal** (reward), **at the risk of losing the ball** (cost). Variety is pushed by a repeat penalty, speed limits per trick, and the opponent's AI level. Defenders react: a beaten defender is wrong-footed and cannot tackle or touch the ball for a moment.
+
 > Phase 2 update: the slice is now a 3v3 match. The Phase 1 brief below still holds for the individual verbs; the 3v3 additions are summarised first.
 
 ## Phase 2 brief (3v3)

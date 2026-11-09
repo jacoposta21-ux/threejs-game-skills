@@ -67,7 +67,7 @@ export class CameraRig {
     else if (sep > 9) w = 0.6;
     out.set(pp.x + (bp.x - pp.x) * w, 0, pp.z + (bp.z - pp.z) * w);
     const portrait = this.camera.aspect < 1;
-    out.x += this.attackSign * CAMERA.attackBias * (shotTracking ? 0.4 : 1) * (portrait ? 1.6 : 1);
+    out.x += this.attackSign * CAMERA.attackBias * (shotTracking ? 0.4 : 1) * (portrait ? 0.7 : 1);
     out.x = THREE.MathUtils.clamp(out.x, -COURT.halfLength + 3.5, COURT.halfLength - 3.5);
     out.z = THREE.MathUtils.clamp(out.z, -COURT.halfWidth + 1.5, COURT.halfWidth - 2.5);
     return out;

@@ -66,6 +66,13 @@ export class KeeperAI {
     this.enterBeaten();
   }
 
+  /** React to a fake shot near goal. */
+  bite(z, time) {
+    if (this.state !== 'set') return;
+    this.biteZ = z;
+    this.biteUntil = time + 0.85;
+  }
+
   enterBeaten() {
     this.pendingConcede = false;
     this.setState('beaten');
@@ -122,6 +129,8 @@ export class KeeperAI {
       tx = b.x;
       tz = b.z;
     }
+    // Bought a fake shot: shuffles the wrong way for a moment.
+    if (time < (this.biteUntil ?? 0)) tz = THREE.MathUtils.clamp(tz + this.biteZ, -COURT.goalHalfWidth, COURT.goalHalfWidth);
 
     const dx = tx - k.position.x;
     const dz = tz - k.position.z;
