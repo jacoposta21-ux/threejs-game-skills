@@ -88,7 +88,9 @@ export function chooseTrick({ hasInput, relForward, relSide, sprint, speed, char
   const side = relSide >= 0 ? 1 : -1;
   if (relForward > 0.6) {
     if (sprint) return { kind: 'rainbow', side: 1 };
-    return { kind: 'nutmeg', side: 1, solo: !victimAhead };
+    // A nutmeg needs legs to play it through; alone it is a stepover-and-go.
+    if (victimAhead) return { kind: 'nutmeg', side: 1 };
+    return { kind: 'stepover', side: relSide >= 0 ? 1 : -1 };
   }
   if (relForward < -0.6) return { kind: sprint ? 'heel' : 'roulette', side };
   if (speed < 1.5) return { kind: 'ballroll', side };

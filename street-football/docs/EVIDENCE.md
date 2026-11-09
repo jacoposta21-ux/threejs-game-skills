@@ -1,5 +1,32 @@
 # Verification evidence
 
+## v1.1 — ball control, skills, replay
+
+### Dribble touches (`node tools/qa/touchcheck.mjs`, 3 s per scenario, opponents parked)
+
+| Scenario | Possession | Misses | Mean foot→ball at contact | Touch rhythm |
+| --- | --- | --- | --- | --- |
+| jog | 100% | 0 | 0.33 m | every ~0.47 s (every other step) |
+| sprint, then jog | 100% | 0 | 0.31 m | 0.3–0.4 s while closing, longer knocks at top speed |
+| zigzag (stick flips ±40°) | 100% | 0 | 0.38 m | 0.47 s |
+| sprint, then release the stick | 100% | 0 | — | runs onto the ball and soles it |
+
+Foot→ball is measured from the `ball_l/_r` toe bone of the swinging leg to the ball centre (ball radius 0.11 m), so a boot-surface contact reads about 0.2–0.35 m. Before v1.1, touches fired on a 0.27 s timer whatever the legs were doing, and a standing player pulled the ball to his feet continuously.
+
+AI-vs-AI (`tools/qa/aimatch.mjs normal 2`): two 100 s matches finished 4–2 and 4–2, with 15 and 11 shots and AI tricks used, and no errors.
+
+### Skills
+- `trickcheck.mjs`: rainbow (1.6 m lift, award once past the defender), nutmeg through the legs (+500), forced-fail nutmeg, stepover and roulette all start and resolve.
+- `trickmotion.mjs` sheets: `screenshots/v11-tricks.jpg`.
+- Mapping fix: **E + forward** with no defender within 0.7 m of the running line used to start a "solo nutmeg", which was a plain forward knock. It is now a stepover-and-go.
+
+### Replay (`node tools/qa/replaycheck.mjs`)
+- A real controller shot at 26 m/s is detected at recorded frame 32 of 59.
+- Speed ramp: 0.85 → 0.25 around the strike → 0.6.
+- Segments: 1 = dolly, 2 = over the shoulder, 3 = behind the net.
+- Sheet: `screenshots/v11-replay-sheet.jpg`.
+
+
 ## Phase 5 (release v1.0.0)
 
 ### Production build checks

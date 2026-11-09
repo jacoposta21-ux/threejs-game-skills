@@ -101,6 +101,194 @@ body {
   animation: blink 1s steps(2, start) infinite;
 }
 
+#letterbox b {
+  position: absolute;
+  top: calc(9vh + 14px);
+  left: calc(18px + var(--safe-l));
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  color: var(--paper);
+  text-shadow: 0 2px 0 #000;
+  padding-left: 10px;
+  border-left: 4px solid var(--yellow);
+  animation: slideRight 0.45s 0.35s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+}
+
+#letterbox b:empty {
+  display: none;
+}
+
+#letterbox small {
+  position: absolute;
+  bottom: calc(9vh - 26px);
+  right: calc(16px + var(--safe-r));
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(244, 241, 232, 0.7);
+}
+
+/* Replay film look: warmer, punchier grade, animated grain and a heavier vignette. */
+#app.replay-on #game-canvas {
+  filter: saturate(1.18) contrast(1.07) sepia(0.06);
+}
+
+#film {
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  opacity: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  transition: opacity 0.3s;
+}
+
+#app.replay-on #film {
+  opacity: 0.32;
+  animation: grain 0.5s steps(4) infinite;
+}
+
+#app.replay-on #vignette {
+  background: radial-gradient(ellipse at 50% 50%, transparent 42%, rgba(10, 5, 0, 0.55) 100%);
+}
+
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-6%, 4%); }
+  50% { transform: translate(5%, -7%); }
+  75% { transform: translate(-3%, -4%); }
+  100% { transform: translate(7%, 3%); }
+}
+
+#replay-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: #fff;
+  opacity: 0;
+}
+
+#replay-flash.go {
+  animation: flash 0.28s ease-out;
+}
+
+@keyframes flash {
+  0% { opacity: 0.75; }
+  100% { opacity: 0; }
+}
+
+/* Stinger: a diagonal band sweeps the screen, covering the cut in and out of the replay. */
+#stinger {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  visibility: hidden;
+  z-index: 5;
+}
+
+#stinger.go {
+  visibility: visible;
+  animation: stingerVis 0.6s linear forwards;
+}
+
+#stinger i {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 160%;
+  transform: translateX(-130%) skewX(-18deg);
+}
+
+#stinger i:first-child {
+  background: var(--yellow);
+}
+
+#stinger i:last-of-type {
+  background: var(--ink);
+  width: 150%;
+}
+
+#stinger.go i:first-child {
+  animation: sweep 0.6s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+}
+
+#stinger.go i:last-of-type {
+  animation: sweep 0.6s 0.05s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+}
+
+#stinger span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--display);
+  font-size: clamp(34px, 9vw, 84px);
+  color: var(--paper);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  opacity: 0;
+}
+
+#stinger span em {
+  font-style: normal;
+  color: var(--yellow);
+  margin-right: 0.25em;
+}
+
+#stinger.go span {
+  animation: stingerText 0.6s linear forwards;
+}
+
+@keyframes sweep {
+  0% { transform: translateX(-130%) skewX(-18deg); }
+  100% { transform: translateX(110%) skewX(-18deg); }
+}
+
+@keyframes stingerText {
+  0%, 22% { opacity: 0; }
+  32%, 62% { opacity: 1; }
+  72%, 100% { opacity: 0; }
+}
+
+@keyframes stingerVis {
+  99% { visibility: visible; }
+  100% { visibility: hidden; }
+}
+
+/* Move caller: the trick being played, just above the controls. */
+#trick-name {
+  position: absolute;
+  left: 50%;
+  bottom: calc(150px + var(--safe-b));
+  transform: translateX(-50%);
+  font-family: var(--display);
+  font-size: 30px;
+  font-style: italic;
+  letter-spacing: 0.03em;
+  color: var(--paper);
+  -webkit-text-stroke: 1.5px var(--ink);
+  text-shadow: 0 3px 0 var(--ink);
+  white-space: nowrap;
+  opacity: 0;
+}
+
+#trick-name.show {
+  animation: trickName 1.1s cubic-bezier(0.2, 0.9, 0.3, 1.1) forwards;
+}
+
+@keyframes trickName {
+  0% { opacity: 0; transform: translateX(-80%) skewX(-12deg); }
+  14% { opacity: 1; transform: translateX(-50%) skewX(-12deg); }
+  75% { opacity: 1; transform: translateX(-50%) skewX(-12deg); }
+  100% { opacity: 0; transform: translateX(-30%) skewX(-12deg); }
+}
+
 @keyframes letterIn {
   from {
     transform: scaleY(0);
@@ -1199,6 +1387,16 @@ input[type='checkbox'] {
   #hud #hud-buttons,
   .loadball {
     animation: none !important;
+  }
+  #app.replay-on #film {
+    animation: none;
+  }
+  #stinger.go i,
+  #stinger.go span {
+    animation-duration: 0.01s !important;
+  }
+  #trick-name.show {
+    animation: popupFade 1.1s linear forwards;
   }
   /* No movement, but popups must still be readable. */
   .popup {

@@ -4,6 +4,14 @@ import { GROUP, groups } from '../physics/PhysicsWorld.js';
 import { PLAYER } from '../config.js';
 
 const CAPSULE_HALF = 0.55;
+/** Fraction of a dribble-touch swing at which the boot meets the ball. */
+export const TOUCH_U = 0.65;
+
+const _pq = new THREE.Quaternion();
+const _dq = new THREE.Quaternion();
+const _iq = new THREE.Quaternion();
+const _axis = new THREE.Vector3();
+const _fp = new THREE.Vector3();
 
 /**
  * Shared body for every footballer: a dressed skinned character, a kinematic
@@ -37,6 +45,80 @@ export class Footballer {
     this.roll = 0; // whole-body roll (keeper dives)
     this.lift = 0;
     this.extraYaw = 0;
+    this.legPulse = null; // procedural touch / trap on one leg, layered over the clips
+  }
+
+  /**
+   * Swing one leg through a ball touch on top of whatever clip is playing.
+   * kind 'touch': cock the knee then drive the foot through (laces / inside).
+   * kind 'trap': lift the foot and sole the ball.
+   */
+  kickLeg(side, { kind = 'touch', dur = 0.26, amp = 0.6 } = {}) {
+    this.legPulse = { side, kind, dur, amp, t: 0 };
+  }
+
+  /** World position of a foot bone ('l' | 'r') as of the last rendered pose. */
+  footWorld(side, out = new THREE.Vector3()) {
+    const b = this.character.bones.get(`ball_${side}`) ?? this.character.bones.get(`foot_${side}`);
+    if (!b) return this.footPoint(out, 0.3);
+    return b.getWorldPosition(out);
+  }
+
+  /** The foot further behind along the facing: the one about to swing through. */
+  rearFoot() {
+    const f = this.facing(_axis);
+    const l = this.footWorld('l', _fp).sub(this.holder.position).dot(f);
+    const r = this.footWorld('r', _fp).sub(this.holder.position).dot(f);
+    return l < r ? 'l' : 'r';
+  }
+
+  applyLegPulse(dt) {
+    const lp = this.legPulse;
+    if (!lp) return;
+    lp.t += dt;
+    const u = lp.t / lp.dur;
+    if (u >= 1) {
+      this.legPulse = null;
+      return;
+    }
+    const bones = this.character.bones;
+    const thigh = bones.get(`thigh_${lp.side}`);
+    const calf = bones.get(`calf_${lp.side}`);
+    const foot = bones.get(`foot_${lp.side}`);
+    if (!thigh || !calf) return;
+    let hip;
+    let knee;
+    let ankle = 0;
+    if (lp.kind === 'trap') {
+      const s = Math.sin(Math.PI * u);
+      hip = lp.amp * 0.75 * s;
+      knee = -lp.amp * 0.9 * s;
+      ankle = lp.amp * 0.6 * s; // toes up: sole on the ball
+    } else {
+      // Exaggerates the natural swing of the rear leg: the knee folds to clear
+      // the ground, then the hip drives and the shin snaps straight with the
+      // toe pointed, reaching the ball at u = TOUCH_U, late in the swing.
+      const sm = (x) => THREE.MathUtils.smoothstep(x, 0, 1);
+      const c = TOUCH_U;
+      hip = lp.amp * 0.22 * (u < c ? sm(u / c) : 1 - sm((u - c) / (1 - c)));
+      knee = (u < 0.5 ? -lp.amp * 0.6 * Math.sin((Math.PI * u) / 0.5) : 0)
+        + (u > 0.45 ? lp.amp * 0.35 * Math.sin((Math.PI * (u - 0.45)) / 0.55) : 0);
+      ankle = -lp.amp * 0.5 * Math.sin(Math.PI * u); // toe pointed: laces through the ball
+    }
+    // Rotations about the character's right axis, applied in each bone's parent space.
+    this.holder.updateMatrixWorld(true);
+    _axis.set(-1, 0, 0).transformDirection(this.holder.matrixWorld);
+    const rot = (bone, angle) => {
+      if (!bone || Math.abs(angle) < 1e-4) return;
+      bone.parent.getWorldQuaternion(_pq);
+      _dq.setFromAxisAngle(_axis, angle);
+      _dq.premultiply(_iq.copy(_pq).invert()).multiply(_pq);
+      bone.quaternion.premultiply(_dq);
+      bone.updateMatrixWorld(true);
+    };
+    rot(thigh, hip);
+    rot(calf, knee);
+    rot(foot, ankle);
   }
 
   facing(out = new THREE.Vector3()) {
@@ -104,6 +186,7 @@ export class Footballer {
     this.holder.position.y = this.lift;
     this.anim.setSpeed(this.speed);
     this.anim.update(dt);
+    if (this.legPulse) this.applyLegPulse(dt);
   }
 
   dispose(scene) {

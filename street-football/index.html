@@ -11,7 +11,10 @@
     <main id="app">
       <canvas id="game-canvas" aria-label="Street football game" tabindex="0"></canvas>
       <div id="vignette" aria-hidden="true"></div>
-      <div id="letterbox" class="hidden" aria-hidden="true"><i></i><i></i><span>REPLAY</span></div>
+      <div id="film" aria-hidden="true"></div>
+      <div id="letterbox" class="hidden" aria-hidden="true"><i></i><i></i><span>REPLAY</span><b id="replay-name"></b><small>Press any key to skip</small></div>
+      <div id="replay-flash" aria-hidden="true"></div>
+      <div id="stinger" aria-hidden="true"><i></i><i></i><span>RUA<em>10</em> REPLAY</span></div>
 
       <!-- In-game HUD -->
       <section id="hud" class="hidden" aria-live="polite">
@@ -45,6 +48,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>
           </button>
         </div>
+        <div id="trick-name" aria-live="off"></div>
         <div id="power-meter" class="hidden"><div class="ring"></div><span>SHOT</span></div>
         <div id="popups"></div>
         <div id="toast" class="hidden"></div>
@@ -108,9 +112,9 @@
           <div><kbd>Q</kbd><span>Switch to the teammate closest to the ball (control also follows the ball automatically)</span></div>
           <div><kbd>ESC</kbd> / <kbd>P</kbd><span>Pause</span></div>
           <div><kbd>E</kbd><span>Skill move — combine with a direction (relative to where you face):</span></div>
-          <div class="tricks"><b>E</b> stepover · <b>E + side</b> body feint (standing: ball roll · sprinting: quick cut) · <b>E + back</b> roulette (sprinting: heel flick) · <b>E + forward</b> nutmeg through a defender (sprinting: rainbow flick) · <b>E while charging a shot</b> fake shot</div>
+          <div class="tricks"><b>E</b> stepover · <b>E + side</b> body feint (standing: ball roll · sprinting: quick cut) · <b>E + back</b> roulette (sprinting: heel flick) · <b>E + forward</b> nutmeg through a defender right in front (no one there: stepover-and-go · sprinting: rainbow flick) · <b>E while charging a shot</b> fake shot</div>
         </div>
-        <p class="hint">Tricks only score against a defender in front of you; chain them for a combo multiplier (x2… x5) and score with a combo running for a STYLE BONUS. Failing a trick or losing the ball ends the combo. 3 v 3 plus keepers, 3 minutes. Win the ball back, keep it moving, and finish. Power shots fly but spray; placed shots near the posts beat the keeper more often. Touch screens get a stick and buttons.</p>
+        <p class="hint">Every touch is a real kick: the ball runs ahead and your player's next stride plays it on in the stick direction — release the stick to stop it with the sole. Tricks score full points against a defender in front of you (a small showboat bonus when alone); chain them for a combo multiplier (x2… x5) and score with a combo running for a STYLE BONUS. Failing a trick or losing the ball ends the combo. 3 v 3 plus keepers, 3 minutes. Win the ball back, keep it moving, and finish. Power shots fly but spray; placed shots near the posts beat the keeper more often. Touch screens get a stick and buttons.</p>
         <button type="button" class="menu-btn back" data-back>BACK</button>
       </section>
 

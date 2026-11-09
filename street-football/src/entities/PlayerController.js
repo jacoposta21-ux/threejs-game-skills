@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BALL, COURT, DRIBBLE, KICK, PLAYER, TACKLE } from '../config.js';
 import { CLIP_EVENTS } from '../animation/FootballClips.js';
 import { DEFENDER_READ, TRICKS, chooseTrick, rotateToward } from '../skills/Tricks.js';
+import { TOUCH_U } from './Footballer.js';
 
 const _rel = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
@@ -9,6 +10,9 @@ const _dir = new THREE.Vector3();
 const _vel = new THREE.Vector3();
 const _spin = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+
+// How far ahead of the body the swinging boot meets the ball (m).
+const TOUCH_REACH = 0.45;
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
@@ -37,6 +41,9 @@ export class PlayerController {
   reset() {
     this.possession = false;
     this.touchCooldown = 0;
+    this.touch = null; // a touch in progress: the leg is swinging, contact pending
+    this.touchWanted = 0;
+    this.lastFootfalls = 0;
     this.regainCooldown = 0;
     this.tackleCooldown = 0;
     this.stagger = 0;
@@ -55,6 +62,8 @@ export class PlayerController {
     this.trick = null;
     this.pendingTrick = null;
     this.trickCooldown = 0;
+    this.skillBuffer = 0;
+    this.skillSprint = false;
     this.lastTrickKind = null;
     this.fooled = 0;
     this.fooledDir = new THREE.Vector3();
@@ -116,6 +125,11 @@ export class PlayerController {
       this.charge.active = false;
     } else {
       if (it.skillPressed) this.requestTrickFromInput(it);
+      else if (this.skillBuffer > 0) {
+        // A press that landed mid-touch / mid-kick fires as soon as the player is free.
+        this.skillBuffer -= dt;
+        if (!this.busy && this.trickCooldown <= 0) this.requestTrickFromInput({ sprint: this.skillSprint }, true);
+      }
       if (!this.trick) {
         this.updateCharge(dt, it);
         if (it.passPressed) this.requestPass();
@@ -144,9 +158,21 @@ export class PlayerController {
       const { ahead } = this.ballRelation();
       const lead = DRIBBLE.baseLead + DRIBBLE.leadPerSpeed * p.speed;
       const ballSpeed = Math.hypot(this.ball.velocity.x, this.ball.velocity.z);
-      if (ahead > lead * 1.05) {
-        const cap = (this.sprinting ? PLAYER.sprintSpeed : PLAYER.jogSpeed * 1.08) * this.speedFactor;
-        targetSpeed = Math.max(targetSpeed, Math.min(cap, ballSpeed + DRIBBLE.chaseBoost));
+      if (ahead > TOUCH_REACH + 0.08) {
+        // Out of touching range: run it down (a little faster the further it is).
+        const far = THREE.MathUtils.clamp((ahead - TOUCH_REACH - 0.08) / lead, 0, 1);
+        const cap = (this.sprinting ? PLAYER.sprintSpeed * (1 + far * 0.1) : PLAYER.jogSpeed * (1.1 + far * 0.25)) * this.speedFactor;
+        targetSpeed = Math.max(targetSpeed, Math.min(cap, ballSpeed + DRIBBLE.chaseBoost * (1 + far * 1.5)));
+      }
+    }
+    // No input but the ball has rolled off the feet: walk onto it to sole it.
+    let approach = null;
+    if (this.possession && !this.hasInput && !this.kick) {
+      const r = this.ballRelation();
+      if (r.dist > 0.72) {
+        const along = Math.max(0, this.ball.velocity.x * _fwd.x + this.ball.velocity.z * _fwd.z);
+        targetSpeed = Math.min(PLAYER.sprintSpeed, along + (r.dist - 0.55) * 2.4);
+        approach = Math.atan2(this.ball.position.x - p.position.x, this.ball.position.z - p.position.z);
       }
     }
     const kicking = this.kick && !this.kick.done;
@@ -159,7 +185,24 @@ export class PlayerController {
     let desiredHeading = p.heading;
     if (this.kick) desiredHeading = this.kick.heading;
     else if (this.tackle) desiredHeading = this.tackle.heading;
-    else if (this.hasInput) desiredHeading = Math.atan2(this.moveDir.x, this.moveDir.z);
+    else if (this.hasInput) {
+      desiredHeading = Math.atan2(this.moveDir.x, this.moveDir.z);
+      // Dribbling: run onto the ball's line first; the next touch then sends it where the stick points.
+      if (this.possession && !this.touch) {
+        const b = this.ball.position;
+        const bx = b.x - p.position.x;
+        const bz = b.z - p.position.z;
+        const bd = Math.hypot(bx, bz);
+        if (bd > 0.3 && bd < 1.8) {
+          const toBall = Math.atan2(bx, bz);
+          // Ahead along the stick: curve onto its line. Beside or behind (a sharp
+          // change of direction): turn back to it first, then play it the new way.
+          if (bx * this.moveDir.x + bz * this.moveDir.z > 0.05 * bd) desiredHeading += THREE.MathUtils.clamp(wrap(toBall - desiredHeading), -0.7, 0.7) * 0.85;
+          else desiredHeading = toBall;
+        }
+      }
+    }
+    else if (approach != null) desiredHeading = approach;
     else if (it.faceX != null && Math.hypot(it.faceX, it.faceZ) > 0.01) desiredHeading = Math.atan2(it.faceX, it.faceZ);
     const turnRate = this.sprinting ? PLAYER.sprintTurnRate : PLAYER.turnRate;
     const diff = wrap(desiredHeading - p.heading);
@@ -189,8 +232,20 @@ export class PlayerController {
   // ------------------------------------------------------------------ tricks
 
   /** Human input → trick, relative to the player's facing. */
-  requestTrickFromInput(it) {
-    if (!this.possession) return;
+  requestTrickFromInput(it, buffered = false) {
+    if (!this.possession) {
+      if (!buffered && this.isHuman) this.events.emit('trickDenied', { player: this.p, reason: 'noball' });
+      this.skillBuffer = 0;
+      return;
+    }
+    if (this.busy || this.trickCooldown > 0) {
+      if (!buffered) {
+        this.skillBuffer = 0.35;
+        this.skillSprint = !!it.sprint;
+      }
+      return;
+    }
+    this.skillBuffer = 0;
     const f = this.p.facing(new THREE.Vector3());
     const right = rotateToward(f, 1, 90);
     const relForward = this.hasInput ? this.moveDir.dot(f) : 0;
@@ -247,6 +302,8 @@ export class PlayerController {
     if (kind === this.lastTrickKind) risk += 0.1; // spamming one move gets read
     if (!this.isHuman) risk += 0.05;
     const fail = this.rng() < risk;
+    this.touch = null;
+    p.legPulse = null;
     p.anim.play(`${def.clip}_${side > 0 ? 'R' : 'L'}`, { fadeIn: 0.06, fadeOut: 0.12 });
     this.trick = {
       kind, def, side, t: 0, f, e: rotateToward(f, side, 90), entrySpeed: p.speed, startHeading: p.heading,
@@ -418,6 +475,7 @@ export class PlayerController {
         this.events.emit('trick', { player: this.p, kind: tr.kind, label: tr.def.label, outcome: 'lost', victim: tr.victim?.p ?? null, byHuman: tr.byHuman });
       }
     }
+    this.touch = null;
     if (!this.possession) return;
     this.possession = false;
     this.regainCooldown = reason === 'tackled' ? 0.7 : 0.45;
@@ -474,62 +532,133 @@ export class PlayerController {
       this.events.emit('possessionLost', { player: p, reason: 'heavy' });
       return;
     }
-    if (this.kick) return;
+    if (this.kick) {
+      this.touch = null;
+      return;
+    }
+
+    // A touch already under way: the boot meets the ball at the contact frame.
+    if (this.touch) {
+      this.updateTouch(dt, time);
+      return;
+    }
+    if (this.touchCooldown > 0) return;
 
     const speed = p.speed;
     const lead = DRIBBLE.baseLead + DRIBBLE.leadPerSpeed * speed;
     p.facing(_fwd);
+    const ballSpeed = Math.hypot(ball.velocity.x, ball.velocity.z);
 
-    if (speed < 0.8 && !this.hasInput) {
-      // Shielding at a standstill: sole the ball back to just in front of the feet.
-      if (dist < 1.1) {
-        p.footPoint(_dir, 0.45);
-        _dir.sub(ball.position);
-        _dir.y = 0;
-        const pull = Math.min(2.2, _dir.length() * 5);
-        if (_dir.lengthSq() > 1e-6) _dir.normalize();
-        const v = ball.velocity;
-        const k = 1 - Math.exp(-dt * 9);
-        ball.body.setLinvel({ x: v.x + (_dir.x * pull - v.x) * k, y: v.y, z: v.z + (_dir.z * pull - v.z) * k }, true);
-      }
+    if (!this.hasInput) {
+      // No input: the ball is never steered. Arriving at a rolling ball, the
+      // player stops it with the sole once; a dead ball is simply stood over.
+      if (dist < 0.95 && ahead > -0.2 && ballSpeed > 0.55 && speed < 2.5) this.startTouch('trap', time);
       return;
     }
 
-    if (this.touchCooldown > 0) return;
-    const behind = ahead < 0.05;
-    if (ahead < lead * 0.7 || (behind && dist < 0.85)) {
-      const sigma =
-        (this.sprinting ? DRIBBLE.sprintError : DRIBBLE.jogError) + DRIBBLE.turnError * Math.min(1, this.turnRateNorm);
-      const err = this.rng.gauss() * sigma;
-      _dir.copy(_fwd).applyAxisAngle(UP, err);
-      const margin = this.sprinting ? DRIBBLE.sprintTouchMargin : DRIBBLE.touchMargin;
-      let ballSpeed = speed + margin * Math.min(1, 0.45 + speed / PLAYER.jogSpeed);
-      if (behind) ballSpeed = Math.max(ballSpeed * 0.8, 1.6);
-      const correction = THREE.MathUtils.clamp(-lateral * 3.2, -2.2, 2.2);
-      _vel.copy(_dir).multiplyScalar(ballSpeed);
-      _vel.x += _fwd.z * correction;
-      _vel.z += -_fwd.x * correction;
-      _vel.y = 0.25 + speed * 0.04;
-      _spin.copy(UP).cross(_dir).multiplyScalar(ballSpeed / BALL.radius);
-      ball.kick(_vel, _spin, p, time);
-      this.touchCooldown = THREE.MathUtils.clamp(
-        DRIBBLE.maxTouchInterval - speed * 0.035,
-        DRIBBLE.minTouchInterval,
-        DRIBBLE.maxTouchInterval,
-      );
-      this.events.emit('touch', { player: p, strength: ballSpeed });
+    // Dribbling: the rear foot starts its swing on a footfall when the ball
+    // will be at the toe by the contact frame (closing speed × swing time).
+    // If the stride never lines up, or the player is about to run over the
+    // ball, touch now.
+    const along = ball.velocity.x * _fwd.x + ball.velocity.z * _fwd.z;
+    const swing = this.touchSwing() * TOUCH_U;
+    const atContact = ahead - Math.max(0, speed - along) * swing;
+    // The zone overlaps the chase threshold (reach + 0.08), so a pursued ball always gets touched.
+    if (atContact < TOUCH_REACH || ahead < TOUCH_REACH + 0.16 || (ahead < 0.05 && dist < 0.85)) {
+      this.touchWanted += dt;
+      const footfalls = p.anim.footfalls;
+      const onStride = footfalls !== this.lastFootfalls;
+      this.lastFootfalls = footfalls;
+      const urgent = atContact < TOUCH_REACH * 0.6 || this.touchWanted > 0.22 || speed < 1.2;
+      if (onStride || urgent) this.startTouch('touch', time);
+    } else {
+      this.touchWanted = 0;
+      this.lastFootfalls = p.anim.footfalls;
     }
+  }
+
+  /** Begin a dribble touch or a sole trap: the leg swings now, the ball is played at contact. */
+  /** Duration of a dribble-touch swing: one step of the current stride. */
+  touchSwing() {
+    return this.p.speed < 2 ? 0.24 : THREE.MathUtils.clamp(this.p.anim.stepTime, 0.2, 0.4);
+  }
+
+  startTouch(kind, time) {
+    const p = this.p;
+    const side = p.rearFoot();
+    const dur = kind === 'trap' ? 0.3 : this.touchSwing();
+    p.kickLeg(side, { kind, dur, amp: kind === 'trap' ? 0.55 : p.speed > 5 ? 0.5 : 0.62 });
+    this.touch = { kind, side, t: 0, contactAt: dur * (kind === 'trap' ? 0.45 : TOUCH_U) };
+    this.touchWanted = 0;
+  }
+
+  updateTouch(dt, time) {
+    const tc = this.touch;
+    const p = this.p;
+    const ball = this.ball;
+    tc.t += dt;
+    // Contact at the swing's contact frame, or earlier if the boot is already
+    // on the ball, or the ball is about to pass under the body.
+    const rel = this.ballRelation();
+    if (tc.t < tc.contactAt) {
+      const foot = p.footWorld(tc.side, _dir);
+      const onBoot = tc.t > tc.contactAt * 0.4 && Math.hypot(foot.x - ball.position.x, foot.z - ball.position.z) < 0.25;
+      const overrun = tc.kind === 'touch' && rel.ahead < 0.2;
+      if (!onBoot && !overrun) return;
+    }
+    this.touch = null;
+    const { dist, ahead } = rel;
+    // The swing missed: the ball got away during the wind-up.
+    if (dist > 1.15 || ahead < -0.4) {
+      this.touchCooldown = 0.05;
+      this.events.emit('touchMiss', { player: p });
+      return;
+    }
+    p.facing(_fwd);
+    if (tc.kind === 'trap') {
+      // Sole on the ball: almost all of its pace is killed in one contact.
+      const v = ball.velocity;
+      _vel.set(v.x * 0.12 + p.velocity.x * 0.3, Math.min(v.y, 0.05), v.z * 0.12 + p.velocity.z * 0.3);
+      ball.kick(_vel, null, p, time);
+      this.touchCooldown = 0.4;
+      this.events.emit('touch', { player: p, strength: 0.6, side: tc.side, trap: true });
+      return;
+    }
+    const speed = p.speed;
+    const sigma =
+      (this.sprinting ? DRIBBLE.sprintError : DRIBBLE.jogError) + DRIBBLE.turnError * Math.min(1, this.turnRateNorm);
+    // The ball goes where the stick points (blended with the body line), from where it lies.
+    const aim = this.hasInput ? this.moveDir : _fwd;
+    _dir.copy(aim).lerp(_fwd, 0.25).setY(0).normalize().applyAxisAngle(UP, this.rng.gauss() * sigma);
+    const margin = this.sprinting ? DRIBBLE.sprintTouchMargin : DRIBBLE.touchMargin;
+    let ballSpeed = speed + margin * Math.min(1, 0.45 + speed / PLAYER.jogSpeed);
+    if (ahead < 0.05) ballSpeed = Math.max(ballSpeed * 0.8, 1.6);
+    // Keep it on the runner's line: cancel the ball's offset across the new direction.
+    _rel.copy(ball.position).sub(p.position);
+    const across = _rel.x * _dir.z - _rel.z * _dir.x;
+    const correction = THREE.MathUtils.clamp(-across * 2.4, -2, 2);
+    _vel.copy(_dir).multiplyScalar(ballSpeed);
+    _vel.x += _dir.z * correction;
+    _vel.z += -_dir.x * correction;
+    _vel.y = 0.25 + speed * 0.04;
+    _spin.copy(UP).cross(_dir).multiplyScalar(ballSpeed / BALL.radius);
+    ball.kick(_vel, _spin, p, time);
+    this.touchCooldown = DRIBBLE.minTouchInterval;
+    this.events.emit('touch', { player: p, strength: ballSpeed, side: tc.side });
   }
 
   firstTouch(cushion, time) {
     const p = this.p;
     const ball = this.ball;
-    const keep = 0.25 + 0.25 * (1 - cushion);
+    // Cushion: the ball keeps some of its pace and only part of the runner's;
+    // it drops off the boot instead of sticking to it.
+    const keep = 0.3 + 0.25 * (1 - cushion);
     _vel.copy(ball.velocity).multiplyScalar(keep);
-    _vel.addScaledVector(p.velocity, 0.85);
+    _vel.addScaledVector(p.velocity, 0.7);
     _vel.y = Math.min(_vel.y, 0.4);
     ball.kick(_vel, null, p, time);
-    this.touchCooldown = 0.12;
+    p.kickLeg(p.rearFoot(), { kind: p.speed < 2 ? 'trap' : 'touch', dur: 0.24, amp: 0.45 });
+    this.touchCooldown = 0.16;
   }
 
   // ------------------------------------------------------------------ actions

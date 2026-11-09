@@ -28,6 +28,7 @@ for (const [kind, dist, forceRoll] of [['rainbow', 2.2, 0.99], ['nutmeg', 1.9, 0
     const t0 = g.time;
     const offC = g.events.on('control', (e) => events.push(`control:${e.player.look.name}@${(g.time - t0).toFixed(2)}`));
     const offT = g.events.on('trick', (e) => events.push(`@${(g.time - t0).toFixed(2)}`));
+    const pre = { poss: hk.possession, owner: g.match.owner?.p.look.name ?? null, busy: hk.busy, cd: +hk.trickCooldown.toFixed(2), stag: hk.stagger };
     const started = hk.requestTrick(kind, 1);
     hk.rng = rng;
     let maxY = 0;
@@ -45,7 +46,7 @@ for (const [kind, dist, forceRoll] of [['rainbow', 2.2, 0.99], ['nutmeg', 1.9, 0
     offF();
     offC();
     offT();
-    return { kind, started, forcedRoll: forceRoll, maxBallY: +maxY.toFixed(2), crossedDefender, minDistToDefender: +minDistToDefender.toFixed(2), events, owner: g.match.owner?.p.look.name ?? null, combo: g.combo };
+    return { kind, pre, started, forcedRoll: forceRoll, maxBallY: +maxY.toFixed(2), crossedDefender, minDistToDefender: +minDistToDefender.toFixed(2), events, owner: g.match.owner?.p.look.name ?? null, combo: g.combo };
   }, { kind, dist, forceRoll });
   console.log(JSON.stringify(r));
 }

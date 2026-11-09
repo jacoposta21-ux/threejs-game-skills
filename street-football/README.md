@@ -65,13 +65,34 @@ Control follows the ball automatically: when a teammate wins it or receives your
 - **Real-hardware measurement** built in (`?fps`, `?bench`). The CPU cost of a 60 Hz frame (all simulation, AI and animation, no rendering) is measured at **0.44 ms average / 0.9 ms p99**.
 - **Browser support:** see `docs/RELEASE.md`.
 
+## v1.1 — ball control, skills and replay
+
+- **Ball control comes from the feet.** Dribble touches are no longer timed: on a footfall, the rear leg swings through (a procedural knee-cock and shin snap layered over the run) and the ball is kicked at the contact frame, about 0.35 m from the boot.
+  - The touch sends the ball **where the stick points**, so the control steers it.
+  - On a sharp change of direction the player first turns back to the ball.
+  - Between touches the ball is free and the player runs it down.
+  - Let go of the stick and the player runs onto the ball and stops it with **one sole trap**; the old continuous "shielding" pull is gone.
+  - Audit: `node tools/qa/touchcheck.mjs` (possession, misses, foot-to-ball distance at contact, rhythm).
+- **Skills always answer the button.**
+  - **E + forward** without a defender right in front is now a stepover-and-go (it used to be a "solo nutmeg", which was just a plain knock forward).
+  - The move name is called out as it starts.
+  - Pressing E without the ball says so.
+  - A press during a touch or kick is buffered for 0.35 s.
+  - Solo moves earn a small showboat bonus (no combo).
+- **Broadcast replay.**
+  - The strike is found from the jump in recorded ball speed. Playback ramps from 0.85× through the build-up to 0.25× around the strike.
+  - It cuts from a low dolly beside the shooter's run, to a locked-off shot over their shoulder, to the reverse angle from behind the net (slow push-in).
+  - On top: a stinger wipe in and out, a white flash on each cut, the scorer's name and number, and a "press any key to skip" hint.
+  - Film look: grade, grain and a heavier vignette.
+  - The ball trail now draws on the shot.
+
 ## Phase 4 — what changed visually and aurally
 
 - **Real characters.** Quaternius *Universal Base Characters* (CC0) replace the faceless mannequin: male and female bodies with painted faces, eyes, brows and normal-mapped skin. Skin tones are re-tinted per player. Kits are painted over the body by the kit shader, with the muscle normal map softened under the fabric. There are Quaternius rigged hairstyles and beards plus procedural afros, curls and twists. Fans are a mix of men and women.
 - **Same animation system on the new skeleton.** All Universal Animation Library clips and every authored football and trick clip play on it.
 - **Instant replay** after every goal:
   - the last ~4 s of the play, every player's full pose, in slow motion;
-  - letterbox, a low tracking shot beside the ball, then the view from behind the net;
+  - letterbox, a low tracking shot beside the ball, then the view from behind the net (reworked in v1.1, see above);
   - any key or tap skips it.
 - **Lighting and post:** half-resolution bloom on highlights (sun, lamps, specular on the posts), a goal bloom pulse and a warm vignette. Low quality keeps a direct render.
 - **Environment:** bandeirinhas (festa junina flags) strung over the court and swaying in the wind (one instanced draw call), plastic chairs and crates on the sidewalk, and golden dust motes in the sun.
@@ -121,7 +142,7 @@ Control follows the ball automatically: when a teammate wins it or receives your
 
 1. **Menu:** PLAY, SELECT COURT (Brazil playable, four courts marked *coming soon*), HOW TO PLAY and SETTINGS (volumes, mute, graphics Low/Med/High, keeper Easy/Normal/Hard, camera shake) all work.
 2. **Countdown:** 3-2-1-JOGA! with beeps and a whistle, then play starts.
-3. **Dribbling:** hold D and the player carries the ball with separate touches; the ball is never attached. Jog for close control. Hold Shift and the touches get longer and less accurate. Turn hard while sprinting and the ball runs away.
+3. **Dribbling:** hold D and the player carries the ball with separate touches; the ball is never attached. Each touch is a visible swing of the rear leg on the stride, and the ball goes where the stick points. Jog for close control. Hold Shift and the touches get longer and less accurate. Turn hard while sprinting and the ball runs away. Let go and the player soles it dead.
 4. **Ball physics:** pass (Space) into the boards and fence and watch it bounce, rattle and roll to a stop. Lofted balls hit the cage net and come back. Hit the post and you'll hear a clang.
 5. **Shooting:** hold J and the power ring fills; release. The kick animation strikes the ball on the contact frame. Hold ↑ or ↓ while shooting to aim at a post. Full power flies but sprays.
 6. **Keeper:** the keeper narrows the angle, dives, catches or parries, then rolls the ball back out. Change the keeper difficulty in Settings.
@@ -134,7 +155,8 @@ Automated checks:
 ```bash
 npx playwright test                           # smoke (desktop + mobile), pause/resume, keyboard bot playtest
 npm run inspect:canvas -- --manifest artifacts/evidence.json --url http://127.0.0.1:5188
-node tools/qa/dribble.mjs                     # possession % for jog / sprint / zigzag / sprint-turn (dev server running)
+node tools/qa/touchcheck.mjs                  # dribble touches: possession %, misses, foot-to-ball at contact, rhythm (dev server running)
+node tools/qa/replaycheck.mjs <dir>           # scripted goal → replay screenshots with segment / speed-ramp log
 node tools/qa/motion.mjs <dir> [name]         # close-up animation frame sequences (jog-dribble, shot, tackle, ...)
 node tools/qa/aimatch.mjs [easy|normal|hard] [n]  # full AI-vs-AI matches: shots, passes, tackles, steals, goals, possession, AI tricks
 node tools/qa/trickcheck.mjs                  # rainbow height, nutmeg through the legs, pending awards, forced fail
@@ -197,7 +219,7 @@ Fixed-step update order: input intents → team AI (roles, intents) → every ou
 - A detailed Brazilian street court: worn painted concrete with cracks and repairs, ad kickboards, a chain-link cage, recessed street goals with nets, floodlights, a street of colourful stacked houses with shops and water tanks, graffiti murals, power lines, palms, a favela hillside, animated spectators and a rooftop crowd, and a warm afternoon sky and lighting.
 - Rigged, skinned footballers with per-team kits, numbers, skin tones and hairstyles. Locomotion blends idle/walk/jog/sprint with foot-synchronised, speed-matched playback; authored shot, pass, keeper and celebration clips.
 - An independent physical ball: Rapier rigid body with CCD, custom rolling resistance, air drag, Magnus curve, bounces off boards, fence, posts and nets.
-- Touch-based dribbling with speed- and turn-dependent error, possession loss, first-touch control and shielding.
+- Touch-based dribbling: stride-synced touches from the swinging foot toward the stick direction, speed- and turn-dependent error, possession loss, cushioned first touch and a sole trap.
 - Charged shooting and passing timed to the kick contact frame; accuracy depends on power, speed and turning; aim toward the posts.
 - A goalkeeper AI with difficulty levels.
 - Goal detection; the goal sequence (stop, slow-mo, banner, confetti, crowd, celebration, scoreboard, restart from the centre); match timer, countdown, full time and results.

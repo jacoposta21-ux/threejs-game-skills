@@ -492,7 +492,12 @@ export class Game {
   wireTricks() {
     this.combo = 0;
     const ev = this.events;
-    ev.on('trickStart', ({ player, kind }) => {
+    ev.on('trickDenied', ({ reason }) => {
+      if (reason === 'noball' && this.phase === 'playing') this.hud.toast('Skills need the ball at your feet', 1.2);
+    });
+    ev.on('trickStart', ({ player, kind, label, byHuman }) => {
+      // Name the move as it starts, so the input always gets an answer.
+      if (byHuman && this.phase === 'playing') this.hud.trickName(label);
       this.audio.play('swish', { volume: player === this.human?.p ? 0.6 : 0.35, at: player.holder.position, variance: 0.12 });
       // Fake shot near goal: the keeper buys it.
       if (kind === 'fakeshot') {
@@ -530,8 +535,9 @@ export class Game {
       return;
     }
     if (solo || !points) {
-      // No defender to beat: show the move, no score.
-      if (byHuman) this.hud.popup(label, at, this.camera);
+      // No defender to beat: a small showboat bonus, no combo.
+      if (byHuman && points) this.addStyle(Math.round(points * 0.2 / 10) * 10, label, at);
+      else if (byHuman) this.hud.popup(label, at, this.camera);
       return;
     }
     this.combo += 1;
@@ -960,24 +966,58 @@ export class Game {
     if (this.phase === 'playing' || (this.phase === 'goal' && this.phaseTime < 0.8)) this.replay.record(dt);
   }
 
+  /** Restart a one-shot CSS animation class on an element. */
+  retrigger(id, cls = 'go') {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+  }
+
   startReplay() {
     this.setPhase('replay');
     this.hud.hideBanner();
+    const scorer = this.celebration?.scorer ?? null;
+    document.getElementById('replay-name').textContent = scorer ? `${scorer.look.number ?? ''} ${scorer.look.name}`.trim() : '';
     document.getElementById('letterbox').classList.remove('hidden');
     document.getElementById('hud').classList.add('replay');
-    this.replay.start(this.lastGoalX ?? -COURT.halfLength);
+    document.getElementById('app').classList.add('replay-on');
+    this.retrigger('stinger');
+    this.audio.play('swish', { group: 'ui', volume: 0.5, rate: 0.8, variance: 0 });
+    this.replay.start(this.lastGoalX ?? -COURT.halfLength, {
+      scorer,
+      // Hard broadcast cuts get a quick white flash; the strike itself a whoosh.
+      onCut: (seg) => {
+        this.retrigger('replay-flash');
+        if (seg === 3) this.audio.play('swish', { group: 'ui', volume: 0.35, rate: 1.2, variance: 0 });
+      },
+    });
+    this.replayEnding = 0;
   }
 
-  /** Advance the instant replay; any input skips it. */
+  /** Advance the instant replay; any input skips it. The stinger sweeps over the hand-back. */
   updateReplay(dt, skip) {
+    if (this.replayEnding > 0) {
+      this.replayEnding -= dt;
+      this.replay.update(dt);
+      if (this.replayEnding <= 0) this.endReplay();
+      return;
+    }
     const running = this.replay.update(dt);
-    if (!running || (skip && this.phaseTime > 0.4)) this.endReplay();
+    if (!running || (skip && this.phaseTime > 0.4)) {
+      // Cut to kickoff behind the stinger's full-screen band (it covers the screen at ~0.2 s).
+      this.retrigger('stinger');
+      this.replayEnding = this.reducedMotion ? 0.01 : 0.22;
+    }
   }
 
   endReplay() {
     this.replay.stop();
+    this.replayEnding = 0;
     document.getElementById('letterbox').classList.add('hidden');
     document.getElementById('hud').classList.remove('replay');
+    document.getElementById('app').classList.remove('replay-on');
     this.beginKickoff();
   }
 
@@ -1333,7 +1373,15 @@ export class Game {
             this.ball.placeAt(-8.6, BALL.radius, 0.4);
             this.simulate(0.9, run);
             this.match.teams.away.keeper.k.teleport(this.match.teams.away.keeper.homeX, 1.4, Math.PI / 2);
-            this.ball.kick(new THREE.Vector3(-22, 1.2, -1.6), null, hk.p, this.time);
+            // A real strike through the controller (kick clip, contact frame), placed low away from the keeper.
+            const rng = this.rng;
+            hk.rng = () => 0.5;
+            hk.rng.gauss = () => 0;
+            hk.rng.range = rng.range;
+            hk.requestKick('shot', 0.75, { aimZ: -1.1 });
+            this.simulate(0.5, NEUTRAL_INTENTS);
+            hk.rng = rng;
+            if (this.phase !== 'goal') this.ball.kick(new THREE.Vector3(-22, 1.2, -1.6), null, hk.p, this.time);
             this.simulate(0.6 + MATCH.goalCelebration, NEUTRAL_INTENTS);
             this.simulate(1.6, NEUTRAL_INTENTS);
           } else if (name === 'fulltime') {

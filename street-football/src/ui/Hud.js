@@ -119,6 +119,16 @@ export class Hud {
     setTimeout(() => div.remove(), 6000);
   }
 
+  /** Name the trick being played, FIFA-Street style, just above the controls. */
+  trickName(label) {
+    const el = document.getElementById('trick-name');
+    if (!el) return;
+    el.textContent = label;
+    el.classList.remove('show');
+    void el.offsetWidth; // restart the CSS animation
+    el.classList.add('show');
+  }
+
   toast(text, seconds = 2.2) {
     this.el.toast.textContent = text;
     this.el.toast.classList.remove('hidden');

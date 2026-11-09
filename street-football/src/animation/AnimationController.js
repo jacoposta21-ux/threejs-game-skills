@@ -32,6 +32,13 @@ export class AnimationController {
     this.overlay = null;
     this.lastFootPhase = 0;
     this.onFootstep = null;
+    this.footfalls = 0; // counts every footfall; dribble touches sync to it
+    this.phaseRate = 0; // locomotion cycles per second
+  }
+
+  /** Seconds between footfalls at the current pace (one swing of a leg). */
+  get stepTime() {
+    return this.phaseRate > 0.2 ? 0.5 / this.phaseRate : 0.3;
   }
 
   /** Blend weights for a ground speed (m/s). */
@@ -122,11 +129,17 @@ export class AnimationController {
     }
     if (wsum > 1e-3 && this.speed > 0.05) {
       stride /= wsum;
-      this.phase = (this.phase + (this.speed / Math.max(stride, 0.3)) * dt) % 1;
+      this.phaseRate = this.speed / Math.max(stride, 0.3);
+      this.phase = (this.phase + this.phaseRate * dt) % 1;
+    } else {
+      this.phaseRate = 0;
     }
     // Two footfalls per cycle.
     const fp = (this.phase * 2) % 1;
-    if (fp < this.lastFootPhase && this.speed > 0.6) this.onFootstep?.(this.speed);
+    if (fp < this.lastFootPhase && this.speed > 0.3) {
+      this.footfalls += 1;
+      if (this.speed > 0.6) this.onFootstep?.(this.speed);
+    }
     this.lastFootPhase = fp;
 
     // One-shot weight.

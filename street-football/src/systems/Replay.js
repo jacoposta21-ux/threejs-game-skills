@@ -13,9 +13,11 @@ const _v1 = new THREE.Vector3();
 /**
  * Instant replay. While playing, a ring buffer records the ball, every
  * footballer's transform and full skeletal pose at 30 Hz. After a goal the
- * last few seconds play back in slow motion (interpolated between frames)
- * with two cinematic cameras: a low tracking shot beside the ball, then the
- * view from behind the net.
+ * build-up and finish play back (interpolated between frames) with a speed
+ * ramp that drops into deep slow motion around the strike — found from the
+ * jump in recorded ball speed — and three cuts: a low dolly beside the
+ * shooter's run, a locked-off shot over their shoulder at the strike, and the
+ * reverse angle from behind the net as it goes in.
  */
 export class Replay {
   constructor(footballers, ball, camera) {
@@ -82,17 +84,82 @@ export class Replay {
     return this.count > RATE;
   }
 
-  /** Begin playback of the recorded window. attackSign: direction of the goal scored into. */
-  start(goalX, speed = 0.55) {
+  /** Ball position of recorded frame i (0 = oldest) into out. */
+  ballAt(i, out) {
+    const o = this.frameOffset(i);
+    return out.set(this.buffer[o], this.buffer[o + 1], this.buffer[o + 2]);
+  }
+
+  /** Holder position of actor a at recorded frame i. */
+  actorAt(a, i, out) {
+    let o = this.frameOffset(i) + 7;
+    for (let k = 0; k < a; k += 1) o += 7 + this.bonesPer[k] * 4 + 6;
+    return out.set(this.buffer[o], this.buffer[o + 1], this.buffer[o + 2]);
+  }
+
+  /** The frame the decisive strike left the boot: the last sudden jump in ball speed. */
+  findShotFrame() {
+    let shot = -1; // last strong strike
+    let weak = -1; // biggest speed jump, if nothing qualifies as a strike
+    let weakJump = 0;
+    let prev = 0;
+    for (let i = 1; i < this.frames; i += 1) {
+      const v = this.ballAt(i, _v1).distanceTo(this.ballAt(i - 1, _v0)) * RATE;
+      const jump = v - prev;
+      if (v > 9 && jump > 5) shot = i - 1;
+      if (jump > weakJump) {
+        weakJump = jump;
+        weak = i - 1;
+      }
+      prev = v;
+    }
+    if (shot >= 0) return shot;
+    return weak >= 0 ? weak : Math.floor(this.frames * 0.6);
+  }
+
+  /**
+   * Begin playback of the recorded window.
+   * goalX: the goal line scored into. scorer: the Footballer credited (optional).
+   */
+  start(goalX, { scorer = null, onCut = null } = {}) {
     this.playing = true;
     this.t = 0;
-    this.speed = speed;
     this.frames = this.count;
-    this.duration = (this.frames - 1) / RATE / speed;
     this.goalX = goalX;
+    this.onCut = onCut;
     this.oldest = (this.head - this.count + MAX) % MAX;
-    this.apply(0);
+    this.shot = this.findShotFrame();
+    // Find the shooter: the credited scorer if recorded, else whoever was nearest the ball at the strike.
+    this.ballAt(this.shot, _v0);
+    let shooter = this.actors.findIndex((a) => a.f === scorer);
+    if (shooter < 0) {
+      let bd = Infinity;
+      this.actors.forEach((a, i) => {
+        const d = this.actorAt(i, this.shot, _v1).distanceTo(_v0);
+        if (d < bd) {
+          bd = d;
+          shooter = i;
+        }
+      });
+    }
+    this.shooter = Math.max(0, shooter);
+    this.shooterAtShot = this.actorAt(this.shooter, this.shot, new THREE.Vector3());
+    this.ballAtShot = _v0.clone();
+    // Shot direction (ground), from a few frames after the strike.
+    this.ballAt(Math.min(this.frames - 1, this.shot + 4), _v1);
+    this.shotDir = _v1.clone().sub(this.ballAtShot).setY(0);
+    if (this.shotDir.lengthSq() < 1e-4) this.shotDir.set(Math.sign(goalX) || -1, 0, 0);
+    this.shotDir.normalize();
+    // Shoulder side: the one facing the middle of the court, so the fence never blocks the view.
+    // The camera sits at side × (d.z, −d.x) from the shooter; pick the sign pointing at the court centre.
+    const sa = this.shooterAtShot;
+    this.shotSide = Math.sign(-(this.shotDir.z * sa.x) + this.shotDir.x * sa.z) || 1;
+    // Lead-in: the build-up before the strike, up to 2.6 s of it.
+    this.frameF = Math.max(0, this.shot - RATE * 2.6);
+    this.endFrame = this.frames - 1;
     this.cut = 0;
+    this.fov = 40;
+    this.apply(this.frameF);
     this.updateCamera(0, true);
   }
 
@@ -100,9 +167,30 @@ export class Replay {
     this.playing = false;
   }
 
+  /** Playback rate (game seconds per real second): fast build-up, deep slow motion through the strike. */
+  rateAt(frameF) {
+    const d = (frameF - this.shot) / RATE; // seconds relative to the strike
+    const lerp = THREE.MathUtils.lerp;
+    const smooth = (x) => THREE.MathUtils.smoothstep(x, 0, 1);
+    if (d < -0.7) return 0.85;
+    if (d < -0.2) return lerp(0.85, 0.25, smooth((d + 0.7) / 0.5));
+    if (d < 0.22) return 0.25;
+    if (d < 0.7) return lerp(0.25, 0.6, smooth((d - 0.22) / 0.48));
+    return 0.6;
+  }
+
+  /** Current camera segment: 1 build-up dolly, 2 over the shooter's shoulder, 3 behind the net. */
+  segment() {
+    const d = (this.frameF - this.shot) / RATE;
+    if (d < -0.45) return 1;
+    if (d < 0.3) return 2;
+    return 3;
+  }
+
   frameOffset(i) {
     return ((this.oldest + i) % MAX) * this.frameSize;
   }
+
 
   apply(frameF) {
     const i0 = Math.min(this.frames - 1, Math.floor(frameF));
@@ -117,6 +205,8 @@ export class Replay {
     _q1.set(b[a1 + 3], b[a1 + 4], b[a1 + 5], b[a1 + 6]);
     m.quaternion.slerpQuaternions(_q0, _q1, k);
     this.ball.blob.position.set(m.position.x, 0.012, m.position.z);
+    // Real (unslowed) ball speed so the shot trail draws during the replay.
+    this.ball.velocity.set(b[a1] - b[a0], b[a1 + 1] - b[a0 + 1], b[a1 + 2] - b[a0 + 2]).multiplyScalar(RATE);
     a0 += 7;
     a1 += 7;
     for (const a of this.actors) {
@@ -147,25 +237,37 @@ export class Replay {
   updateCamera(dt, snap = false) {
     const ball = this.ball.mesh.position;
     const sign = Math.sign(this.goalX) || -1;
-    const u = this.t / this.duration;
+    const seg = this.segment();
+    if (seg !== this.cut) {
+      if (this.cut !== 0) this.onCut?.(seg);
+      this.cut = seg;
+      snap = true;
+    }
+    const shooter = this.actors[this.shooter].f.holder.position;
+    let fov;
     let pos;
     let look;
-    if (u < 0.55) {
-      // Low tracking shot from the far touchline side, slightly behind the play.
-      pos = _v0.set(ball.x - sign * 3.2, 1.25, ball.z + 4.6);
-      look = _v1.set(ball.x + sign * 1.2, 0.7, ball.z);
-      if (this.cut !== 1) {
-        this.cut = 1;
-        snap = true;
-      }
+    if (seg === 1) {
+      // Low dolly alongside the shooter's run, on the court side of the play.
+      const side = Math.abs(shooter.z) < 1 ? 1 : -Math.sign(shooter.z);
+      pos = _v0.set(shooter.x - sign * 1.6, 1.15, shooter.z + side * 4.4);
+      look = _v1.set((shooter.x + ball.x) / 2 + sign * 0.6, 0.85, (shooter.z + ball.z) / 2);
+      fov = 42;
+    } else if (seg === 2) {
+      // Over the shooter's shoulder as the strike goes in: locked off, the ball flies away.
+      // Anchored where the shooter was at the strike; the run-up comes into frame from behind.
+      const d = this.shotDir;
+      const s0 = this.shooterAtShot;
+      const side = this.shotSide;
+      pos = _v0.set(s0.x - d.x * 3.6 + d.z * 1.3 * side, 1.3, s0.z - d.z * 3.6 - d.x * 1.3 * side);
+      look = _v1.set(s0.x + d.x * 3, 0.75, s0.z + d.z * 3).lerp(ball, 0.25);
+      fov = 36;
     } else {
-      // From behind the net, looking back out at the finish.
-      pos = _v0.set(sign * (COURT.halfLength + 3.4), 1.7, THREE.MathUtils.clamp(ball.z * 0.4, -1.2, 1.2));
+      // From behind the net, looking back out at the finish, slowly pushing in.
+      pos = _v0.set(sign * (COURT.halfLength + 3.4), 1.6, THREE.MathUtils.clamp(ball.z * 0.4, -1.2, 1.2));
       look = _v1.set(ball.x - sign * 2, 0.9, ball.z);
-      if (this.cut !== 2) {
-        this.cut = 2;
-        snap = true;
-      }
+      const since = Math.max(0, (this.frameF - this.shot) / RATE - 0.3);
+      fov = 40 - Math.min(8, since * 6);
     }
     const k = snap ? 1 : 1 - Math.exp(-dt * 6);
     this.camPos.lerp(pos, k);
@@ -176,20 +278,25 @@ export class Replay {
     }
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
-    if (Math.abs(this.camera.fov - 38) > 0.01) {
-      this.camera.fov = 38;
+    if (Math.abs(this.camera.fov - fov) > 0.01) {
+      this.camera.fov = fov;
       this.camera.updateProjectionMatrix();
     }
+  }
+
+  /** Seconds of the replay left at the current ramp (for the end stinger). */
+  get remaining() {
+    return (this.endFrame - this.frameF) / RATE / 0.6;
   }
 
   /** Returns false when finished. */
   update(dt) {
     if (!this.playing) return false;
     this.t += dt;
-    const frameF = Math.min(this.frames - 1, this.t * RATE * this.speed);
-    this.apply(frameF);
+    this.frameF = Math.min(this.endFrame, this.frameF + dt * RATE * this.rateAt(this.frameF));
+    this.apply(this.frameF);
     this.updateCamera(dt);
-    if (this.t >= this.duration) {
+    if (this.frameF >= this.endFrame || this.t > 9) {
       this.playing = false;
       return false;
     }

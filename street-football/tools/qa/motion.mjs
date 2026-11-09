@@ -11,7 +11,7 @@ await page.goto('http://127.0.0.1:5188/');
 await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 5, null, { timeout: 60000 });
 const only = process.argv[3];
 const seqsAll = [
-  { name: 'jog-dribble', frames: 12, dt: 1 / 30, setup: 'jog', intents: { moveX: 1 } },
+  { name: 'jog-dribble', frames: 18, dt: 1 / 30, setup: 'jog', intents: { moveX: 1 }, warm: 0.8 },
   { name: 'sprint-dribble', frames: 12, dt: 1 / 30, setup: 'jog', intents: { moveX: 1, sprint: true }, warm: 1.2 },
   { name: 'shot', frames: 12, dt: 1 / 20, setup: 'shot', intents: {} },
   { name: 'celebration', frames: 12, dt: 1 / 10, setup: 'goal', intents: {} },
