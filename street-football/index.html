@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#141414" />
+    <link rel="icon" href="data:," />
+    <title>RUA 10 — Street Football</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="game-canvas" aria-label="Street football game"></canvas>
+
+      <!-- In-game HUD -->
+      <section id="hud" class="hidden" aria-live="polite">
+        <div id="scoreboard">
+          <div class="team home">
+            <span class="badge" id="home-badge">CAN</span>
+            <strong id="home-score">0</strong>
+          </div>
+          <div class="clock"><span id="match-clock">2:30</span></div>
+          <div class="team away">
+            <strong id="away-score">0</strong>
+            <span class="badge" id="away-badge">VRB</span>
+          </div>
+        </div>
+        <div id="player-chip">
+          <span class="num" id="player-num">10</span>
+          <span class="name" id="player-name">ZÉ</span>
+          <span class="poss" id="poss-tag">BALL</span>
+        </div>
+        <div id="style-panel">
+          <span class="label">STYLE</span>
+          <strong id="style-points">0</strong>
+          <span id="combo-tag" class="hidden">x1</span>
+        </div>
+        <div id="stamina"><span class="label">SPRINT</span><div class="bar"><i id="stamina-fill"></i></div></div>
+        <div id="hud-buttons">
+          <button type="button" class="icon-btn" id="mute-btn" aria-label="Mute audio">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" /><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" /><path class="cross" d="M16 9l6 6M22 9l-6 6" /></svg>
+          </button>
+          <button type="button" class="icon-btn" id="pause-btn" aria-label="Pause">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>
+          </button>
+        </div>
+        <div id="power-meter" class="hidden"><div class="ring"></div><span>SHOT</span></div>
+        <div id="popups"></div>
+        <div id="toast" class="hidden"></div>
+      </section>
+
+      <div id="banner" class="hidden"><span id="banner-text">GOOOL!</span><small id="banner-sub"></small></div>
+
+      <!-- Touch controls -->
+      <div id="touch-controls" class="hidden">
+        <div id="touch-stick"><div id="touch-knob"></div></div>
+        <div id="touch-buttons">
+          <button type="button" data-action="sprint" class="tbtn sprint">SPRINT</button>
+          <button type="button" data-action="pass" class="tbtn pass">PASS</button>
+          <button type="button" data-action="shoot" class="tbtn shoot">SHOOT</button>
+        </div>
+      </div>
+
+      <!-- Loading -->
+      <section id="loading" class="screen">
+        <div class="logo"><span class="rua">RUA</span><span class="ten">10</span><small>STREET FOOTBALL</small></div>
+        <div class="loadbar"><i id="load-fill"></i></div>
+        <p id="load-text">Pumping up the ball…</p>
+      </section>
+
+      <!-- Main menu -->
+      <section id="menu" class="screen hidden">
+        <div class="logo"><span class="rua">RUA</span><span class="ten">10</span><small>STREET FOOTBALL</small></div>
+        <nav class="menu-list" id="main-menu">
+          <button type="button" class="menu-btn primary" data-menu="play">PLAY</button>
+          <button type="button" class="menu-btn" data-menu="courts">SELECT COURT</button>
+          <button type="button" class="menu-btn" data-menu="howto">HOW TO PLAY</button>
+          <button type="button" class="menu-btn" data-menu="settings">SETTINGS</button>
+        </nav>
+        <p class="menu-foot" id="menu-best"></p>
+      </section>
+
+      <section id="courts" class="screen panel hidden">
+        <h2>SELECT COURT</h2>
+        <div class="court-grid">
+          <button type="button" class="court-card selected" data-court="brazil"><b>BRAZIL</b><span>Vila Esperança street court</span><em>PLAYABLE</em></button>
+          <button type="button" class="court-card locked" disabled><b>NEW YORK</b><span>Rooftop court</span><em>COMING SOON</em></button>
+          <button type="button" class="court-card locked" disabled><b>LONDON</b><span>Underground cage</span><em>COMING SOON</em></button>
+          <button type="button" class="court-card locked" disabled><b>TOKYO</b><span>Night court</span><em>COMING SOON</em></button>
+          <button type="button" class="court-card locked" disabled><b>BARCELONA</b><span>Neighbourhood plaça</span><em>COMING SOON</em></button>
+        </div>
+        <button type="button" class="menu-btn back" data-back>BACK</button>
+      </section>
+
+      <section id="howto" class="screen panel hidden">
+        <h2>HOW TO PLAY</h2>
+        <div class="howto-grid">
+          <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>←↑↓→</kbd><span>Move — the ball is loose, keep touching it forward</span></div>
+          <div><kbd>SHIFT</kbd><span>Sprint — longer, riskier touches; drains stamina</span></div>
+          <div><kbd>J</kbd> / <kbd>LMB</kbd><span>Hold to power up, release to shoot. Steer with ↑/↓ to aim for a post</span></div>
+          <div><kbd>SPACE</kbd><span>Pass — ping it off the boards for a wall pass</span></div>
+          <div><kbd>ESC</kbd> / <kbd>P</kbd><span>Pause</span></div>
+          <div class="soon"><kbd>E</kbd><kbd>Q</kbd><kbd>F</kbd><span>Skill moves, player switch and tackles arrive with the 3v3 update</span></div>
+        </div>
+        <p class="hint">Beat the keeper as many times as you can in 2:30. Power shots fly but spray; placed shots near the posts beat the keeper more often. Touch screens get a stick and buttons.</p>
+        <button type="button" class="menu-btn back" data-back>BACK</button>
+      </section>
+
+      <section id="settings" class="screen panel hidden">
+        <h2>SETTINGS</h2>
+        <div class="settings-grid">
+          <label>MASTER<input type="range" min="0" max="1" step="0.05" id="vol-master" /></label>
+          <label>EFFECTS<input type="range" min="0" max="1" step="0.05" id="vol-sfx" /></label>
+          <label>CROWD &amp; STREET<input type="range" min="0" max="1" step="0.05" id="vol-ambience" /></label>
+          <label class="check">MUTE<input type="checkbox" id="mute-check" /></label>
+          <div class="seg" data-setting="quality"><span>GRAPHICS</span><button type="button" data-value="low">LOW</button><button type="button" data-value="medium">MED</button><button type="button" data-value="high">HIGH</button></div>
+          <div class="seg" data-setting="difficulty"><span>KEEPER</span><button type="button" data-value="easy">EASY</button><button type="button" data-value="normal">NORMAL</button><button type="button" data-value="hard">HARD</button></div>
+          <label class="check">CAMERA SHAKE<input type="checkbox" id="shake-check" /></label>
+        </div>
+        <p class="hint" id="settings-note"></p>
+        <button type="button" class="menu-btn back" data-back>BACK</button>
+      </section>
+
+      <section id="pause" class="screen panel hidden">
+        <h2>PAUSED</h2>
+        <nav class="menu-list">
+          <button type="button" class="menu-btn primary" data-pause="resume">RESUME</button>
+          <button type="button" class="menu-btn" data-pause="restart">RESTART MATCH</button>
+          <button type="button" class="menu-btn" data-pause="settings">SETTINGS</button>
+          <button type="button" class="menu-btn" data-pause="quit">QUIT TO MENU</button>
+        </nav>
+      </section>
+
+      <section id="results" class="screen panel hidden">
+        <h2>FULL TIME</h2>
+        <div class="final"><span class="badge">CAN</span><strong id="final-score">0 - 0</strong><span class="badge away">VRB</span></div>
+        <div class="stats" id="final-stats"></div>
+        <nav class="menu-list">
+          <button type="button" class="menu-btn primary" data-results="again">PLAY AGAIN</button>
+          <button type="button" class="menu-btn" data-results="menu">MAIN MENU</button>
+        </nav>
+      </section>
+
+      <section id="context-lost" class="screen panel hidden">
+        <h2>GRAPHICS RESET</h2>
+        <p class="hint">The browser reset the 3D context. Restoring…</p>
+        <button type="button" class="menu-btn primary" id="reload-btn">RELOAD</button>
+      </section>
+      <section id="fatal" class="screen panel hidden">
+        <h2>SOMETHING BROKE</h2>
+        <p class="hint" id="fatal-text"></p>
+        <button type="button" class="menu-btn primary" onclick="location.reload()">RELOAD</button>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

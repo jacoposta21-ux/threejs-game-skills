@@ -1,0 +1,26 @@
+{
+  "shotsAttempted": 9,
+  "goals": 1,
+  "saves": 3,
+  "possessionSamples": 120,
+  "samples": 402,
+  "phasesSeen": [
+    "playing",
+    "goal",
+    "kickoff"
+  ],
+  "possessionPct": 30,
+  "shotsRegistered": 6,
+  "style": 1000,
+  "score": {
+    "home": 1,
+    "away": 0
+  },
+  "renderer": {
+    "calls": 56,
+    "triangles": 126444,
+    "geometries": 50,
+    "textures": 31,
+    "programs": 23
+  }
+}
