@@ -3,6 +3,8 @@ import { BALL, CAMERA, COURT, FORMATION, MATCH, QUALITY, ROSTERS, TEAMS } from '
 import { TeamAI } from '../ai/TeamAI.js';
 import { MatchState } from './MatchState.js';
 import { Indicators } from '../systems/Indicators.js';
+import { PostFX } from '../systems/PostFX.js';
+import { Replay } from '../systems/Replay.js';
 import { Events } from '../core/Events.js';
 import { Input } from '../core/Input.js';
 import { Loop } from '../core/Loop.js';
@@ -21,6 +23,7 @@ import { buildCourt } from '../world/Court.js';
 import { Crowd } from '../world/Crowd.js';
 import { buildEnvironment } from '../world/Environment.js';
 import { buildNeighborhood } from '../world/Neighborhood.js';
+import { buildFestoons } from '../world/Festoons.js';
 
 function outfieldLook(teamId, r) {
   return { ...r, team: TEAMS[teamId], teamId };
@@ -44,11 +47,14 @@ export class Game {
     this.lib = lib;
     this.platform = platform;
     this.storage = storage;
-    this.settings = { quality: 'medium', difficulty: 'normal', shake: true, ...this.loadJson(SETTINGS_KEY) };
+    // Phones and tablets default to Low (mobile render budget); desktops to Medium.
+    const handheld = matchMedia('(pointer: coarse)').matches || Math.min(window.innerWidth, window.innerHeight) < 600;
+    this.settings = { quality: handheld ? 'low' : 'medium', difficulty: 'normal', shake: true, ...this.loadJson(SETTINGS_KEY) };
     if (!QUALITY[this.settings.quality]) this.settings.quality = 'medium';
     this.quality = QUALITY[this.settings.quality];
 
     this.renderer = createRenderer(canvas, this.quality);
+    this.renderer.info.autoReset = false;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, 16 / 9, 0.1, 900);
     this.rng = createRng(20260611);
@@ -75,6 +81,7 @@ export class Game {
     this.court = buildCourt(this.scene, physics, this.rng);
     this.hood = buildNeighborhood(this.scene, this.rng, this.settings.quality, { boardTexture: this.court.boardTexture });
     this.crowd = new Crowd(this.scene, lib, this.rng, this.quality.crowd);
+    this.festoons = buildFestoons(this.scene, this.rng);
 
     // Actors: two teams of three outfield players plus a keeper each.
     this.ball = new Ball(physics, this.scene, this.rng);
@@ -101,6 +108,7 @@ export class Game {
     }
     this.human = null;
     this.setHuman(this.match.teams.home.players[0]);
+    this.replay = new Replay(this.footballers, this.ball, this.camera);
 
     // Systems.
     this.cameraRig = new CameraRig(this.camera);
@@ -111,6 +119,8 @@ export class Game {
     this.hud = new Hud();
     this.hud.setPlayer(this.human.p.look);
     this.indicators = new Indicators(this.scene);
+    this.postfx = new PostFX(this.renderer, this.scene, this.camera);
+    this.postfx.setEnabled(this.quality.post);
     this.input = new Input(canvas, document.getElementById('touch-controls'));
     this.menus = new Menus(
       {
@@ -134,6 +144,7 @@ export class Game {
     this.resetPositions();
     this.enterMenu();
     resizeRenderer(this.renderer, this.camera, this.quality.dpr);
+    this.postfx.resize();
     this.cameraRig.snap(this.human.p, this.ball);
     this.installTestHooks();
     this.loop = new Loop((dt) => this.update(dt), () => this.render());
@@ -235,6 +246,8 @@ export class Game {
       sun.castShadow = this.quality.shadows;
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.quality.dpr));
       resizeRenderer(this.renderer, this.camera, this.quality.dpr);
+      this.postfx.setEnabled(this.quality.post);
+      this.postfx.resize();
       this.menus.note('Resolution and shadows updated. Crowd size and antialiasing apply after reloading the game.');
     }
   }
@@ -717,6 +730,7 @@ export class Game {
     this.score[team] += 1;
     const home = team === 'home';
     const at = this.ball.position.clone();
+    this.lastGoalX = Math.sign(at.x) * COURT.halfLength;
     this.events.emit('goal', { team, flight: { ...this.flight, kicker: undefined }, lastTouch: this.ball.lastTouch?.look?.name, lastTouchTeam: this.ball.lastTouch?.team, lastTouchKeeper: !this.ball.lastTouch?.ctrl, at: { x: at.x, y: at.y, z: at.z }, since: this.time - this.flight.kickTime });
     this.setPhase('goal');
     this.input.enabled = false;
@@ -729,6 +743,7 @@ export class Game {
     this.crowd.react(home ? 1 : 0.45);
     this.cameraRig.addTrauma(home ? 0.45 : 0.25);
     this.cameraRig.punchFov(6);
+    this.postfx.pulse(home ? 0.5 : 0.2);
     const colors = home ? ['#f6c915', '#1f8a4c', '#1d4fa3', '#ffffff'] : ['#c8102e', '#141414', '#ffffff'];
     this.vfx.confetti(new THREE.Vector3(Math.sign(at.x) * (COURT.halfLength + 0.4), 0.6, 0), colors);
     if (home) this.vfx.confetti(new THREE.Vector3(at.x * 0.7, 3, COURT.halfWidth + 1.5), colors);
@@ -819,7 +834,8 @@ export class Game {
 
   update(dt) {
     this.frame += 1;
-    resizeRenderer(this.renderer, this.camera, this.quality.dpr);
+    this.lastDt = dt;
+    if (resizeRenderer(this.renderer, this.camera, this.quality.dpr)) this.postfx.resize();
     this.vfx.setPixelScale(this.renderer.domElement.height, this.camera.fov);
     const it = this.input.poll();
 
@@ -845,12 +861,26 @@ export class Game {
       this.hitstopTime -= dt;
       scale = Math.min(scale, 0.08);
     }
+    if (this.phase === 'replay') {
+      this.updateReplay(dt, it.anyPressed);
+      this.crowd.update(this.reducedMotion ? 0 : dt);
+      this.festoons.update(performance.now() / 1000);
+      this.vfx.update(dt, this.ball, this.camera);
+      this.hud.update(dt, this.hudState());
+      this.publishDiagnostics();
+      return;
+    }
+
     this.stepIntents = it;
     const alpha = this.physics.update(dt * scale);
     this.stepIntents = null;
 
     this.syncVisuals(alpha, dt * scale);
+    this.recordReplay(dt);
     this.crowd.update(this.reducedMotion ? 0 : dt);
+    // The batucada swells with the crowd's excitement.
+    this.audio.setLoopIntensity('batucada', 0.8 + this.crowd.excitement * 2.2);
+    this.festoons.update(this.reducedMotion ? 0 : performance.now() / 1000);
     if (this.shotTracking > 0) this.shotTracking -= dt;
     if (this.cameraRig.mode === 'menu') this.updateMenuCamera(dt);
     else this.cameraRig.update(dt, { player: this.human.p, ball: this.ball, shotTracking: this.shotTracking > 0 && this.phase === 'playing' });
@@ -863,6 +893,41 @@ export class Game {
     this.hud.update(dt, this.hudState());
     if (!this.pausedForScreenshot) this.watchPerformance(dt);
     this.publishDiagnostics();
+  }
+
+  recordReplay(dt) {
+    if (this.phase === 'playing' || (this.phase === 'goal' && this.phaseTime < 0.8)) this.replay.record(dt);
+  }
+
+  startReplay() {
+    this.setPhase('replay');
+    this.hud.hideBanner();
+    document.getElementById('letterbox').classList.remove('hidden');
+    document.getElementById('hud').classList.add('replay');
+    this.replay.start(this.lastGoalX ?? -COURT.halfLength);
+  }
+
+  /** Advance the instant replay; any input skips it. */
+  updateReplay(dt, skip) {
+    const running = this.replay.update(dt);
+    if (!running || (skip && this.phaseTime > 0.4)) this.endReplay();
+  }
+
+  endReplay() {
+    this.replay.stop();
+    document.getElementById('letterbox').classList.add('hidden');
+    document.getElementById('hud').classList.remove('replay');
+    this.beginKickoff();
+  }
+
+  beginKickoff() {
+    this.audio.setLoopIntensity('crowdBed', 1);
+    this.replay.clear();
+    this.resetPositions(this.kickoffTeam ?? 'home');
+    this.cameraRig.setMode('play');
+    this.cameraRig.snap(this.human.p, this.ball);
+    this.setPhase('kickoff');
+    this.hud.banner('READY', this.kickoffTeam === 'away' ? `${TEAMS.away.name} kick off` : '', { seconds: 0.8, count: true });
   }
 
   syncVisuals(alpha, animDt) {
@@ -927,12 +992,8 @@ export class Game {
         break;
       case 'goal':
         if (this.phaseTime >= MATCH.goalCelebration) {
-          this.audio.setLoopIntensity('crowdBed', 1);
-          this.resetPositions(this.kickoffTeam ?? 'home');
-          this.cameraRig.setMode('play');
-          this.cameraRig.snap(this.human.p, this.ball);
-          this.setPhase('kickoff');
-          this.hud.banner('READY', this.kickoffTeam === 'away' ? `${TEAMS.away.name} kick off` : '', { seconds: 0.8, count: true });
+          if (this.replay.available && !this.skipReplays) this.startReplay();
+          else this.beginKickoff();
         }
         break;
       case 'kickoff':
@@ -1001,7 +1062,10 @@ export class Game {
   }
 
   render() {
-    this.renderer.render(this.scene, this.camera);
+    // Count every pass of the frame (post-processing renders several times).
+    this.renderer.info.reset();
+    if (this.postfx.enabled) this.postfx.render(this.lastDt ?? 1 / 60);
+    else this.renderer.render(this.scene, this.camera);
   }
 
   // ------------------------------------------------------------- QA hooks
@@ -1073,11 +1137,17 @@ export class Game {
   simulate(seconds, intents = NEUTRAL_INTENTS) {
     const steps = Math.ceil(seconds * 60);
     for (let i = 0; i < steps; i += 1) {
+      if (this.phase === 'replay') {
+        this.phaseTime += 1 / 60;
+        this.updateReplay(1 / 60, false);
+        continue;
+      }
       this.stepIntents = intents;
       this.physics.update(1 / 60);
       this.updatePhase(1 / 60);
       this.phaseTime += 1 / 60;
       this.syncVisuals(1, 1 / 60);
+      this.recordReplay(1 / 60);
       this.crowd.update(1 / 60);
       if (this.cameraRig.mode !== 'menu') this.cameraRig.update(1 / 60, { player: this.human.p, ball: this.ball, shotTracking: false });
       this.vfx.update(1 / 60, this.ball, this.camera);
@@ -1095,7 +1165,7 @@ export class Game {
   }
 
   installTestHooks() {
-    const STATES = ['menu', 'active-play', 'dribble', 'shot', 'pass', 'defending', 'tackle', 'trick', 'combo', 'keeper-save', 'goal', 'fulltime'];
+    const STATES = ['menu', 'active-play', 'dribble', 'shot', 'pass', 'defending', 'tackle', 'trick', 'combo', 'keeper-save', 'goal', 'replay', 'fulltime'];
     window.__THREE_GAME_TEST_HOOKS__ = {
       states: STATES,
       seed: (value) => {
@@ -1194,6 +1264,16 @@ export class Game {
             this.ball.lastTouch = home[0].p;
             this.flight = { ...this.freshFlight(), kickTime: this.time, power: 0.9, type: 'shot', scorerX: -11, team: 'home' };
             this.simulate(1.4, NEUTRAL_INTENTS);
+          } else if (name === 'replay') {
+            // Dribble in and finish, then let the celebration hand over to the replay.
+            this.place('home', [[-8, 0.5], [-4, 4], [-1, -4]]);
+            this.place('away', [[-3, -2], [2, 4], [4, -3]]);
+            this.ball.placeAt(-8.6, BALL.radius, 0.4);
+            this.simulate(0.9, run);
+            this.match.teams.away.keeper.k.teleport(this.match.teams.away.keeper.homeX, 1.4, Math.PI / 2);
+            this.ball.kick(new THREE.Vector3(-22, 1.2, -1.6), null, hk.p, this.time);
+            this.simulate(0.6 + MATCH.goalCelebration, NEUTRAL_INTENTS);
+            this.simulate(1.6, NEUTRAL_INTENTS);
           } else if (name === 'fulltime') {
             this.score = { home: 3, away: 2 };
             this.stats = { ...this.freshStats(), shots: 9, awayShots: 7, onTarget: 6, saves: 3, goals: 3, conceded: 2, tackles: 4, interceptions: 5, passes: 21 };

@@ -31,7 +31,7 @@ export class Vfx {
           vColor = color;
           vAlpha = aAlpha;
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = min(aSize * uScale / -mv.z, 28.0);
+          gl_PointSize = min(aSize * uScale / -mv.z, 16.0);
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: /* glsl */ `
@@ -55,6 +55,7 @@ export class Vfx {
     }
     this.cursor = 0;
     this.trail = new BallTrail(scene);
+    this.motes = new Motes(scene, rng);
   }
 
   setPixelScale(heightPx, fovDeg) {
@@ -147,6 +148,45 @@ export class Vfx {
     g.attributes.aSize.needsUpdate = true;
     g.attributes.aAlpha.needsUpdate = true;
     this.trail.update(dt, ball, camera);
+    this.motes.update(dt);
+  }
+}
+
+/** Warm dust motes drifting in the afternoon sun over the court. */
+class Motes {
+  constructor(scene, rng) {
+    const n = 160;
+    this.base = new Float32Array(n * 3);
+    for (let i = 0; i < n; i += 1) {
+      this.base[i * 3] = (rng() - 0.5) * 30;
+      this.base[i * 3 + 1] = 0.4 + rng() * 5;
+      this.base[i * 3 + 2] = (rng() - 0.5) * 18;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(this.base.slice(), 3));
+    this.points = new THREE.Points(
+      geo,
+      new THREE.PointsMaterial({ color: '#ffe2a8', size: 0.05, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending }),
+    );
+    this.points.frustumCulled = false;
+    scene.add(this.points);
+    this.t = 0;
+  }
+
+  update(dt) {
+    this.t += dt;
+    const pos = this.points.geometry.attributes.position;
+    const b = this.base;
+    for (let i = 0; i < pos.count; i += 1) {
+      const ph = i * 0.731;
+      pos.setXYZ(
+        i,
+        b[i * 3] + Math.sin(this.t * 0.11 + ph) * 1.2,
+        b[i * 3 + 1] + Math.sin(this.t * 0.17 + ph * 1.7) * 0.5,
+        b[i * 3 + 2] + Math.cos(this.t * 0.09 + ph) * 1.2,
+      );
+    }
+    pos.needsUpdate = true;
   }
 }
 

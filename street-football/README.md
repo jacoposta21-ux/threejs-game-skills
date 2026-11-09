@@ -1,8 +1,8 @@
-# RUA 10 — Street Football (Phase 3: freestyle)
+# RUA 10 — Street Football (Phase 4: visual polish)
 
 A 3D arcade street-football game for the browser: Three.js rendering, Rapier physics, a loose physically simulated ball, skeletal animation, and a Brazilian street court. It is built for CrazyGames-style distribution: one static bundle that loads fast.
 
-**Phases 1–3 are done:** a full 3v3 match (three outfield players plus a keeper per side) against AI opponents with AI teammates, plus a freestyle trick system with combos. Implemented features and planned features are listed separately below.
+**Phases 1–4 are done:** a full 3v3 match (three outfield players plus a keeper per side) against AI opponents with AI teammates, plus a freestyle trick system with combos. Implemented features and planned features are listed separately below.
 
 ## Run it
 
@@ -35,6 +35,19 @@ Requirements: Node 18+ and a WebGL2-capable browser. Nothing else needs download
 | Skill move (see the table below) | E + direction relative to where you face | SKILL + stick |
 
 Control follows the ball automatically: when a teammate wins it or receives your pass, you take control of them.
+
+## Phase 4 — what changed visually and aurally
+
+- **Real characters.** Quaternius *Universal Base Characters* (CC0) replace the faceless mannequin: male and female bodies with painted faces, eyes, brows and normal-mapped skin. Skin tones are re-tinted per player. Kits are painted over the body by the kit shader, with the muscle normal map softened under the fabric. There are Quaternius rigged hairstyles and beards plus procedural afros, curls and twists. Fans are a mix of men and women.
+- **Same animation system on the new skeleton.** All Universal Animation Library clips and every authored football and trick clip play on it.
+- **Instant replay** after every goal:
+  - the last ~4 s of the play, every player's full pose, in slow motion;
+  - letterbox, a low tracking shot beside the ball, then the view from behind the net;
+  - any key or tap skips it.
+- **Lighting and post:** half-resolution bloom on highlights (sun, lamps, specular on the posts), a goal bloom pulse and a warm vignette. Low quality keeps a direct render.
+- **Environment:** bandeirinhas (festa junina flags) strung over the court and swaying in the wind (one instanced draw call), plastic chairs and crates on the sidewalk, and golden dust motes in the sun.
+- **Audio:** a synthesised four-bar samba batucada (surdo, caixa, tamborim, agogô, ganzá) that swells with the crowd's excitement.
+- **UI motion:** HUD drop-in at kick-off, staggered menu buttons and panels, results rows counting in, a bouncing-ball loader, and a REPLAY tag. Everything respects reduced motion.
 
 ## Freestyle tricks (Phase 3)
 
@@ -117,7 +130,7 @@ src/
                AnimationController (phase-synced locomotion blend + overlay + one-shot layers)
                FootballClips (authored skeletal clips), KitMaterial (kit shader), Hair
   world/       Court (surface, boards, cage, goals, colliders), Neighborhood, Crowd, Environment, ProceduralTextures
-  systems/     CameraRig, AudioSystem (synthesised SFX + loops), Vfx
+  systems/     CameraRig, AudioSystem (synthesised SFX + loops + batucada), Vfx, PostFX (bloom), Replay, Indicators
   ui/          Hud, Menus
   platform/    CrazyGames SDK wrapper, Storage
   game/        Game.js orchestration (phases, update order, feedback, test hooks); MatchState (ball owner, pass targets, lane queries)
@@ -164,5 +177,4 @@ Fixed-step update order: input intents → team AI (roles, intents) → every ou
 
 ## Planned
 
-- **Phase 4:** dressed character models (Quaternius Universal Base Characters or Mixamo, retargeted), photo-scanned textures, recorded audio, more VFX and UI animation.
 - **Phase 5:** New York, London, Tokyo and Barcelona courts; profiling on low-end devices; verified CrazyGames submission.

@@ -1,5 +1,54 @@
 # Verification evidence
 
+## Phase 4 (visual polish)
+
+### Automated tests (`npx playwright test`)
+
+All passing (6 passed, 4 skipped by design). The keyboard bot played a full match through the new flow: goal → **replay** → kick-off, finishing 2–1, with no console or page errors.
+
+### Canvas inspector, production build (`phase4-pass-2`)
+
+**16/16 PASS, all within budget**; `check_evidence.py` passed (20 artifacts, including the four character GLBs). The new `replay` state was captured on desktop, and `goal` on mobile.
+
+| Capture | calls | triangles | textures | Quality |
+| --- | --- | --- | --- | --- |
+| desktop active-play | 147 | 379k | 56 | Medium (bloom on) |
+| desktop replay | 144 | 380k | 55 | Medium |
+| mobile active-play | 76 | 193k | 36 | Low (handheld default) |
+| mobile goal | 60 | 179k | 36 | Low |
+
+What the passes caught and what was fixed:
+- **Wrong draw-call counts with bloom:** `renderer.info` reset on every post pass and reported 1 call. It is now reset once per frame, so the counts above include every pass.
+- **Too many GPU textures:** `SkeletonUtils.clone` gave each character three skeletons (body, eyes, brows), so three bone textures each. Eyes and brows are now rigid head props, and duplicate eye and hair textures are shared, taking Low from 67 to 38 textures and Medium from 91 to 56.
+- **Mobile over budget at the default quality** (`phase4-pass-1`: 365k triangles and 55 textures on phones). Handheld devices now default to Low, which lands at 193k and 36.
+- **Festoons crossing the portrait camera** (seen after `pass-2`). Festoons now fade out within 4–8 m of the lens; `screenshots/p4-mobile-active-play.jpg` is the capture after that shader-only fix (render counts unchanged).
+
+### Characters and motion
+
+- `screenshots/p4-characters-closeup.jpg` and `p4-characters-back.jpg` show the new bodies: painted faces re-tinted per skin tone, rigid eyes and brows, Quaternius and procedural hair, kits with numbers and a thin collar.
+- `screenshots/p4-motion-jog.jpg` and `p4-motion-shot.jpg` show the UAL clips and the authored shot on the new skeleton: planted feet while dribbling; backswing, contact and follow-through on the shot.
+
+### Audio
+
+All 24 sounds, including the new four-bar batucada (9.23 s), synthesise in 212 ms in Chromium. RMS per sixteenth over the first bar peaks at positions 4 and 12 (surdo on beats 2 and 4: 0.29 and 0.27), with caixa and agogô in between.
+
+### Visual scorecard (anchors in `threejs-aaa-graphics-builder/references/visual-scorecard.md`)
+
+| Category | Phase 1 | Phase 4 | Evidence |
+| --- | --- | --- | --- |
+| Art direction | 2 | 2.5 | The Brazilian street identity now runs through bandeirinhas, murals, kits, batucada and UI motifs |
+| Hero / player | 2 | 2.5 | Real human bodies with painted faces, re-tinted skin tones, hair and beards, kit, number and crest. Kits are still painted on the body rather than modelled cloth |
+| Obstacles (defenders, keepers, goals, cage) | 2 | 2 | Distinct kits and readable states (pressing, wrong-footed, stagger, dive); the cage is unchanged |
+| Interactables (ball, goal feedback) | 2 | 2.5 | Trail, dust, net, confetti, bloom pulse and **instant replay** |
+| World / environment | 2.5 | 2.5 | Festoons, sidewalk props and mixed crowd add to the existing layers |
+| Materials / textures | 2 | 2 | Character PBR (normal and roughness maps). The world is still procedural: Poly Haven was unreachable from this environment |
+| Lighting / render | 2 | 2.5 | ACES, warm key and shadows, sky IBL, half-resolution bloom on highlights, vignette |
+| VFX / motion | 2 | 2.5 | Event-driven VFX plus replay camera work, swaying festoons, dust motes and UI motion |
+| UI / HUD | 2 | 2.5 | Animated entrances, combo badge, replay letterbox, consistent street-sign language |
+| Performance evidence | 1 | 1.5 | Per-tier renderer budgets measured on every pass, handheld Low default, one-time auto-downgrade. No real-GPU frame timing is possible here |
+
+Average **2.3**. One category is still below 2: performance evidence, at 1.5. So the premium bar ("no category below 2, average ≥ 2.3") is **not formally met** until frame timing is measured on real hardware (see the bottom of this file). The visual categories themselves all sit at 2–2.5.
+
 ## Phase 3 (freestyle tricks)
 
 ### Automated tests (`npx playwright test`)

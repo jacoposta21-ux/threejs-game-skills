@@ -64,6 +64,58 @@ function modes(t, list) {
   return s;
 }
 
+/**
+ * A four-bar samba batucada loop (104 BPM): surdo on 2 and 4 with muted
+ * strokes on 1 and 3, caixa sixteenths with accents, a telecoteco tamborim,
+ * agogô bells and a ganzá shaker, lightly humanised. Bar-aligned, so it loops
+ * seamlessly.
+ */
+function batucada(rng, N) {
+  const bpm = 104;
+  const six = 60 / bpm / 4;
+  const bars = 4;
+  const len = six * 16 * bars;
+  const out = new Float32Array(Math.floor(len * SR));
+  const add = (t0, dur, fn) => {
+    const s0 = Math.max(0, Math.floor((t0 + (rng() - 0.5) * 0.008) * SR));
+    const n = Math.floor(dur * SR);
+    for (let i = 0; i < n && s0 + i < out.length; i += 1) out[s0 + i] += fn(i / SR);
+  };
+  const snareBp = biquad('bp', 2200, 0.8);
+  const shakerHp = biquad('hp', 6000, 0.7);
+  const tamborim = [0, 2, 4, 5, 7, 9, 11, 12, 14];
+  const caixaAccents = new Set([0, 3, 6, 8, 11, 14]);
+  const agogo = [[0, 0], [2, 1], [4, 0], [6, 1], [7, 1], [10, 0], [12, 1], [14, 0]];
+  for (let bar = 0; bar < bars; bar += 1) {
+    const b0 = bar * 16 * six;
+    for (let beat = 0; beat < 4; beat += 1) {
+      const t = b0 + beat * 4 * six;
+      const open = beat % 2 === 1;
+      const amp = (open ? 1 : 0.35) * (0.9 + rng() * 0.2);
+      add(t, open ? 0.45 : 0.15, (x) => Math.sin(2 * Math.PI * (52 + 30 * Math.exp(-x * 20)) * x) * Math.exp(-x * (open ? 7 : 22)) * amp);
+    }
+    for (let s = 0; s < 16; s += 1) {
+      const t = b0 + s * six;
+      const acc = caixaAccents.has(s) ? 0.55 : 0.18;
+      add(t, 0.07, (x) => (snareBp(N()) * 1.6 + Math.sin(2 * Math.PI * 210 * x) * 0.2) * Math.exp(-x * 55) * acc);
+      add(t, 0.05, (x) => shakerHp(N()) * Math.exp(-x * 70) * (s % 2 ? 0.16 : 0.08));
+    }
+    for (const s of tamborim) {
+      const variant = bar % 2 === 1 && s === 14 ? 0 : 1;
+      if (!variant) continue;
+      add(b0 + s * six, 0.05, (x) => Math.sin(2 * Math.PI * 2300 * x) * Math.exp(-x * 90) * 0.35);
+    }
+    for (const [s, hi] of agogo) {
+      const f = hi ? 1320 : 880;
+      add(b0 + s * six, 0.25, (x) => (Math.sin(2 * Math.PI * f * x) + 0.4 * Math.sin(2 * Math.PI * f * 2.76 * x)) * Math.exp(-x * 14) * 0.14);
+    }
+  }
+  let peak = 0;
+  for (let i = 0; i < out.length; i += 1) peak = Math.max(peak, Math.abs(out[i]));
+  for (let i = 0; i < out.length; i += 1) out[i] *= 0.85 / peak;
+  return out;
+}
+
 function synthLibrary(rng) {
   const N = noiseGen(rng);
   const lib = {};
@@ -201,6 +253,7 @@ function synthLibrary(rng) {
     const f = t < 0.09 ? 988 : t < 0.18 ? 1318 : 1760;
     return (Math.sin(2 * Math.PI * f * t) + 0.3 * Math.sin(4 * Math.PI * f * t)) * Math.exp(-(t % 0.09) * 18) * Math.min(1, (0.5 - t) / 0.1);
   });
+  lib.batucada = batucada(rng, N);
   lib.fail = make(0.45, (t) => Math.sin(2 * Math.PI * (180 - 120 * t) * t) * Math.exp(-t * 6) + N() * Math.exp(-t * 40) * 0.3);
   return lib;
 }
@@ -252,6 +305,7 @@ export class AudioSystem {
     }
     this.applyVolumes();
     this.startLoop('crowdBed', 'crowd', 0.32);
+    this.startLoop('batucada', 'crowd', 0.16);
     this.startLoop('traffic', 'ambience', 0.4);
     if (ctx.state === 'suspended') await ctx.resume();
   }

@@ -10,6 +10,10 @@ export class Menus {
     this.settings = settings;
     this.stack = [];
     this.current = 'loading';
+    // Stagger index for entrance animations.
+    for (const list of document.querySelectorAll('.menu-list, .court-grid, .howto-grid, .settings-grid')) {
+      [...list.children].forEach((el, i) => el.style.setProperty('--i', i));
+    }
 
     for (const btn of document.querySelectorAll('[data-menu]')) {
       btn.addEventListener('click', () => {
@@ -124,6 +128,7 @@ export class Menus {
     $('final-score').textContent = `${score.home} - ${score.away}`;
     const rows = Object.entries(stats).map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('');
     $('final-stats').innerHTML = rows;
+    [...$('final-stats').children].forEach((el, i) => el.style.setProperty('--i', Math.floor(i / 2)));
     this.stack = [];
     this.showOnly('results');
   }

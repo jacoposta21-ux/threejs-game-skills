@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "prepare-assets": "node tools/prepare-assets.mjs",
+    "prepare-characters": "node tools/prepare-characters.mjs",
     "test": "playwright test",
     "verify:visual": "playwright test tests/visual.spec.js",
     "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs"

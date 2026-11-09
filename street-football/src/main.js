@@ -34,7 +34,7 @@ async function boot() {
   progress(0.12, 'Warming up physics…');
   const physicsPromise = PhysicsWorld.create();
   const base = import.meta.env.BASE_URL;
-  const libPromise = CharacterLibrary.load(`${base}assets/characters/footballer.glb`, (p) =>
+  const libPromise = CharacterLibrary.load(`${base}assets/characters/`, (p) =>
     progress(0.15 + p * 0.55, 'Lacing up boots…'),
   );
   const [physics, lib] = await Promise.all([physicsPromise, libPromise]);

@@ -94,7 +94,7 @@ export const KEEPER = {
 export const MATCH = {
   duration: 180,
   countdown: 3,
-  goalCelebration: 4.2,
+  goalCelebration: 3.2,
   kickoffCountdown: 1.6,
 };
 
@@ -143,9 +143,9 @@ export const CAMERA = {
 };
 
 export const QUALITY = {
-  low: { dpr: 1, shadowMap: 1024, shadows: false, crowd: 3, antialias: false },
-  medium: { dpr: 1.5, shadowMap: 2048, shadows: true, crowd: 6, antialias: true },
-  high: { dpr: 2, shadowMap: 2048, shadows: true, crowd: 10, antialias: true },
+  low: { dpr: 1, shadowMap: 1024, shadows: false, crowd: 3, antialias: false, post: false },
+  medium: { dpr: 1.5, shadowMap: 2048, shadows: true, crowd: 6, antialias: true, post: true },
+  high: { dpr: 2, shadowMap: 2048, shadows: true, crowd: 10, antialias: true, post: true },
 };
 
 export const TEAMS = {
@@ -177,8 +177,8 @@ export const TEAMS = {
 export const ROSTERS = {
   home: [
     { name: 'ZÉ', number: 10, skin: '#7a4a2a', hair: 'twists', hairColor: '#17100b', headband: '#1f8a4c', height: 1.76 },
-    { name: 'BIEL', number: 7, skin: '#c68642', hair: 'curly', hairColor: '#2a1a10', height: 1.74 },
-    { name: 'NANDO', number: 5, skin: '#e0ac69', hair: 'buzz', hairColor: '#3b2414', height: 1.82 },
+    { name: 'BIEL', number: 7, skin: '#c68642', hair: 'parted', hairColor: '#2a1a10', height: 1.74 },
+    { name: 'NANDO', number: 5, skin: '#e0ac69', hair: 'buzz', beard: true, hairColor: '#3b2414', height: 1.82 },
   ],
   homeKeeper: {
     name: 'TATU', number: 1, skin: '#8d5524', hair: 'afro', hairColor: '#120c08', shoes: '#141414', height: 1.86,
@@ -190,7 +190,7 @@ export const ROSTERS = {
     { name: 'GUGA', number: 4, skin: '#a0663a', hair: 'afro', hairColor: '#120c08', height: 1.84 },
   ],
   awayKeeper: {
-    name: 'BETO', number: 1, skin: '#d9a066', hair: 'buzz', hairColor: '#2a1a10', shoes: '#141414', height: 1.86,
+    name: 'BETO', number: 1, skin: '#d9a066', hair: 'buzz', beard: true, hairColor: '#2a1a10', shoes: '#141414', height: 1.86,
     kit: { jersey: '#00a88f', jersey2: '#141414', shorts: '#141414', socks: '#00a88f', sockStripe: '#141414', pattern: 1 },
   },
 };

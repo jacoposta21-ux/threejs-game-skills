@@ -344,7 +344,7 @@ export function authorFootballClips(lib) {
 function mirrorPose(pose) {
   const out = {};
   for (const [bone, rots] of Object.entries(pose)) {
-    const name = bone.endsWith('L') ? `${bone.slice(0, -1)}R` : bone.endsWith('R') ? `${bone.slice(0, -1)}L` : bone;
+    const name = bone.endsWith('_l') ? `${bone.slice(0, -2)}_r` : bone.endsWith('_r') ? `${bone.slice(0, -2)}_l` : bone;
     out[name] = rots.map(([axis, deg]) => [axis, axis === 'pitch' ? deg : -deg]);
   }
   return out;

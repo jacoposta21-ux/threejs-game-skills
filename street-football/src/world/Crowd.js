@@ -4,7 +4,8 @@ import { COURT, TEAMS } from '../config.js';
 import { createCrowdAtlas } from './ProceduralTextures.js';
 
 const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3317', '#f1c27d', '#3d2314', '#a0663a'];
-const HAIR = ['buzz', 'afro', 'curly', 'twists', 'buzz'];
+const HAIR = ['buzz', 'afro', 'parted', 'curly', 'buzz'];
+const HAIR_F = ['long', 'buns', 'long', 'afro'];
 
 /**
  * Spectators: a row of fully animated characters on the far sidewalk (same
@@ -25,13 +26,16 @@ export class Crowd {
       { jersey: '#1d9bf0', jersey2: '#ffffff', shorts: '#5c4a32', socks: '#ffffff', sockStripe: '#1d9bf0', shoes: '#f6c915', pattern: 0 },
     ];
     for (let i = 0; i < count; i += 1) {
+      const female = i % 3 === 1;
       const look = {
+        body: female ? 'female' : 'male',
+        beard: !female && rng() < 0.3,
         team: casual[i % casual.length],
         skin: rng.pick(SKINS),
-        hair: rng.pick(HAIR),
+        hair: female ? rng.pick(HAIR_F) : rng.pick(HAIR),
         hairColor: rng() < 0.85 ? '#1b120c' : '#d6a45e',
         number: 1 + Math.floor(rng() * 23),
-        height: 1.62 + rng() * 0.22,
+        height: female ? 1.58 + rng() * 0.14 : 1.66 + rng() * 0.2,
       };
       const ch = lib.createCharacter(look);
       ch.mesh.castShadow = false;
