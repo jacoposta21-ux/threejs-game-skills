@@ -1,5 +1,42 @@
 # Verification evidence
 
+## Phase 5 (release v1.0.0)
+
+### Production build checks
+
+| Check | Result |
+| --- | --- |
+| `npm run package` | `release/rua10-crazygames-v1.0.0.zip`: 30 files, 6.07 MB unpacked, **2.89 MB zip**. No source maps, no localhost references, relative paths |
+| Rapier packaging | compat (base64 inside JS) **1.67 MB gz** → streamed `.wasm` **1.19 MB gz + 52 KB JS** |
+| QA gating on the shipped build | without `?qa`: no test hooks, no diagnostics, no `window.__RUA10__`; with `?qa`: all present. No page errors either way |
+| Smoke tests against the **production preview** (`PREVIEW=1 PORT=4188 npx playwright test tests/visual.spec.js`) | 5 passed (menu → match, WASD, pause and resume, Q switch, E trick, mobile touch stick) |
+| Full suite on dev (`npx playwright test`) | 6 passed. The keyboard bot won 2–1 through goal → replay → kick-off, with 9 tackle attempts |
+| Canvas inspector on the production build (`phase5-release`, `?qa`) | **16/16 PASS, all within budget**; `check_evidence.py` passed (21 artifacts including the release zip) |
+
+### CPU cost per frame (`node tools/qa/cpuprofile.mjs`, production preview)
+
+1,800 consecutive 60 Hz frames of AI-vs-AI 3v3 at Medium, without rendering. Each frame covers two 120 Hz Rapier steps, team AI, eight controllers, keepers, animation mixers for the players and the crowd, camera, VFX and replay recording:
+
+| avg | p50 | p95 | p99 | max |
+| --- | --- | --- | --- | --- |
+| **0.44 ms** | 0.40 ms | 0.60 ms | 0.90 ms | 3.1 ms |
+
+That is under 3% of a 16.7 ms frame. Simulation and AI are not the bottleneck; on target hardware the budget belongs to rendering. That cost needs a real GPU, so the game measures it itself with `?bench` (summary card) and `?fps` / F8 (live overlay). The headless `?bench` runs here used SwiftShader, so their frame times are not quoted.
+
+### Scorecard update
+
+Performance evidence goes from **1.5 to 2**, matching the anchor for 2 ("renderer counts, build/browser QA, target-viewport shots, budget notes"):
+
+- per-tier renderer budgets on every pass;
+- production-build QA;
+- CPU profiling;
+- before and after numbers for bundle size and textures;
+- built-in GPU timing tools.
+
+It is not a 3, because no real-GPU baseline exists yet.
+
+Averages are **2.35** with **no category below 2**, so the premium bar is met on the anchors. The remaining caveat is frame timing on a real GPU (`?bench`).
+
 ## Phase 4 (visual polish)
 
 ### Automated tests (`npx playwright test`)

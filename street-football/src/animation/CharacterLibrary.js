@@ -74,14 +74,15 @@ function side(name) {
  * every AnimationClip (imported + authored). Characters are cheap clones.
  */
 export class CharacterLibrary {
-  static async load(baseUrl, onProgress) {
+  /** urls: { male, female, hair, anims } (hashed asset URLs from the bundler). */
+  static async load(urls, onProgress) {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
-    const files = ['body_male.glb', 'body_female.glb', 'hair.glb', 'anims.glb'];
+    const files = [urls.male, urls.female, urls.hair, urls.anims];
     const progress = new Array(files.length).fill(0);
     const [male, female, hair, anims] = await Promise.all(
       files.map((f, i) =>
-        loader.loadAsync(`${baseUrl}${f}`, (e) => {
+        loader.loadAsync(f, (e) => {
           if (e.total) {
             progress[i] = e.loaded / e.total;
             onProgress?.(progress.reduce((a, b) => a + b, 0) / files.length);

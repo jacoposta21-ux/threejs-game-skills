@@ -1,8 +1,8 @@
-# RUA 10 — Street Football (Phase 4: visual polish)
+# RUA 10 — Street Football (v1.0.0 — release candidate)
 
 A 3D arcade street-football game for the browser: Three.js rendering, Rapier physics, a loose physically simulated ball, skeletal animation, and a Brazilian street court. It is built for CrazyGames-style distribution: one static bundle that loads fast.
 
-**Phases 1–4 are done:** a full 3v3 match (three outfield players plus a keeper per side) against AI opponents with AI teammates, plus a freestyle trick system with combos. Implemented features and planned features are listed separately below.
+**Phases 1–5 are done:** a full 3v3 match (three outfield players plus a keeper per side) against AI opponents with AI teammates, plus a freestyle trick system with combos. Implemented features and planned features are listed separately below.
 
 ## Run it
 
@@ -12,12 +12,22 @@ npm install
 npm run dev        # http://127.0.0.1:5188
 ```
 
-Production build and local preview:
+Production build, local preview and the CrazyGames upload:
 
 ```bash
 npm run build      # outputs dist/ (relative paths, deploy anywhere)
 npm run preview    # http://127.0.0.1:4188
+npm run package    # build + checks + release/rua10-crazygames-v1.0.0.zip
 ```
+
+URL switches (work on any build):
+
+| Switch | Effect |
+| --- | --- |
+| `?fps` (or F8 in game) | Live overlay: fps, frame ms avg/p95, CPU update ms, draw calls, triangles |
+| `?bench` | Plays 20 s of AI-vs-AI 3v3 and shows a copyable summary (fps, p95/p99 frame ms, CPU ms, GPU name) |
+| `?qa` | Enables the test hooks and diagnostics used by the Playwright and inspector tools (always on in dev) |
+| `?sdk=1` / `?nosdk` | Force the CrazyGames SDK on or off |
 
 Requirements: Node 18+ and a WebGL2-capable browser. Nothing else needs downloading; every asset is in the repo (see `docs/ASSETS.md`).
 
@@ -35,6 +45,19 @@ Requirements: Node 18+ and a WebGL2-capable browser. Nothing else needs download
 | Skill move (see the table below) | E + direction relative to where you face | SKILL + stick |
 
 Control follows the ball automatically: when a teammate wins it or receives your pass, you take control of them.
+
+## Phase 5 — release preparation
+
+- **Smaller, faster download:** Rapier now loads as a streamed `.wasm` (`@dimforge/rapier3d` + `vite-plugin-wasm`), not base64 inside the JS: −0.43 MB compressed, and it compiles while downloading. Character models are content-hashed for long-term caching. The total is about **2.9 MB** compressed.
+- **Error handling:**
+  - WebGL 2 check with a clear message;
+  - a failed asset download shows TRY AGAIN;
+  - the game loop survives a one-off exception and stops cleanly with a message if errors repeat;
+  - WebGL context loss and restore.
+- **Shipped build is clean:** no test hooks, diagnostics or `window.__RUA10__` unless `?qa`. The packaging script rejects source maps, localhost references and absolute paths.
+- **CrazyGames:** the upload zip, iframe keyboard focus, and the SDK lifecycle with a pre-submission checklist (`docs/CRAZYGAMES.md`).
+- **Real-hardware measurement** built in (`?fps`, `?bench`). The CPU cost of a 60 Hz frame (all simulation, AI and animation, no rendering) is measured at **0.44 ms average / 0.9 ms p99**.
+- **Browser support:** see `docs/RELEASE.md`.
 
 ## Phase 4 — what changed visually and aurally
 
@@ -110,6 +133,8 @@ node tools/qa/motion.mjs <dir> [name]         # close-up animation frame sequenc
 node tools/qa/aimatch.mjs [easy|normal|hard] [n]  # full AI-vs-AI matches: shots, passes, tackles, steals, goals, possession, AI tricks
 node tools/qa/trickcheck.mjs                  # rainbow height, nutmeg through the legs, pending awards, forced fail
 node tools/qa/trickmotion.mjs <dir>           # every trick as a close-up frame row
+node tools/qa/cpuprofile.mjs                  # CPU ms per 60 Hz frame during an AI-vs-AI match (preview + ?qa)
+node tools/qa/bench.mjs [low|medium|high]     # runs the in-game ?bench headless (wall-clock fps is only meaningful on a real GPU)
 ```
 
 ## Architecture
@@ -175,6 +200,7 @@ Fixed-step update order: input intents → team AI (roles, intents) → every ou
 - Synthesised audio: kicks, touches, bounces, fence rattle, post clang, net, footsteps, whistle, crowd bed, cheers and ooh, distant traffic, UI. Volume groups, mute, gesture unlock, pause.
 - Menus, HUD, pause, settings, results, touch controls, focus-loss pause, WebGL context-loss handling, CrazyGames lifecycle hooks.
 
-## Planned
+## Planned (post-release)
 
-- **Phase 5:** New York, London, Tokyo and Barcelona courts; profiling on low-end devices; verified CrazyGames submission.
+- The New York, London, Tokyo and Barcelona courts.
+- Verified CrazyGames submission (QA tool run), and frame timing on low-end devices using `?bench`.

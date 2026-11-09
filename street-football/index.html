@@ -9,7 +9,7 @@
   </head>
   <body>
     <main id="app">
-      <canvas id="game-canvas" aria-label="Street football game"></canvas>
+      <canvas id="game-canvas" aria-label="Street football game" tabindex="0"></canvas>
       <div id="vignette" aria-hidden="true"></div>
       <div id="letterbox" class="hidden" aria-hidden="true"><i></i><i></i><span>REPLAY</span></div>
 
@@ -157,7 +157,7 @@
       <section id="fatal" class="screen panel hidden">
         <h2>SOMETHING BROKE</h2>
         <p class="hint" id="fatal-text"></p>
-        <button type="button" class="menu-btn primary" onclick="location.reload()">RELOAD</button>
+        <button type="button" class="menu-btn primary" id="fatal-btn">RELOAD</button>
       </section>
     </main>
     <script type="module" src="/src/main.js"></script>

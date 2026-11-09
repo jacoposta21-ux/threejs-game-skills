@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat';
 import { BALL } from '../config.js';
 import { GROUP, groups } from '../physics/PhysicsWorld.js';
 
@@ -81,6 +80,7 @@ function createBallTexture(rng) {
 
 export class Ball {
   constructor(physics, scene, rng) {
+    const RAPIER = physics.RAPIER;
     this.physics = physics;
     const desc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(0, BALL.radius + 0.01, 0)

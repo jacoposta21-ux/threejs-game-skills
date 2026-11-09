@@ -1,8 +1,12 @@
 import { defineConfig } from 'vite';
+import wasm from 'vite-plugin-wasm';
 
 export default defineConfig({
   // Relative base: the build works from any static path (CrazyGames serves from a CDN subfolder).
   base: './',
+  // Rapier ships wasm-bindgen ESM: the plugin serves its .wasm as a separate,
+  // streamed and cacheable file instead of base64 inside the JS bundle.
+  plugins: [wasm()],
   server: {
     host: '127.0.0.1',
     port: 5188,
@@ -14,7 +18,8 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
-    target: 'es2020',
+    // es2022: top-level await (wasm module init) without a polyfill plugin.
+    target: 'es2022',
     sourcemap: false,
     chunkSizeWarningLimit: 1600,
     rollupOptions: {

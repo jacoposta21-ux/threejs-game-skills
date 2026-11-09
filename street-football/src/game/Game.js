@@ -5,6 +5,7 @@ import { MatchState } from './MatchState.js';
 import { Indicators } from '../systems/Indicators.js';
 import { PostFX } from '../systems/PostFX.js';
 import { Replay } from '../systems/Replay.js';
+import { PerfMonitor } from '../debug/PerfMonitor.js';
 import { Events } from '../core/Events.js';
 import { Input } from '../core/Input.js';
 import { Loop } from '../core/Loop.js';
@@ -41,14 +42,15 @@ const NEUTRAL_INTENTS = Object.freeze({
 });
 
 export class Game {
-  constructor({ canvas, physics, lib, platform, storage }) {
+  constructor({ canvas, physics, lib, platform, storage, qa = false }) {
+    this.qa = qa;
     this.canvas = canvas;
     this.physics = physics;
     this.lib = lib;
     this.platform = platform;
     this.storage = storage;
     // Phones and tablets default to Low (mobile render budget); desktops to Medium.
-    const handheld = matchMedia('(pointer: coarse)').matches || Math.min(window.innerWidth, window.innerHeight) < 600;
+    const handheld = matchMedia('(pointer: coarse)').matches || Math.min(window.innerWidth, window.innerHeight) < 500;
     this.settings = { quality: handheld ? 'low' : 'medium', difficulty: 'normal', shake: true, ...this.loadJson(SETTINGS_KEY) };
     if (!QUALITY[this.settings.quality]) this.settings.quality = 'medium';
     this.quality = QUALITY[this.settings.quality];
@@ -146,8 +148,13 @@ export class Game {
     resizeRenderer(this.renderer, this.camera, this.quality.dpr);
     this.postfx.resize();
     this.cameraRig.snap(this.human.p, this.ball);
-    this.installTestHooks();
-    this.loop = new Loop((dt) => this.update(dt), () => this.render());
+    // Test hooks and per-frame diagnostics only in dev or with ?qa (not in the shipped game).
+    if (qa) this.installTestHooks();
+    this.perf = new PerfMonitor(this.renderer);
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('fps')) this.perf.toggle(true);
+    this.loop = new Loop((dt) => this.timedUpdate(dt), () => this.render(), (err) => this.onLoopError(err));
+    if (params.has('bench')) this.benchmarkPending = true;
   }
 
   // ---------------------------------------------------------------- setup
@@ -832,8 +839,62 @@ export class Game {
 
   // ------------------------------------------------------------- frame
 
+  /** update() wrapped with CPU timing for the perf monitor / benchmark. */
+  timedUpdate(dt) {
+    const t0 = performance.now();
+    this.update(dt);
+    const cpu = performance.now() - t0;
+    this.perf.frame(cpu);
+    // Wall-clock frame time (the game delta is clamped, so it cannot show hitches).
+    this.perf.sample(this.perf.lastWallMs, cpu);
+    if (this.benchmarkPending && this.phase === 'menu' && this.frame > 10) this.startBenchmark();
+    if (this.bench && performance.now() - this.bench.t0 > 20000) this.finishBenchmark();
+  }
+
+  /** ?bench: 20 s of AI-vs-AI play with the full scene, then a summary card. */
+  startBenchmark() {
+    this.benchmarkPending = false;
+    this.autoplay = true;
+    this.skipReplays = true;
+    this.startMatch();
+    this.human.isHuman = false;
+    this.phaseTime = MATCH.countdown + 0.01;
+    this.countdownStep = MATCH.countdown;
+    this.setPhase('playing');
+    this.hud.hideBanner();
+    this.bench = { t0: performance.now() };
+    this.perfChecked = true; // no auto-downgrade while measuring
+    this.perf.startRun();
+    this.perf.toggle(true);
+  }
+
+  finishBenchmark() {
+    const result = this.perf.endRun({ quality: this.settings.quality, canvas: `${this.canvas.width}x${this.canvas.height}` });
+    this.bench = null;
+    this.autoplay = false;
+    this.human.isHuman = true;
+    this.quitToMenu();
+    window.__RUA10_BENCH__ = result;
+    const box = document.createElement('pre');
+    box.id = 'bench-result';
+    box.textContent = `BENCHMARK (20 s, ${result.quality})\n${JSON.stringify(result, null, 2)}\n\nClick to copy.`;
+    box.addEventListener('click', () => navigator.clipboard?.writeText(JSON.stringify(result)).catch(() => {}));
+    document.getElementById('app').appendChild(box);
+  }
+
+  /** Loop errors: keep playing through a one-off, stop cleanly if it repeats every frame. */
+  onLoopError(err) {
+    this.loopErrors = (this.loopErrors ?? 0) + 1;
+    if (this.loopErrors === 1) console.error('[game] frame error', err);
+    if (this.loopErrors > 30) {
+      this.loop.stop();
+      this.menus.fatal('The game hit an unexpected error. Please reload the page.');
+    }
+  }
+
   update(dt) {
     this.frame += 1;
+    this.loopErrors = 0;
     this.lastDt = dt;
     if (resizeRenderer(this.renderer, this.camera, this.quality.dpr)) this.postfx.resize();
     this.vfx.setPixelScale(this.renderer.domElement.height, this.camera.fov);
@@ -1071,6 +1132,7 @@ export class Game {
   // ------------------------------------------------------------- QA hooks
 
   publishDiagnostics() {
+    if (!this.qa) return;
     const info = this.renderer.info;
     const b = this.ball.position;
     const h = this.human;

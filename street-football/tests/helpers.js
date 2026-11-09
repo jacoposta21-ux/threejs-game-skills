@@ -19,7 +19,7 @@ export async function startMatch(page) {
       window.localStorage.setItem('rua10:settings', JSON.stringify({ quality: 'low', difficulty: 'normal', shake: true }));
     }
   });
-  await page.goto('/');
+  await page.goto('/?qa=1');
   await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 5, null, { timeout: 120_000 });
   const play = page.locator('#main-menu [data-menu="play"]');
   await expect(play).toBeVisible();

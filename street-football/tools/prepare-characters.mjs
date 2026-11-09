@@ -1,7 +1,8 @@
 // Step 2 of the character pipeline (after tools/prepare-characters.py):
-//   bodies → public/assets/characters/body_male.glb, body_female.glb
-//   hair   → public/assets/characters/hair.glb   (all rigged hairstyles, one file)
-//   clips  → public/assets/characters/anims.glb  (UAL1 Standard, UE skeleton, no mesh)
+//   bodies → src/assets/characters/body_male.glb, body_female.glb
+//   hair   → src/assets/characters/hair.glb   (all rigged hairstyles, one file)
+//   clips  → src/assets/characters/anims.glb  (UAL1 Standard, UE skeleton, no mesh)
+// They are imported with ?url, so the build emits content-hashed, cacheable files.
 // Usage: node tools/prepare-characters.mjs <jpg_dir> <UAL1_Standard.glb>
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
@@ -15,7 +16,7 @@ if (!jpgDir || !ualPath) {
 }
 await MeshoptEncoder.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder });
-const OUT = 'public/assets/characters';
+const OUT = 'src/assets/characters';
 
 const sweepOrphans = (doc) => {
   const root = doc.getRoot();

@@ -74,6 +74,8 @@ export class Input {
   }
 
   bindMouse() {
+    // Inside an iframe (CrazyGames) keys only arrive once the game has focus.
+    this.listen(this.canvas, 'pointerdown', () => this.canvas.focus({ preventScroll: true }));
     this.listen(this.canvas, 'mousedown', (e) => {
       if (e.button !== 0) return;
       this.lastDevice = 'keyboard';

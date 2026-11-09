@@ -1,4 +1,6 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+// Rapier is loaded on demand (its WASM is a separate, streamed file) so it
+// downloads in parallel with the character assets.
+let RAPIER = null;
 
 // Collision groups: 16-bit membership << 16 | 16-bit filter.
 export const GROUP = { WORLD: 0x0001, BALL: 0x0002, PLAYER: 0x0004, PLAYER_GHOST: 0x0008 };
@@ -13,7 +15,7 @@ const MAX_STEPS = 12;
  */
 export class PhysicsWorld {
   static async create() {
-    await RAPIER.init();
+    RAPIER = await import('@dimforge/rapier3d');
     return new PhysicsWorld();
   }
 
@@ -124,7 +126,7 @@ export class PhysicsWorld {
     let colliders = 0;
     this.world.bodies.forEach(() => (bodies += 1));
     this.world.colliders.forEach(() => (colliders += 1));
-    return { engine: 'rapier3d-compat', timestep: FIXED_DT, bodies, colliders, steps: this.stepCount };
+    return { engine: 'rapier3d (wasm)', timestep: FIXED_DT, bodies, colliders, steps: this.stepCount };
   }
 
   dispose() {
