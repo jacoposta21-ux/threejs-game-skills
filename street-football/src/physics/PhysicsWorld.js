@@ -16,6 +16,8 @@ const MAX_STEPS = 12;
 export class PhysicsWorld {
   static async create() {
     RAPIER = await import('@dimforge/rapier3d');
+    // The single-file build aliases this to rapier3d-compat (WASM inlined), which needs init().
+    if (typeof RAPIER.init === 'function') await RAPIER.init();
     return new PhysicsWorld();
   }
 

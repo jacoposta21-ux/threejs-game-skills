@@ -20,6 +20,12 @@ npm run preview    # http://127.0.0.1:4188
 npm run package    # build + checks + release/rua10-crazygames-v1.0.0.zip
 ```
 
+Single self-contained HTML (double-click to play from disk, works offline; about 7.6 MB, physics WASM and models inlined):
+
+```bash
+npm run build:single   # → dist-single/index.html
+```
+
 URL switches (work on any build):
 
 | Switch | Effect |
