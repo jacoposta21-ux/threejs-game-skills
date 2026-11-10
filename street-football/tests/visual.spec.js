@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { PNG } from 'pngjs';
-import { diag, startMatch, trackErrors } from './helpers.js';
+import { diag, openMenu, startMatch, trackErrors } from './helpers.js';
 
 async function sampleCanvas(page) {
   const buffer = await page.locator('#game-canvas').screenshot();
@@ -117,7 +117,7 @@ test('content: every court, team and mode is reachable from the menus', async ({
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/?qa=1');
-  await expect(page.locator('#menu')).toBeVisible({ timeout: 90_000 });
+  await openMenu(page);
   await page.locator('#main-menu [data-menu="courts"]').click();
   await expect(page.locator('#court-grid [data-court]')).toHaveCount(5);
   await page.locator('#court-grid [data-court="tokyo"]').click();
@@ -138,9 +138,44 @@ test('content: every court, team and mode is reachable from the menus', async ({
 
 test('tutorial starts from the menu and shows the first step', async ({ page }) => {
   await page.goto('/?qa=1');
-  await expect(page.locator('#menu')).toBeVisible({ timeout: 90_000 });
+  await openMenu(page);
   await page.locator('[data-menu="tutorial"]').click();
   await expect(page.locator('#tutorial-box')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('#tut-title')).toHaveText('MOVE');
   await expect(page.locator('#match-clock')).toHaveText('PRACTICE', { timeout: 60_000 });
+});
+
+test('home screen is free play: one player, a ball, the menu on ESC', async ({ page }, info) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/?qa=1');
+  await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.phase === 'lobby', null, { timeout: 90_000 });
+  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('#lobby-bar')).toBeVisible();
+  const field = await page.evaluate(() => {
+    const g = window.__RUA10__;
+    return {
+      outfield: g.match.allOutfield().length,
+      keepersVisible: Object.values(g.match.teams).some((t) => t.keeper.k.holder.visible),
+    };
+  });
+  expect(field).toEqual({ outfield: 1, keepersVisible: false });
+  if (!info.project.name.includes('mobile')) {
+    // Real keys move the player; ESC opens the menu, ESC again goes back to free play.
+    await page.locator('#game-canvas').focus();
+    const x0 = (await diag(page)).player.position.x;
+    await page.keyboard.down('KeyA');
+    await page.waitForFunction((x) => Math.abs(window.__THREE_GAME_DIAGNOSTICS__.player.position.x - x) > 1, x0, { timeout: 60_000 });
+    await page.keyboard.up('KeyA');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#menu')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#menu')).toBeHidden();
+  } else {
+    await page.locator('#lobby-menu-btn').click();
+    await expect(page.locator('#menu')).toBeVisible();
+    await page.locator('[data-menu="freeplay"]').click();
+    await expect(page.locator('#menu')).toBeHidden();
+  }
+  expect(errors).toEqual([]);
 });

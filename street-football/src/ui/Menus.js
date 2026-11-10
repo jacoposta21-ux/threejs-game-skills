@@ -24,6 +24,7 @@ export class Menus {
         const m = btn.dataset.menu;
         if (m === 'play') handlers.play();
         else if (m === 'tutorial') handlers.tutorial();
+        else if (m === 'freeplay') handlers.freePlay();
         else {
           if (m === 'modes') this.renderModes();
           if (m === 'courts') this.renderCourts();

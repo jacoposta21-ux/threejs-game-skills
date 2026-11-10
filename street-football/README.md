@@ -58,7 +58,7 @@ Two keyboard zones, no mouse: the left hand moves, the right hand does everythin
 | Tackle (poke lunge; from behind is risky) · slide tackle (with Shift) | U | TACKLE |
 | Switch to the teammate nearest the ball | O | SWITCH |
 | Gamebreaker (meter full) | H | GB |
-| Pause | Esc / P | ❚❚ button |
+| Pause (in a match) · open / close the menu (free play) | Esc / P / M | ❚❚ / MENU button |
 
 The earlier single-hand keys remain as aliases: Space pass, E skill, R flair, F tackle, Q switch, G gamebreaker. The mouse is not used in play (a click only focuses the game or skips a replay).
 
@@ -97,6 +97,19 @@ Control follows the ball automatically: when a teammate wins it or receives your
   - On top: a stinger wipe in and out, a white flash on each cut, the scorer's name and number, and a "press any key to skip" hint.
   - Film look: grade, grain and a heavier vignette.
   - The ball trail now draws on the shot.
+
+## v1.6 — free play home screen
+
+The game opens on an empty court: your player, a ball and no keepers, with the clock and score hidden. Everything works as in a match (dribbling, skills, flair, shooting), and a shot into the empty net is celebrated before the ball comes back to you.
+
+The menu opens over the live court:
+- **ESC** or **M**, or the **MENU** button in the bar at the top (which also works on touch screens), opens it.
+- **ESC** steps back through the menu screens, and closes the menu from the main one.
+- The **FREE PLAY** button at the bottom of the menu returns to practice.
+
+Changing the court or team in the menu restyles the court behind it straight away. Quitting a match comes back here with the menu open.
+
+Check: `node tools/qa/lobbycheck.mjs <dir>`.
 
 ## v1.5 — content and presentation
 

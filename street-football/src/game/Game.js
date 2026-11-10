@@ -145,6 +145,7 @@ export class Game {
         choose: (patch) => this.saveChoice(patch),
         content: () => ({ choice: this.choice, progress: this.progress, teams: TEAM_LIST, venues: VENUES, modes: MODES, unlocks: UNLOCKS }),
         tutorial: () => this.startTutorial(),
+        freePlay: () => this.closeLobbyMenu(),
         resume: () => this.resume(),
         restart: () => this.restartFromMenu(),
         quit: () => this.quitToMenu(),
@@ -162,7 +163,7 @@ export class Game {
     physics.onContact((a, b) => this.onContact(a, b));
 
     this.resetPositions();
-    this.enterMenu();
+    this.enterLobby({ openMenu: false });
     resizeRenderer(this.renderer, this.camera, this.quality.dpr);
     this.postfx.resize();
     this.cameraRig.snap(this.human.p, this.ball);
@@ -197,7 +198,8 @@ export class Game {
     const muteBtn = document.getElementById('mute-btn');
     muteBtn.classList.toggle('muted', this.audio.settings.muted);
     muteBtn.addEventListener('click', () => this.setMuted(!this.audio.settings.muted));
-    document.getElementById('pause-btn').addEventListener('click', () => this.pause());
+    document.getElementById('pause-btn').addEventListener('click', () => (this.phase === 'lobby' ? this.openLobbyMenu() : this.pause()));
+    document.getElementById('lobby-menu-btn').addEventListener('click', () => this.openLobbyMenu());
 
     // First gesture unlocks audio (autoplay policy).
     const unlock = () => this.audio.unlock().catch(() => {});
@@ -227,8 +229,9 @@ export class Game {
     this.canvas.addEventListener('webglcontextrestored', () => {
       this.contextLost = false;
       this.menus.hideAll();
-      if (this.phase === 'menu') this.menus.showMain(this.best());
-      else this.pause(true);
+      if (this.phase === 'lobby') {
+        if (this.lobbyMenu) this.menus.showMain(this.best());
+      } else this.pause(true);
       this.loop.start();
     });
 
@@ -241,7 +244,8 @@ export class Game {
   }
 
   syncTouchUi() {
-    const show = this.touchUi && ['countdown', 'playing', 'kickoff', 'goal'].includes(this.phase) && !this.paused;
+    const inPlay = ['countdown', 'playing', 'kickoff', 'goal'].includes(this.phase) || (this.phase === 'lobby' && !this.lobbyMenu);
+    const show = this.touchUi && inPlay && !this.paused;
     document.getElementById('touch-controls').classList.toggle('hidden', !show);
     document.getElementById('stamina').classList.toggle('hidden', false);
   }
@@ -291,6 +295,12 @@ export class Game {
   saveChoice(patch = {}) {
     Object.assign(this.choice, patch);
     this.storage.set('choice', JSON.stringify(this.choice));
+    // The court and kit behind the menu follow the choice straight away.
+    if (this.phase === 'lobby') {
+      const other = TEAM_LIST.find((t) => t.id !== this.choice.team) ?? TEAM_LIST[1];
+      this.applyTeams(this.choice.team, this.choice.kit, other.id);
+      this.setVenue(this.choice.court);
+    }
   }
 
   get mode() {
@@ -374,16 +384,10 @@ export class Game {
       const all = this.allPlayers[teamId];
       this.match.teams[teamId].players = all.slice(0, n);
       all.forEach((c, i) => {
-        const on = i < n;
-        c.benched = !on;
-        c.p.holder.visible = on;
-        if (!on) {
-          c.reset();
-          c.frozen = true;
-          c.isHuman = false;
-          c.p.anim.stopAll();
-          c.p.teleport(teamId === 'home' ? -60 : 60, 40 + i * 3, 0);
-          c.p.setGhost(true);
+        if (i >= n) this.benchPlayer(c, teamId, i);
+        else {
+          c.benched = false;
+          c.p.holder.visible = true;
         }
       });
     }
@@ -427,6 +431,9 @@ export class Game {
       awayId = (local ?? pool[Math.floor(Math.random() * pool.length)]).id;
     }
     this.matchLevel = level;
+    this.benchKeepers(false);
+    this.lobbyMenu = false;
+    document.getElementById('hud').classList.remove('lobby', 'menu-open');
     this.setRosterSize(mode.size);
     this.applyTeams(homeId, this.choice.kit, awayId);
     this.setVenue(venue);
@@ -463,13 +470,126 @@ export class Game {
   }
 
   enterMenu() {
-    this.setPhase('menu');
+    this.enterLobby({ openMenu: true });
+  }
+
+  /**
+   * Home screen: an empty court, your player and a ball to practise with.
+   * ESC / M or the MENU button opens the menu over it; FREE PLAY closes it.
+   */
+  enterLobby({ openMenu = false } = {}) {
+    this.tutorial?.stop();
+    this.tutorial = null;
+    this.endGamebreaker(true);
+    this.goldenGoal = false;
+    this.matchOver = false;
+    const other = TEAM_LIST.find((t) => t.id !== this.choice.team) ?? TEAM_LIST[1];
+    this.setRosterSize(1);
+    for (const c of this.allPlayers.away) this.benchPlayer(c, 'away', 0);
+    this.match.teams.away.players = [];
+    this.benchKeepers(true);
+    this.applyTeams(this.choice.team, this.choice.kit, other.id);
+    this.setVenue(this.choice.court);
+    this.setPhase('lobby');
     this.paused = false;
-    this.hud.show(false);
-    this.cameraRig.setMode('menu');
+    this.match.owner = null;
+    this.match.passTarget = null;
+    const hk = this.allPlayers.home[0];
+    hk.reset();
+    hk.frozen = false;
+    hk.p.anim.stopAll();
+    hk.p.holder.visible = true;
+    hk.p.teleport(4, 0, -Math.PI / 2);
+    hk.p.setGhost(false);
+    this.human = null;
+    this.setHuman(hk);
+    this.ball.inGoal = false;
+    this.ball.placeAt(3.4, BALL.radius, 0);
+    this.lobbyGoalAt = null;
+    this.score = { home: 0, away: 0 };
+    this.style = 0;
+    this.hud.reset();
+    this.hud.show(true);
+    document.getElementById('hud').classList.add('lobby');
+    this.cameraRig.setMode('play');
+    this.cameraRig.snap(hk.p, this.ball);
+    if (openMenu) this.openLobbyMenu();
+    else this.closeLobbyMenu();
+  }
+
+  openLobbyMenu() {
+    this.lobbyMenu = true;
+    document.getElementById('hud').classList.add('menu-open');
+    this.input.releaseAll();
+    this.input.enabled = false;
     this.menus.showMain(this.best());
     this.platform.gameplayStop();
-    this.input.enabled = false;
+    this.syncTouchUi();
+  }
+
+  closeLobbyMenu() {
+    this.lobbyMenu = false;
+    document.getElementById('hud').classList.remove('menu-open');
+    this.menus.hideAll();
+    this.input.enabled = true;
+    this.platform.gameplayStart();
+    this.syncTouchUi();
+    this.canvas.focus?.({ preventScroll: true });
+  }
+
+  /** ESC in the lobby: open the menu, step back a screen, or close it from the main screen. */
+  lobbyEscape() {
+    if (!this.lobbyMenu) this.openLobbyMenu();
+    else if (this.menus.current === 'menu') this.closeLobbyMenu();
+    else this.menus.back();
+  }
+
+  benchPlayer(c, teamId, i) {
+    c.benched = true;
+    c.reset();
+    c.frozen = true;
+    c.isHuman = false;
+    c.p.anim.stopAll();
+    c.p.holder.visible = false;
+    c.p.teleport(teamId === 'home' ? -60 : 60, 40 + i * 3, 0);
+    c.p.setGhost(true);
+  }
+
+  benchKeepers(on) {
+    for (const t of Object.values(this.match.teams)) {
+      const k = t.keeper;
+      k.benched = on;
+      k.k.holder.visible = !on;
+      if (on) {
+        k.k.anim.stopAll();
+        k.k.teleport(t.attackSign * 70, 0, 0);
+        k.k.setGhost(true);
+        if (this.ball.heldBy === k.k) this.ball.release?.();
+      }
+    }
+  }
+
+  /** Free play: a shot into the empty net gets a moment, then the ball comes back. */
+  checkLobbyGoal() {
+    if (this.lobbyGoalAt != null) {
+      if (this.time - this.lobbyGoalAt > 1.4) {
+        this.lobbyGoalAt = null;
+        this.ball.inGoal = false;
+        const p = this.human.p;
+        const f = p.facing(new THREE.Vector3());
+        this.ball.placeAt(p.position.x + f.x * 1.2, 0.6, p.position.z + f.z * 1.2);
+      }
+      return;
+    }
+    const b = this.ball.position;
+    if (Math.abs(b.x) < COURT.halfLength + BALL.radius || Math.abs(b.z) > COURT.goalHalfWidth || b.y > COURT.goalHeight) return;
+    this.ball.inGoal = true;
+    this.lobbyGoalAt = this.time;
+    const at = new THREE.Vector3(Math.sign(b.x) * (COURT.halfLength - 1), 2.4, b.z);
+    this.hud.popup(this.venueId === 'brazil' ? 'GOL!' : 'GOAL!', at, this.camera, { big: true });
+    this.audio.play('cheer', { group: 'crowd', volume: 0.5 });
+    this.crowd.react(0.5);
+    this.vfx.confetti(new THREE.Vector3(Math.sign(b.x) * (COURT.halfLength + 0.4), 0.6, 0), ['#f6c915', '#ffffff', TEAMS.home.jersey]);
   }
 
   /** Kick-off shape. The kicking team's first player stands on the ball. */
@@ -731,11 +851,11 @@ export class Game {
     this.combo = 0;
     const ev = this.events;
     ev.on('trickDenied', ({ reason }) => {
-      if (reason === 'noball' && this.phase === 'playing') this.hud.toast('Skills need the ball at your feet', 1.2);
+      if (reason === 'noball' && ['playing', 'lobby'].includes(this.phase)) this.hud.toast('Skills need the ball at your feet', 1.2);
     });
     ev.on('trickStart', ({ player, kind, label, byHuman }) => {
       // Name the move as it starts, so the input always gets an answer.
-      if (byHuman && this.phase === 'playing') this.hud.trickName(label);
+      if (byHuman && ['playing', 'lobby'].includes(this.phase)) this.hud.trickName(label);
       this.audio.play('swish', { volume: player === this.human?.p ? 0.6 : 0.35, at: player.holder.position, variance: 0.12 });
       // Fake shot near goal: the keeper buys it.
       if (kind === 'fakeshot') {
@@ -754,6 +874,10 @@ export class Game {
   onTrick({ player, label, points, outcome, solo, kind, byHuman }) {
     const at = new THREE.Vector3(player.position.x, 2.3, player.position.z);
     const home = this.isHome(player);
+    if (this.phase === 'lobby') {
+      if (byHuman && outcome === 'success') this.hud.popup(label, at, this.camera);
+      return;
+    }
     if (this.phase !== 'playing') return;
     if (!home) {
       // AI opponents' moves: crowd reaction only.
@@ -920,7 +1044,8 @@ export class Game {
 
   fixedUpdate(dt) {
     const it = this.stepIntents ?? NEUTRAL_INTENTS;
-    const active = this.phase === 'playing';
+    const lobby = this.phase === 'lobby';
+    const active = this.phase === 'playing' || (lobby && !this.lobbyMenu);
     if (this.phase === 'menu') {
       for (const f of this.footballers) {
         f.beginStep();
@@ -929,13 +1054,13 @@ export class Game {
       this.ball.preStep(dt);
       return;
     }
-    if (active && it.switchPressed) this.switchPlayer();
-    if (active && it.specialPressed) this.activateGamebreaker();
+    if (active && !lobby && it.switchPressed) this.switchPlayer();
+    if (active && !lobby && it.specialPressed) this.activateGamebreaker();
     if (active && this.gb.active > 0) {
       this.gb.active -= dt;
       if (this.gb.active <= 0) this.endGamebreaker();
     }
-    if (active) {
+    if (active && !lobby) {
       this.match.teams.home.ai.update(dt, this.time);
       this.match.teams.away.ai.update(dt, this.time);
       this.tutorial?.fixed(dt);
@@ -949,7 +1074,7 @@ export class Game {
         c.update(dt, intents, this.cameraRig.yaw, this.time);
       }
     }
-    for (const t of Object.values(this.match.teams)) t.keeper.update(dt, this.time);
+    for (const t of Object.values(this.match.teams)) if (!t.keeper.benched) t.keeper.update(dt, this.time);
     this.separateAll();
     this.ball.preStep(dt);
     // Edge-triggered intents only fire on the first sub-step of a frame.
@@ -998,6 +1123,7 @@ export class Game {
     this.ball.postStep();
     this.time += dt;
     if (this.phase === 'playing' || this.phase === 'goal') this.checkGoal();
+    else if (this.phase === 'lobby') this.checkLobbyGoal();
     this.checkStuckBall(dt);
   }
 
@@ -1167,7 +1293,7 @@ export class Game {
     this.perf.frame(cpu);
     // Wall-clock frame time (the game delta is clamped, so it cannot show hitches).
     this.perf.sample(this.perf.lastWallMs, cpu);
-    if (this.benchmarkPending && this.phase === 'menu' && this.frame > 10) this.startBenchmark();
+    if (this.benchmarkPending && this.phase === 'lobby' && this.frame > 10) this.startBenchmark();
     if (this.bench && performance.now() - this.bench.t0 > 20000) this.finishBenchmark();
   }
 
@@ -1221,7 +1347,8 @@ export class Game {
     const it = this.input.poll();
 
     if (it.pausePressed) {
-      if (this.paused) this.resume();
+      if (this.phase === 'lobby') this.lobbyEscape();
+      else if (this.paused) this.resume();
       else this.pause();
     }
     if (this.pausedForScreenshot || this.paused) {

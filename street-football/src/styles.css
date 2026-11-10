@@ -261,6 +261,80 @@ body {
   100% { visibility: hidden; }
 }
 
+/* Free play (home screen): no score, no clock — a bar with the way into the menu. */
+#lobby-bar {
+  display: none;
+}
+
+#hud.lobby #lobby-bar {
+  position: absolute;
+  top: calc(12px + var(--safe-t));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px 6px 16px;
+  transform: translateX(-50%);
+  background: rgba(14, 14, 14, 0.82);
+  border-left: 5px solid var(--yellow);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+#lobby-bar span {
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 0.03em;
+  color: var(--yellow);
+}
+
+#lobby-bar small {
+  font-family: var(--body);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--paper);
+}
+
+#lobby-bar kbd {
+  min-width: 0;
+  padding: 0 5px;
+  font-size: 12px;
+}
+
+#lobby-menu-btn {
+  padding: 6px 14px;
+  border: 0;
+  font-family: var(--display);
+  font-size: 18px;
+  color: var(--ink);
+  background: var(--yellow);
+  cursor: pointer;
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+
+#hud.menu-open #lobby-bar,
+#hud.menu-open #player-chip,
+#hud.menu-open #stamina,
+#hud.menu-open #hud-buttons,
+#hud.lobby #scoreboard,
+#hud.lobby #style-panel,
+#hud.lobby #combo-tag,
+#hud.lobby #gb {
+  display: none;
+}
+
+.menu-btn small {
+  margin-left: 6px;
+  font-size: 0.6em;
+  opacity: 0.7;
+}
+
+@media (max-width: 640px) {
+  #lobby-bar small {
+    display: none;
+  }
+}
+
 /* Tutorial step card, under the scoreboard. */
 #tutorial-box {
   position: absolute;

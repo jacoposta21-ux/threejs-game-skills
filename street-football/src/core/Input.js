@@ -28,6 +28,7 @@ const ACTION_KEYS = {
   KeyG: 'special',
   Escape: 'pause',
   KeyP: 'pause',
+  KeyM: 'pause',
 };
 
 export class Input {

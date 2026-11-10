@@ -21,11 +21,19 @@ export async function startMatch(page) {
   });
   await page.goto('/?qa=1');
   await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 5, null, { timeout: 120_000 });
-  // PLAY → mode → team → KICK OFF (the real menu path).
+  // Home screen is free play; open the menu, then PLAY → mode → team → KICK OFF.
+  await openMenu(page);
   const play = page.locator('#main-menu [data-menu="modes"]');
   await expect(play).toBeVisible();
   await play.click();
   await page.locator('#mode-grid [data-mode="quick"]').click();
   await page.locator('#kickoff-btn').click();
   await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.phase === 'playing', null, { timeout: 90_000 });
+}
+
+/** The game opens on free play: the MENU button brings the menu up over the court. */
+export async function openMenu(page) {
+  await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.phase === 'lobby', null, { timeout: 90_000 });
+  if (!(await page.locator('#menu').isVisible())) await page.locator('#lobby-menu-btn').click();
+  await expect(page.locator('#menu')).toBeVisible();
 }

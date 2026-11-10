@@ -1,0 +1,60 @@
+// Home screen (free play) check with real keys: node tools/qa/lobbycheck.mjs <outDir> [baseUrl]
+import { chromium } from 'playwright';
+import fs from 'node:fs';
+const out = process.argv[2] ?? 'artifacts/lobby';
+const base = process.argv[3] ?? 'http://127.0.0.1:5188/?qa=1';
+fs.mkdirSync(out, { recursive: true });
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium', args: ['--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+await page.goto(base);
+await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.phase === 'lobby', null, { timeout: 120000 });
+await page.waitForTimeout(1500);
+await page.screenshot({ path: `${out}/lobby.png` });
+const state = () => page.evaluate(() => {
+  const g = window.__RUA10__;
+  const b = g.ball.position;
+  return { phase: g.phase, menu: !document.getElementById('menu').classList.contains('hidden'), poss: g.human.possession, x: +g.human.p.position.x.toFixed(1), ball: [+b.x.toFixed(1), +b.z.toFixed(1)], outfield: g.match.allOutfield().length };
+});
+const log = [await state()];
+await page.locator('#game-canvas').focus();
+await page.keyboard.down('KeyA');
+await page.waitForTimeout(4000);
+log.push(await state());
+await page.keyboard.press('KeyL');
+await page.waitForTimeout(1500);
+await page.keyboard.up('KeyA');
+log.push(await state());
+await page.screenshot({ path: `${out}/lobby-play.png` });
+// Shoot at the empty net.
+const goals = await page.evaluate(() => { window.__goals = 0; return 0; });
+await page.evaluate(() => {
+  const g = window.__RUA10__;
+  g.human.p.teleport(-10, 0, -Math.PI / 2);
+  g.ball.placeAt(-10.5, 0.11, 0);
+});
+// D runs toward the -X goal (screen right); hold J for a game-time charge, then release.
+await page.keyboard.down('KeyD');
+await page.waitForTimeout(800);
+const t0 = await page.evaluate(() => window.__RUA10__.time);
+await page.keyboard.down('KeyJ');
+await page.waitForFunction((t) => window.__RUA10__.time > t + 0.35, t0, { timeout: 60000 });
+await page.keyboard.up('KeyJ');
+await page.waitForFunction((t) => window.__RUA10__.time > t + 1.2, t0, { timeout: 60000 });
+await page.keyboard.up('KeyD');
+log.push({ ...(await state()), goalAt: await page.evaluate(() => window.__RUA10__.lobbyGoalAt) });
+await page.waitForTimeout(300);
+await page.screenshot({ path: `${out}/lobby-goal.png` });
+await page.waitForTimeout(3500);
+log.push(await state());
+await page.keyboard.press('Escape');
+await page.waitForTimeout(800);
+log.push(await state());
+await page.screenshot({ path: `${out}/lobby-menu.png` });
+await page.keyboard.press('Escape');
+await page.waitForTimeout(500);
+log.push(await state());
+console.log(JSON.stringify(log));
+console.log('errors', JSON.stringify(errors), goals);
+await browser.close();
