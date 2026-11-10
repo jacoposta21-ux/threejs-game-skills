@@ -1,4 +1,6 @@
-# VISTA MAR — Handoff for the next Claude Code session
+# GRAND THEFT ALMOST (city: Vista Mar) — Handoff for the next Claude Code session
+
+> The game is titled **Grand Theft Almost** (user's choice, Phase 9e). Vista Mar is the city it is set in; the folder, save keys (`vistamar.*`) and in-world names keep `Vista Mar`. Builds are named `GrandTheftAlmost-FaseN.html`.
 
 > Read this first. It covers everything you need to keep developing the game
 > exactly where the previous session left off.

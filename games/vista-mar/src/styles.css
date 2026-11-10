@@ -242,3 +242,6 @@ kbd { display: inline-block; min-width: 1.7em; padding: 0.12em 0.45em; margin: 0
 #stats-body { font: 500 15px var(--body); color: var(--ink-dim); }
 #stats-body > div { display: flex; justify-content: space-between; gap: 18px; padding: 7px 0; border-bottom: 1px solid var(--line); }
 #stats-body b { color: var(--ink); font-weight: 600; text-align: right; }
+
+/* ---- title: two-line logo */
+.logo .logo-top { display: block; font-size: 0.42em; letter-spacing: 0.16em; line-height: 1.1; }
