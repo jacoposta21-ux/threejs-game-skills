@@ -25,6 +25,10 @@ import { Crowd } from '../world/Crowd.js';
 import { buildEnvironment } from '../world/Environment.js';
 import { buildNeighborhood } from '../world/Neighborhood.js';
 import { buildFestoons } from '../world/Festoons.js';
+import { applyVenueLighting } from '../world/Environment.js';
+import { VENUE_STYLE, buildVenueBackdrop } from '../world/Venues.js';
+import { Tutorial } from './Tutorial.js';
+import { MODES, Progress, TEAM_LIST, TOURNAMENT_ROUNDS, UNLOCKS, VENUES, teamById } from './Content.js';
 
 function outfieldLook(teamId, r) {
   return { ...r, team: TEAMS[teamId], teamId };
@@ -85,10 +89,16 @@ export class Game {
     this.hood = buildNeighborhood(this.scene, this.rng, this.settings.quality, { boardTexture: this.court.boardTexture });
     this.crowd = new Crowd(this.scene, lib, this.rng, this.quality.crowd);
     this.festoons = buildFestoons(this.scene, this.rng);
+    this.backdrops = {};
+    this.venueId = 'brazil';
+    this.progress = new Progress(storage);
+    // Menu choices (team, kit, court, mode) persist between sessions.
+    this.choice = { team: 'can', kit: 'home', court: 'brazil', mode: 'quick', ...this.loadJson('choice') };
 
     // Actors: two teams of three outfield players plus a keeper each.
     this.ball = new Ball(physics, this.scene, this.rng);
     this.match = new MatchState(this.ball);
+    this.allPlayers = { home: [], away: [] };
     this.gb = { meter: 0, active: 0 };
     this.lastPass = null;
     this.footballers = [];
@@ -101,6 +111,7 @@ export class Game {
           if (c === this.human) this.audio.play('step', { volume: 0.12 + speed * 0.025, at: f.holder.position, cooldown: 0.12, variance: 0.15 });
         };
         team.players.push(c);
+        this.allPlayers[teamId].push(c);
         this.footballers.push(f);
       }
       // Home defends +X (attacks -X); away defends -X.
@@ -130,6 +141,10 @@ export class Game {
     this.menus = new Menus(
       {
         play: () => this.startMatch(),
+        startMode: (id) => this.startMode(id),
+        choose: (patch) => this.saveChoice(patch),
+        content: () => ({ choice: this.choice, progress: this.progress, teams: TEAM_LIST, venues: VENUES, modes: MODES, unlocks: UNLOCKS }),
+        tutorial: () => this.startTutorial(),
         resume: () => this.resume(),
         restart: () => this.restartFromMenu(),
         quit: () => this.quitToMenu(),
@@ -171,7 +186,7 @@ export class Game {
   }
 
   freshStats() {
-    return { shots: 0, onTarget: 0, saves: 0, goals: 0, conceded: 0, tackles: 0, interceptions: 0, passes: 0, awayShots: 0, bestCombo: 0, tricks: 0, nutmegs: 0, failedTricks: 0 };
+    return { shots: 0, onTarget: 0, saves: 0, goals: 0, conceded: 0, tackles: 0, interceptions: 0, passes: 0, awayShots: 0, bestCombo: 0, tricks: 0, nutmegs: 0, failedTricks: 0, bicycleGoals: 0 };
   }
 
   freshFlight() {
@@ -271,6 +286,174 @@ export class Game {
     return b.goals != null ? b : null;
   }
 
+  // ------------------------------------------------------------- content
+
+  saveChoice(patch = {}) {
+    Object.assign(this.choice, patch);
+    this.storage.set('choice', JSON.stringify(this.choice));
+  }
+
+  get mode() {
+    return MODES[this.modeId] ?? MODES.quick;
+  }
+
+  /** Swap backdrop, lighting, court surface and ambience for a venue. The cage and colliders never change. */
+  setVenue(id) {
+    const style = VENUE_STYLE[id] ?? VENUE_STYLE.brazil;
+    if (this.venueId === id && this.venueApplied) return;
+    this.venueId = id;
+    this.venueApplied = true;
+    this.venueStyle = style;
+    const seed = [...id].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+    applyVenueLighting(this.env, style);
+    this.court.setSurface(style.court, createRng(seed), style.ads ?? null);
+    this.court.ground.material.color.set(style.ground);
+    // New York is a rooftop: the street-level ground plane would hide the drop.
+    this.court.ground.visible = id !== 'newyork';
+    this.court.lampMaterial.emissiveIntensity = style.lamps;
+    const brazil = id === 'brazil';
+    this.hood.group.visible = brazil;
+    this.festoons.group.visible = brazil;
+    if (this.crowd.billboards?.mesh) this.crowd.billboards.mesh.visible = brazil;
+    if (!brazil && !this.backdrops[id]) {
+      const b = buildVenueBackdrop(id, createRng(seed + 11));
+      this.scene.add(b.group);
+      this.backdrops[id] = b;
+    }
+    for (const [vid, b] of Object.entries(this.backdrops)) b.group.visible = vid === id;
+    for (const m of this.backdrops[id]?.windowMats ?? []) m.emissiveIntensity = style.windows ?? 0;
+    this.renderer.toneMappingExposure = style.night ? 1.08 : 1;
+  }
+
+  /** Dress both sides: names, numbers, ratings and kit colours (characters are reused). */
+  applyTeams(homeId, homeKitId, awayId) {
+    const home = teamById(homeId);
+    const away = teamById(awayId);
+    const hk = home.kits.find((k) => k.id === homeKitId && this.progress.unlocked(k)) ?? home.kits[0];
+    let ak = away.kits[0];
+    // Kit clash: the away side changes into its second kit.
+    const dist = (a, b) => {
+      const x = new THREE.Color(a);
+      const y = new THREE.Color(b);
+      return Math.abs(x.r - y.r) + Math.abs(x.g - y.g) + Math.abs(x.b - y.b);
+    };
+    if (dist(hk.jersey, ak.jersey) < 0.6 && away.kits[1]) ak = away.kits[1];
+    const strip = ({ id, label, unlock, ...colors }) => colors;
+    Object.assign(TEAMS.home, { name: home.name, short: home.short, ...strip(hk) });
+    Object.assign(TEAMS.away, { name: away.name, short: away.short, ...strip(ak) });
+    this.homeTeam = home;
+    this.awayTeam = away;
+    for (const [teamId, team, kit] of [['home', home, hk], ['away', away, ak]]) {
+      this.allPlayers[teamId].forEach((c, i) => {
+        const pl = team.players[i % team.players.length];
+        c.rating = { spd: pl.spd, sht: pl.sht, skl: pl.skl };
+        c.p.look.name = pl.name;
+        c.p.name = pl.name;
+        c.p.look.number = pl.number;
+        const u = c.p.character.material?.userData?.uniforms;
+        if (!u) return;
+        u.uJersey.value.set(kit.jersey);
+        u.uJersey2.value.set(kit.jersey2);
+        u.uShorts.value.set(kit.shorts);
+        u.uSocks.value.set(kit.socks);
+        u.uSockStripe.value.set(kit.sockStripe);
+        u.uShoes.value.set(kit.shoes);
+        u.uPattern.value = kit.pattern;
+        u.uNumberCell.value.set((pl.number - 1) % 5, Math.floor((pl.number - 1) / 5));
+        u.uNumberOutline.value.set(kit.pattern === 2 ? '#f4f1e8' : '#0b2a14');
+      });
+    }
+    this.hud.setTeams(home.short, away.short);
+    this.crowd.setTeamColors(hk, ak);
+    if (this.human) this.hud.setPlayer(this.human.p.look);
+  }
+
+  /** Outfield players per side (1 for 1 v 1). Benched players leave the pitch entirely. */
+  setRosterSize(n) {
+    for (const teamId of ['home', 'away']) {
+      const all = this.allPlayers[teamId];
+      this.match.teams[teamId].players = all.slice(0, n);
+      all.forEach((c, i) => {
+        const on = i < n;
+        c.benched = !on;
+        c.p.holder.visible = on;
+        if (!on) {
+          c.reset();
+          c.frozen = true;
+          c.isHuman = false;
+          c.p.anim.stopAll();
+          c.p.teleport(teamId === 'home' ? -60 : 60, 40 + i * 3, 0);
+          c.p.setGhost(true);
+        }
+      });
+    }
+    if (this.human?.benched) this.human = null;
+  }
+
+  applyDifficulty(level) {
+    for (const t of Object.values(this.match.teams)) {
+      t.keeper.difficulty = level;
+      t.ai.difficulty = level;
+    }
+  }
+
+  /** A fresh three-round knockout: three different opponents, each at its home court. */
+  newTournament() {
+    const others = TEAM_LIST.filter((t) => t.id !== this.choice.team);
+    for (let i = others.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [others[i], others[j]] = [others[j], others[i]];
+    }
+    return { round: 0, opponents: others.slice(0, TOURNAMENT_ROUNDS.length).map((t) => t.id), results: [] };
+  }
+
+  /** Set up mode, teams, court, roster size and AI level for the next match. */
+  prepareMatch() {
+    const mode = this.mode;
+    const homeId = this.choice.team;
+    let awayId;
+    let venue = this.choice.court;
+    let level = this.settings.difficulty;
+    if (mode.id === 'tournament') {
+      this.tournament ??= this.newTournament();
+      const r = this.tournament.round;
+      awayId = this.tournament.opponents[r];
+      venue = teamById(awayId).venue;
+      level = TOURNAMENT_ROUNDS[r].difficulty;
+    } else {
+      // The side that plays at this court is the opponent, unless that is you.
+      const local = TEAM_LIST.find((t) => t.venue === venue && t.id !== homeId);
+      const pool = TEAM_LIST.filter((t) => t.id !== homeId);
+      awayId = (local ?? pool[Math.floor(Math.random() * pool.length)]).id;
+    }
+    this.matchLevel = level;
+    this.setRosterSize(mode.size);
+    this.applyTeams(homeId, this.choice.kit, awayId);
+    this.setVenue(venue);
+    this.applyDifficulty(level);
+    this.goldenGoal = false;
+    this.matchOver = false;
+    this.lastResult = null;
+  }
+
+  /** Guided practice match: real gameplay, clock stopped, one verb at a time. */
+  startTutorial() {
+    this.modeId = 'quick';
+    this.startMatch();
+    this.applyDifficulty('easy');
+    this.tutorial = new Tutorial(this);
+  }
+
+  /** Banner subtitle at kick-off for the current mode. */
+  modeTagline() {
+    const m = this.mode;
+    if (m.id === 'tournament') return `${TOURNAMENT_ROUNDS[this.tournament.round].label} • vs ${TEAMS.away.name}`;
+    if (m.id === 'firstTo5') return `First to ${m.target} goals`;
+    if (m.id === 'style') return `Score ${m.styleGoal.toLocaleString('en')} style in 2:00`;
+    if (m.id === 'oneVone') return '1 v 1 • beat your man';
+    return '3 v 3 • first to the most goals';
+  }
+
   // ------------------------------------------------------------- phases
 
   setPhase(phase) {
@@ -342,10 +525,21 @@ export class Game {
     this.audio.play('click', { group: 'ui', variance: 0, volume: 0.6 });
   }
 
+  /** Menu: pick a mode, then play it with the saved team / court choices. */
+  startMode(modeId) {
+    this.modeId = modeId;
+    this.saveChoice({ mode: modeId });
+    if (modeId === 'tournament') this.tournament = this.newTournament();
+    this.startMatch();
+  }
+
   startMatch() {
     this.audio.unlock().catch(() => {});
+    this.tutorial?.stop();
+    this.tutorial = null;
+    this.prepareMatch();
     this.score = { home: 0, away: 0 };
-    this.timeLeft = MATCH.duration;
+    this.timeLeft = this.mode.duration ?? Infinity;
     this.style = 0;
     this.combo = 0;
     this.hud.setCombo(0);
@@ -367,6 +561,12 @@ export class Game {
   }
 
   async restartFromMenu() {
+    // From the results screen a tournament moves on (won) or starts over (lost / champions).
+    if (this.phase === 'fulltime' && this.modeId === 'tournament' && this.tournament) {
+      const won = this.lastResult?.won;
+      if (won && this.tournament.round < TOURNAMENT_ROUNDS.length - 1) this.tournament.round += 1;
+      else this.tournament = this.newTournament();
+    }
     // Natural break between matches: the place for a midgame ad.
     if (this.phase === 'fulltime') {
       this.loop.stop();
@@ -377,6 +577,8 @@ export class Game {
   }
 
   quitToMenu() {
+    this.tutorial?.stop();
+    this.tutorial = null;
     this.paused = false;
     this.audio.resume();
     this.resetPositions();
@@ -671,6 +873,12 @@ export class Game {
   addStyle(points, label, at, big = false) {
     this.style += points;
     this.hud.popup(`${label} +${points}`, at, this.camera, { big });
+    // Style Challenge: reaching the target wins on the spot (after the goal, if one is being celebrated).
+    const goal = this.mode.styleGoal;
+    if (goal && this.style >= goal && !this.matchOver && ['playing', 'goal'].includes(this.phase)) {
+      this.matchOver = true;
+      if (this.phase === 'playing') this.fullTime();
+    }
     // Style fills the Gamebreaker meter (not while one is running).
     if (this.gb.active <= 0) {
       const was = this.gb.meter;
@@ -730,6 +938,7 @@ export class Game {
     if (active) {
       this.match.teams.home.ai.update(dt, this.time);
       this.match.teams.away.ai.update(dt, this.time);
+      this.tutorial?.fixed(dt);
     }
     if (this.phase === 'goal') {
       this.updateCelebration(dt);
@@ -820,6 +1029,9 @@ export class Game {
 
   onGoal(team) {
     this.score[team] += 1;
+    const m = this.mode;
+    if (this.goldenGoal || (m.target && this.score[team] >= m.target)) this.matchOver = true;
+    if (team === 'home' && this.flight.aerial === 'bicycle' && this.ball.lastTouch?.team === 'home') this.stats.bicycleGoals += 1;
     const home = team === 'home';
     const at = this.ball.position.clone();
     this.lastGoalX = Math.sign(at.x) * COURT.halfLength;
@@ -856,11 +1068,15 @@ export class Game {
       c.p.anim.stopAll();
       if (c.team !== team) c.p.anim.setOverlay('Dejected', { fade: 0.4 });
     }
+    // A celebration per goal: the airplane run, a knee slide, or a standing one to the camera.
+    const kinds = ['airplane', 'slide', 'fist', 'dance', 'jump', 'airplane', 'slide'];
+    const kind = kinds[Math.floor(this.rng() * kinds.length)];
+    const clip = { airplane: 'Celebrate_Airplane', slide: 'Celebrate_KneeSlide', fist: 'Celebrate_FistPump', dance: 'Dance_Loop', jump: 'Jump_Loop' }[kind];
     if (scorer) {
       scorer.anim.stopAll();
-      scorer.anim.setOverlay('Celebrate_Airplane', { fade: 0.25 });
+      scorer.anim.setOverlay(clip, { fade: kind === 'slide' ? 0.15 : 0.25 });
     }
-    this.celebration = { scorer, turn: (Math.sign(scorer?.position.z ?? 1) || 1) * 0.9 };
+    this.celebration = { scorer, kind, turn: (Math.sign(scorer?.position.z ?? 1) || 1) * 0.9 };
     this.cameraRig.setMode('goal', scorer ?? this.human.p);
 
     const scoreLine = `${TEAMS.home.short} ${this.score.home} - ${this.score.away} ${TEAMS.away.short}`;
@@ -904,7 +1120,23 @@ export class Game {
     for (const ctrl of this.match.allOutfield()) {
       const p = ctrl.p;
       p.beginStep();
-      if (c?.scorer === p) {
+      if (c?.scorer === p && c.kind !== 'airplane') {
+        p.speed = 0;
+        const f = p.facing(new THREE.Vector3());
+        if (c.kind === 'slide') {
+          // Down on the knees and sliding to a stop.
+          const v = Math.max(0, 5.5 - this.phaseTime * 4.2);
+          p.position.addScaledVector(f, v * dt);
+        } else {
+          // Standing celebrations turn to the camera.
+          const cam = this.camera.position;
+          const want = Math.atan2(cam.x - p.position.x, cam.z - p.position.z);
+          const d = Math.atan2(Math.sin(want - p.heading), Math.cos(want - p.heading));
+          p.heading += THREE.MathUtils.clamp(d, -4 * dt, 4 * dt);
+        }
+        p.position.x = THREE.MathUtils.clamp(p.position.x, -COURT.halfLength + 0.4, COURT.halfLength - 0.4);
+        p.position.z = THREE.MathUtils.clamp(p.position.z, -COURT.halfWidth + 0.4, COURT.halfWidth - 0.4);
+      } else if (c?.scorer === p) {
         // Run arcs at the celebration clip's natural jog speed: feet stay planted.
         const speed = this.lib.locomotion.Jog_Fwd_Loop.natural;
         p.speed = 0; // locomotion layer is replaced by the celebration overlay
@@ -1022,6 +1254,7 @@ export class Game {
       return;
     }
 
+    this.tutorial?.update();
     this.stepIntents = it;
     const alpha = this.physics.update(dt * scale);
     this.stepIntents = null;
@@ -1030,7 +1263,7 @@ export class Game {
     this.recordReplay(dt);
     this.crowd.update(this.reducedMotion ? 0 : dt);
     // The batucada swells with the crowd's excitement.
-    this.audio.setLoopIntensity('batucada', 0.8 + this.crowd.excitement * 2.2);
+    this.audio.setLoopIntensity('batucada', this.venueId === 'brazil' ? 0.8 + this.crowd.excitement * 2.2 : 0);
     this.festoons.update(this.reducedMotion ? 0 : performance.now() / 1000);
     if (this.shotTracking > 0) this.shotTracking -= dt;
     if (this.cameraRig.mode === 'menu') this.updateMenuCamera(dt);
@@ -1106,6 +1339,10 @@ export class Game {
   }
 
   beginKickoff() {
+    if (this.matchOver) {
+      this.fullTime();
+      return;
+    }
     this.audio.setLoopIntensity('crowdBed', 1);
     this.replay.clear();
     this.resetPositions(this.kickoffTeam ?? 'home');
@@ -1143,6 +1380,8 @@ export class Game {
       stamina: h.stamina,
       possession: h.possession,
       charge: h.chargeLevel,
+      clockText: this.tutorial ? 'PRACTICE' : this.goldenGoal ? 'GOLDEN' : this.mode.duration == null ? `FIRST TO ${this.mode.target}` : null,
+      styleGoal: this.mode.styleGoal ?? null,
       gb: this.gb.active > 0 ? this.gb.active / GAMEBREAKER.duration : this.gb.meter,
       gbActive: this.gb.active > 0,
       phase: this.phase,
@@ -1161,7 +1400,7 @@ export class Game {
             this.hud.banner(String(left), '', { seconds: 0.95, count: true });
             this.audio.play('beep', { group: 'ui', variance: 0 });
           } else {
-            this.hud.banner('JOGA!', '3 v 3 • first to the most goals', { seconds: 1.1 });
+            this.hud.banner(this.venueId === 'brazil' ? 'JOGA!' : 'GO!', this.tutorial ? 'Tutorial • follow the steps at the top' : this.modeTagline(), { seconds: 1.3 });
             this.audio.play('beepGo', { group: 'ui', variance: 0 });
             this.audio.play('whistle', { variance: 0 });
             this.setPhase('playing');
@@ -1174,12 +1413,18 @@ export class Game {
         this.timeLeft -= dt;
         if (this.timeLeft <= 0) {
           this.timeLeft = 0;
-          this.fullTime();
+          if (this.mode.id === 'tournament' && this.score.home === this.score.away) {
+            // Knockout: no draws. Next goal wins.
+            this.goldenGoal = true;
+            this.timeLeft = Infinity;
+            this.hud.banner('NEXT GOAL WINS', 'Golden goal', { seconds: 2 });
+            this.audio.play('whistle', { variance: 0 });
+          } else this.fullTime();
         }
         break;
       case 'goal':
         if (this.phaseTime >= MATCH.goalCelebration) {
-          if (this.replay.available && !this.skipReplays) this.startReplay();
+          if (this.replay.available && !this.skipReplays && !this.tutorial) this.startReplay();
           else this.beginKickoff();
         }
         break;
@@ -1208,9 +1453,29 @@ export class Game {
     this.input.enabled = false;
     for (const c of this.match.allOutfield()) c.frozen = true;
     this.audio.play('whistleLong', { variance: 0 });
-    const won = this.score.home > this.score.away;
+    this.endGamebreaker(true);
+    const m = this.mode;
+    const won = m.styleGoal ? this.style >= m.styleGoal : this.score.home > this.score.away;
+    const draw = !m.styleGoal && this.score.home === this.score.away;
+    const final = m.id === 'tournament' && this.tournament?.round === TOURNAMENT_ROUNDS.length - 1;
+    this.lastResult = { won, draw, champion: won && final };
+    if (m.id === 'tournament') this.tournament.results[this.tournament.round] = { won, score: { ...this.score }, opponent: TEAMS.away.name };
     this.crowd.react(won ? 1 : 0.4);
-    this.hud.banner(won ? 'YOU WIN!' : this.score.home === this.score.away ? 'DRAW' : 'FULL TIME', `${this.score.home} - ${this.score.away}`, { seconds: 2.2 });
+    let title = won ? 'YOU WIN!' : draw ? 'DRAW' : 'FULL TIME';
+    if (m.styleGoal) title = won ? 'CHALLENGE COMPLETE!' : 'CHALLENGE FAILED';
+    if (this.lastResult.champion) title = 'CHAMPIONS!';
+    const sub = m.styleGoal ? `${this.style.toLocaleString('en')} / ${m.styleGoal.toLocaleString('en')} style` : `${this.score.home} - ${this.score.away}`;
+    this.hud.banner(title, sub, { seconds: 2.2 });
+    // Progress and kit unlocks.
+    const s = this.stats;
+    this.newUnlocks = this.autoplay ? [] : this.progress.update((d) => {
+      if (won) d.wins += 1;
+      d.bestStyle = Math.max(d.bestStyle, this.style);
+      d.tricks += s.tricks;
+      d.bicycleGoals += s.bicycleGoals;
+      if (won && m.id === 'firstTo5') d.firstTo5Wins += 1;
+      if (this.lastResult.champion) d.tournaments += 1;
+    });
     this.platform.gameplayStop();
   }
 
@@ -1222,7 +1487,21 @@ export class Game {
     this.hud.hideBanner();
     this.syncTouchUi();
     const s = this.stats;
+    const m = this.mode;
+    const r = this.lastResult ?? {};
+    let title = r.won ? 'YOU WIN' : r.draw ? 'DRAW' : 'FULL TIME';
+    let again = 'PLAY AGAIN';
+    if (m.styleGoal) title = r.won ? 'CHALLENGE COMPLETE' : 'CHALLENGE FAILED';
+    if (m.id === 'tournament') {
+      const round = TOURNAMENT_ROUNDS[this.tournament.round].label;
+      title = r.champion ? 'CHAMPIONS!' : r.won ? `${round} WON` : `OUT IN THE ${round}`;
+      again = r.champion ? 'NEW TOURNAMENT' : r.won ? `NEXT: ${TOURNAMENT_ROUNDS[this.tournament.round + 1].label}` : 'TRY AGAIN';
+    }
+    const extra = {};
+    if (m.styleGoal) extra['STYLE TARGET'] = `${this.style.toLocaleString('en')} / ${m.styleGoal.toLocaleString('en')}`;
+    if (this.newUnlocks?.length) extra.UNLOCKED = this.newUnlocks.join(', ');
     this.menus.showResults(this.score, {
+      ...extra,
       SHOTS: `${s.shots} - ${s.awayShots}`,
       'PASSES': s.passes,
       'TACKLES WON': s.tackles,
@@ -1231,7 +1510,7 @@ export class Game {
       'BEST COMBO': s.bestCombo >= 2 ? `x${s.bestCombo}` : '—',
       'STYLE POINTS': this.style,
       [newBest ? 'NEW BEST!' : 'BEST']: newBest ? `${s.goals} goals / ${this.style}` : `${best.goals} goals / ${best.style}`,
-    });
+    }, { title, again, home: TEAMS.home.short, away: TEAMS.away.short, mode: m.label });
   }
 
   updateMenuCamera(dt) {

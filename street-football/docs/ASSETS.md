@@ -12,12 +12,14 @@ Everything shipped in this project may be redistributed in a commercial browser 
 | Batucada loop (surdo, caixa, tamborim, agogô, ganzá) | Synthesised (`AudioSystem.js`) | Original | runtime | — |
 | Court, asphalt, plaster, brick, graffiti murals, chain-link, nets, ad boards, crowd sprites, ball | Procedurally generated canvases (`src/world/ProceduralTextures.js`, `src/entities/Ball.js`) | Original | runtime | — |
 | Neighbourhood geometry | Procedural (`src/world/Neighborhood.js`, `Court.js`) | Original | runtime | — |
+| New York, London, Tokyo and Barcelona backdrops, facades, neon signs, court paints and centre art | Procedural (`src/world/Venues.js`, `ProceduralTextures.js`) | Original | runtime | — |
+| Celebrations (knee slide, fist pump), fall, stumble, reception, volley, bicycle kick, slide tackle, elastico, sombrero, drag-back | Authored in code (`src/animation/FootballClips.js`); the dance and jump celebrations reuse the CC0 *Dance_Loop* and *Jump_Loop* | Original / CC0 | runtime | — |
 | All sound effects and ambience | Synthesised with Web Audio at startup (`src/systems/AudioSystem.js`) | Original | runtime | — |
 | Fonts: Anton, Barlow Condensed | Google Fonts via `@fontsource` | **SIL OFL 1.1** | bundled by Vite | — |
 | three.js | npm `three` | MIT | bundle | — |
 | Rapier 3D | npm `@dimforge/rapier3d-compat` | Apache-2.0 | bundle | — |
 
-The shop and brand names on the boards and signs (AÇAÍ DO ZÉ, BAR DO TONHO, PADARIA ESTRELA, …) and the team names (CANARINHOS, VILA RUBRA) are fictional. No FIFA, EA or club marks are used.
+The shop and brand names on the boards and signs (AÇAÍ DO ZÉ, BAR DO TONHO, PADARIA ESTRELA, JOE’S SLICE, THE ARCHES CAFF, KITSUNE RAMEN, FORN DEL RAVAL, …) and the team names (CANARINHOS, VILA RUBRA, BROOKLYN BRIDGERS, SOUTHWARK ARCHES, SHIBUYA KITSUNE, RAVAL GATS) are fictional. No FIFA, EA or club marks are used.
 
 ## Optional upgrades (not required to run)
 
@@ -29,4 +31,4 @@ These sources were named in the brief. None of them was reachable from the build
 2. **Mixamo characters and animations** (free with an Adobe account; may be used in games, but the raw files may not be redistributed as stand-alone assets): download as FBX with skin, convert to glTF in Blender, and retarget to the UAL rig (for example with Blender's *Rokoko* or *Auto-Rig Pro*). Put the result in `public/assets/characters/`.
 3. **Photo-scanned surfaces** — Poly Haven textures (CC0, https://polyhaven.com/textures, for example *concrete_floor_worn_001*, *asphalt_02*, *painted_plaster_wall*): download the 1k JPG diffuse, roughness and normal maps into `public/assets/textures/`. Load them with `TextureLoader` in `Court.js` / `Neighborhood.js` in place of the canvas textures, keeping `repeat` in world units. Keep the procedural versions as the fallback.
 4. **Kenney props** (CC0, https://kenney.nl/assets): street furniture such as bins and barriers can be added to `Neighborhood.js` as instanced GLBs.
-5. **Recorded audio** — freesound.org CC0 recordings: decode them into the same buffer names in `AudioSystem` (`kickHard`, `fence`, `crowdBed`, …) and keep the synthesised versions as fallbacks.
+5. **Recorded audio** — attempted for v1.5: every request to freesound.org from the build environment came back 403, so nothing was downloaded. To add them, use freesound.org CC0 recordings: decode them into the same buffer names in `AudioSystem` (`kickHard`, `fence`, `crowdBed`, …) and keep the synthesised versions as fallbacks.

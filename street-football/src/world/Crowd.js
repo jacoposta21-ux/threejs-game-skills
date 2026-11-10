@@ -67,10 +67,27 @@ export class Crowd {
       cheer.play();
       cheer.setEffectiveWeight(0);
       cheer.time = rng() * cheer.getClip().duration;
-      this.fans.push({ ch, mixer, idle, cheer, home: look.team.jersey === TEAMS.home.jersey });
+      // casual[0..1] are home colours, casual[2] away: recoloured when the teams change.
+      const side = i % casual.length < 2 ? 'home' : i % casual.length === 2 ? 'away' : null;
+      this.fans.push({ ch, mixer, idle, cheer, home: side === 'home', side, alt: i % casual.length === 1 });
     }
 
     this.billboards = this.buildBillboards(scene, rng);
+  }
+
+  /** Dress the supporters in the current teams' colours. */
+  setTeamColors(home, away) {
+    for (const f of this.fans) {
+      const u = f.ch.material?.userData?.uniforms;
+      if (!u || !f.side) continue;
+      const k = f.side === 'home' ? home : away;
+      u.uJersey.value.set(f.alt ? k.jersey2 : k.jersey);
+      u.uJersey2.value.set(f.alt ? k.jersey : k.jersey2);
+      u.uShorts.value.set(k.shorts);
+      u.uSocks.value.set(k.socks);
+      u.uSockStripe.value.set(k.sockStripe);
+      u.uPattern.value = f.alt ? 1 : k.pattern;
+    }
   }
 
   buildBillboards(scene, rng) {

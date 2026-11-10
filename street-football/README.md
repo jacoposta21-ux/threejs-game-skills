@@ -98,6 +98,64 @@ Control follows the ball automatically: when a teammate wins it or receives your
   - Film look: grade, grain and a heavier vignette.
   - The ball trail now draws on the shot.
 
+## v1.5 — content and presentation
+
+**Courts.** Five playable venues around the same cage; picking one swaps the backdrop, sky and lighting, court paint and centre art, local sponsors on the kickboards, and the ambience (the batucada plays only in Brazil).
+
+| Court | Look |
+| --- | --- |
+| Brazil | The original Vila Esperança street court. |
+| New York | A rooftop 40 m up at dusk, with water towers, string lights and towers rising out of the drop. |
+| London | A night cage under a brick railway viaduct, with lit arches, a parked train and sodium lamps. |
+| Tokyo | A neon night court: vertical signs, vending machines, cables overhead. |
+| Barcelona | A sunny plaça with stucco apartment blocks, balconies, laundry lines, palms and orange trees, and a broken-tile mosaic at centre court. |
+
+**Teams.** Six fictional street sides, each with a home court. Every player has pace, shooting and skill ratings (1–5):
+- **Pace** changes top speed (±3.5% per point).
+- **Shooting** changes shot power and accuracy.
+- **Skill** changes trick risk and dribble accuracy.
+
+Each side has a second kit, locked until you meet its condition:
+
+| Kit | Unlock condition |
+| --- | --- |
+| Canarinhos Night | Win a match |
+| Vila Rubra White | 5,000 style in one match |
+| Brooklyn Steel | 20 tricks in total |
+| Southwark Fog | A bicycle-kick goal |
+| Kitsune Neon | Win the tournament |
+| Raval Sand | Win a First to 5 match |
+
+The away side switches kits on a clash. Progress is saved.
+
+**Modes** (PLAY → mode → team → KICK OFF):
+
+| Mode | Rules |
+| --- | --- |
+| Quick Match | 3 v 3 over three minutes. |
+| First to 5 | No clock. |
+| Style Challenge | 8,000 style points in two minutes. |
+| 1 v 1 | The other players leave the pitch. |
+| Tournament | Three knockout rounds against three different sides at their home courts, AI easy → normal → hard. A draw goes to a golden goal. |
+
+**Tutorial.** A playable, eight-step practice match with the clock stopped: move, dribble and sprint, pass, skill, flair, shoot and score, win the ball back, Gamebreaker. Each step completes on the real event.
+
+**Animations:**
+- Five goal celebrations: the airplane run, a knee slide, a fist pump, a dance and jumps. The standing ones turn to the camera.
+- A slide-tackle victim goes down on his back and gets up.
+- A beaten defender stumbles the way he bit.
+- A hard ball taken standing is cushioned.
+
+**Not done:**
+- **Real audio samples.** The Freesound connection in this environment answered 403 to every request, so no recordings were downloaded and the audio is still fully synthesised. `docs/ASSETS.md` is unchanged.
+- **Local multiplayer.** The two-zone keyboard layout already uses both hands for one player.
+- **Different player bodies per team.** Each side reuses the same six character bodies; names, numbers, ratings and kits change.
+
+Checks:
+- `node tools/qa/venues.mjs <dir>`
+- `node tools/qa/modescheck.mjs`
+- `node tools/qa/tutorialcheck.mjs`
+
 ## v1.4 — hard AI uses the move set, two-zone keyboard
 
 - **Hard difficulty only**, both teams' AI players now also use:

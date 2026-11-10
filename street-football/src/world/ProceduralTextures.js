@@ -97,7 +97,15 @@ function crack(g, rng, x, y, len, width, color) {
  * painted lines, a faded centre emblem, repairs, cracks and scuffs.
  * Returns { map, roughnessMap, size: [w, d] } in metres.
  */
-export function createCourtTextures(rng) {
+/**
+ * Court surface. `theme` restyles it per venue:
+ *   concrete [a, b]  base noise colours
+ *   paint            { color, alpha } painted playing surface inside the lines
+ *   emblem           'star' | 'ring' | 'mosaic' | 'diamond', with emblemColors and emblemText
+ *   lines            line colour
+ *   stains           how worn the surface is (0..1.5)
+ */
+export function createCourtTextures(rng, theme = {}) {
   const sizeX = COURT.halfLength * 2 + 4;
   const sizeZ = COURT.halfWidth * 2 + 4;
   const W = 2048;
@@ -106,7 +114,8 @@ export function createCourtTextures(rng) {
   const toPx = (x, z) => [(x + sizeX / 2) * px, (z + sizeZ / 2) * px];
 
   // Base concrete: low-res fBm upscaled, then fine grain on top.
-  const [base] = noiseCanvas(512, Math.round(512 * (H / W)), rng, '#c4c0b8', '#9a958c', { octaves: 6, base: 4 });
+  const [ca, cb] = theme.concrete ?? ['#c4c0b8', '#9a958c'];
+  const [base] = noiseCanvas(512, Math.round(512 * (H / W)), rng, ca, cb, { octaves: 6, base: 4 });
   const [c, g] = canvas(W, H);
   g.imageSmoothingEnabled = true;
   g.drawImage(base, 0, 0, W, H);
@@ -139,8 +148,19 @@ export function createCourtTextures(rng) {
     g.lineWidth = 2;
     g.strokeRect(x, y, w, h);
   }
+  // Painted playing surface (rooftop acrylic, plaça terracotta...).
+  if (theme.paint) {
+    const [a0, b0] = toPx(-COURT.halfLength, -COURT.halfWidth);
+    const [a1, b1] = toPx(COURT.halfLength, COURT.halfWidth);
+    g.save();
+    g.globalAlpha = theme.paint.alpha ?? 0.8;
+    g.globalCompositeOperation = 'multiply';
+    g.fillStyle = theme.paint.color;
+    g.fillRect(a0, b0, a1 - a0, b1 - b0);
+    g.restore();
+  }
   // Stains, water marks, rubber scuffs.
-  for (let i = 0; i < 140; i += 1) {
+  for (let i = 0; i < 140 * (theme.stains ?? 1); i += 1) {
     const r = 6 + rng() * 60;
     const grd = g.createRadialGradient(0, 0, 0, 0, 0, r);
     const dark = rng() < 0.8;
@@ -158,33 +178,12 @@ export function createCourtTextures(rng) {
   }
   for (let i = 0; i < 22; i += 1) crack(g, rng, rng() * W, rng() * H, 12 + rng() * 30, 1 + rng() * 1.6, 'rgba(25,22,18,0.65)');
 
-  // Faded painted centre emblem: a sun-star roundel.
   const [cx, cz] = toPx(0, 0);
-  g.save();
-  g.translate(cx, cz);
-  g.globalAlpha = 0.28;
-  g.fillStyle = '#1f8a4c';
-  g.beginPath();
-  g.arc(0, 0, COURT.centerCircleRadius * px * 0.8, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = '#f6c915';
-  g.beginPath();
-  for (let i = 0; i < 16; i += 1) {
-    const r = (i % 2 ? 0.38 : 0.7) * COURT.centerCircleRadius * px;
-    const a = (i / 16) * Math.PI * 2;
-    g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-  }
-  g.fill();
-  g.globalAlpha = 0.4;
-  g.fillStyle = '#1d4fa3';
-  g.beginPath();
-  g.arc(0, 0, COURT.centerCircleRadius * px * 0.3, 0, Math.PI * 2);
-  g.fill();
-  g.restore();
+  drawEmblem(g, rng, cx, cz, COURT.centerCircleRadius * px, theme);
 
   // Painted lines: white, chipped.
   const lineW = 0.09 * px;
-  g.strokeStyle = 'rgba(238,234,222,0.92)';
+  g.strokeStyle = theme.lines ?? 'rgba(238,234,222,0.92)';
   g.lineWidth = lineW;
   const L = COURT.halfLength;
   const Wd = COURT.halfWidth;
@@ -204,7 +203,7 @@ export function createCourtTextures(rng) {
     g.beginPath();
     g.arc(cx, cz, COURT.centerCircleRadius * px, 0, Math.PI * 2);
     g.stroke();
-    g.fillStyle = 'rgba(238,234,222,0.92)';
+    g.fillStyle = theme.lines ?? 'rgba(238,234,222,0.92)';
     g.beginPath();
     g.arc(cx, cz, 0.16 * px, 0, Math.PI * 2);
     g.fill();
@@ -255,6 +254,99 @@ export function createCourtTextures(rng) {
   const map = toTexture(c, { aniso: 8 });
   const roughnessMap = toTexture(rc, { srgb: false });
   return { map, roughnessMap, size: [sizeX, sizeZ] };
+}
+
+/** Centre-circle artwork. R is the centre circle radius in pixels. */
+function drawEmblem(g, rng, cx, cz, R, theme) {
+  const kind = theme.emblem ?? 'star';
+  const [c1, c2, c3] = theme.emblemColors ?? ['#1f8a4c', '#f6c915', '#1d4fa3'];
+  g.save();
+  g.translate(cx, cz);
+  if (kind === 'star') {
+    // Faded painted sun-star roundel.
+    g.globalAlpha = 0.28;
+    g.fillStyle = c1;
+    g.beginPath();
+    g.arc(0, 0, R * 0.8, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = c2;
+    g.beginPath();
+    for (let i = 0; i < 16; i += 1) {
+      const r = (i % 2 ? 0.38 : 0.7) * R;
+      const a = (i / 16) * Math.PI * 2;
+      g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    g.fill();
+    g.globalAlpha = 0.4;
+    g.fillStyle = c3;
+    g.beginPath();
+    g.arc(0, 0, R * 0.3, 0, Math.PI * 2);
+    g.fill();
+  } else if (kind === 'mosaic') {
+    // Trencadís: broken tiles set in mortar inside the circle.
+    g.beginPath();
+    g.arc(0, 0, R * 0.86, 0, Math.PI * 2);
+    g.clip();
+    g.fillStyle = 'rgba(235,228,212,0.85)';
+    g.fillRect(-R, -R, R * 2, R * 2);
+    const cols = theme.emblemColors ?? ['#0b4fa3', '#e3a21a', '#2e8b57', '#c8102e', '#f4f1e8'];
+    for (let i = 0; i < 520; i += 1) {
+      const a = rng() * Math.PI * 2;
+      const r = Math.sqrt(rng()) * R * 0.9;
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      const s = R * (0.035 + rng() * 0.05);
+      // Concentric colour bands, like a mosaic bench.
+      const band = Math.floor((r / (R * 0.9)) * cols.length * 1.6) % cols.length;
+      g.fillStyle = cols[band];
+      g.globalAlpha = 0.75 + rng() * 0.25;
+      g.beginPath();
+      const n = 3 + Math.floor(rng() * 3);
+      const rot = rng() * Math.PI;
+      for (let k = 0; k < n; k += 1) {
+        const ak = rot + (k / n) * Math.PI * 2 + (rng() - 0.5) * 0.6;
+        g.lineTo(x + Math.cos(ak) * s, y + Math.sin(ak) * s);
+      }
+      g.fill();
+    }
+  } else {
+    // 'ring' / 'diamond': a painted badge with the court's name.
+    g.globalAlpha = theme.emblemAlpha ?? 0.55;
+    g.fillStyle = c1;
+    g.beginPath();
+    if (kind === 'diamond') {
+      g.moveTo(0, -R * 0.85);
+      g.lineTo(R * 0.85, 0);
+      g.lineTo(0, R * 0.85);
+      g.lineTo(-R * 0.85, 0);
+      g.closePath();
+    } else g.arc(0, 0, R * 0.82, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = c2;
+    g.lineWidth = R * 0.07;
+    g.beginPath();
+    if (kind === 'diamond') {
+      g.moveTo(0, -R * 0.68);
+      g.lineTo(R * 0.68, 0);
+      g.lineTo(0, R * 0.68);
+      g.lineTo(-R * 0.68, 0);
+      g.closePath();
+    } else g.arc(0, 0, R * 0.64, 0, Math.PI * 2);
+    g.stroke();
+    if (theme.emblemText) {
+      g.globalAlpha = Math.min(1, (theme.emblemAlpha ?? 0.55) + 0.25);
+      g.fillStyle = c3 ?? c2;
+      // The texture is seen rotated 180° from the main camera: turn the lettering to face it.
+      g.rotate(Math.PI);
+      g.font = `900 ${Math.round(R * 0.34)}px "Arial Black", Impact, sans-serif`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      // Read from the main camera side (court-long axis horizontal).
+      const lines = String(theme.emblemText).split('\n');
+      lines.forEach((ln, i) => g.fillText(ln, 0, (i - (lines.length - 1) / 2) * R * 0.38));
+    }
+  }
+  g.restore();
 }
 
 export function createAsphaltTexture(rng) {
@@ -381,12 +473,12 @@ const ADS = [
 ];
 
 /** Kickboard banner atlas: 6 rows of fictional local businesses, weathered. */
-export function createBoardTexture(rng) {
+export function createBoardTexture(rng, ads = ADS) {
   const W = 1024;
   const H = 1024;
   const [c, g] = canvas(W, H);
-  const rowH = H / ADS.length;
-  ADS.forEach((ad, i) => {
+  const rowH = H / ads.length;
+  ads.forEach((ad, i) => {
     const y = i * rowH;
     g.fillStyle = ad.bg;
     g.fillRect(0, y, W, rowH);
@@ -418,7 +510,7 @@ export function createBoardTexture(rng) {
     g.fillRect(x, y, 3 + rng() * 4, 60);
   }
   const t = toTexture(c);
-  t.userData = { rows: ADS.length };
+  t.userData = { rows: ads.length };
   return t;
 }
 

@@ -55,6 +55,11 @@ export class Hud {
     this.root.classList.toggle('hidden', !visible);
   }
 
+  setTeams(home, away) {
+    $('home-badge').textContent = home;
+    $('away-badge').textContent = away;
+  }
+
   setPlayer(look) {
     this.el.num.textContent = look.number;
     this.el.name.textContent = look.name;
@@ -74,10 +79,11 @@ export class Hud {
   update(dt, state) {
     if (this.setText('home', this.el.home, String(state.score.home)) && state.score.home) this.punch(this.el.home);
     if (this.setText('away', this.el.away, String(state.score.away)) && state.score.away) this.punch(this.el.away);
-    this.setText('clock', this.el.clock, formatClock(state.timeLeft));
+    this.setText('clock', this.el.clock, state.clockText ?? formatClock(state.timeLeft));
     const urgent = state.timeLeft <= 10 && state.timeLeft > 0 && state.phase === 'playing';
     this.el.clockBox.classList.toggle('urgent', urgent);
-    if (this.setText('style', this.el.style, String(state.style))) this.punch(this.el.style);
+    const styleText = state.styleGoal ? `${state.style} / ${state.styleGoal}` : String(state.style);
+    if (this.setText('style', this.el.style, styleText)) this.punch(this.el.style);
     const pct = state.stamina;
     this.el.staminaFill.style.transform = `scaleX(${pct.toFixed(3)})`;
     this.el.stamina.classList.toggle('low', pct < 0.25);

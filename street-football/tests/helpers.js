@@ -21,8 +21,11 @@ export async function startMatch(page) {
   });
   await page.goto('/?qa=1');
   await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 5, null, { timeout: 120_000 });
-  const play = page.locator('#main-menu [data-menu="play"]');
+  // PLAY → mode → team → KICK OFF (the real menu path).
+  const play = page.locator('#main-menu [data-menu="modes"]');
   await expect(play).toBeVisible();
   await play.click();
+  await page.locator('#mode-grid [data-mode="quick"]').click();
+  await page.locator('#kickoff-btn').click();
   await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.phase === 'playing', null, { timeout: 90_000 });
 }

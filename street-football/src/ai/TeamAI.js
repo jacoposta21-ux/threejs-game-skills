@@ -56,7 +56,7 @@ export class TeamAI {
   update(dt, time) {
     const cfg = this.cfg;
     for (const c of this.team.players) {
-      c.speedFactor = c.isHuman ? 1 : cfg.speed;
+      c.speedFactor = (c.isHuman ? 1 : cfg.speed) * (1 + ((c.rating?.spd ?? 3) - 3) * 0.035);
       c.tackleSuccess = c.isHuman ? 0.8 : cfg.tackleSuccess;
       c.passError = c.isHuman ? 0.015 : cfg.passError;
     }

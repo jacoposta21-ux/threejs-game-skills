@@ -52,6 +52,7 @@ export function buildCourt(scene, physics, rng) {
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.015;
   ground.receiveShadow = true;
+  ground.name = 'groundPlane';
   group.add(ground);
 
   physics.addStaticBox(0, -0.5, 0, 80, 0.5, 80, { restitution: 0.62, friction: 0.7, tag: { type: 'ground' } });
@@ -60,6 +61,7 @@ export function buildCourt(scene, physics, rng) {
 
   // --- Kickboards with sponsor banners -------------------------------------
   const boardTex = createBoardTexture(rng);
+  const bannerMat = new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.62, metalness: 0.05 });
   const rows = boardTex.userData.rows;
   const frames = [];
   const banners = [];
@@ -110,7 +112,7 @@ export function buildCourt(scene, physics, rng) {
   group.add(frameMesh);
   const bannerMesh = new THREE.Mesh(
     mergeGeometries(normalizeForMerge(banners, { color: false })),
-    new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.62, metalness: 0.05 }),
+    bannerMat,
   );
   bannerMesh.receiveShadow = true;
   group.add(bannerMesh);
@@ -290,11 +292,26 @@ export function buildCourt(scene, physics, rng) {
   );
   poleMesh.castShadow = true;
   group.add(poleMesh);
+  const headMat = new THREE.MeshStandardMaterial({ color: '#30353a', emissive: '#ffe7b0', emissiveIntensity: 0.35, roughness: 0.4 });
   const headMesh = new THREE.Mesh(
     mergeGeometries(normalizeForMerge(lampHeads, { color: false })),
-    new THREE.MeshStandardMaterial({ color: '#30353a', emissive: '#ffe7b0', emissiveIntensity: 0.35, roughness: 0.4 }),
+    headMat,
   );
   group.add(headMesh);
 
-  return { group, nearFenceMaterial: nearMat, nearSteelMaterial: nearSteel, boardTexture: boardTex };
+  /** Repaint the playing surface for a venue (see VENUE_STYLE.court); textures are regenerated. */
+  const setSurface = (theme, seedRng, ads = null) => {
+    // Local sponsors on the kickboards (Brazil keeps the shared atlas used by its shop signs).
+    if (bannerMat.map !== boardTex) bannerMat.map.dispose();
+    bannerMat.map = ads ? createBoardTexture(seedRng, ads) : boardTex;
+    bannerMat.needsUpdate = true;
+    const t = createCourtTextures(seedRng, theme);
+    courtMat.map?.dispose();
+    courtMat.roughnessMap?.dispose();
+    courtMat.map = t.map;
+    courtMat.roughnessMap = t.roughnessMap;
+    courtMat.needsUpdate = true;
+  };
+
+  return { group, ground, courtMaterial: courtMat, lampMaterial: headMat, setSurface, nearFenceMaterial: nearMat, nearSteelMaterial: nearSteel, boardTexture: boardTex };
 }

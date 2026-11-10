@@ -50,6 +50,7 @@
           </button>
         </div>
         <div id="trick-name" aria-live="off"></div>
+        <div id="tutorial-box" class="hidden" aria-live="polite"><small id="tut-step"></small><b id="tut-title"></b><kbd id="tut-key"></kbd><span id="tut-text"></span><i class="tick">✓</i></div>
         <div id="power-meter" class="hidden"><div class="ring"></div><span>SHOT</span></div>
         <div id="popups"></div>
         <div id="toast" class="hidden"></div>
@@ -84,7 +85,8 @@
       <section id="menu" class="screen hidden">
         <div class="logo"><span class="rua">RUA</span><span class="ten">10</span><small>STREET FOOTBALL</small></div>
         <nav class="menu-list" id="main-menu">
-          <button type="button" class="menu-btn primary" data-menu="play">PLAY</button>
+          <button type="button" class="menu-btn primary" data-menu="modes">PLAY</button>
+          <button type="button" class="menu-btn" data-menu="tutorial">TUTORIAL</button>
           <button type="button" class="menu-btn" data-menu="courts">SELECT COURT</button>
           <button type="button" class="menu-btn" data-menu="howto">HOW TO PLAY</button>
           <button type="button" class="menu-btn" data-menu="settings">SETTINGS</button>
@@ -92,15 +94,26 @@
         <p class="menu-foot" id="menu-best"></p>
       </section>
 
+      <section id="modes" class="screen panel hidden">
+        <h2>CHOOSE A MODE</h2>
+        <div class="mode-grid" id="mode-grid"></div>
+        <button type="button" class="menu-btn back" data-back>BACK</button>
+      </section>
+
+      <section id="teams" class="screen panel hidden">
+        <h2>YOUR TEAM</h2>
+        <div class="team-grid" id="team-grid"></div>
+        <div class="team-detail" id="team-detail"></div>
+        <div class="team-actions">
+          <button type="button" class="menu-btn" data-menu="courts" id="team-court">COURT</button>
+          <button type="button" class="menu-btn primary" id="kickoff-btn">KICK OFF</button>
+        </div>
+        <button type="button" class="menu-btn back" data-back>BACK</button>
+      </section>
+
       <section id="courts" class="screen panel hidden">
         <h2>SELECT COURT</h2>
-        <div class="court-grid">
-          <button type="button" class="court-card selected" data-court="brazil"><b>BRAZIL</b><span>Vila Esperança street court</span><em>PLAYABLE</em></button>
-          <button type="button" class="court-card locked" disabled><b>NEW YORK</b><span>Rooftop court</span><em>COMING SOON</em></button>
-          <button type="button" class="court-card locked" disabled><b>LONDON</b><span>Underground cage</span><em>COMING SOON</em></button>
-          <button type="button" class="court-card locked" disabled><b>TOKYO</b><span>Night court</span><em>COMING SOON</em></button>
-          <button type="button" class="court-card locked" disabled><b>BARCELONA</b><span>Neighbourhood plaça</span><em>COMING SOON</em></button>
-        </div>
+        <div class="court-grid" id="court-grid"></div>
         <button type="button" class="menu-btn back" data-back>BACK</button>
       </section>
 
@@ -148,11 +161,12 @@
       </section>
 
       <section id="results" class="screen panel hidden">
-        <h2>FULL TIME</h2>
-        <div class="final"><span class="badge">CAN</span><strong id="final-score">0 - 0</strong><span class="badge away">VRB</span></div>
+        <h2 id="results-title">FULL TIME</h2>
+        <p class="results-mode" id="results-mode"></p>
+        <div class="final"><span class="badge" id="final-home">CAN</span><strong id="final-score">0 - 0</strong><span class="badge away" id="final-away">VRB</span></div>
         <div class="stats" id="final-stats"></div>
         <nav class="menu-list">
-          <button type="button" class="menu-btn primary" data-results="again">PLAY AGAIN</button>
+          <button type="button" class="menu-btn primary" data-results="again" id="results-again">PLAY AGAIN</button>
           <button type="button" class="menu-btn" data-results="menu">MAIN MENU</button>
         </nav>
       </section>

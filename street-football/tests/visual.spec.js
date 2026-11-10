@@ -112,3 +112,35 @@ test('R performs a flair move and G fires a full Gamebreaker (real keyboard inpu
   await expect.poll(() => page.evaluate(() => window.__RUA10__.gb.active > 0), { timeout: 60_000 }).toBe(true);
   await expect(page.locator('#app')).toHaveClass(/gb-on/);
 });
+
+test('content: every court, team and mode is reachable from the menus', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/?qa=1');
+  await expect(page.locator('#menu')).toBeVisible({ timeout: 90_000 });
+  await page.locator('[data-menu="courts"]').click();
+  await expect(page.locator('#court-grid [data-court]')).toHaveCount(5);
+  await page.locator('#court-grid [data-court="tokyo"]').click();
+  await page.locator('#courts [data-back]').click();
+  await page.locator('[data-menu="modes"]').click();
+  await expect(page.locator('#mode-grid [data-mode]')).toHaveCount(5);
+  await page.locator('#mode-grid [data-mode="firstTo5"]').click();
+  await expect(page.locator('#team-grid [data-team]')).toHaveCount(6);
+  await page.locator('#team-grid [data-team="bkb"]').click();
+  await page.locator('#kickoff-btn').click();
+  await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.phase === 'playing', null, { timeout: 90_000 });
+  const state = await page.evaluate(() => ({ venue: window.__RUA10__.venueId, home: window.__RUA10__.homeTeam.name, mode: window.__RUA10__.mode.id }));
+  expect(state).toEqual({ venue: 'tokyo', home: 'BROOKLYN BRIDGERS', mode: 'firstTo5' });
+  await expect(page.locator('#match-clock')).toHaveText('FIRST TO 5');
+  await expect(page.locator('#home-badge')).toHaveText('BKB');
+  expect(errors).toEqual([]);
+});
+
+test('tutorial starts from the menu and shows the first step', async ({ page }) => {
+  await page.goto('/?qa=1');
+  await expect(page.locator('#menu')).toBeVisible({ timeout: 90_000 });
+  await page.locator('[data-menu="tutorial"]').click();
+  await expect(page.locator('#tutorial-box')).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('#tut-title')).toHaveText('MOVE');
+  await expect(page.locator('#match-clock')).toHaveText('PRACTICE', { timeout: 60_000 });
+});

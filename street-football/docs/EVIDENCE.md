@@ -1,5 +1,29 @@
 # Verification evidence
 
+## v1.5 — content and presentation
+
+Draw cost of the five courts at Low quality, gameplay camera (`node tools/qa/venues.mjs`, no page errors):
+
+| Court | Draw calls | Triangles |
+| --- | --- | --- |
+| Brazil | 148 | 379k |
+| New York | 115 | 332k |
+| London | 116 | 329k |
+| Tokyo | 118 | 329k |
+| Barcelona | 117 | 330k |
+
+The first switch to a court builds it in 220–460 ms (headless, software GL). Later switches reuse it.
+
+`node tools/qa/modescheck.mjs`:
+- First to 5 ends at 5–0 as a win.
+- Style Challenge ends as soon as 8,000 style is reached.
+- 1 v 1 fields one player per side, with the benched players hidden.
+- Tournament: the round 1 win offers "NEXT: SEMI-FINAL". Round 2 moves to the opponent's court at the next AI level, and a draw at the whistle goes to a golden goal, which wins it.
+
+`node tools/qa/tutorialcheck.mjs` played all eight tutorial steps in 37 s of game time and saved `tutorialDone`.
+
+Screens for modes, teams with kit locks, courts and the tutorial card, plus frames for the fall, stumble and celebrations, were inspected from `tools/qa` captures.
+
 ## v1.4 — hard AI move set, two-zone keyboard
 
 `node tools/qa/aimatch.mjs hard 2` (two 100 s AI-vs-AI matches, no errors): 4–2 and 3–4. New moves used per match: 8 and 10 lobs, 2 and 5 through balls, 1 slide tackle won in each, 1 bicycle kick in each, 1 volley; flair tricks (elastico, drag-back, sombrero, nutmeg) appear in the trick log. `aimatch.mjs normal 2`: none of the new moves used.

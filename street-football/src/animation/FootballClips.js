@@ -288,6 +288,108 @@ export function authorFootballClips(lib) {
   ]);
   clips.push(new THREE.AnimationClip('Celebrate_Airplane', dur, [...legTracks, ...armTracks]));
 
+  // Knee slide: dropped onto both knees, back arched, arms thrown up (the slide itself moves the body).
+  const knees = (lean, armUp) => ({
+    [B.thighL]: [['pitch', 8], ['roll', 10]], [B.shinL]: [['pitch', 96]], [B.footL]: [['pitch', 40]],
+    [B.thighR]: [['pitch', 8], ['roll', -10]], [B.shinR]: [['pitch', 96]], [B.footR]: [['pitch', 40]],
+    [B.spine1]: [['pitch', -lean]], [B.spine3]: [['pitch', -lean * 0.6]], [B.neck]: [['pitch', -lean * 0.8]],
+    [B.upperArmL]: [['roll', armUp], ['pitch', -20]], [B.upperArmR]: [['roll', -armUp], ['pitch', -20]],
+    [B.forearmL]: [['roll', 20]], [B.forearmR]: [['roll', -20]],
+  });
+  clips.push(new THREE.AnimationClip('Celebrate_KneeSlide', 1.2, tracks(
+    [
+      { t: 0, pose: knees(14, 130) },
+      { t: 0.6, pose: knees(22, 150) },
+      { t: 1.2, pose: knees(14, 130) },
+    ],
+    { plant: 'both' },
+  )));
+
+  // Fist pump: planted feet, the right arm punches the air on the beat.
+  const pump = (up) => ({
+    [B.thighL]: [['pitch', -8]], [B.shinL]: [['pitch', 14]], [B.thighR]: [['pitch', -4]], [B.shinR]: [['pitch', 10]],
+    [B.spine1]: [['pitch', -6 - up * 6], ['roll', 6]], [B.neck]: [['pitch', -10 - up * 8]],
+    [B.upperArmR]: [['roll', -(60 + up * 95)], ['pitch', -15]], [B.forearmR]: [['roll', -(70 - up * 60)]],
+    [B.upperArmL]: [['roll', 40], ['pitch', 20]], [B.forearmL]: [['roll', 60]],
+  });
+  clips.push(new THREE.AnimationClip('Celebrate_FistPump', 0.9, tracks(
+    [
+      { t: 0, pose: pump(0) },
+      { t: 0.18, pose: pump(1) },
+      { t: 0.45, pose: pump(0.2) },
+      { t: 0.63, pose: pump(1) },
+      { t: 0.9, pose: pump(0) },
+    ],
+    { plant: 'both' },
+  )));
+
+  // Knocked over by a slide: knees fold, arms fly out to break the fall (the controller tips the body back).
+  clips.push(new THREE.AnimationClip('Fall_Back', 1.3, tracks(
+    [
+      { t: 0, pose: {} },
+      {
+        t: 0.18,
+        pose: {
+          [B.thighL]: [['pitch', -40]], [B.shinL]: [['pitch', 55]], [B.thighR]: [['pitch', -25]], [B.shinR]: [['pitch', 35]],
+          [B.spine1]: [['pitch', 22]], [B.neck]: [['pitch', 25]],
+          [B.upperArmL]: [['roll', 70], ['pitch', -55]], [B.upperArmR]: [['roll', -70], ['pitch', -55]],
+        },
+      },
+      {
+        t: 0.75,
+        pose: {
+          [B.thighL]: [['pitch', -55]], [B.shinL]: [['pitch', 70]], [B.thighR]: [['pitch', -35]], [B.shinR]: [['pitch', 30]],
+          [B.spine1]: [['pitch', 16]], [B.neck]: [['pitch', 20]],
+          [B.upperArmL]: [['roll', 55], ['pitch', 40]], [B.upperArmR]: [['roll', -55], ['pitch', 40]],
+        },
+      },
+      { t: 1.3, pose: {} },
+    ],
+  )));
+
+  // Wrong-footed: the weight goes the wrong way, legs cross, arms flail for balance.
+  const stumble = [
+    { t: 0, pose: {} },
+    {
+      t: 0.14,
+      pose: {
+        [B.thighL]: [['pitch', -18], ['roll', -22]], [B.shinL]: [['pitch', 30]],
+        [B.thighR]: [['pitch', 10], ['roll', 18]], [B.shinR]: [['pitch', 22]],
+        [B.spine1]: [['roll', -20], ['pitch', 10]], [B.neck]: [['roll', 12]],
+        [B.upperArmL]: [['roll', 95], ['pitch', -30]], [B.upperArmR]: [['roll', -30], ['pitch', 40]],
+      },
+    },
+    {
+      t: 0.36,
+      pose: {
+        [B.thighL]: [['pitch', 6], ['roll', -8]], [B.shinL]: [['pitch', 40]],
+        [B.thighR]: [['pitch', -30], ['roll', 14]], [B.shinR]: [['pitch', 45]],
+        [B.spine1]: [['roll', -12], ['pitch', 16]],
+        [B.upperArmL]: [['roll', 70], ['pitch', 30]], [B.upperArmR]: [['roll', -80], ['pitch', -20]],
+      },
+    },
+    { t: 0.7, pose: {} },
+  ];
+  clips.push(new THREE.AnimationClip('Stumble_R', 0.7, tracks(stumble, { plant: 'both' })));
+  clips.push(new THREE.AnimationClip('Stumble_L', 0.7, tracks(stumble.map((k) => ({ t: k.t, pose: mirrorPose(k.pose) })), { plant: 'both' })));
+
+  // Cushioned reception of a hard ball: knees give, arms out, chest over it.
+  clips.push(new THREE.AnimationClip('Receive', 0.45, tracks(
+    [
+      { t: 0, pose: {} },
+      {
+        t: 0.12,
+        pose: {
+          [B.thighL]: [['pitch', -16]], [B.shinL]: [['pitch', 30]], [B.thighR]: [['pitch', -22]], [B.shinR]: [['pitch', 34]],
+          [B.spine1]: [['pitch', 14]], [B.neck]: [['pitch', 16]],
+          [B.upperArmL]: [['roll', 45], ['pitch', 15]], [B.upperArmR]: [['roll', -45], ['pitch', 15]],
+        },
+      },
+      { t: 0.45, pose: {} },
+    ],
+    { plant: 'both' },
+  )));
+
   // Standing poke tackle: drop the hips, lunge the right leg across into the ball.
   clips.push(
     new THREE.AnimationClip('Tackle_Poke', 0.62, tracks(

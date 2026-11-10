@@ -11,6 +11,8 @@ const _vel = new THREE.Vector3();
 const _spin = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 
+// A slide-tackle victim is on the floor this long.
+const FALL_TIME = 1.25;
 // Seconds between the separate ball touches of a skill move.
 const TRICK_TOUCH = 0.11;
 // How far ahead of the body the swinging boot meets the ball (m).
@@ -43,6 +45,8 @@ export class PlayerController {
     this.isHuman = false;
     this.speedFactor = 1;
     this.tackleSuccess = TACKLE.humanSuccess;
+    // Player ratings (1–5, 3 = baseline): pace, shooting, skill.
+    this.rating = { spd: 3, sht: 3, skl: 3 };
     footballer.ctrl = this;
     this.reset();
   }
@@ -84,6 +88,7 @@ export class PlayerController {
     this.fooled = 0;
     this.fooledDir = new THREE.Vector3();
     this.ghostUntil = 0;
+    this.fallTime = 0;
     if (this.p) this.p.extraYaw = 0;
   }
 
@@ -135,6 +140,15 @@ export class PlayerController {
       this.sprinting = false;
     }
 
+    if (this.fallTime > 0) {
+      // Tip over backwards, lie a moment, get up.
+      this.fallTime -= dt;
+      const t = FALL_TIME - this.fallTime;
+      const down = Math.min(1, t / 0.28);
+      const up = THREE.MathUtils.clamp((t - FALL_TIME + 0.45) / 0.45, 0, 1);
+      p.pitch = 1.3 * down * down * (1 - up * up * (3 - 2 * up));
+      if (this.fallTime <= 0) p.pitch = 0;
+    }
     if (this.stagger > 0) {
       this.stagger -= dt;
       this.hasInput = false;
@@ -333,7 +347,7 @@ export class PlayerController {
       else side = this.rng() < 0.5 ? 1 : -1;
     }
     const opponentsLevel = this.match.teams[this.match.opponent(this.team)].ai?.difficulty ?? 'normal';
-    let risk = def.risk + Math.max(0, p.speed - def.maxSpeed) * 0.08;
+    let risk = def.risk + Math.max(0, p.speed - def.maxSpeed) * 0.08 + (3 - this.rating.skl) * 0.035;
     if (this.stamina < 0.3) risk += 0.08;
     if (victim) risk += DEFENDER_READ[opponentsLevel] ?? 0.05;
     if (kind === this.lastTrickKind) risk += 0.1; // spamming one move gets read
@@ -409,6 +423,8 @@ export class PlayerController {
         this.events.emit('trick', { player: p, kind: tr.kind, label: def.label, outcome: 'fail', victim: tr.victim?.p ?? null, byHuman: tr.byHuman });
       } else if (tr.victim && !tr.solo) {
         tr.victim.fooled = def.fool;
+        // The beaten defender visibly bites: weight the wrong way, legs crossed.
+        if (!tr.victim.busy) tr.victim.p.anim.play(`Stumble_${tr.side > 0 ? 'L' : 'R'}`, { speed: 0.7 / Math.max(0.45, def.fool), fadeIn: 0.05, fadeOut: 0.18 });
         tr.victim.fooledDir.copy(tr.e).multiplyScalar(-1);
         if (def.ghostVictim) tr.victim.ghostUntil = time + def.ghostVictim;
         tr.victim.charge.active = false;
@@ -520,7 +536,7 @@ export class PlayerController {
   }
 
   /** Called by the MatchState when someone else takes the ball, or by a tackle. */
-  losePossession(reason) {
+  losePossession(reason, { slide = false } = {}) {
     if (this.trick) {
       const tr = this.trick;
       this.endTrick(0, true);
@@ -536,7 +552,13 @@ export class PlayerController {
     if (reason === 'tackled') {
       this.stagger = TACKLE.staggerTime;
       this.charge.active = false;
-      this.p.anim.play('Hit_Chest', { speed: 1.6, fadeIn: 0.05, fadeOut: 0.2 });
+      if (slide) {
+        // Taken off his feet: down on his back, then up again.
+        this.stagger = FALL_TIME;
+        this.fallTime = FALL_TIME;
+        this.regainCooldown = FALL_TIME;
+        this.p.anim.play('Fall_Back', { speed: 1.3 / FALL_TIME, fadeIn: 0.05, fadeOut: 0.25 });
+      } else this.p.anim.play('Hit_Chest', { speed: 1.6, fadeIn: 0.05, fadeOut: 0.2 });
     }
     this.events.emit('possessionLost', { player: this.p, reason });
   }
@@ -573,6 +595,8 @@ export class PlayerController {
         ball.lastTouch = p;
         const cushion = Math.min(1, relSpeed / DRIBBLE.controlMaxRelSpeed);
         this.firstTouch(cushion, time);
+        // A hard ball taken standing: the body gives with it.
+        if (relSpeed > 5 && p.speed < 3 && !this.busy) p.anim.play('Receive', { fadeIn: 0.05, fadeOut: 0.15 });
         this.events.emit('control', { player: p, relSpeed, stolenFrom: previous && previous.team !== this.team ? previous.p : null });
         this.resolvePendingOnControl();
       }
@@ -682,7 +706,7 @@ export class PlayerController {
     }
     const speed = p.speed;
     const sigma =
-      (this.sprinting ? DRIBBLE.sprintError : DRIBBLE.jogError) + DRIBBLE.turnError * Math.min(1, this.turnRateNorm);
+      ((this.sprinting ? DRIBBLE.sprintError : DRIBBLE.jogError) + DRIBBLE.turnError * Math.min(1, this.turnRateNorm)) * (1 + (3 - this.rating.skl) * 0.12);
     // The ball goes where the stick points (blended with the body line), from where it lies.
     const aim = this.hasInput ? this.moveDir : _fwd;
     _dir.copy(aim).lerp(_fwd, 0.25).setY(0).normalize().applyAxisAngle(UP, this.rng.gauss() * sigma);
@@ -911,10 +935,11 @@ export class PlayerController {
     if (k.type === 'shot') {
       const power = k.power;
       const sprintBonus = (this.sprinting ? 1.05 : 1) * (k.aerial ? 1.08 : 1) * this.shotBoost;
-      const vh = THREE.MathUtils.lerp(KICK.shotMinSpeed, KICK.shotMaxSpeed, power) * sprintBonus;
+      const vh = THREE.MathUtils.lerp(KICK.shotMinSpeed, KICK.shotMaxSpeed, power) * sprintBonus * (1 + (this.rating.sht - 3) * 0.04);
       let sigma = 0.012 + power * power * 0.045 + (p.speed / PLAYER.sprintSpeed) * 0.025 + this.turnRateNorm * 0.03;
       if (k.aerial) sigma += k.aerial === 'bicycle' ? 0.05 : 0.025; // spectacular, but harder to place
       if (this.shotBoost > 1) sigma *= 0.35;
+      sigma *= 1 - (this.rating.sht - 3) * 0.1;
       dir.applyAxisAngle(UP, this.rng.gauss() * sigma);
       const goalX = this.attackSign * (COURT.halfLength + 0.2);
       const distToGoal = Math.max(2, Math.abs((goalX - ball.position.x) / (dir.x || 1e-3)));
@@ -1039,7 +1064,7 @@ export class PlayerController {
     const side = (this.rng() - 0.5) * 2.5;
     const away = slide ? 7 : 4.2;
     _vel.set(f.x * away - f.z * side, slide ? 0.6 : 0.3, f.z * away + f.x * side);
-    if (owner && owner !== this) owner.losePossession(owner.team === this.team ? 'handoff' : 'tackled');
+    if (owner && owner !== this) owner.losePossession(owner.team === this.team ? 'handoff' : 'tackled', { slide });
     ball.kick(_vel, null, p, time);
     this.regainCooldown = 0.12;
     this.events.emit('tackle', { tackler: p, success: true, slide, victim: owner && owner.team !== this.team ? owner.p : null, reason: owner ? 'won' : 'loose' });

@@ -1,6 +1,9 @@
 const $ = (id) => document.getElementById(id);
 
-const SCREENS = ['menu', 'courts', 'howto', 'settings', 'pause', 'results', 'loading', 'context-lost', 'fatal'];
+const SCREENS = ['menu', 'modes', 'teams', 'courts', 'howto', 'settings', 'pause', 'results', 'loading', 'context-lost', 'fatal'];
+
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const pips = (n) => '<i class="pip on"></i>'.repeat(n) + '<i class="pip"></i>'.repeat(5 - n);
 
 /** Menu screens and settings binding. Dispatches intents through `handlers`. */
 export class Menus {
@@ -20,7 +23,12 @@ export class Menus {
         this.click();
         const m = btn.dataset.menu;
         if (m === 'play') handlers.play();
-        else this.open(m);
+        else if (m === 'tutorial') handlers.tutorial();
+        else {
+          if (m === 'modes') this.renderModes();
+          if (m === 'courts') this.renderCourts();
+          this.open(m);
+        }
       });
     }
     for (const btn of document.querySelectorAll('[data-back]')) {
@@ -47,6 +55,10 @@ export class Menus {
       });
     }
     $('reload-btn').addEventListener('click', () => window.location.reload());
+    $('kickoff-btn').addEventListener('click', () => {
+      this.click();
+      handlers.startMode(this.pendingMode ?? 'quick');
+    });
 
     // Settings bindings.
     const s = audio.settings;
@@ -76,6 +88,84 @@ export class Menus {
           sync();
         }),
       );
+    }
+  }
+
+  // ------------------------------------------------------------- content screens
+
+  renderModes() {
+    const { modes, choice } = this.handlers.content();
+    const grid = $('mode-grid');
+    grid.innerHTML = Object.values(modes)
+      .map((m, i) => `<button type="button" class="mode-card${m.id === choice.mode ? ' selected' : ''}" data-mode="${m.id}" style="--i:${i}"><b>${esc(m.label)}</b><span>${esc(m.desc)}</span></button>`)
+      .join('');
+    for (const btn of grid.querySelectorAll('[data-mode]')) {
+      btn.addEventListener('click', () => {
+        this.click();
+        this.pendingMode = btn.dataset.mode;
+        this.renderTeams();
+        this.open('teams');
+      });
+    }
+  }
+
+  renderTeams() {
+    const { teams, choice, progress, unlocks, venues, modes } = this.handlers.content();
+    const grid = $('team-grid');
+    grid.innerHTML = teams
+      .map((t, i) => {
+        const k = t.kits[0];
+        return `<button type="button" class="team-card${t.id === choice.team ? ' selected' : ''}" data-team="${t.id}" style="--i:${i};--j1:${k.jersey};--j2:${k.jersey2}"><i class="shirt"></i><b>${esc(t.name)}</b><span>${esc(t.from)}</span></button>`;
+      })
+      .join('');
+    for (const btn of grid.querySelectorAll('[data-team]')) {
+      btn.addEventListener('click', () => {
+        this.click();
+        const team = btn.dataset.team;
+        this.handlers.choose({ team, kit: 'home' });
+        this.renderTeams();
+      });
+    }
+    const team = teams.find((t) => t.id === choice.team) ?? teams[0];
+    const kits = team.kits
+      .map((k) => {
+        const open = progress.unlocked(k);
+        const req = open ? '' : `<em>🔒 ${esc(unlocks[k.unlock]?.label ?? '')}</em>`;
+        return `<button type="button" class="kit${k.id === choice.kit ? ' selected' : ''}${open ? '' : ' locked'}" data-kit="${k.id}" ${open ? '' : 'disabled'} style="--j1:${k.jersey};--j2:${k.jersey2};--sh:${k.shorts}"><i class="shirt"></i><b>${esc(k.label)}</b>${req}</button>`;
+      })
+      .join('');
+    const players = team.players
+      .map((pl) => `<div class="pl"><b>${pl.number}</b><span>${esc(pl.name)}</span><small>PACE</small>${pips(pl.spd)}<small>SHOT</small>${pips(pl.sht)}<small>SKILL</small>${pips(pl.skl)}</div>`)
+      .join('');
+    $('team-detail').innerHTML = `<div class="kits">${kits}</div><div class="players">${players}</div>`;
+    for (const btn of $('team-detail').querySelectorAll('[data-kit]:not([disabled])')) {
+      btn.addEventListener('click', () => {
+        this.click();
+        this.handlers.choose({ kit: btn.dataset.kit });
+        this.renderTeams();
+      });
+    }
+    const mode = modes[this.pendingMode] ?? modes.quick;
+    const court = venues.find((v) => v.id === choice.court) ?? venues[0];
+    const courtBtn = $('team-court');
+    courtBtn.textContent = mode.id === 'tournament' ? 'COURTS: AWAY GROUNDS' : `COURT: ${court.name}`;
+    courtBtn.disabled = mode.id === 'tournament';
+    $('kickoff-btn').textContent = `KICK OFF • ${mode.label}`;
+  }
+
+  renderCourts() {
+    const { venues, choice } = this.handlers.content();
+    const grid = $('court-grid');
+    grid.innerHTML = venues
+      .map((v, i) => `<button type="button" class="court-card court-${v.id}${v.id === choice.court ? ' selected' : ''}" data-court="${v.id}" style="--i:${i}"><b>${esc(v.name)}</b><span>${esc(v.place)}</span><em>${v.id === choice.court ? 'SELECTED' : 'PLAYABLE'}</em></button>`)
+      .join('');
+    for (const btn of grid.querySelectorAll('[data-court]')) {
+      btn.addEventListener('click', () => {
+        this.click();
+        this.handlers.choose({ court: btn.dataset.court });
+        this.renderCourts();
+        if (this.stack.at(-1) === 'teams') this.renderTeams();
+      });
     }
   }
 
@@ -124,8 +214,13 @@ export class Menus {
     if (text) $('load-text').textContent = text;
   }
 
-  showResults(score, stats) {
+  showResults(score, stats, opts = {}) {
     $('final-score').textContent = `${score.home} - ${score.away}`;
+    $('results-title').textContent = opts.title ?? 'FULL TIME';
+    $('results-mode').textContent = opts.mode ?? '';
+    $('results-again').textContent = opts.again ?? 'PLAY AGAIN';
+    if (opts.home) $('final-home').textContent = opts.home;
+    if (opts.away) $('final-away').textContent = opts.away;
     const rows = Object.entries(stats).map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('');
     $('final-stats').innerHTML = rows;
     [...$('final-stats').children].forEach((el, i) => el.style.setProperty('--i', Math.floor(i / 2)));
