@@ -40,6 +40,7 @@
           <span id="combo-tag" class="hidden">x1</span>
         </div>
         <div id="stamina"><span class="label">SPRINT</span><div class="bar"><i id="stamina-fill"></i></div></div>
+        <div id="gb"><span class="label">GAMEBREAKER</span><div class="bar"><i id="gb-fill"></i></div><kbd>G</kbd></div>
         <div id="hud-buttons">
           <button type="button" class="icon-btn" id="mute-btn" aria-label="Mute audio">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" /><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" /><path class="cross" d="M16 9l6 6M22 9l-6 6" /></svg>
@@ -66,6 +67,8 @@
           <button type="button" data-action="tackle" class="tbtn tackle">TACKLE</button>
           <button type="button" data-action="switch" class="tbtn switch">SWITCH</button>
           <button type="button" data-action="skill" class="tbtn skill">SKILL</button>
+          <button type="button" data-action="skill2" class="tbtn skill2">FLAIR</button>
+          <button type="button" data-action="special" class="tbtn special">GB</button>
         </div>
       </div>
 
@@ -107,8 +110,11 @@
           <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>←↑↓→</kbd><span>Move — the ball is loose, keep touching it forward</span></div>
           <div><kbd>SHIFT</kbd><span>Sprint — longer, riskier touches; drains stamina</span></div>
           <div><kbd>J</kbd> / <kbd>LMB</kbd><span>Hold to power up, release to shoot. Steer with ↑/↓ to aim for a post</span></div>
-          <div><kbd>SPACE</kbd><span>Pass to the teammate in the direction you are moving (or facing)</span></div>
-          <div><kbd>F</kbd><span>Tackle — lunge for the ball when defending; from behind is risky</span></div>
+          <div><kbd>SPACE</kbd> / <kbd>RMB</kbd><span>Pass. Hold for a lob · with SHIFT a through ball · press again after your pass for a one-two</span></div>
+          <div><kbd>J</kbd> in the air<span>Ball dropping near you: volley. Back to goal or a high ball: bicycle kick</span></div>
+          <div><kbd>F</kbd><span>Tackle — lunge for the ball when defending; from behind is risky. With SHIFT: slide tackle</span></div>
+          <div><kbd>R</kbd><span>Flair moves: elastico · <b>R + forward</b> sombrero · <b>R + back</b> drag-back</span></div>
+          <div><kbd>G</kbd><span>Gamebreaker — style points fill the meter; fire it for 10 s of shots the keeper can't read</span></div>
           <div><kbd>Q</kbd><span>Switch to the teammate closest to the ball (control also follows the ball automatically)</span></div>
           <div><kbd>ESC</kbd> / <kbd>P</kbd><span>Pause</span></div>
           <div><kbd>E</kbd><span>Skill move — combine with a direction (relative to where you face):</span></div>

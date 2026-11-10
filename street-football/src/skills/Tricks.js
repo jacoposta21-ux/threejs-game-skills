@@ -67,6 +67,28 @@ export const TRICKS = {
     ghostVictim: 1.2,
     pending: 3.0,
   },
+  // Second skill button (R).
+  elastico: {
+    label: 'ELASTICO', points: 300, clip: 'Trick_Elastico', dur: 0.55, speed: 2.2, risk: 0.13, maxSpeed: 6, fool: 0.95, key: 0.5,
+    // Pushed out to the far side with the outside of the boot, snapped back across with the inside.
+    hold: [0, 0.6, (u) => ({ f: 0.48, e: -0.5 * Math.sin(Math.PI * Math.min(1, u / 0.55)) })],
+    impulse: { u: 0.62, angle: 60, speed: 4.6 },
+    turn: [0.55, 0.95, 60],
+  },
+  sombrero: {
+    label: 'SOMBRERO', points: 450, clip: 'Trick_Sombrero', dur: 0.6, speed: 2.4, risk: 0.18, maxSpeed: 6, fool: 1.0, key: 0.4,
+    hold: [0, 0.38, () => ({ f: 0.4, e: 0 })],
+    impulse: { u: 0.4, angle: 0, speed: (v) => v * 0.35 + 3.3, vy: 5.3 },
+    ghostVictim: 1.1,
+    pending: 2.4,
+  },
+  dragback: {
+    label: 'DRAG BACK', points: 200, clip: 'Trick_DragBack', dur: 0.6, speed: 0.3, risk: 0.07, maxSpeed: 5, fool: 0.75, key: 0.45,
+    // Sole on the ball, rolled back under the body, then away on the turn.
+    hold: [0, 0.6, (u) => ({ f: 0.5 - 0.75 * Math.min(1, u / 0.55), e: 0.12 * Math.min(1, u / 0.55) })],
+    impulse: { u: 0.62, angle: 140, speed: 3.8 },
+    turn: [0.4, 0.95, 140],
+  },
   fakeshot: {
     label: 'FAKE SHOT', points: 200, clip: 'Trick_FakeShot', dur: 0.62, speed: 0.6, risk: 0.07, maxSpeed: 6, fool: 0.9, key: 0.46,
     hold: [0, 0.46, () => ({ f: 0.45, e: 0 })],
@@ -82,8 +104,14 @@ export const DEFENDER_READ = { easy: 0, normal: 0.05, hard: 0.12 };
  * Pick the trick from the human's input relative to facing.
  * relForward/relSide: input components in the player's frame (side +1 = right).
  */
-export function chooseTrick({ hasInput, relForward, relSide, sprint, speed, charging, victimAhead }) {
+export function chooseTrick({ hasInput, relForward, relSide, sprint, speed, charging, victimAhead, set = 1 }) {
   if (charging) return { kind: 'fakeshot', side: relSide >= 0 ? 1 : -1 };
+  if (set === 2) {
+    // R: elastico (standing / sideways, the side picks the exit), sombrero going forward, drag-back pulling away.
+    if (hasInput && relForward > 0.6) return { kind: 'sombrero', side: 1 };
+    if (hasInput && relForward < -0.6) return { kind: 'dragback', side: relSide >= 0 ? 1 : -1 };
+    return { kind: 'elastico', side: hasInput ? (relSide >= 0 ? 1 : -1) : 0 };
+  }
   if (!hasInput) return { kind: 'stepover', side: 0 };
   const side = relSide >= 0 ? 1 : -1;
   if (relForward > 0.6) {

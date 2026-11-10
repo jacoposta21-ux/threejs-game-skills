@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BALL, CAMERA, COURT, FORMATION, MATCH, QUALITY, ROSTERS, TEAMS } from '../config.js';
+import { BALL, CAMERA, COURT, FORMATION, GAMEBREAKER, MATCH, QUALITY, ROSTERS, TEAMS } from '../config.js';
 import { TeamAI } from '../ai/TeamAI.js';
 import { MatchState } from './MatchState.js';
 import { Indicators } from '../systems/Indicators.js';
@@ -38,7 +38,8 @@ const SETTINGS_KEY = 'settings';
 const BEST_KEY = 'best';
 const NEUTRAL_INTENTS = Object.freeze({
   moveX: 0, moveY: 0, sprint: false, shootHeld: false, shootPressed: false, shootReleased: false,
-  passPressed: false, skillPressed: false, switchPressed: false, tacklePressed: false, pausePressed: false, anyPressed: false,
+  passPressed: false, passReleased: false, skillPressed: false, skill2Pressed: false, specialPressed: false,
+  switchPressed: false, tacklePressed: false, pausePressed: false, anyPressed: false,
 });
 
 export class Game {
@@ -88,6 +89,8 @@ export class Game {
     // Actors: two teams of three outfield players plus a keeper each.
     this.ball = new Ball(physics, this.scene, this.rng);
     this.match = new MatchState(this.ball);
+    this.gb = { meter: 0, active: 0 };
+    this.lastPass = null;
     this.footballers = [];
     for (const teamId of ['home', 'away']) {
       const team = this.match.teams[teamId];
@@ -346,6 +349,9 @@ export class Game {
     this.style = 0;
     this.combo = 0;
     this.hud.setCombo(0);
+    this.endGamebreaker(true);
+    this.gb.meter = 0;
+    this.match.giveGo = null;
     this.stats = this.freshStats();
     this.resetPositions();
     this.menus.hideAll();
@@ -425,16 +431,42 @@ export class Game {
       }
       // The other team won the ball: the combo is over.
       if (!home) this.endCombo();
+      // One-two: the receiver lays it straight back into the runner's path; control stays with the runner.
+      const gg = this.match.giveGo;
+      if (gg && (this.time > gg.until || !home || player.ctrl !== gg.receiver)) this.match.giveGo = null;
+      if (gg && home && player.ctrl === gg.receiver && this.time <= gg.until) {
+        this.match.giveGo = null;
+        gg.receiver.requestKick('pass', 0.5, { target: gg.runner, through: true });
+        return;
+      }
       // Control follows the ball inside the human's team.
       if (home && player.ctrl && player.ctrl !== this.human) this.setHuman(player.ctrl);
     });
     ev.on('chargeStart', () => this.audio.play('charge', { volume: 0.12, variance: 0 }));
     this.wireTricks();
-    ev.on('kick', ({ type, power, player, target }) => {
+    ev.on('passRequest', ({ player }) => {
+      // Pass pressed again right after your own pass: one-two. You keep the
+      // runner; the receiver plays it straight back into your run.
+      const lp = this.lastPass;
+      if (this.phase !== 'playing' || !lp || lp.from.p !== player || !lp.to || this.time - lp.time > 1.4 || this.match.giveGo) return;
+      this.match.giveGo = { runner: lp.from, receiver: lp.to, until: this.time + 3.5 };
+      this.hud.popup('ONE-TWO', new THREE.Vector3(player.position.x, 2.3, player.position.z), this.camera);
+      this.audio.play('click', { group: 'ui', variance: 0, volume: 0.6 });
+    });
+    ev.on('kick', ({ type, power, player, target, aerial, lob, through }) => {
       const at = this.ball.mesh.position;
       const firstTime = this.flight.controlTime != null && this.time - this.flight.controlTime < 0.55;
-      this.flight = { ...this.freshFlight(), kickTime: this.time, power, type, firstTime, scorerX: player.position.x, team: player.team, kicker: player };
+      this.flight = { ...this.freshFlight(), kickTime: this.time, power, type, firstTime, aerial, scorerX: player.position.x, team: player.team, kicker: player };
       const home = this.isHome(player);
+      if (type === 'pass' && home) this.lastPass = { from: player.ctrl, to: target ?? null, time: this.time };
+      if (aerial) {
+        const pos = new THREE.Vector3(player.position.x, 2.4, player.position.z);
+        if (home) this.addStyle(aerial === 'bicycle' ? 500 : 200, aerial === 'bicycle' ? 'BICYCLE KICK' : 'VOLLEY', pos, true);
+        else this.hud.popup(aerial === 'bicycle' ? 'BICYCLE KICK' : 'VOLLEY', pos, this.camera);
+        this.hitstop(aerial === 'bicycle' ? 0.12 : 0.06);
+        this.crowd.react(0.6);
+      }
+      if (type === 'pass' && home && (lob || through) && player === this.human?.p) this.hud.trickName(lob ? 'LOB PASS' : 'THROUGH BALL');
       if (type === 'shot') {
         if (home) this.stats.shots += 1;
         else this.stats.awayShots += 1;
@@ -457,8 +489,11 @@ export class Game {
     ev.on('possessionLost', ({ player, reason }) => {
       if (this.phase === 'playing' && player === this.human?.p && reason === 'heavy' && player.speed > 5) this.hud.toast('Heavy touch!', 1);
     });
-    ev.on('tackleStart', ({ player }) => this.audio.play('step', { volume: 0.5, rate: 0.8, at: player.holder.position }));
-    ev.on('tackle', ({ tackler, success, victim }) => {
+    ev.on('tackleStart', ({ player, slide }) => {
+      this.audio.play('step', { volume: slide ? 0.8 : 0.5, rate: slide ? 0.55 : 0.8, at: player.holder.position });
+      if (slide) this.vfx.dust(player.footPoint(new THREE.Vector3(), 0.6), 1.2);
+    });
+    ev.on('tackle', ({ tackler, success, victim, slide }) => {
       if (!success) return;
       const at = this.ball.mesh.position;
       this.audio.play('kickSoft', { volume: 0.7, rate: 0.85, at });
@@ -468,7 +503,7 @@ export class Game {
         this.crowd.react(0.35);
         if (this.isHome(tackler)) {
           this.stats.tackles += 1;
-          this.addStyle(150, 'TACKLE', new THREE.Vector3(tackler.position.x, 2.2, tackler.position.z));
+          this.addStyle(slide ? 250 : 150, slide ? 'SLIDE TACKLE' : 'TACKLE', new THREE.Vector3(tackler.position.x, 2.2, tackler.position.z));
         }
       }
     });
@@ -636,6 +671,41 @@ export class Game {
   addStyle(points, label, at, big = false) {
     this.style += points;
     this.hud.popup(`${label} +${points}`, at, this.camera, { big });
+    // Style fills the Gamebreaker meter (not while one is running).
+    if (this.gb.active <= 0) {
+      const was = this.gb.meter;
+      this.gb.meter = Math.min(1, was + points / GAMEBREAKER.cost);
+      if (was < 1 && this.gb.meter >= 1) {
+        this.hud.toast(this.touchUi ? 'GAMEBREAKER ready — tap GB' : 'GAMEBREAKER ready — press G', 2.4);
+        this.audio.play('combo', { group: 'ui', volume: 0.6, rate: 1.5, variance: 0 });
+      }
+    }
+  }
+
+  // ----------------------------------------------------------- gamebreaker
+
+  activateGamebreaker() {
+    if (this.gb.meter < 1 || this.gb.active > 0 || this.phase !== 'playing') return;
+    this.gb.meter = 0;
+    this.gb.active = GAMEBREAKER.duration;
+    for (const c of this.match.teams.home.players) c.shotBoost = GAMEBREAKER.shotBoost;
+    this.match.teams.away.keeper.debuff = GAMEBREAKER.keeperPenalty;
+    document.getElementById('app').classList.add('gb-on');
+    this.hud.banner('GAMEBREAKER!', 'Shoot — the keeper is beaten', { seconds: 1.6 });
+    this.slowMo = 0.5;
+    this.cameraRig.addTrauma(0.3);
+    this.crowd.react(1);
+    this.audio.play('cheer', { group: 'crowd', volume: 0.9 });
+    this.audio.play('whistle', { volume: 0.25, rate: 1.6 });
+  }
+
+  endGamebreaker(silent = false) {
+    this.gb ??= { meter: 0, active: 0 };
+    if (this.gb.active > 0 && !silent) this.hud.toast('Gamebreaker over', 1.2);
+    this.gb.active = 0;
+    for (const c of this.match.teams.home.players) c.shotBoost = 1;
+    this.match.teams.away.keeper.debuff = 0;
+    document.getElementById('app')?.classList.remove('gb-on');
   }
 
   // ------------------------------------------------------------- simulation
@@ -652,6 +722,11 @@ export class Game {
       return;
     }
     if (active && it.switchPressed) this.switchPlayer();
+    if (active && it.specialPressed) this.activateGamebreaker();
+    if (active && this.gb.active > 0) {
+      this.gb.active -= dt;
+      if (this.gb.active <= 0) this.endGamebreaker();
+    }
     if (active) {
       this.match.teams.home.ai.update(dt, this.time);
       this.match.teams.away.ai.update(dt, this.time);
@@ -675,7 +750,10 @@ export class Game {
         shootPressed: false,
         shootReleased: false,
         passPressed: false,
+        passReleased: false,
         skillPressed: false,
+        skill2Pressed: false,
+        specialPressed: false,
         switchPressed: false,
         tacklePressed: false,
       };
@@ -799,6 +877,9 @@ export class Game {
         if (f.post) bonus.push([300, 'OFF THE POST']);
         if (f.bank) bonus.push([400, 'WALL BANK']);
         if (f.firstTime) bonus.push([250, 'FIRST TIME']);
+        if (f.aerial === 'volley') bonus.push([700, 'VOLLEY']);
+        if (f.aerial === 'bicycle') bonus.push([1500, 'BICYCLE KICK']);
+        if (this.gb.active > 0 && team === 'home') bonus.push([GAMEBREAKER.goalBonus, 'GAMEBREAKER']);
         if (f.scorerX != null && Math.abs(f.scorerX - Math.sign(at.x) * COURT.halfLength) > 13) bonus.push([600, 'FROM DISTANCE']);
       }
       bonus.forEach(([pts, label], i) => {
@@ -1062,6 +1143,8 @@ export class Game {
       stamina: h.stamina,
       possession: h.possession,
       charge: h.chargeLevel,
+      gb: this.gb.active > 0 ? this.gb.active / GAMEBREAKER.duration : this.gb.meter,
+      gbActive: this.gb.active > 0,
       phase: this.phase,
       screenPos: this.screenPos(h.p.holder.position, 1.9),
     };

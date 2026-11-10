@@ -1,5 +1,23 @@
 # Verification evidence
 
+## v1.3 — full move set
+
+`node tools/qa/movescheck.mjs` (real controller, scripted intents), all with no page errors:
+
+| Move | Result |
+| --- | --- |
+| Elastico / drag-back (R, R + back) | start and score as tricks, possession kept |
+| Sombrero (R + forward) | ball lifted to 1.36 m over the defender, regained, awarded |
+| Lob (hold pass) | apex 2.8 m, controlled by the receiver |
+| Through ball (sprint + pass) | flagged `through`, controlled by the receiver |
+| One-two (pass, pass again) | receiver returns a first-time through ball to the original passer; control stays with the runner |
+| Volley | struck at 1.3 m, 28 m/s, goal |
+| Bicycle kick (back to goal) | struck at 1.7 m, 28 m/s, goal |
+| Slide tackle (sprint + F) | wins the ball, tackler ends on the floor at low speed |
+| Gamebreaker | meter full at 2,600 style, G gives 10 s, shot boost 1.2, keeper penalty 0.32, `gb-on` class set |
+
+Frame rows for the new animations were inspected (bicycle with the body horizontal, slide along the ground, sombrero over the defender). Not re-run after these changes: the AI-vs-AI match script.
+
 ## v1.2 — kick-and-catch dribble, readable skills
 
 `node tools/qa/touchcheck.mjs` (3 s per scenario): possession 100% and 0 missed swings in all four scenarios (jog, sprint then jog, zigzag, sprint then release). Player-to-ball distance now cycles between about 0.3 m and 1.0–1.4 m on each touch (v1.1 held it near 0.5 m), touches every 0.3–0.9 s at a jog, mean toe-to-ball at contact 0.40–0.57 m.

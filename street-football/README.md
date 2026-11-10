@@ -86,6 +86,23 @@ Control follows the ball automatically: when a teammate wins it or receives your
   - Film look: grade, grain and a heavier vignette.
   - The ball trail now draws on the shot.
 
+## v1.3 — the full move set
+
+| Input | Move |
+| --- | --- |
+| **R** | Flair moves: elastico (standing or sideways) · **R + forward** sombrero over the defender · **R + back** drag-back |
+| **J** with the ball in the air | Volley, hit first time. Back to goal, or the ball above chest height: bicycle kick |
+| **Space** / right mouse | Tap: ground pass · hold: lob · with **Shift**: through ball into the run · press again right after your pass: one-two (you keep the runner, the receiver lays it back) |
+| **Shift + F** | Slide tackle: longer and likelier to win it than the poke, then a long time on the floor |
+| **G** | Gamebreaker, once the meter is full |
+
+- **Gamebreaker.** Style points fill the meter (2,500 for a full one). Firing it gives 10 s in which your shots are 20% harder and far more accurate and the keeper's save chance drops by 0.32; a goal in that window adds a 1,500 bonus.
+- **Skills work the ball with separate touches.** During a move the ball is no longer steered continuously: it is played to its next spot every 0.11 s and rolls freely in between.
+- **Shooting on the run.** The run-up carries the player onto a ball that is a stride ahead, so a shot during the kick-and-catch dribble does not swing at air.
+- **Touch:** FLAIR and GB buttons added. Lob (hold PASS) works; through ball and slide need SPRINT held as on keyboard.
+- **Not done:** shoulder charge, AI double-teaming, and AI use of the new moves (the AI still uses the original nine tricks, ground passes and the poke tackle).
+- Check: `node tools/qa/movescheck.mjs [outDir]`.
+
 ## v1.2 — the ball leaves the foot, skills read as moves
 
 - **Kick and catch.** A dribble touch now sends the ball clearly away from the boot (about 2 m/s faster than the runner, 2.9 when sprinting) with a little backspin, so it checks and the runner catches it: the gap opens from about 0.3 m to 1.1–1.4 m and closes again on every touch. The stride that takes the next touch is chosen by predicting where the ball will be at the contact frame. A small dust puff marks each touch.

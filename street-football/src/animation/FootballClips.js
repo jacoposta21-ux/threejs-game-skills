@@ -12,6 +12,8 @@ const D = THREE.MathUtils.DEG2RAD;
 export const CLIP_EVENTS = {
   Kick_Shot: { contact: 0.21 },
   Kick_Pass: { contact: 0.16 },
+  Kick_Volley: { contact: 0.18 },
+  Kick_Bicycle: { contact: 0.3 },
   Keeper_Throw: { release: 0.42 },
   Tackle_Poke: { contact: 0.2 },
 };
@@ -321,6 +323,111 @@ export function authorFootballClips(lib) {
     )),
   );
 
+  // Volley: the hip opens and the right leg swings round at waist height.
+  clips.push(
+    new THREE.AnimationClip('Kick_Volley', 0.55, tracks(
+      [
+        { t: 0, pose: {} },
+        {
+          t: 0.09,
+          pose: {
+            [B.thighR]: [['pitch', 20], ['roll', -35]], [B.shinR]: [['pitch', 95]],
+            [B.thighL]: [['pitch', -8]], [B.shinL]: [['pitch', 18]],
+            [B.spine1]: [['roll', 14], ['yaw', -22]], [B.upperArmL]: [['roll', 70], ['pitch', -20]], [B.upperArmR]: [['roll', -45], ['pitch', 30]],
+          },
+        },
+        {
+          t: 0.18,
+          pose: {
+            [B.thighR]: [['pitch', -62], ['roll', -42]], [B.shinR]: [['pitch', 18]], [B.footR]: [['pitch', 30]],
+            [B.thighL]: [['pitch', -6]], [B.shinL]: [['pitch', 14]],
+            [B.spine1]: [['roll', 20], ['yaw', 12]], [B.upperArmL]: [['roll', 80], ['pitch', 10]], [B.upperArmR]: [['roll', -60], ['pitch', -25]],
+          },
+        },
+        {
+          t: 0.32,
+          pose: {
+            [B.thighR]: [['pitch', -85], ['roll', -10], ['yaw', 20]], [B.shinR]: [['pitch', 22]],
+            [B.spine1]: [['roll', 10], ['yaw', 26]], [B.upperArmL]: [['roll', 60], ['pitch', 25]], [B.upperArmR]: [['roll', -50], ['pitch', -35]],
+          },
+        },
+        { t: 0.55, pose: {} },
+      ],
+      { plant: 'L' },
+    )),
+  );
+
+  // Bicycle kick: the left knee drives up, then the legs scissor and the right boot strikes overhead.
+  // (The backward tip and the jump are applied to the whole body by the controller.)
+  clips.push(
+    new THREE.AnimationClip('Kick_Bicycle', 0.8, tracks(
+      [
+        { t: 0, pose: {} },
+        {
+          t: 0.14,
+          pose: {
+            [B.thighL]: [['pitch', -95]], [B.shinL]: [['pitch', 85]],
+            [B.thighR]: [['pitch', 18]], [B.shinR]: [['pitch', 40]],
+            [B.spine1]: [['pitch', -10]], [B.upperArmL]: [['roll', 75], ['pitch', 30]], [B.upperArmR]: [['roll', -75], ['pitch', 30]],
+          },
+        },
+        {
+          t: 0.3,
+          pose: {
+            [B.thighR]: [['pitch', -118]], [B.shinR]: [['pitch', 10]], [B.footR]: [['pitch', 30]],
+            [B.thighL]: [['pitch', -20]], [B.shinL]: [['pitch', 70]],
+            [B.spine1]: [['pitch', 8]], [B.upperArmL]: [['roll', 85], ['pitch', 50]], [B.upperArmR]: [['roll', -85], ['pitch', 50]],
+          },
+        },
+        {
+          t: 0.46,
+          pose: {
+            [B.thighR]: [['pitch', -70]], [B.shinR]: [['pitch', 40]],
+            [B.thighL]: [['pitch', -50]], [B.shinL]: [['pitch', 60]],
+            [B.upperArmL]: [['roll', 70], ['pitch', 40]], [B.upperArmR]: [['roll', -70], ['pitch', 40]],
+          },
+        },
+        { t: 0.8, pose: {} },
+      ],
+      {},
+    )),
+  );
+
+  // Slide tackle: down on the left hip, right leg extended along the ground into the ball.
+  clips.push(
+    new THREE.AnimationClip('Tackle_Slide', 0.95, tracks(
+      [
+        { t: 0, pose: {} },
+        {
+          t: 0.14,
+          pose: {
+            [B.thighL]: [['pitch', -70]], [B.shinL]: [['pitch', 120]],
+            [B.thighR]: [['pitch', -70]], [B.shinR]: [['pitch', 30]],
+            [B.spine1]: [['pitch', -18]], [B.upperArmL]: [['roll', 60], ['pitch', 30]], [B.upperArmR]: [['roll', -60], ['pitch', 30]],
+          },
+        },
+        {
+          t: 0.3,
+          pose: {
+            [B.thighL]: [['pitch', -95]], [B.shinL]: [['pitch', 140]],
+            [B.thighR]: [['pitch', -92]], [B.shinR]: [['pitch', 4]], [B.footR]: [['pitch', -20]],
+            [B.spine1]: [['pitch', -30], ['roll', 8]], [B.upperArmL]: [['roll', 70], ['pitch', 45]], [B.upperArmR]: [['roll', -55], ['pitch', 20]],
+          },
+        },
+        {
+          t: 0.62,
+          pose: {
+            [B.thighL]: [['pitch', -95]], [B.shinL]: [['pitch', 140]],
+            [B.thighR]: [['pitch', -88]], [B.shinR]: [['pitch', 10]],
+            [B.spine1]: [['pitch', -24]], [B.upperArmL]: [['roll', 60], ['pitch', 40]], [B.upperArmR]: [['roll', -50], ['pitch', 20]],
+          },
+        },
+        { t: 0.95, pose: {} },
+      ],
+      { plant: 'L' },
+    )),
+  );
+
   // Dejected: hands on head (keeper after conceding).
   const dejected = (s) => ({
     [B.upperArmL]: [['roll', 150], ['pitch', -20]], [B.upperArmR]: [['roll', -150], ['pitch', -20]],
@@ -459,6 +566,42 @@ function authorTrickClips(tracks) {
         [0.14, { [B.thighR]: [['pitch', -42]], [B.shinR]: [['pitch', 14]], [B.footR]: [['pitch', 12]], [B.spine1]: [['pitch', 6]], ...arms(40, 30) }],
         [0.26, { [B.thighR]: [['pitch', -24]], [B.shinR]: [['pitch', 18]], ...arms(30, 30) }],
         [0.4, {}],
+      ],
+    },
+    // Elastico: the right foot pushes the ball outward, then whips it back across the body.
+    Trick_Elastico: {
+      dur: 0.55,
+      plant: 'L',
+      keys: [
+        [0, {}],
+        [0.14, { [B.thighR]: [['pitch', -30], ['roll', 30], ['yaw', -20]], [B.shinR]: [['pitch', 35]], [B.footR]: [['yaw', -30]], [B.spine1]: [['roll', -16]], ...arms(60, 25) }],
+        [0.28, { [B.thighR]: [['pitch', -34], ['roll', 42], ['yaw', -30]], [B.shinR]: [['pitch', 22]], [B.footR]: [['yaw', -40]], [B.spine1]: [['roll', -22], ['pitch', 6]], ...arms(70, 20) }],
+        [0.38, { [B.thighR]: [['pitch', -28], ['roll', -28], ['yaw', 26]], [B.shinR]: [['pitch', 30]], [B.footR]: [['yaw', 35]], [B.spine1]: [['roll', 18], ['pitch', 8]], ...arms(25, 60) }],
+        [0.55, {}],
+      ],
+    },
+    // Sombrero: the toe gets under the ball and scoops it up over the defender.
+    Trick_Sombrero: {
+      dur: 0.6,
+      plant: 'L',
+      keys: [
+        [0, {}],
+        [0.12, { [B.thighR]: [['pitch', 6]], [B.shinR]: [['pitch', 60]], [B.footR]: [['pitch', -25]], [B.spine1]: [['pitch', 10]], ...arms(35, 35) }],
+        [0.24, { [B.thighR]: [['pitch', -75]], [B.shinR]: [['pitch', 30]], [B.footR]: [['pitch', -35]], [B.spine1]: [['pitch', -12]], [B.neck]: [['pitch', -14]], ...arms(65, 65, 25, 25) }],
+        [0.4, { [B.thighR]: [['pitch', -30]], [B.shinR]: [['pitch', 35]], [B.spine1]: [['pitch', -8]], [B.neck]: [['pitch', -18]], ...arms(50, 50) }],
+        [0.6, {}],
+      ],
+    },
+    // Drag-back: sole on the ball, rolled back under the body while pivoting away.
+    Trick_DragBack: {
+      dur: 0.6,
+      plant: 'L',
+      keys: [
+        [0, {}],
+        [0.12, { [B.thighR]: [['pitch', -48]], [B.shinR]: [['pitch', 30]], [B.footR]: [['pitch', -28]], [B.spine1]: [['pitch', 8]], ...arms(40, 40) }],
+        [0.3, { [B.thighR]: [['pitch', -6]], [B.shinR]: [['pitch', 62]], [B.footR]: [['pitch', -20]], [B.spine1]: [['pitch', 14], ['roll', 8]], ...arms(55, 35) }],
+        [0.44, { [B.thighR]: [['pitch', 14], ['roll', -18]], [B.shinR]: [['pitch', 40]], [B.thighL]: [['pitch', -14]], [B.shinL]: [['pitch', 26]], [B.spine1]: [['roll', 12]], ...arms(35, 50) }],
+        [0.6, {}],
       ],
     },
     // Full shooting backswing, then the leg checks over the ball and drags it across.

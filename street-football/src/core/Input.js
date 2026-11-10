@@ -12,6 +12,8 @@ const ACTION_KEYS = {
   Space: 'pass',
   KeyJ: 'shoot',
   KeyE: 'skill',
+  KeyR: 'skill2',
+  KeyG: 'special',
   KeyQ: 'switch',
   KeyF: 'tackle',
   Escape: 'pause',
@@ -32,7 +34,8 @@ export class Input {
     this.intents = {
       moveX: 0, moveY: 0, sprint: false,
       shootHeld: false, shootPressed: false, shootReleased: false,
-      passPressed: false, skillPressed: false, switchPressed: false,
+      passPressed: false, passHeld: false, passReleased: false,
+      skillPressed: false, skill2Pressed: false, specialPressed: false, switchPressed: false,
       tacklePressed: false, pausePressed: false, anyPressed: false,
     };
     this.disposers = [];
@@ -76,6 +79,23 @@ export class Input {
   bindMouse() {
     // Inside an iframe (CrazyGames) keys only arrive once the game has focus.
     this.listen(this.canvas, 'pointerdown', () => this.canvas.focus({ preventScroll: true }));
+    // Right button: pass (tap), lob (hold).
+    this.listen(this.canvas, 'mousedown', (e) => {
+      if (e.button !== 2) return;
+      this.lastDevice = 'keyboard';
+      this.mousePass = true;
+      this.held.pass = true;
+      this.pressed.add('pass');
+      this.pressed.add('any');
+    });
+    this.listen(window, 'mouseup', (e) => {
+      if (e.button !== 2 || !this.mousePass) return;
+      this.mousePass = false;
+      if (!this.keys.has('Space')) {
+        this.held.pass = false;
+        this.released.add('pass');
+      }
+    });
     this.listen(this.canvas, 'mousedown', (e) => {
       if (e.button !== 0) return;
       this.lastDevice = 'keyboard';
@@ -206,6 +226,10 @@ export class Input {
     it.shootPressed = on && this.pressed.has('shoot');
     it.shootReleased = on && this.released.has('shoot');
     it.passPressed = on && this.pressed.has('pass');
+    it.passHeld = on && (this.held.pass || this.touchHeld.pass);
+    it.passReleased = on && this.released.has('pass');
+    it.skill2Pressed = on && this.pressed.has('skill2');
+    it.specialPressed = on && this.pressed.has('special');
     it.skillPressed = on && this.pressed.has('skill');
     it.switchPressed = on && this.pressed.has('switch');
     it.tacklePressed = on && this.pressed.has('tackle');

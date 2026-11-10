@@ -87,6 +87,16 @@ export class TeamAI {
       roles.set(pt.ctrl, { type: 'receive' });
     }
 
+    // One-two: the passer bursts into the space behind the defence for the return ball.
+    const run = m.giveGo;
+    if (run && run.runner.team === this.teamId && time < run.until && !run.runner.isHuman && !roles.has(run.runner)) {
+      const rp = run.runner.p.position;
+      const target = new THREE.Vector3(
+        THREE.MathUtils.clamp(rp.x + this.attack * 7, -COURT.halfLength + 2, COURT.halfLength - 2), 0, rp.z * 0.8,
+      );
+      roles.set(run.runner, { type: 'support', target });
+    }
+
     if (poss === this.teamId) {
       const carrier = m.owner;
       if (carrier && !carrier.isHuman) roles.set(carrier, { type: 'carry' });

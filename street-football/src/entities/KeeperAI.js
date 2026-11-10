@@ -191,6 +191,8 @@ export class KeeperAI {
     chance -= THREE.MathUtils.clamp((reach - 0.6) / KEEPER.diveReach, 0, 1) * 0.3;
     if (yc > 1.45) chance -= 0.12;
     if (tCross < 0.32) chance -= 0.2;
+    // Facing a Gamebreaker: the keeper is a spectator.
+    if (this.debuff) chance -= this.debuff;
     const success = this.rng() < THREE.MathUtils.clamp(chance, 0.05, 0.95);
     const reaction = KEEPER.reactionTime * (this.difficulty === 'hard' ? 0.75 : this.difficulty === 'easy' ? 1.35 : 1);
     // A beaten keeper guesses wrong or goes late.

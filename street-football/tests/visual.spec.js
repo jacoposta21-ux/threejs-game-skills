@@ -90,3 +90,25 @@ test('E performs a skill move with the ball (real keyboard input)', async ({ pag
   await expect.poll(() => page.evaluate(() => window.__tricks.length), { timeout: 60_000 }).toBeGreaterThan(0);
   expect(await page.evaluate(() => window.__tricks[0])).toBe('stepover');
 });
+
+test('R performs a flair move and G fires a full Gamebreaker (real keyboard input)', async ({ page }, info) => {
+  test.skip(info.project.name.includes('mobile'), 'keyboard path');
+  await startMatch(page);
+  await page.evaluate(() => {
+    window.__tricks = [];
+    window.__RUA10__.events.on('trickStart', (e) => window.__tricks.push(e.kind));
+  });
+  await expect.poll(async () => (await diag(page)).player.possession, { timeout: 60_000 }).toBe(true);
+  await page.keyboard.press('KeyR');
+  await expect.poll(() => page.evaluate(() => window.__tricks.length), { timeout: 60_000 }).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.__tricks[0])).toBe('elastico');
+  // Fill the meter (style points do this in play), then fire it with G.
+  await page.evaluate(() => {
+    const g = window.__RUA10__;
+    g.addStyle(3000, 'TEST', g.human.p.position.clone());
+  });
+  await expect(page.locator('#gb')).toHaveClass(/ready/);
+  await page.keyboard.press('KeyG');
+  await expect.poll(() => page.evaluate(() => window.__RUA10__.gb.active > 0), { timeout: 60_000 }).toBe(true);
+  await expect(page.locator('#app')).toHaveClass(/gb-on/);
+});

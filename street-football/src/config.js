@@ -101,6 +101,15 @@ export const MATCH = {
   kickoffCountdown: 1.6,
 };
 
+// Gamebreaker: style points fill the meter; activating it gives the team a short spell of unstoppable shooting.
+export const GAMEBREAKER = {
+  cost: 2500, // style points for a full meter
+  duration: 10, // seconds of play
+  shotBoost: 1.2,
+  keeperPenalty: 0.32, // taken off the keeper's save chance
+  goalBonus: 1500,
+};
+
 export const TACKLE = {
   // Standing poke tackle: short lunge, contact frame, then a vulnerable recovery.
   lungeSpeed: 6.2,
@@ -114,6 +123,11 @@ export const TACKLE = {
   staggerTime: 0.75,
   // A dribbler can be robbed between touches when the ball strays this far from them.
   looseTouchDistance: 0.85,
+  // Slide tackle (sprint + tackle): longer and likelier to win it, but a long time on the floor.
+  slideSpeed: 9,
+  slideReach: 1.3,
+  slideBonus: 0.1,
+  slideCooldown: 1.5,
 };
 
 // Outfield AI by difficulty: reaction/decision interval (s), how often a pressing

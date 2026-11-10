@@ -22,6 +22,8 @@ export class Hud {
       combo: $('combo-tag'),
       stamina: $('stamina'),
       staminaFill: $('stamina-fill'),
+      gb: $('gb'),
+      gbFill: $('gb-fill'),
       poss: $('poss-tag'),
       power: $('power-meter'),
       popups: $('popups'),
@@ -80,6 +82,10 @@ export class Hud {
     this.el.staminaFill.style.transform = `scaleX(${pct.toFixed(3)})`;
     this.el.stamina.classList.toggle('low', pct < 0.25);
     this.el.poss.classList.toggle('on', state.possession);
+    const gb = state.gb ?? 0;
+    this.el.gbFill.style.transform = `scaleX(${gb.toFixed(3)})`;
+    this.el.gb.classList.toggle('ready', gb >= 1 && !state.gbActive);
+    this.el.gb.classList.toggle('active', !!state.gbActive);
 
     // Power ring follows the player on screen.
     const meter = this.el.power;

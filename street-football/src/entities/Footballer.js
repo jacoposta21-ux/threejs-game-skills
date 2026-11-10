@@ -44,6 +44,7 @@ export class Footballer {
     this.speed = 0;
     this.roll = 0; // whole-body roll (keeper dives)
     this.lift = 0;
+    this.pitch = 0; // whole-body backward tip (bicycle kick)
     this.extraYaw = 0;
     this.legPulse = null; // procedural touch / trap on one leg, layered over the clips
   }
@@ -183,6 +184,7 @@ export class Footballer {
     this.holder.rotateY(h + this.extraYaw);
     // Roll about the character's own forward axis (Z in holder space).
     this.holder.rotateZ(-this.roll);
+    if (this.pitch) this.holder.rotateX(-this.pitch);
     this.holder.position.y = this.lift;
     this.anim.setSpeed(this.speed);
     this.anim.update(dt);
