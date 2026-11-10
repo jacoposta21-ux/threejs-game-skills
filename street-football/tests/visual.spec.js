@@ -118,11 +118,11 @@ test('content: every court, team and mode is reachable from the menus', async ({
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/?qa=1');
   await expect(page.locator('#menu')).toBeVisible({ timeout: 90_000 });
-  await page.locator('[data-menu="courts"]').click();
+  await page.locator('#main-menu [data-menu="courts"]').click();
   await expect(page.locator('#court-grid [data-court]')).toHaveCount(5);
   await page.locator('#court-grid [data-court="tokyo"]').click();
   await page.locator('#courts [data-back]').click();
-  await page.locator('[data-menu="modes"]').click();
+  await page.locator('#main-menu [data-menu="modes"]').click();
   await expect(page.locator('#mode-grid [data-mode]')).toHaveCount(5);
   await page.locator('#mode-grid [data-mode="firstTo5"]').click();
   await expect(page.locator('#team-grid [data-team]')).toHaveCount(6);
