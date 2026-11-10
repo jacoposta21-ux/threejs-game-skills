@@ -446,12 +446,8 @@ export class NPCSystem {
         }
         break;
       case NPC_STATE.KNOCKED:
-        if (npc.timer <= 0 && npc.health < 40) { this.down(npc, g.player.pos, 'melee', 0, true); break; }
-        if (npc.timer <= 0) {
-          if (npc.role) { npc.state = NPC_STATE.COMBAT; npc.alerted = true; }
-          else if (npc.brave && npc.angry && !g.player.vehicle) { npc.state = NPC_STATE.FIGHT; npc.timer = 12; }
-          else { npc.state = NPC_STATE.WALKING; this.flee(npc, g.player.pos, 6); this.play(npc, 'Sprint_Loop', { fade: 0.4 }); }
-        }
+        // nobody gets back up: whoever ends on the ground stays there
+        if (npc.timer <= 0) this.down(npc, g.player.pos, 'melee', 0, true);
         break;
       default:
     }
@@ -624,7 +620,8 @@ export class NPCSystem {
     }
     if (o.byPlayer) g.events.emit('pedestrianAttacked', { npc, downed: false, kind: o.kind, role: npc.role });
     const dx = npc.pos.x - from.x, dz = npc.pos.z - from.z, L = Math.hypot(dx, dz) || 1;
-    if (o.knock) {
+    // armed fighters only stagger from kicks and bats (they go down when their health runs out)
+    if (o.knock && !npc.role) {
       npc.state = NPC_STATE.KNOCKED;
       npc.timer = 2.4;
       npc.vel.set(dx / L, dz / L).multiplyScalar(3.5);
