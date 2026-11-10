@@ -74,7 +74,7 @@ On touch: stick and on-screen buttons.
 
 **Category / tags:** Sports, Football (Soccer), 3D, Skill, 1 player.
 
-**Screenshots:** `docs/screenshots/store-*.jpg` (free play, match, the four other courts, team select, replay).
+**Screenshots:** `docs/screenshots/store-*.jpg` (free play, two match shots in Brazil, the four other courts, team select). The two night courts come out dark in these captures.
 
 ## Still to do in the CrazyGames portal (needs your account)
 

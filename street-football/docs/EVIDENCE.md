@@ -1,5 +1,18 @@
 # Verification evidence
 
+## v1.7.0 release checks
+
+| Check | Result |
+| --- | --- |
+| `npm run package` | `release/rua10-crazygames-v1.7.0.zip`: 30 files, 6.15 MB unpacked, **2.92 MB zip**; no source maps, no localhost references, relative paths |
+| Full suite on the production build (`PREVIEW=1 PORT=4188 npx playwright test`) | **11 passed** (desktop and mobile emulation): free-play home screen, menu → match, pause, switch, skill and flair keys, Gamebreaker, content menus, keyboard bot match |
+| The zip itself, extracted and served from a sub-folder, without `?qa` | Free play reached in 11.9 s (software rendering); no test hooks, diagnostics or game global; no page or console errors; no failed requests; **no request outside its own folder** |
+| Menu in the shipped build | PLAY, SELECT COURT, HOW TO PLAY, SETTINGS, FREE PLAY |
+| Store screenshots | `screenshots/store-1…8-*.jpg` (1280×720, High quality), captured from the extracted zip |
+
+Not checked here: real-GPU frame rate, a real phone, Firefox and Safari, and the CrazyGames QA tool (SDK calls and ads).
+
+
 ## v1.5 — content and presentation
 
 Draw cost of the five courts at Low quality, gameplay camera (`node tools/qa/venues.mjs`, no page errors):
