@@ -1,5 +1,11 @@
 # Verification evidence
 
+## v1.2 — kick-and-catch dribble, readable skills
+
+`node tools/qa/touchcheck.mjs` (3 s per scenario): possession 100% and 0 missed swings in all four scenarios (jog, sprint then jog, zigzag, sprint then release). Player-to-ball distance now cycles between about 0.3 m and 1.0–1.4 m on each touch (v1.1 held it near 0.5 m), touches every 0.3–0.9 s at a jog, mean toe-to-ball at contact 0.40–0.57 m.
+
+`trickcheck.mjs`: rainbow, nutmeg (success and forced fail) and roulette resolve as before. `aimatch.mjs normal 2`: 6–2 and 3–5, AI tricks used, no errors. Live-loop keyboard run (real key events, no hooks): E standing and E while running start a stepover and score it; E without the ball reports "no ball"; no page errors.
+
 ## v1.1 — ball control, skills, replay
 
 ### Dribble touches (`node tools/qa/touchcheck.mjs`, 3 s per scenario, opponents parked)

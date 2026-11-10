@@ -25,13 +25,13 @@ export const TRICKS = {
   },
   feint: {
     label: 'BODY FEINT', points: 100, clip: 'Trick_Feint', dur: 0.5, speed: 2.3, risk: 0.08, maxSpeed: 6.5, fool: 0.7, key: 0.4,
-    hold: [0, 0.55, (u) => ({ f: 0.45, e: -0.18 * Math.sin(u * Math.PI * 1.8) })],
+    hold: [0, 0.55, (u) => ({ f: 0.45, e: -0.34 * Math.sin(u * Math.PI * 1.8) })],
     impulse: { u: 0.56, angle: 55, speed: 4.3 },
     turn: [0.5, 0.9, 55],
   },
   ballroll: {
-    label: 'BALL ROLL', points: 150, clip: 'Trick_BallRoll', dur: 0.6, speed: 0, lateral: 1.4, risk: 0.07, maxSpeed: 2.5, fool: 0.55, key: 0.5,
-    hold: [0, 0.9, (u) => ({ f: 0.36, e: -0.1 + 0.6 * u })],
+    label: 'BALL ROLL', points: 150, clip: 'Trick_BallRoll', dur: 0.6, speed: 0, lateral: 1.9, risk: 0.07, maxSpeed: 2.5, fool: 0.55, key: 0.5,
+    hold: [0, 0.9, (u) => ({ f: 0.36, e: -0.2 + 0.95 * u })],
     impulse: { u: 0.92, angle: 10, speed: 2.6 },
   },
   cut: {

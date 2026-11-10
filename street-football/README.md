@@ -86,6 +86,13 @@ Control follows the ball automatically: when a teammate wins it or receives your
   - Film look: grade, grain and a heavier vignette.
   - The ball trail now draws on the shot.
 
+## v1.2 — the ball leaves the foot, skills read as moves
+
+- **Kick and catch.** A dribble touch now sends the ball clearly away from the boot (about 2 m/s faster than the runner, 2.9 when sprinting) with a little backspin, so it checks and the runner catches it: the gap opens from about 0.3 m to 1.1–1.4 m and closes again on every touch. The stride that takes the next touch is chosen by predicting where the ball will be at the contact frame. A small dust puff marks each touch.
+- **Recovering a loose touch.** If the ball is off the running line (a sharp turn) or getting away, the player bursts to it instead of jogging behind it.
+- **Skills play in slight slow motion** (0.6× while your move lasts), with exaggerated leg and body shapes on the stepover, feint, ball roll, cut, roulette and nutmeg, and wider ball movement on the feint and ball roll.
+- **Skills protect the ball.** Mid-trick the ball cannot be nicked between touches, and a tackle against a player in a (non-failed) trick succeeds far less often. The trick's own risk roll remains.
+
 ## Phase 4 — what changed visually and aurally
 
 - **Real characters.** Quaternius *Universal Base Characters* (CC0) replace the faceless mannequin: male and female bodies with painted faces, eyes, brows and normal-mapped skin. Skin tones are re-tinted per player. Kits are painted over the body by the kit shader, with the muscle normal map softened under the fabric. There are Quaternius rigged hairstyles and beards plus procedural afros, curls and twists. Fans are a mix of men and women.

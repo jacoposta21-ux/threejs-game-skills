@@ -59,8 +59,11 @@ export const DRIBBLE = {
   minTouchInterval: 0.2,
   maxTouchInterval: 0.42,
   // A touch sends the ball this much faster than the player (m/s); the player then chases it down.
-  touchMargin: 1.05,
-  sprintTouchMargin: 1.7,
+  touchMargin: 2.0,
+  sprintTouchMargin: 2.9,
+  // Extra rolling deceleration (m/s²) on a dribble touch and how long it lasts: the ball checks and is caught.
+  touchCheck: 4.4,
+  touchCheckTime: 1.1,
   // How hard the player accelerates to recover a ball that ran past the lead distance.
   chaseBoost: 1.0,
   // Standard deviation of touch direction error (radians) at jog / sprint / sharp turn.

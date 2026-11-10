@@ -72,6 +72,8 @@ export class MatchState {
     const owner = this.owner;
     if (!owner || owner === ctrl) return true;
     if (owner.team === ctrl.team) return false;
+    // Mid-trick the ball is under the sole / between the feet: it cannot be nicked unless the trick has failed.
+    if (owner.trick && !(owner.trick.fail && owner.trick.resolved)) return false;
     const b = this.ball.position;
     const ownerDist = Math.hypot(b.x - owner.p.position.x, b.z - owner.p.position.z);
     return ownerDist > TACKLE.looseTouchDistance && distToBall < ownerDist;

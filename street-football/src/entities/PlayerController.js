@@ -155,13 +155,19 @@ export class PlayerController {
     }
     // Dribbling: chase down a ball that has run past the lead distance.
     if (this.possession && this.hasInput && !this.kick) {
-      const { ahead } = this.ballRelation();
+      const { ahead, dist, lateral } = this.ballRelation();
       const lead = DRIBBLE.baseLead + DRIBBLE.leadPerSpeed * p.speed;
-      const ballSpeed = Math.hypot(this.ball.velocity.x, this.ball.velocity.z);
-      if (ahead > TOUCH_REACH + 0.08) {
-        // Out of touching range: run it down (a little faster the further it is).
-        const far = THREE.MathUtils.clamp((ahead - TOUCH_REACH - 0.08) / lead, 0, 1);
-        const cap = (this.sprinting ? PLAYER.sprintSpeed * (1 + far * 0.1) : PLAYER.jogSpeed * (1.1 + far * 0.25)) * this.speedFactor;
+      const bv = this.ball.velocity;
+      const ballSpeed = Math.hypot(bv.x, bv.z);
+      // While a fresh touch is still checking and rolling the way we run, the
+      // ball comes back on its own: just keep running.
+      const onLine = Math.abs(lateral) < 0.5 && bv.x * this.moveDir.x + bv.z * this.moveDir.z > ballSpeed * 0.75;
+      const returning = this.ball.softTime > 0 && onLine && ahead < lead + 1.0;
+      if ((ahead > TOUCH_REACH + 0.08 || dist > 0.9) && !returning) {
+        // Out of touching range: run it down, bursting if it is really getting away.
+        const far = THREE.MathUtils.clamp((dist - TOUCH_REACH - 0.08) / lead, 0, 1);
+        const burst = dist > lead + 0.7 || !onLine;
+        const cap = (this.sprinting || burst ? PLAYER.sprintSpeed * (1 + far * 0.1) : PLAYER.jogSpeed * (1.1 + far * 0.25)) * this.speedFactor;
         targetSpeed = Math.max(targetSpeed, Math.min(cap, ballSpeed + DRIBBLE.chaseBoost * (1 + far * 1.5)));
       }
     }
@@ -556,28 +562,31 @@ export class PlayerController {
       return;
     }
 
-    // Dribbling: the rear foot starts its swing on a footfall when the ball
-    // will be at the toe by the contact frame (closing speed × swing time).
-    // If the stride never lines up, or the player is about to run over the
-    // ball, touch now.
+    // Dribbling: pick the stride whose swing meets the ball at the toe. The
+    // ball's position at the contact frame is predicted from the closing speed
+    // and its deceleration; a swing starts on the footfall that fits best.
     const along = ball.velocity.x * _fwd.x + ball.velocity.z * _fwd.z;
+    const closing = speed - along;
+    const decel = BALL.rollingDecel + BALL.rollingDrag * ballSpeed + (ball.softTime > 0 ? ball.softDecel : 0);
+    const aheadIn = (t) => ahead - closing * t - 0.5 * (along > 0.2 ? decel : 0) * t * t;
     const swing = this.touchSwing() * TOUCH_U;
-    const atContact = ahead - Math.max(0, speed - along) * swing;
-    // The zone overlaps the chase threshold (reach + 0.08), so a pursued ball always gets touched.
-    if (atContact < TOUCH_REACH || ahead < TOUCH_REACH + 0.16 || (ahead < 0.05 && dist < 0.85)) {
-      this.touchWanted += dt;
-      const footfalls = p.anim.footfalls;
-      const onStride = footfalls !== this.lastFootfalls;
-      this.lastFootfalls = footfalls;
-      const urgent = atContact < TOUCH_REACH * 0.6 || this.touchWanted > 0.22 || speed < 1.2;
-      if (onStride || urgent) this.startTouch('touch', time);
-    } else {
-      this.touchWanted = 0;
-      this.lastFootfalls = p.anim.footfalls;
+    const now = aheadIn(swing);
+    const footfalls = p.anim.footfalls;
+    const onStride = footfalls !== this.lastFootfalls;
+    this.lastFootfalls = footfalls;
+    let start = false;
+    if (onStride && now < TOUCH_REACH + 0.3) {
+      const next = aheadIn(swing + p.anim.stepTime);
+      start = Math.abs(now - TOUCH_REACH) <= Math.abs(next - TOUCH_REACH) || next < 0.15;
     }
+    if (now < TOUCH_REACH) this.touchWanted += dt;
+    else this.touchWanted = 0;
+    // No stride lined up (or standing start, or the ball is about to go under the body): touch now.
+    if (now < 0.18 || this.touchWanted > 0.3 || (speed < 1.2 && ahead < TOUCH_REACH + 0.16) || (ahead < 0.05 && dist < 0.85)) start = true;
+    // Only swing at a ball that is within reach of the stride.
+    if (start && dist < 1.25 && ahead > -0.3) this.startTouch('touch', time);
   }
 
-  /** Begin a dribble touch or a sole trap: the leg swings now, the ball is played at contact. */
   /** Duration of a dribble-touch swing: one step of the current stride. */
   touchSwing() {
     return this.p.speed < 2 ? 0.24 : THREE.MathUtils.clamp(this.p.anim.stepTime, 0.2, 0.4);
@@ -642,7 +651,7 @@ export class PlayerController {
     _vel.z += -_dir.x * correction;
     _vel.y = 0.25 + speed * 0.04;
     _spin.copy(UP).cross(_dir).multiplyScalar(ballSpeed / BALL.radius);
-    ball.kick(_vel, _spin, p, time);
+    ball.touch(_vel, _spin, p, time, DRIBBLE.touchCheck, DRIBBLE.touchCheckTime);
     this.touchCooldown = DRIBBLE.minTouchInterval;
     this.events.emit('touch', { player: p, strength: ballSpeed, side: tc.side });
   }
@@ -873,6 +882,8 @@ export class PlayerController {
       // Sprinting dribblers with the ball far ahead are easier to rob.
       const sep = Math.hypot(ball.position.x - owner.p.position.x, ball.position.z - owner.p.position.z);
       chance += THREE.MathUtils.clamp((sep - 0.6) * 0.25, 0, 0.2);
+      // Lunging at a player mid-trick mostly buys the move.
+      if (owner.trick && !owner.trick.fail) chance *= 0.35;
     }
     if (this.rng() > THREE.MathUtils.clamp(chance, 0.05, 0.97)) {
       this.events.emit('tackle', { tackler: p, success: false, victim: owner?.p ?? null, reason: 'roll' });

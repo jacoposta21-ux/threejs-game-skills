@@ -341,6 +341,16 @@ export function authorFootballClips(lib) {
  * Mirror a pose spec left↔right: swap L/R bones and negate yaw/roll.
  * Trick clips are authored once for the right side and mirrored for the left.
  */
+// Ground tricks are read from a broadcast camera: their leg and body shapes are exaggerated.
+const TRICK_GAIN = { Trick_Stepover: 1.4, Trick_Feint: 1.5, Trick_BallRoll: 1.3, Trick_Cut: 1.4, Trick_Roulette: 1.25, Trick_Nutmeg: 1.15 };
+
+function amplify(pose, gain) {
+  if (gain === 1) return pose;
+  const out = {};
+  for (const [bone, rots] of Object.entries(pose)) out[bone] = rots.map(([axis, deg]) => [axis, deg * gain]);
+  return out;
+}
+
 function mirrorPose(pose) {
   const out = {};
   for (const [bone, rots] of Object.entries(pose)) {
@@ -467,7 +477,8 @@ function authorTrickClips(tracks) {
   const out = [];
   for (const [name, def] of Object.entries(defs)) {
     for (const side of ['R', 'L']) {
-      const keys = def.keys.map(([t, pose]) => ({ t, pose: side === 'R' ? pose : mirrorPose(pose) }));
+      const gain = TRICK_GAIN[name] ?? 1;
+      const keys = def.keys.map(([t, pose]) => ({ t, pose: amplify(side === 'R' ? pose : mirrorPose(pose), gain) }));
       const plant = def.plant === 'both' || !def.plant ? def.plant : side === 'R' ? def.plant : def.plant === 'L' ? 'R' : 'L';
       out.push(new THREE.AnimationClip(`${name}_${side}`, def.dur, tracks(keys, { plant })));
     }

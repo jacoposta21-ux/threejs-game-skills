@@ -405,7 +405,8 @@ export class Game {
 
   wireFeedback() {
     const ev = this.events;
-    ev.on('touch', ({ player, strength }) => {
+    ev.on('touch', ({ player, strength, trap }) => {
+      if (player === this.human?.p && !trap) this.vfx.dust(this.ball.mesh.position, 0.22);
       this.audio.play('touch', { volume: (player === this.human?.p ? 0.35 : 0.2) + strength * 0.04, at: player.holder.position, cooldown: 0.05 });
     });
     ev.on('control', ({ player, relSpeed, stolenFrom }) => {
@@ -924,6 +925,8 @@ export class Game {
       this.slowMo -= dt;
       scale = 0.35;
     }
+    // The human's skill moves play in a touch of slow motion so they read (and feel) like a move.
+    if (this.human?.trick && this.human.trick.byHuman && !this.reducedMotion) scale = Math.min(scale, 0.6);
     if (this.hitstopTime > 0) {
       this.hitstopTime -= dt;
       scale = Math.min(scale, 0.08);

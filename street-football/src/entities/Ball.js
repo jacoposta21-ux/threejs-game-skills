@@ -132,6 +132,8 @@ export class Ball {
     this.currQ = new THREE.Quaternion();
     this.position = new THREE.Vector3();
     this.velocity = new THREE.Vector3();
+    this.softTime = 0;
+    this.softDecel = 0;
     this.grounded = true;
     this.heldBy = null;
     this.lastTouch = null;
@@ -168,7 +170,9 @@ export class Ball {
     if (this.grounded) {
       // Rolling resistance on worn concrete: constant + linear term.
       if (horiz > 1e-4) {
-        const decel = (BALL.rollingDecel + BALL.rollingDrag * horiz) * dt;
+        // A dribble touch is played with a little backspin: it checks for a moment so the runner catches it.
+        if (this.softTime > 0) this.softTime -= dt;
+        const decel = (BALL.rollingDecel + BALL.rollingDrag * horiz + (this.softTime > 0 ? this.softDecel : 0)) * dt;
         const k = Math.max(0, horiz - decel) / horiz;
         v.x *= k;
         v.z *= k;
@@ -214,6 +218,14 @@ export class Ball {
     this.lastTouch = by;
     this.lastKickTime = time;
     this.velocity.copy(velocity);
+    this.softTime = 0;
+  }
+
+  /** A soft dribble touch: like kick(), but the ball checks (extra rolling decel) for `seconds`. */
+  touch(velocity, spin, by, time, decel, seconds) {
+    this.kick(velocity, spin, by, time);
+    this.softDecel = decel;
+    this.softTime = seconds;
   }
 
   hold(holder) {
