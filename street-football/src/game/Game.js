@@ -676,7 +676,7 @@ export class Game {
       const was = this.gb.meter;
       this.gb.meter = Math.min(1, was + points / GAMEBREAKER.cost);
       if (was < 1 && this.gb.meter >= 1) {
-        this.hud.toast(this.touchUi ? 'GAMEBREAKER ready — tap GB' : 'GAMEBREAKER ready — press G', 2.4);
+        this.hud.toast(this.touchUi ? 'GAMEBREAKER ready — tap GB' : 'GAMEBREAKER ready — press H', 2.4);
         this.audio.play('combo', { group: 'ui', volume: 0.6, rate: 1.5, variance: 0 });
       }
     }

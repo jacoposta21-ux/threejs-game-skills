@@ -99,7 +99,7 @@ test('R performs a flair move and G fires a full Gamebreaker (real keyboard inpu
     window.__RUA10__.events.on('trickStart', (e) => window.__tricks.push(e.kind));
   });
   await expect.poll(async () => (await diag(page)).player.possession, { timeout: 60_000 }).toBe(true);
-  await page.keyboard.press('KeyR');
+  await page.keyboard.press('KeyI');
   await expect.poll(() => page.evaluate(() => window.__tricks.length), { timeout: 60_000 }).toBeGreaterThan(0);
   expect(await page.evaluate(() => window.__tricks[0])).toBe('elastico');
   // Fill the meter (style points do this in play), then fire it with G.
@@ -108,7 +108,7 @@ test('R performs a flair move and G fires a full Gamebreaker (real keyboard inpu
     g.addStyle(3000, 'TEST', g.human.p.position.clone());
   });
   await expect(page.locator('#gb')).toHaveClass(/ready/);
-  await page.keyboard.press('KeyG');
+  await page.keyboard.press('KeyH');
   await expect.poll(() => page.evaluate(() => window.__RUA10__.gb.active > 0), { timeout: 60_000 }).toBe(true);
   await expect(page.locator('#app')).toHaveClass(/gb-on/);
 });

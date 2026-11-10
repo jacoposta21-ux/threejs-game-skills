@@ -886,6 +886,15 @@ body {
   font-size: 12px;
 }
 
+.howto-grid .zones {
+  display: block;
+  padding: 8px 10px;
+  font-size: 17px;
+  line-height: 1.9;
+  background: rgba(246, 201, 21, 0.12);
+  border-left: 4px solid var(--yellow);
+}
+
 .howto-grid .tricks {
   display: block;
   font-size: 16px;

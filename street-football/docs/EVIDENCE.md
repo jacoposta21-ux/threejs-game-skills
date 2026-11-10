@@ -1,5 +1,11 @@
 # Verification evidence
 
+## v1.4 — hard AI move set, two-zone keyboard
+
+`node tools/qa/aimatch.mjs hard 2` (two 100 s AI-vs-AI matches, no errors): 4–2 and 3–4. New moves used per match: 8 and 10 lobs, 2 and 5 through balls, 1 slide tackle won in each, 1 bicycle kick in each, 1 volley; flair tricks (elastico, drag-back, sombrero, nutmeg) appear in the trick log. `aimatch.mjs normal 2`: none of the new moves used.
+
+Keyboard: the Playwright test presses I (flair) and H (Gamebreaker) from the right-hand zone; E is still covered as an alias.
+
 ## v1.3 — full move set
 
 `node tools/qa/movescheck.mjs` (real controller, scripted intents), all with no page errors:

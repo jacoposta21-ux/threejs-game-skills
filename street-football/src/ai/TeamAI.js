@@ -175,6 +175,19 @@ export class TeamAI {
     let target = null;
     let sprintBeyond = 7;
 
+    // Hard: a ball dropping within reach inside shooting range is hit first time (volley / bicycle).
+    if (this.cfg.advanced && !m.owner && !m.ball.heldBy && !m.ball.grounded && !c.busy && !c.pending && ball.y > 0.7) {
+      const goalX = m.attackGoalX(this.teamId);
+      const db = Math.hypot(ball.x - pos.x, ball.z - pos.z);
+      if (db < 2.4 && Math.abs(goalX - pos.x) < 9 && m.ball.velocity.y < 1 && m.ball.lastKickTime !== this.aerialSeen) {
+        // One decision per ball flight: sometimes he brings it down instead.
+        this.aerialSeen = m.ball.lastKickTime;
+        if (this.rng() > 0.55) return this.arrive(c, out, _t.set(ball.x, 0, ball.z), 3);
+        const side = this.rng() < 0.5 ? -1 : 1;
+        c.requestKick('shot', 0.8, { aimZ: side * COURT.goalHalfWidth * this.rng.range(0.3, 0.8) });
+      }
+    }
+
     switch (role.type) {
       case 'carry':
         return this.carry(c, out, time);
@@ -203,6 +216,8 @@ export class TeamAI {
         sprintBeyond = 3;
         // Tackle only when the ball will be inside the lunge at the contact frame.
         if (!c.busy && this.tackleInReach(c) && this.rng() < this.cfg.tackleRate * dt * 4) c.requestTackle();
+        // Hard: a carrier getting away at pace is brought down with a slide.
+        else if (this.cfg.advanced && !c.busy && c.fooled <= 0 && role.carrier.p.speed > 4.5 && this.slideInReach(c) && this.rng() < 1.2 * dt) c.requestTackle({ slide: true });
         break;
       }
       case 'mark': {
@@ -242,6 +257,20 @@ export class TeamAI {
     const d = Math.hypot(bx - pos.x, bz - pos.z);
     // Foot reaches ~0.75 m ahead plus ~0.7 m of lunge travel.
     return d > 0.5 && d < 1.45;
+  }
+
+  /** A slide reaches further: the ball must be ahead of the tackler along his run when he gets there. */
+  slideInReach(c) {
+    const ball = this.match.ball;
+    if (ball.position.y > 0.5) return false;
+    const t = 0.3;
+    const pos = c.p.position;
+    const bx = ball.position.x + ball.velocity.x * t - pos.x;
+    const bz = ball.position.z + ball.velocity.z * t - pos.z;
+    const d = Math.hypot(bx, bz);
+    if (d < 1.5 || d > 3.2) return false;
+    const f = c.p.facing(_d);
+    return (bx * f.x + bz * f.z) / d > 0.9;
   }
 
   arrive(c, out, target, sprintBeyond) {
@@ -307,6 +336,12 @@ export class TeamAI {
         const rel = new THREE.Vector3(nearest.p.position.x - pos.x, 0, nearest.p.position.z - pos.z);
         if (rel.dot(facing) > 0.3 && this.rng() < cfg.trickRate) {
           const kinds = ['stepover', 'feint', 'cut', 'roulette', 'stepover', 'feint'];
+          if (cfg.advanced) {
+            kinds.push('elastico', 'elastico', 'dragback');
+            // Defender square in front and close: go through or over him.
+            const lateral = Math.abs(rel.x * facing.z - rel.z * facing.x);
+            if (nd < 1.9 && lateral < 0.6 && rel.dot(facing) / nd > 0.8) kinds.push('nutmeg', 'sombrero', 'sombrero', c.p.speed > 5 ? 'rainbow' : 'nutmeg');
+          }
           const kind = kinds[Math.floor(this.rng() * kinds.length)];
           if (c.requestTrick(kind, 0)) return out;
         }
@@ -314,9 +349,23 @@ export class TeamAI {
       const pressured = nearest && nd < 1.9;
       if (pressured || this.rng() < 0.12) {
         const target = m.choosePassTarget(c);
-        if (target && m.laneOpenness(pos, target.p.position, this.teamId) > 0.25) {
-          c.requestKick('pass', 0.5, { target });
+        const lane = target ? m.laneOpenness(pos, target.p.position, this.teamId) : 0;
+        if (target && lane > 0.25) {
+          // Hard: a mate running in behind gets the ball played into his path.
+          const tp = target.p;
+          const ahead = (tp.position.x - pos.x) * this.attack;
+          const through = !!cfg.advanced && ahead > 2 && tp.velocity.x * this.attack > 2.5 && Math.abs(goalX - tp.position.x) > 5;
+          c.requestKick('pass', 0.5, { target, through });
           return out;
+        }
+        // Hard: the lane on the ground is shut but the mate is free — float it over.
+        if (cfg.advanced && target && pressured && time > (this.nextLob ?? 0) && this.rng() < 0.3) {
+          this.nextLob = time + 7;
+          const d = Math.hypot(target.p.position.x - pos.x, target.p.position.z - pos.z);
+          if (d > 5 && d < 15 && m.pressureAt(target.p.position, this.teamId) > 2.5) {
+            c.requestKick('pass', 0.5, { target, lob: true });
+            return out;
+          }
         }
       }
     }

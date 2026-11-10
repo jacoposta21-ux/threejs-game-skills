@@ -1,4 +1,4 @@
-// Converts keyboard, mouse and touch into per-frame game intents.
+// Converts keyboard and touch into per-frame game intents (the mouse only focuses the game).
 // Gameplay reads `intents` only; it never touches DOM events directly.
 
 const MOVE_KEYS = {
@@ -8,14 +8,24 @@ const MOVE_KEYS = {
   KeyD: [1, 0], ArrowRight: [1, 0],
 };
 
+// Two keyboard zones, no mouse. Left hand: WASD + Shift (sprint). Right hand:
+//      U tackle   I flair   O switch
+//      J shoot    K pass    L skill      H gamebreaker
+// The older single-hand keys (Space, E, R, F, Q, G) still work as aliases.
 const ACTION_KEYS = {
-  Space: 'pass',
   KeyJ: 'shoot',
+  KeyK: 'pass',
+  KeyL: 'skill',
+  KeyI: 'skill2',
+  KeyU: 'tackle',
+  KeyO: 'switch',
+  KeyH: 'special',
+  Space: 'pass',
   KeyE: 'skill',
   KeyR: 'skill2',
-  KeyG: 'special',
-  KeyQ: 'switch',
   KeyF: 'tackle',
+  KeyQ: 'switch',
+  KeyG: 'special',
   Escape: 'pause',
   KeyP: 'pause',
 };
@@ -68,6 +78,8 @@ export class Input {
       this.keys.delete(e.code);
       const action = ACTION_KEYS[e.code];
       if (action) {
+        // Two keys can share an action: it is released when the last of them comes up.
+        for (const code of this.keys) if (ACTION_KEYS[code] === action) return;
         this.released.add(action);
         if (action in this.held) this.held[action] = false;
       }
@@ -78,37 +90,9 @@ export class Input {
 
   bindMouse() {
     // Inside an iframe (CrazyGames) keys only arrive once the game has focus.
-    this.listen(this.canvas, 'pointerdown', () => this.canvas.focus({ preventScroll: true }));
-    // Right button: pass (tap), lob (hold).
-    this.listen(this.canvas, 'mousedown', (e) => {
-      if (e.button !== 2) return;
-      this.lastDevice = 'keyboard';
-      this.mousePass = true;
-      this.held.pass = true;
-      this.pressed.add('pass');
-      this.pressed.add('any');
-    });
-    this.listen(window, 'mouseup', (e) => {
-      if (e.button !== 2 || !this.mousePass) return;
-      this.mousePass = false;
-      if (!this.keys.has('Space')) {
-        this.held.pass = false;
-        this.released.add('pass');
-      }
-    });
-    this.listen(this.canvas, 'mousedown', (e) => {
-      if (e.button !== 0) return;
-      this.lastDevice = 'keyboard';
-      this.held.shoot = true;
-      this.pressed.add('shoot');
-      this.pressed.add('any');
-    });
-    this.listen(window, 'mouseup', (e) => {
-      if (e.button !== 0 || !this.held.shoot) return;
-      if (!this.keys.has('KeyJ')) {
-        this.held.shoot = false;
-        this.released.add('shoot');
-      }
+    this.listen(this.canvas, 'pointerdown', () => {
+      this.canvas.focus({ preventScroll: true });
+      this.pressed.add('any'); // a click or tap still skips the replay
     });
     this.listen(this.canvas, 'contextmenu', (e) => e.preventDefault());
   }

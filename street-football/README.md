@@ -39,16 +39,28 @@ Requirements: Node 18+ and a WebGL2-capable browser. Nothing else needs download
 
 ## Controls
 
-| Action | Keyboard / mouse | Touch |
+Two keyboard zones, no mouse: the left hand moves, the right hand does everything else.
+
+```
+ LEFT HAND                 RIGHT HAND
+   W                        U tackle   I flair   O switch
+ A S D   + Shift sprint     J shoot    K pass    L skill     H gamebreaker
+```
+
+| Action | Keyboard | Touch |
 | --- | --- | --- |
-| Move (camera-relative) | WASD / arrow keys | left stick |
+| Move (camera-relative) | WASD (arrow keys also work) | left stick |
 | Sprint | Shift | SPRINT |
-| Shoot (hold to charge, release to strike; ↑/↓ while shooting aims at a post) | J or left mouse | SHOOT (hold) |
-| Pass to the teammate in the direction you move or face | Space | PASS |
-| Tackle (poke lunge; from behind is risky) | F | TACKLE |
-| Switch to the teammate nearest the ball | Q | SWITCH |
+| Shoot (hold to charge, release to strike; W/S while shooting aims at a post; ball in the air: volley or bicycle kick) | J | SHOOT (hold) |
+| Pass (tap) · lob (hold) · through ball (with Shift) · one-two (press again after your pass) | K | PASS |
+| Skill move (see the table below) | L + direction relative to where you face | SKILL + stick |
+| Flair move: elastico · sombrero (forward) · drag-back (back) | I + direction | FLAIR + stick |
+| Tackle (poke lunge; from behind is risky) · slide tackle (with Shift) | U | TACKLE |
+| Switch to the teammate nearest the ball | O | SWITCH |
+| Gamebreaker (meter full) | H | GB |
 | Pause | Esc / P | ❚❚ button |
-| Skill move (see the table below) | E + direction relative to where you face | SKILL + stick |
+
+The earlier single-hand keys remain as aliases: Space pass, E skill, R flair, F tackle, Q switch, G gamebreaker. The mouse is not used in play (a click only focuses the game or skips a replay).
 
 Control follows the ball automatically: when a teammate wins it or receives your pass, you take control of them.
 
@@ -85,6 +97,16 @@ Control follows the ball automatically: when a teammate wins it or receives your
   - On top: a stinger wipe in and out, a white flash on each cut, the scorer's name and number, and a "press any key to skip" hint.
   - Film look: grade, grain and a heavier vignette.
   - The ball trail now draws on the shot.
+
+## v1.4 — hard AI uses the move set, two-zone keyboard
+
+- **Hard difficulty only**, both teams' AI players now also use:
+  - flair moves when pressed (elastico, drag-back; nutmeg, sombrero or rainbow when the defender is square in front and close);
+  - through balls to a mate already running in behind, and lobs over a shut passing lane;
+  - slide tackles on a carrier getting away at pace;
+  - first-time volleys and bicycle kicks on a ball dropping within reach inside 11 m of goal.
+- Easy and Normal are unchanged.
+- **Controls:** the two-zone layout above; mouse shooting and passing are removed.
 
 ## v1.3 — the full move set
 

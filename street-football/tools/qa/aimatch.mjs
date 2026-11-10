@@ -25,7 +25,9 @@ for (let m = 0; m < +matches; m += 1) {
     const poss = { home: 0, away: 0, none: 0 };
     let pending = null;
     const off = [
-      g.events.on('kick', ({ type, player, target }) => {
+      g.events.on('kick', ({ type, player, target, aerial, lob, through }) => {
+        const adv = (counts.advanced ??= {});
+        for (const [k, on] of [[aerial, !!aerial], ['lob', lob], ['through', through]]) if (on) adv[k] = (adv[k] ?? 0) + 1;
         if (type === 'shot') counts.shots[player.team] += 1;
         else { counts.passes[player.team] += 1; pending = target ? { team: player.team, target } : null; }
       }),
@@ -33,7 +35,7 @@ for (let m = 0; m < +matches; m += 1) {
         if (pending) { if (pending.team === player.team) counts.passOk[player.team] += 1; pending = null; }
         if (stolenFrom) counts.steals += 1;
       }),
-      g.events.on('tackle', (e) => { const { success, victim, reason } = e; if (reason === 'reach') (counts.miss ??= []).push([+e.dBall.toFixed(2), +e.ballY.toFixed(2), e.held]); counts.tackles += 1; if (success && victim) counts.tacklesWon += 1; counts.tackleReasons[reason] = (counts.tackleReasons[reason] ?? 0) + 1; }),
+      g.events.on('tackle', (e) => { const { success, victim, reason } = e; if (e.slide) { const adv = (counts.advanced ??= {}); adv[success ? 'slideWon' : 'slideMissed'] = (adv[success ? 'slideWon' : 'slideMissed'] ?? 0) + 1; } if (reason === 'reach') (counts.miss ??= []).push([+e.dBall.toFixed(2), +e.ballY.toFixed(2), e.held]); counts.tackles += 1; if (success && victim) counts.tacklesWon += 1; counts.tackleReasons[reason] = (counts.tackleReasons[reason] ?? 0) + 1; }),
       g.events.on('save', ({ type }) => { if (type !== 'claim') counts.saves += 1; }),
       g.events.on('trick', (e) => { const k = `${e.kind}:${e.outcome}`; (counts.tricks ??= {})[k] = (counts.tricks[k] ?? 0) + 1; }),
       g.events.on('goal', (e) => (counts.goalLog ??= []).push(`${e.team}:${e.flight.type ?? 'none'}:${e.lastTouchTeam}${e.lastTouchKeeper ? '(GK)' : ''}:since=${e.since.toFixed(1)}:fromX=${e.flight.scorerX?.toFixed?.(1)}`)),
