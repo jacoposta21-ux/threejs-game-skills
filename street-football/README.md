@@ -98,6 +98,25 @@ Control follows the ball automatically: when a teammate wins it or receives your
   - Film look: grade, grain and a heavier vignette.
   - The ball trail now draws on the shot.
 
+## v1.7 — foot-driven skill moves, free play as the practice ground
+
+**Skill moves rebuilt.** The eight ground moves (stepover, body feint, ball roll, quick cut, roulette, elastico, drag-back, nutmeg) no longer play hand-keyed body poses. Each is described by where the feet go (`src/skills/Tricks.js`, `ik`) and solved with two-bone leg IK every frame (`src/skills/TrickIK.js`):
+- The standing foot is locked to its spot on the ground, so it does not skate while the body moves over it.
+- The working foot travels around, over or onto the ball itself.
+- While a sole or the side of a boot is on the ball, the ball goes where that foot takes it. Otherwise it rolls free.
+- The pelvis sways and sinks to keep both feet in reach, and the trunk leans and twists.
+- The arms and head keep the locomotion clips underneath.
+- The slow-motion and the exaggeration applied to the old clips are gone.
+
+Heel flick, rainbow, sombrero and fake shot still use authored clips.
+
+**Free play:**
+- **Fix:** after a goal the ball is dropped on the pitch side of the player. It used to be dropped in front of him, straight back into the net when he faced it.
+- A collapsible controls card (C) lists the moves on screen.
+- The tutorial is removed; free play with the card replaces it.
+
+Check: `node tools/qa/trickmotion.mjs <dir> [kinds]` renders side and front frame rows of every move.
+
 ## v1.6 — free play home screen
 
 The game opens on an empty court: your player, a ball and no keepers, with the clock and score hidden. Everything works as in a match (dribbling, skills, flair, shooting), and a shot into the empty net is celebrated before the ball comes back to you.
@@ -151,7 +170,7 @@ The away side switches kits on a clash. Progress is saved.
 | 1 v 1 | The other players leave the pitch. |
 | Tournament | Three knockout rounds against three different sides at their home courts, AI easy → normal → hard. A draw goes to a golden goal. |
 
-**Tutorial.** A playable, eight-step practice match with the clock stopped: move, dribble and sprint, pass, skill, flair, shoot and score, win the ball back, Gamebreaker. Each step completes on the real event.
+**Tutorial (removed in v1.7).** A playable, eight-step practice match with the clock stopped: move, dribble and sprint, pass, skill, flair, shoot and score, win the ball back, Gamebreaker. Each step completes on the real event.
 
 **Animations:**
 - Five goal celebrations: the airplane run, a knee slide, a fist pump, a dance and jumps. The standing ones turn to the camera.
@@ -167,7 +186,6 @@ The away side switches kits on a clash. Progress is saved.
 Checks:
 - `node tools/qa/venues.mjs <dir>`
 - `node tools/qa/modescheck.mjs`
-- `node tools/qa/tutorialcheck.mjs`
 
 ## v1.4 — hard AI uses the move set, two-zone keyboard
 

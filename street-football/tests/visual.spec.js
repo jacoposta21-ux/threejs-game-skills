@@ -136,15 +136,6 @@ test('content: every court, team and mode is reachable from the menus', async ({
   expect(errors).toEqual([]);
 });
 
-test('tutorial starts from the menu and shows the first step', async ({ page }) => {
-  await page.goto('/?qa=1');
-  await openMenu(page);
-  await page.locator('[data-menu="tutorial"]').click();
-  await expect(page.locator('#tutorial-box')).toBeVisible({ timeout: 60_000 });
-  await expect(page.locator('#tut-title')).toHaveText('MOVE');
-  await expect(page.locator('#match-clock')).toHaveText('PRACTICE', { timeout: 60_000 });
-});
-
 test('home screen is free play: one player, a ball, the menu on ESC', async ({ page }, info) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -160,7 +151,28 @@ test('home screen is free play: one player, a ball, the menu on ESC', async ({ p
     };
   });
   expect(field).toEqual({ outfield: 1, keepersVisible: false });
+  await expect(page.locator('[data-menu="tutorial"]')).toHaveCount(0);
+  // A goal into the empty net: the ball comes back onto the pitch, and stays there, even with the player facing the net.
+  const back = await page.evaluate(() => {
+    const g = window.__RUA10__;
+    const h = window.__THREE_GAME_TEST_HOOKS__;
+    const out = [];
+    for (let i = 0; i < 2; i += 1) {
+      g.human.p.teleport(-13.5, 0, -Math.PI / 2);
+      g.ball.placeAt(-15.6, 0.3, 0);
+      h.simulate(3.5, {});
+      out.push({ inGoal: g.ball.inGoal, onPitch: Math.abs(g.ball.position.x) < 14 });
+    }
+    return out;
+  });
+  expect(back).toEqual([{ inGoal: false, onPitch: true }, { inGoal: false, onPitch: true }]);
   if (!info.project.name.includes('mobile')) {
+    // The controls cheat sheet is on screen and folds away with C.
+    await expect(page.locator('#controls-card .cc-body')).toBeVisible();
+    await page.locator('#game-canvas').focus();
+    await page.keyboard.press('KeyC');
+    await expect(page.locator('#controls-card .cc-body')).toBeHidden();
+    await page.keyboard.press('KeyC');
     // Real keys move the player; ESC opens the menu, ESC again goes back to free play.
     await page.locator('#game-canvas').focus();
     const x0 = (await diag(page)).player.position.x;

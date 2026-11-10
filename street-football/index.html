@@ -51,7 +51,20 @@
         </div>
         <div id="trick-name" aria-live="off"></div>
         <div id="lobby-bar"><span>FREE PLAY</span><small>Practise with the ball · <kbd>ESC</kbd> or <kbd>M</kbd> for the menu</small><button type="button" id="lobby-menu-btn">MENU</button></div>
-        <div id="tutorial-box" class="hidden" aria-live="polite"><small id="tut-step"></small><b id="tut-title"></b><kbd id="tut-key"></kbd><span id="tut-text"></span><i class="tick">✓</i></div>
+        <aside id="controls-card">
+          <button type="button" id="controls-toggle" aria-expanded="true">CONTROLS <small>C</small></button>
+          <div class="cc-body">
+            <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>SHIFT</kbd> sprint</p>
+            <p><kbd>J</kbd> shoot (hold = power) · in the air: volley / bicycle</p>
+            <p><kbd>K</kbd> pass · hold = lob</p>
+            <h4>SKILLS <kbd>L</kbd></h4>
+            <p><b>L</b> stepover · <b>L + side</b> feint (standing: ball roll, sprint: cut)</p>
+            <p><b>L + back</b> roulette (sprint: heel flick) · <b>L + fwd + sprint</b> rainbow</p>
+            <h4>FLAIR <kbd>I</kbd></h4>
+            <p><b>I</b> elastico · <b>I + fwd</b> sombrero · <b>I + back</b> drag-back</p>
+            <p class="cc-note">Directions are relative to where your player faces.</p>
+          </div>
+        </aside>
         <div id="power-meter" class="hidden"><div class="ring"></div><span>SHOT</span></div>
         <div id="popups"></div>
         <div id="toast" class="hidden"></div>
@@ -87,11 +100,10 @@
         <div class="logo"><span class="rua">RUA</span><span class="ten">10</span><small>STREET FOOTBALL</small></div>
         <nav class="menu-list" id="main-menu">
           <button type="button" class="menu-btn primary" data-menu="modes">PLAY</button>
-          <button type="button" class="menu-btn" data-menu="tutorial">TUTORIAL</button>
           <button type="button" class="menu-btn" data-menu="courts">SELECT COURT</button>
           <button type="button" class="menu-btn" data-menu="howto">HOW TO PLAY</button>
           <button type="button" class="menu-btn" data-menu="settings">SETTINGS</button>
-          <button type="button" class="menu-btn back" data-menu="freeplay">FREE PLAY <small>ESC</small></button>
+          <button type="button" class="menu-btn" data-menu="freeplay">FREE PLAY <small>ESC</small></button>
         </nav>
         <p class="menu-foot" id="menu-best"></p>
       </section>

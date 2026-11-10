@@ -355,7 +355,9 @@ export class PlayerController {
     const fail = this.rng() < risk;
     this.touch = null;
     p.legPulse = null;
-    p.anim.play(`${def.clip}_${side > 0 ? 'R' : 'L'}`, { fadeIn: 0.06, fadeOut: 0.12 });
+    // Foot-driven moves are animated by IK over the run; the others play their clip.
+    if (def.ik) p.trickAnim = { def, side, u: 0 };
+    else p.anim.play(`${def.clip}_${side > 0 ? 'R' : 'L'}`, { fadeIn: 0.06, fadeOut: 0.12 });
     this.trick = {
       kind, def, side, t: 0, f, e: rotateToward(f, side, 90), entrySpeed: p.speed, startHeading: p.heading,
       victim, fail, solo: solo || !victim, resolved: false, impulsed: false, byHuman: this.isHuman,
@@ -389,9 +391,33 @@ export class PlayerController {
     p.position.x = THREE.MathUtils.clamp(p.position.x, -COURT.halfLength + 0.35, COURT.halfLength - 0.35);
     p.position.z = THREE.MathUtils.clamp(p.position.z, -COURT.halfWidth + 0.35, COURT.halfWidth - 0.35);
 
-    // Ball: held on a scripted line until it is played (stays a physical body).
-    const [h0, h1, holdFn] = def.hold;
-    if (!tr.impulsed && !(tr.fail && tr.resolved) && u >= h0 && u <= h1 && !ball.heldBy) {
+    if (def.ik) {
+      if (p.trickAnim) p.trickAnim.u = u;
+      // The ball rolls on with the player until a foot takes it.
+      if (!tr.started) {
+        tr.started = true;
+        ball.body.setLinvel({ x: p.velocity.x, y: Math.min(ball.velocity.y, 0), z: p.velocity.z }, true);
+      }
+      const seg = !tr.impulsed && !(tr.fail && tr.resolved) && !ball.heldBy && def.ik.attach?.find((a) => u >= a.u0 && u <= a.u1);
+      if (seg) {
+        // Under or against the boot: the ball goes where that foot takes it.
+        const footSide = (seg.foot === 'out') === (tr.side > 0) ? 'r' : 'l';
+        const ankle = p.character.bones.get(`foot_${footSide}`).getWorldPosition(_dir);
+        const yaw = p.heading + p.extraYaw;
+        const fx = Math.sin(yaw);
+        const fz = Math.cos(yaw);
+        const [os, of] = seg.off(u);
+        const tx = ankle.x + -fz * tr.side * os + fx * of;
+        const tz = ankle.z + fx * tr.side * os + fz * of;
+        _vel.set(tx - ball.position.x, 0, tz - ball.position.z).multiplyScalar(0.5 / dt);
+        if (_vel.length() > 14) _vel.setLength(14);
+        ball.body.setLinvel({ x: _vel.x, y: Math.min(ball.velocity.y, 0), z: _vel.z }, true);
+        ball.lastTouch = p;
+      }
+    }
+    // Clip-animated moves: the ball is worked along a scripted line until it is played.
+    const [h0, h1, holdFn] = def.hold ?? [2, 2, null];
+    if (!def.ik && !tr.impulsed && !(tr.fail && tr.resolved) && u >= h0 && u <= h1 && !ball.heldBy) {
       // The ball is worked with separate touches of the sole / instep: every
       // TRICK_TOUCH seconds it is played to where the move needs it next, and
       // rolls freely in between.
@@ -452,6 +478,7 @@ export class PlayerController {
   endTrick(time, aborted) {
     const tr = this.trick;
     this.trick = null;
+    this.p.trickAnim = null;
     this.p.extraYaw = 0;
     this.trickCooldown = 0.22;
     if (aborted || tr.fail) return;

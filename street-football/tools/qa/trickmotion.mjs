@@ -1,58 +1,67 @@
-// Renders every freestyle trick (right side) as a close-up frame row: node tools/qa/trickmotion.mjs <outDir>
+// Close-up frame rows of every skill move, both from the side and from the front.
+// node tools/qa/trickmotion.mjs <outDir> [kinds,comma,separated]
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 const out = process.argv[2] ?? 'artifacts/tricks';
+const only = process.argv[3]?.split(',');
 fs.mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium', args: ['--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: 360, height: 360 } });
-await page.goto('http://127.0.0.1:5188/');
-await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 3, null, { timeout: 120000 });
-const kinds = ['stepover', 'feint', 'ballroll', 'cut', 'roulette', 'heel', 'rainbow', 'nutmeg', 'fakeshot'];
-for (const kind of kinds) {
-  const frames = await page.evaluate(async (kind) => {
+const page = await browser.newPage({ viewport: { width: 400, height: 400 } });
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+await page.goto(process.argv[4] ?? 'http://127.0.0.1:5188/?qa=1');
+await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.phase === 'lobby', null, { timeout: 120000 });
+const all = ['stepover', 'feint', 'ballroll', 'cut', 'roulette', 'elastico', 'dragback', 'nutmeg', 'heel', 'rainbow', 'sombrero', 'fakeshot'];
+for (const kind of only ?? all) {
+  const res = await page.evaluate((kind) => {
     const h = window.__THREE_GAME_TEST_HOOKS__;
     const g = window.__RUA10__;
-    h.setState('active-play');
+    g.enterLobby({ openMenu: false });
     h.setPausedForScreenshot(true);
     const hk = g.human;
-    hk.reset();
-    // Capture only: defenders do not tackle, so the move plays out in full.
-    for (const o of g.match.teams.away.players) o.tackleCooldown = 99;
-    // Player facing +X (left of screen → right), defender ahead for nutmeg/rainbow.
-    g.place('home', [[-2, 0, Math.PI / 2], [-6, 6], [-9, -6]]);
-    g.place('away', [[kind === 'nutmeg' ? 0.4 : 1.2, 0, -Math.PI / 2], [9, -6], [11, 5]]);
-    if (!['nutmeg', 'rainbow'].includes(kind)) g.match.teams.away.players[0].p.teleport(9, 3, 0);
-    g.ball.placeAt(-1.55, 0.11, 0);
-    const entry = kind === 'cut' || kind === 'rainbow' ? { moveX: -1, sprint: true } : kind === 'ballroll' ? {} : { moveX: -0.5 };
-    h.simulate(kind === 'ballroll' ? 0.3 : kind === 'nutmeg' ? 0.12 : 0.35, entry);
-    for (const o of g.match.teams.away.players) o.tackleCooldown = 99;
+    hk.p.teleport(0, 0, Math.PI / 2); // facing +X
+    g.ball.placeAt(0.5, 0.11, 0);
+    const sprint = ['cut', 'rainbow', 'heel'].includes(kind);
+    const stand = kind === 'ballroll';
+    // +X is screen-left for the default camera: steer in world space through the camera yaw.
+    const y = g.cameraRig.yaw;
+    const it = stand ? {} : { moveX: -Math.cos(y), moveY: Math.sin(y), sprint };
+    h.simulate(stand ? 0.3 : 0.7, it);
     const rng = hk.rng;
     hk.rng = () => 0.99;
-    hk.rng.gauss = rng.gauss;
+    hk.rng.gauss = () => 0;
     hk.rng.range = rng.range;
     hk.trickCooldown = 0;
-    hk.lastTrickKind = null;
     if (kind === 'fakeshot') hk.charge.active = true;
-    const why = { possession: hk.possession, busy: hk.busy, kick: !!hk.kick, tackle: !!hk.tackle, stagger: hk.stagger, cd: hk.trickCooldown, owner: g.match.owner?.p.look.name };
     const ok = hk.requestTrick(kind, 1);
-    const dur = { stepover: 0.7, feint: 0.5, ballroll: 0.6, cut: 0.38, roulette: 0.8, heel: 0.62, rainbow: 0.75, nutmeg: 0.4, fakeshot: 0.62 }[kind];
+    const def = hk.trick?.def;
+    const n = 8;
     const shots = [];
-    const n = 6;
+    let minFootY = 9;
+    let maxSlide = 0;
+    const feet = { l: null, r: null };
     for (let i = 0; i < n; i += 1) {
-      h.simulate(dur / n, {});
+      h.simulate(((def?.dur ?? 0.6) * 1.05) / n, {});
       const p = hk.p.holder.position;
-      const wide = kind === 'rainbow' || kind === 'nutmeg';
-      g.camera.position.set(p.x + (wide ? 1.2 : -0.3), wide ? 2.2 : 1.5, p.z - (wide ? 6.0 : 4.0));
-      g.camera.lookAt(p.x + (wide ? 1.4 : 0.4), wide ? 1.2 : 0.8, p.z);
-      g.camera.fov = wide ? 50 : 42;
-      g.camera.updateProjectionMatrix();
-      g.render();
-      shots.push(g.renderer.domElement.toDataURL('image/png'));
+      for (const [k, dx, dz] of [['side', 0.2, -4.2], ['front', 4.2, 0.2]]) {
+        g.camera.position.set(p.x + dx, 1.2, p.z + dz);
+        g.camera.lookAt(p.x + 0.2, 0.75, p.z);
+        g.camera.fov = 40;
+        g.camera.updateProjectionMatrix();
+        g.render();
+        shots.push([k, i, g.renderer.domElement.toDataURL('image/jpeg', 0.82)]);
+      }
+      for (const s of ['l', 'r']) {
+        const f = hk.p.character.bones.get(`ball_${s}`).getWorldPosition(new g.camera.position.constructor());
+        minFootY = Math.min(minFootY, f.y);
+      }
     }
     hk.rng = rng;
-    return { ok, why, shots };
+    const b = g.ball.position;
+    return { ok, shots, minFootY: +minFootY.toFixed(2), possession: hk.possession, ballDist: +Math.hypot(b.x - hk.p.position.x, b.z - hk.p.position.z).toFixed(2) };
   }, kind);
-  frames.shots.forEach((d, i) => fs.writeFileSync(`${out}/${kind}-${String(i).padStart(2, '0')}.png`, Buffer.from(d.split(',')[1], 'base64')));
-  console.log(kind, frames.ok, JSON.stringify(frames.why));
+  for (const [k, i, d] of res.shots) fs.writeFileSync(`${out}/${kind}-${k}-${String(i).padStart(2, '0')}.jpg`, Buffer.from(d.split(',')[1], 'base64'));
+  console.log(kind, JSON.stringify({ ok: res.ok, minToeY: res.minFootY, possession: res.possession, ballDist: res.ballDist }));
 }
+console.log('errors', JSON.stringify(errors.slice(0, 3)));
 await browser.close();

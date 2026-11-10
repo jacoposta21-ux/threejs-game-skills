@@ -27,7 +27,6 @@ import { buildNeighborhood } from '../world/Neighborhood.js';
 import { buildFestoons } from '../world/Festoons.js';
 import { applyVenueLighting } from '../world/Environment.js';
 import { VENUE_STYLE, buildVenueBackdrop } from '../world/Venues.js';
-import { Tutorial } from './Tutorial.js';
 import { MODES, Progress, TEAM_LIST, TOURNAMENT_ROUNDS, UNLOCKS, VENUES, teamById } from './Content.js';
 
 function outfieldLook(teamId, r) {
@@ -110,6 +109,7 @@ export class Game {
         f.anim.onFootstep = (speed) => {
           if (c === this.human) this.audio.play('step', { volume: 0.12 + speed * 0.025, at: f.holder.position, cooldown: 0.12, variance: 0.15 });
         };
+        f.ballRef = this.ball?.mesh.position ?? null;
         team.players.push(c);
         this.allPlayers[teamId].push(c);
         this.footballers.push(f);
@@ -144,7 +144,6 @@ export class Game {
         startMode: (id) => this.startMode(id),
         choose: (patch) => this.saveChoice(patch),
         content: () => ({ choice: this.choice, progress: this.progress, teams: TEAM_LIST, venues: VENUES, modes: MODES, unlocks: UNLOCKS }),
-        tutorial: () => this.startTutorial(),
         freePlay: () => this.closeLobbyMenu(),
         resume: () => this.resume(),
         restart: () => this.restartFromMenu(),
@@ -200,6 +199,17 @@ export class Game {
     muteBtn.addEventListener('click', () => this.setMuted(!this.audio.settings.muted));
     document.getElementById('pause-btn').addEventListener('click', () => (this.phase === 'lobby' ? this.openLobbyMenu() : this.pause()));
     document.getElementById('lobby-menu-btn').addEventListener('click', () => this.openLobbyMenu());
+    // Free play: the controls card folds away (button or C).
+    const card = document.getElementById('controls-card');
+    const toggleCard = () => {
+      const closed = card.classList.toggle('closed');
+      document.getElementById('controls-toggle').setAttribute('aria-expanded', String(!closed));
+      this.canvas.focus?.({ preventScroll: true });
+    };
+    document.getElementById('controls-toggle').addEventListener('click', toggleCard);
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyC' && this.phase === 'lobby' && !this.lobbyMenu && !e.repeat) toggleCard();
+    });
 
     // First gesture unlocks audio (autoplay policy).
     const unlock = () => this.audio.unlock().catch(() => {});
@@ -443,14 +453,6 @@ export class Game {
     this.lastResult = null;
   }
 
-  /** Guided practice match: real gameplay, clock stopped, one verb at a time. */
-  startTutorial() {
-    this.modeId = 'quick';
-    this.startMatch();
-    this.applyDifficulty('easy');
-    this.tutorial = new Tutorial(this);
-  }
-
   /** Banner subtitle at kick-off for the current mode. */
   modeTagline() {
     const m = this.mode;
@@ -478,8 +480,6 @@ export class Game {
    * ESC / M or the MENU button opens the menu over it; FREE PLAY closes it.
    */
   enterLobby({ openMenu = false } = {}) {
-    this.tutorial?.stop();
-    this.tutorial = null;
     this.endGamebreaker(true);
     this.goldenGoal = false;
     this.matchOver = false;
@@ -575,9 +575,14 @@ export class Game {
       if (this.time - this.lobbyGoalAt > 1.4) {
         this.lobbyGoalAt = null;
         this.ball.inGoal = false;
-        const p = this.human.p;
-        const f = p.facing(new THREE.Vector3());
-        this.ball.placeAt(p.position.x + f.x * 1.2, 0.6, p.position.z + f.z * 1.2);
+        // Dropped on the pitch side of the player (never back toward the net he just scored in).
+        const p = this.human.p.position;
+        const toMid = new THREE.Vector3(-p.x, 0, -p.z);
+        if (toMid.lengthSq() < 1) toMid.set(1, 0, 0);
+        toMid.normalize();
+        const x = THREE.MathUtils.clamp(p.x + toMid.x * 1.6, -COURT.halfLength + 4, COURT.halfLength - 4);
+        const z = THREE.MathUtils.clamp(p.z + toMid.z * 1.6, -COURT.halfWidth + 1.5, COURT.halfWidth - 1.5);
+        this.ball.placeAt(x, 0.8, z);
       }
       return;
     }
@@ -655,8 +660,6 @@ export class Game {
 
   startMatch() {
     this.audio.unlock().catch(() => {});
-    this.tutorial?.stop();
-    this.tutorial = null;
     this.prepareMatch();
     this.score = { home: 0, away: 0 };
     this.timeLeft = this.mode.duration ?? Infinity;
@@ -697,8 +700,6 @@ export class Game {
   }
 
   quitToMenu() {
-    this.tutorial?.stop();
-    this.tutorial = null;
     this.paused = false;
     this.audio.resume();
     this.resetPositions();
@@ -1063,7 +1064,6 @@ export class Game {
     if (active && !lobby) {
       this.match.teams.home.ai.update(dt, this.time);
       this.match.teams.away.ai.update(dt, this.time);
-      this.tutorial?.fixed(dt);
     }
     if (this.phase === 'goal') {
       this.updateCelebration(dt);
@@ -1365,8 +1365,6 @@ export class Game {
       this.slowMo -= dt;
       scale = 0.35;
     }
-    // The human's skill moves play in a touch of slow motion so they read (and feel) like a move.
-    if (this.human?.trick && this.human.trick.byHuman && !this.reducedMotion) scale = Math.min(scale, 0.6);
     if (this.hitstopTime > 0) {
       this.hitstopTime -= dt;
       scale = Math.min(scale, 0.08);
@@ -1381,7 +1379,6 @@ export class Game {
       return;
     }
 
-    this.tutorial?.update();
     this.stepIntents = it;
     const alpha = this.physics.update(dt * scale);
     this.stepIntents = null;
@@ -1507,7 +1504,7 @@ export class Game {
       stamina: h.stamina,
       possession: h.possession,
       charge: h.chargeLevel,
-      clockText: this.tutorial ? 'PRACTICE' : this.goldenGoal ? 'GOLDEN' : this.mode.duration == null ? `FIRST TO ${this.mode.target}` : null,
+      clockText: this.goldenGoal ? 'GOLDEN' : this.mode.duration == null ? `FIRST TO ${this.mode.target}` : null,
       styleGoal: this.mode.styleGoal ?? null,
       gb: this.gb.active > 0 ? this.gb.active / GAMEBREAKER.duration : this.gb.meter,
       gbActive: this.gb.active > 0,
@@ -1527,7 +1524,7 @@ export class Game {
             this.hud.banner(String(left), '', { seconds: 0.95, count: true });
             this.audio.play('beep', { group: 'ui', variance: 0 });
           } else {
-            this.hud.banner(this.venueId === 'brazil' ? 'JOGA!' : 'GO!', this.tutorial ? 'Tutorial • follow the steps at the top' : this.modeTagline(), { seconds: 1.3 });
+            this.hud.banner(this.venueId === 'brazil' ? 'JOGA!' : 'GO!', this.modeTagline(), { seconds: 1.3 });
             this.audio.play('beepGo', { group: 'ui', variance: 0 });
             this.audio.play('whistle', { variance: 0 });
             this.setPhase('playing');
@@ -1551,7 +1548,7 @@ export class Game {
         break;
       case 'goal':
         if (this.phaseTime >= MATCH.goalCelebration) {
-          if (this.replay.available && !this.skipReplays && !this.tutorial) this.startReplay();
+          if (this.replay.available && !this.skipReplays) this.startReplay();
           else this.beginKickoff();
         }
         break;

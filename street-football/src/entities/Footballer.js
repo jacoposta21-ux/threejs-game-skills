@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { AnimationController } from '../animation/AnimationController.js';
 import { GROUP, groups } from '../physics/PhysicsWorld.js';
 import { PLAYER } from '../config.js';
+import { TrickIK } from '../skills/TrickIK.js';
 
 const CAPSULE_HALF = 0.55;
 /** Fraction of a dribble-touch swing at which the boot meets the ball. */
@@ -47,6 +48,11 @@ export class Footballer {
     this.pitch = 0; // whole-body backward tip (bicycle kick)
     this.extraYaw = 0;
     this.legPulse = null; // procedural touch / trap on one leg, layered over the clips
+    // Foot-driven skill moves: measured once on the standing pose.
+    this.anim.update(0);
+    this.trickIK = new TrickIK(this);
+    this.trickAnim = null; // { def, side, u } while a foot-driven trick plays
+    this.ballRef = null; // set by the game: the ball's rendered position
   }
 
   /**
@@ -187,8 +193,14 @@ export class Footballer {
     if (this.pitch) this.holder.rotateX(-this.pitch);
     this.holder.position.y = this.lift;
     this.anim.setSpeed(this.speed);
+    this.trickIK.restore();
     this.anim.update(dt);
     if (this.legPulse) this.applyLegPulse(dt);
+    const ta = this.trickAnim;
+    if (ta && ta.def.ik) {
+      if (this.trickIK.active !== ta) this.trickIK.begin(ta);
+      this.trickIK.apply(h + this.extraYaw, this.ballRef ?? this.holder.position);
+    } else this.trickIK.active = null;
   }
 
   dispose(scene) {

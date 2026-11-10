@@ -550,16 +550,6 @@ export function authorFootballClips(lib) {
  * Mirror a pose spec left↔right: swap L/R bones and negate yaw/roll.
  * Trick clips are authored once for the right side and mirrored for the left.
  */
-// Ground tricks are read from a broadcast camera: their leg and body shapes are exaggerated.
-const TRICK_GAIN = { Trick_Stepover: 1.4, Trick_Feint: 1.5, Trick_BallRoll: 1.3, Trick_Cut: 1.4, Trick_Roulette: 1.25, Trick_Nutmeg: 1.15 };
-
-function amplify(pose, gain) {
-  if (gain === 1) return pose;
-  const out = {};
-  for (const [bone, rots] of Object.entries(pose)) out[bone] = rots.map(([axis, deg]) => [axis, deg * gain]);
-  return out;
-}
-
 function mirrorPose(pose) {
   const out = {};
   for (const [bone, rots] of Object.entries(pose)) {
@@ -574,66 +564,6 @@ function authorTrickClips(tracks) {
   const B = BONES;
   const arms = (l, r, pl = 0, pr = 0) => ({ [B.upperArmL]: [['roll', l], ['pitch', pl]], [B.upperArmR]: [['roll', -r], ['pitch', pr]] });
   const defs = {
-    // Lead leg circles over the ball inside → outside, body sways with it.
-    Trick_Stepover: {
-      dur: 0.7,
-      plant: 'L',
-      keys: [
-        [0, {}],
-        [0.12, { [B.thighR]: [['pitch', -32], ['yaw', 22], ['roll', 10]], [B.shinR]: [['pitch', 55]], [B.spine1]: [['roll', -6]], ...arms(35, 30) }],
-        [0.26, { [B.thighR]: [['pitch', -24], ['roll', -30]], [B.shinR]: [['pitch', 45]], [B.spine1]: [['roll', 10]], ...arms(40, 45) }],
-        [0.38, { [B.thighR]: [['pitch', -4], ['roll', -16]], [B.shinR]: [['pitch', 15]], [B.thighL]: [['pitch', -10]], [B.shinL]: [['pitch', 22]], [B.spine1]: [['roll', 12]], ...arms(45, 30) }],
-        [0.54, { [B.thighR]: [['pitch', -8], ['roll', -8]], [B.shinR]: [['pitch', 18]], [B.spine1]: [['roll', 4]], ...arms(30, 30) }],
-        [0.7, {}],
-      ],
-    },
-    // Shoulder dip and step to the left, then push off to the right.
-    Trick_Feint: {
-      dur: 0.5,
-      plant: 'both',
-      keys: [
-        [0, {}],
-        [0.16, { [B.thighL]: [['pitch', -14], ['roll', 18]], [B.shinL]: [['pitch', 22]], [B.spine1]: [['roll', -16], ['pitch', 8]], [B.neck]: [['roll', 6]], ...arms(55, 20) }],
-        [0.3, { [B.thighR]: [['pitch', -18], ['roll', -22]], [B.shinR]: [['pitch', 28]], [B.thighL]: [['pitch', 8]], [B.spine1]: [['roll', 14], ['pitch', 10]], ...arms(25, 55) }],
-        [0.5, {}],
-      ],
-    },
-    // Sole drags the ball across to the right, left foot crosses behind.
-    Trick_BallRoll: {
-      dur: 0.6,
-      plant: 'L',
-      keys: [
-        [0, {}],
-        [0.15, { [B.thighR]: [['pitch', -24], ['roll', 6]], [B.shinR]: [['pitch', 42]], [B.footR]: [['pitch', -22]], ...arms(30, 30) }],
-        [0.34, { [B.thighR]: [['pitch', -18], ['roll', -22]], [B.shinR]: [['pitch', 36]], [B.footR]: [['pitch', -22]], [B.spine1]: [['roll', 8]], ...arms(35, 25) }],
-        [0.48, { [B.thighL]: [['pitch', 10], ['roll', -14]], [B.shinL]: [['pitch', 30]], [B.thighR]: [['roll', -10]], ...arms(25, 25) }],
-        [0.6, {}],
-      ],
-    },
-    // Hard plant on the left foot, lean into a sharp cut right.
-    Trick_Cut: {
-      dur: 0.38,
-      plant: 'L',
-      keys: [
-        [0, {}],
-        [0.12, { [B.thighL]: [['pitch', -24], ['roll', 12]], [B.shinL]: [['pitch', 40]], [B.thighR]: [['pitch', -20], ['roll', -18]], [B.shinR]: [['pitch', 30]], [B.spine1]: [['roll', 18], ['pitch', 12]], ...arms(55, 20) }],
-        [0.26, { [B.thighR]: [['pitch', -10], ['roll', -12]], [B.shinR]: [['pitch', 20]], [B.spine1]: [['roll', 10], ['pitch', 8]], ...arms(35, 30) }],
-        [0.38, {}],
-      ],
-    },
-    // Drag back with the right sole, pivot, drag again with the left (the spin itself is applied to the root).
-    Trick_Roulette: {
-      dur: 0.8,
-      plant: 'both',
-      keys: [
-        [0, {}],
-        [0.14, { [B.thighR]: [['pitch', -22]], [B.shinR]: [['pitch', 48]], [B.footR]: [['pitch', -25]], ...arms(55, 55) }],
-        [0.32, { [B.thighR]: [['pitch', 18]], [B.shinR]: [['pitch', 32]], [B.footR]: [['pitch', -15]], [B.spine1]: [['pitch', 10]], ...arms(65, 65) }],
-        [0.5, { [B.thighL]: [['pitch', -24]], [B.shinL]: [['pitch', 50]], [B.footL]: [['pitch', -25]], [B.thighR]: [['pitch', 4]], ...arms(60, 60) }],
-        [0.66, { [B.thighL]: [['pitch', 16]], [B.shinL]: [['pitch', 30]], ...arms(40, 40) }],
-        [0.8, {}],
-      ],
-    },
     // Step over the ball, strike it backward with the heel.
     Trick_Heel: {
       dur: 0.55,
@@ -658,30 +588,6 @@ function authorTrickClips(tracks) {
         [0.75, {}],
       ],
     },
-    // Quick toe-poke through the legs.
-    Trick_Nutmeg: {
-      dur: 0.4,
-      plant: 'L',
-      keys: [
-        [0, {}],
-        [0.08, { [B.thighR]: [['pitch', 12]], [B.shinR]: [['pitch', 45]], ...arms(30, 25) }],
-        [0.14, { [B.thighR]: [['pitch', -42]], [B.shinR]: [['pitch', 14]], [B.footR]: [['pitch', 12]], [B.spine1]: [['pitch', 6]], ...arms(40, 30) }],
-        [0.26, { [B.thighR]: [['pitch', -24]], [B.shinR]: [['pitch', 18]], ...arms(30, 30) }],
-        [0.4, {}],
-      ],
-    },
-    // Elastico: the right foot pushes the ball outward, then whips it back across the body.
-    Trick_Elastico: {
-      dur: 0.55,
-      plant: 'L',
-      keys: [
-        [0, {}],
-        [0.14, { [B.thighR]: [['pitch', -30], ['roll', 30], ['yaw', -20]], [B.shinR]: [['pitch', 35]], [B.footR]: [['yaw', -30]], [B.spine1]: [['roll', -16]], ...arms(60, 25) }],
-        [0.28, { [B.thighR]: [['pitch', -34], ['roll', 42], ['yaw', -30]], [B.shinR]: [['pitch', 22]], [B.footR]: [['yaw', -40]], [B.spine1]: [['roll', -22], ['pitch', 6]], ...arms(70, 20) }],
-        [0.38, { [B.thighR]: [['pitch', -28], ['roll', -28], ['yaw', 26]], [B.shinR]: [['pitch', 30]], [B.footR]: [['yaw', 35]], [B.spine1]: [['roll', 18], ['pitch', 8]], ...arms(25, 60) }],
-        [0.55, {}],
-      ],
-    },
     // Sombrero: the toe gets under the ball and scoops it up over the defender.
     Trick_Sombrero: {
       dur: 0.6,
@@ -691,18 +597,6 @@ function authorTrickClips(tracks) {
         [0.12, { [B.thighR]: [['pitch', 6]], [B.shinR]: [['pitch', 60]], [B.footR]: [['pitch', -25]], [B.spine1]: [['pitch', 10]], ...arms(35, 35) }],
         [0.24, { [B.thighR]: [['pitch', -75]], [B.shinR]: [['pitch', 30]], [B.footR]: [['pitch', -35]], [B.spine1]: [['pitch', -12]], [B.neck]: [['pitch', -14]], ...arms(65, 65, 25, 25) }],
         [0.4, { [B.thighR]: [['pitch', -30]], [B.shinR]: [['pitch', 35]], [B.spine1]: [['pitch', -8]], [B.neck]: [['pitch', -18]], ...arms(50, 50) }],
-        [0.6, {}],
-      ],
-    },
-    // Drag-back: sole on the ball, rolled back under the body while pivoting away.
-    Trick_DragBack: {
-      dur: 0.6,
-      plant: 'L',
-      keys: [
-        [0, {}],
-        [0.12, { [B.thighR]: [['pitch', -48]], [B.shinR]: [['pitch', 30]], [B.footR]: [['pitch', -28]], [B.spine1]: [['pitch', 8]], ...arms(40, 40) }],
-        [0.3, { [B.thighR]: [['pitch', -6]], [B.shinR]: [['pitch', 62]], [B.footR]: [['pitch', -20]], [B.spine1]: [['pitch', 14], ['roll', 8]], ...arms(55, 35) }],
-        [0.44, { [B.thighR]: [['pitch', 14], ['roll', -18]], [B.shinR]: [['pitch', 40]], [B.thighL]: [['pitch', -14]], [B.shinL]: [['pitch', 26]], [B.spine1]: [['roll', 12]], ...arms(35, 50) }],
         [0.6, {}],
       ],
     },
@@ -722,8 +616,7 @@ function authorTrickClips(tracks) {
   const out = [];
   for (const [name, def] of Object.entries(defs)) {
     for (const side of ['R', 'L']) {
-      const gain = TRICK_GAIN[name] ?? 1;
-      const keys = def.keys.map(([t, pose]) => ({ t, pose: amplify(side === 'R' ? pose : mirrorPose(pose), gain) }));
+      const keys = def.keys.map(([t, pose]) => ({ t, pose: side === 'R' ? pose : mirrorPose(pose) }));
       const plant = def.plant === 'both' || !def.plant ? def.plant : side === 'R' ? def.plant : def.plant === 'L' ? 'R' : 'L';
       out.push(new THREE.AnimationClip(`${name}_${side}`, def.dur, tracks(keys, { plant })));
     }
