@@ -203,7 +203,7 @@ export const STORY = [
     start: { x: 410.5, z: -64 }, npc: { key: 'npc_m_casual2', heading: -Math.PI / 2 }, reward: 8000,
     intro: S.m07.intro,
     steps: [
-      { text: S.m07.go, update: (ctx) => (near(ctx.game.player.pos, { x: 100, z: -540 }, 70) ? 'next' : undefined), target: () => ({ x: 60, z: -470, r: 10 }) },
+      { text: S.m07.go, update: (ctx) => (near(ctx.game.player.pos, { x: 100, z: -540 }, 70) || near(ctx.game.player.pos, { x: 60, z: -470 }, 14) ? 'next' : undefined), target: () => ({ x: 60, z: -470, r: 10 }) },
       {
         text: S.m07.steal,
         enter(ctx) {
