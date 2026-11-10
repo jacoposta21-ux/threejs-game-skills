@@ -1,6 +1,6 @@
 {
   "name": "rua10-street-football",
-  "version": "1.0.0",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -35,5 +35,5 @@
     "vite-plugin-singlefile": "^2.3.4",
     "vite-plugin-wasm": "^3.6.0"
   },
-  "description": "RUA 10 \u2014 3D arcade street football for the browser (Three.js + Rapier)."
+  "description": "RUA 10 — 3D arcade street football for the browser (Three.js + Rapier)."
 }

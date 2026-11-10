@@ -1,4 +1,4 @@
-# RUA 10 — Street Football (v1.0.0 — release candidate)
+# RUA 10 — Street Football (v1.7.0 — release candidate)
 
 A 3D arcade street-football game for the browser: Three.js rendering, Rapier physics, a loose physically simulated ball, skeletal animation, and a Brazilian street court. It is built for CrazyGames-style distribution: one static bundle that loads fast.
 
@@ -17,7 +17,7 @@ Production build, local preview and the CrazyGames upload:
 ```bash
 npm run build      # outputs dist/ (relative paths, deploy anywhere)
 npm run preview    # http://127.0.0.1:4188
-npm run package    # build + checks + release/rua10-crazygames-v1.0.0.zip
+npm run package    # build + checks + release/rua10-crazygames-v1.7.0.zip
 ```
 
 Single self-contained HTML (double-click to play from disk, works offline; about 7.6 MB, physics WASM and models inlined):
