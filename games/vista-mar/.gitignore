@@ -3,3 +3,5 @@ dist/
 dist-single/
 artifacts/canvas-inspection/
 artifacts/playtest-log.txt
+artifacts/*.html
+artifacts/playtest/

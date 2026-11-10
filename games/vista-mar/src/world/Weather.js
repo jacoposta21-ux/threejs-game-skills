@@ -110,7 +110,7 @@ export class Weather {
       }
     }
 
-    const inside = !!g.interior;
+    const inside = !!g.interior || g.camera.position.y > 400; // interiors sit high above the streets
     const m = this.mesh;
     m.visible = this.rain > 0.02 && !inside;
     if (m.visible) {

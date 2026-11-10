@@ -18,12 +18,12 @@ npm run dev               # http://127.0.0.1:5188
 npm run build:single      # -> dist-single/index.html (a single ~6.4 MB file, works by double-clicking)
 ```
 Useful URL parameters: `?quality=low|medium|high&autoperf=0`.
-The latest playable build is in `artifacts/VistaMar-Fase8.html`.
+The latest playable build is `artifacts/VistaMar-Fase9.html` (not committed: rebuild it with `npm run build:single` and copy `dist-single/index.html`).
 
-Repo: GitHub `jacoposta21-ux/threejs-game-skills`, branch `claude/zen-curie-lxpnlp`, folder `games/vista-mar`. The repo also contains workflow "skills" for Three.js (`skills/threejs-game-director/SKILL.md` etc.: read the `AGENTS.md` at the repo root if you have the full repo).
+Repo: GitHub `jacoposta21-ux/threejs-game-skills`, branch `claude/admiring-davinci-q4at05` (Phase 9; earlier phases were on `claude/zen-curie-lxpnlp`), folder `games/vista-mar`. The repo also contains workflow "skills" for Three.js (`skills/threejs-game-director/SKILL.md` etc.: read the `AGENTS.md` at the repo root if you have the full repo).
 
 ## 3. Controls (current)
-WASD move · mouse camera · Shift sprint · Space jump · C crouch · Q toggle walk/run · **E interact / enter-exit car / shops** · LMB punch (combo) / bat / fire · RMB kick (bare hands) or hold to aim · V kick · R reload · 1-6 / Tab weapons · B bribe the cops (Officer Haskins) · M map (wheel/+- zoom, drag, click = GPS, right click = clear) · Esc pause · in car: W/S, A/D, Space handbrake, L lights, H horn/siren · helicopter: Space up, Shift down, W/S tilt, A/D turn · plane: W/S throttle, A/D bank, Space pitch up (takeoff > 110 km/h), Shift nose down.
+WASD move · mouse camera · Shift sprint · Space jump · C crouch · Q toggle walk/run · **E interact / enter-exit car / shops** · LMB punch (combo) / bat / fire · RMB kick (bare hands) or hold to aim · V kick · R reload · 1-6 / Tab weapons · B bribe the cops (Officer Haskins) · **R next radio station (in a car)** · **T start/end a taxi shift (in a Sunshine Cab)** · **hold C to look behind (in a car)** · M map (wheel/+- zoom, drag, click = GPS, right click = clear) · Esc pause · in car: W/S, A/D, Space handbrake, L lights, H horn/siren · helicopter: Space up, Shift down, W/S tilt, A/D turn · plane: W/S throttle, A/D bank, Space pitch up (takeoff > 110 km/h), Shift nose down.
 
 ## 4. Architecture (src/)
 - `core/Game.js` — main loop, states (`loading|ready|playing|paused|map|shop|minigame`), init + **full warm-up before Play** (street prefill, `compileAsync` with all hidden objects temporarily visible, test frames), automatic performance tiers `PERF_TIERS` (resolution/MSAA/bloom/shadows; tiers 4-5 and the Low preset use **direct render** without the composer), save/load (`localStorage` `vistamar.save`, v2: money, tapes, missions, combat, economy), waypoint/GPS (`places()`, `setWaypoint()`), **test hooks** `window.__THREE_GAME_TEST_HOOKS__` (`setState`, `simulate(seconds, keys, taps)` at fixed 60 Hz, `teleport`, `callBreakdown`…) and `window.__game`.
@@ -44,7 +44,10 @@ WASD move · mouse camera · Shift sprint · Space jump · C crouch · Q toggle 
 - `systems/Locations.js` — safehouse, gas stations (fuel + repair menu, 3 locations), Spray & Go, food carts. `systems/CollisionSystem.js` (AABB boxes with top/bottom + cylinders, spatial hash, `raycast`), `systems/RoadGraph.js`, `systems/MissionSystem.js` (Lost Tapes collectibles).
 - `missions/MissionManager.js` (step contract `{text, enter, update -> 'next'|{fail}, target, timer}`, intro cutscenes, contact NPCs at the markers), `missions/missions.js` (M01-M02), `missions/story.js` (M03-M08, the Victor Kane arc), `missions/AIDrive.js` (AI driving along the streets), `i18n/strings.js` (all story text).
 - `ui/HUD.js`, `ui/Minimap.js` (radar + big map with zoom/pan), `ui/Menus.js` (start, pause, settings, map list), `ui/Overlays.js` (`Cutscene` with optional MP4 support via `def.video`, `ShopMenu` with a "Leave" item, `Lockpick`).
-- `audio/AudioManager.js` — **procedural** Web Audio (no audio files).
+- `audio/AudioManager.js` — **procedural** Web Audio (no audio files). `audio/Radio.js` — car radio: four stations synthesised by a step sequencer scheduled against the audio clock (`setInterval` pump, independent of the frame rate); `radio.tune(i)` / `next()` / `stop()`.
+- `systems/SideJobs.js` — taxi shifts and time trials (`COURSES`), with `objective()`, `target()`, `routeLine()`, `markers()` consumed by `Game.update`; records saved under `jobs`.
+- `world/Weather.js` — `overcast` / `rain` / `wet` / `flash` read by `World.update` (sky, fog, sun, road roughness, `world.grip`) and by the audio mix; `weather.set('clear'|'cloudy'|'rain', instant)`.
+- Save v3 (`Game.save/loadSave`): adds `jobs`, `stats`, `playTime`; `Game.autosave()` is debounced and triggered by progress events; `Game.completion()` feeds the pause menu.
 
 ## 5. Story and content
 - Story: Leo vs **Victor Kane** (developer/crime boss). Characters: Rico Alvarez, Dana Reyes, Officer Haskins. Missions M01 The Delivery, M02 Joyride, M03 Neon Mile Manners, M04 Paper Trail, M05 Dockside, M06 Wrong Deliveries, M07 High Ground (helicopter), M08 Last Call (finale). All verified as completable.
@@ -58,23 +61,27 @@ const b = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swiftshad
 // page.goto('http://127.0.0.1:5188/?quality=low&autoperf=0'); wait for #play to be visible
 // window.__THREE_GAME_TEST_HOOKS__.setState('explore-day'); H.simulate(2, ['KeyW'], ['KeyE']);
 ```
-Note: effects delayed with `setTimeout` (explosions on cars, shop/interior fades) don't run inside a synchronous `simulate`: wait with real time. Useful states: `explore-day|explore-golden|explore-night|downtown-day|neon-night|beach-sunset|residential-day|industrial-day|drive-golden|drive-night|wanted-3|mission-01|map|pause`.
+Note: effects delayed with `setTimeout` (explosions on cars, shop/interior fades) don't run inside a synchronous `simulate`: wait with real time. Useful states: `rain-day|rain-night|cloudy-day|taxi-shift|race-dash|explore-day|explore-golden|explore-night|downtown-day|neon-night|beach-sunset|residential-day|industrial-day|drive-golden|drive-night|wanted-3|mission-01|map|pause`.
+
+Memory: under SwiftShader the browser's memory grows with every staged state and the container kills it after a handful (this also happens on the Phase 8 build), so keep each Playwright run short: one concern per launch.
 
 ## 7. Performance reference (Low preset, SwiftShader, after Phase 8)
-draw calls: boulevard ~356, downtown ~170, beach ~83 (shadows included). Don't let them grow: prefer merged or instanced geometry, shared materials, and objects hidden when far away. On the user's PC (AMD iGPU): ~60 fps at L3, cpu render ~7 ms.
+draw calls: boulevard ~356, downtown ~170, beach ~83 (shadows included). Phase 9 adds 1 call while it rains and 2-3 while a side job is active. Don't let them grow: prefer merged or instanced geometry, shared materials, and objects hidden when far away. On the user's PC (AMD iGPU): ~60 fps at L3, cpu render ~7 ms.
 
 ## 8. History of user requests (all done)
-Phases 1-5 (base, vehicles, living city, wanted/missions/economy base, visual polish) · Step 1 performance (atlases, instancing, auto tiers, direct render) · Phase 6 combat + story + economy + Club Velvet + airport · Phase 7 interiors, clothes by parts, rocket launcher, Speedster, lockpicking parked cars, map with navigator, NPC-standing-up bug and bus-stops-in-the-road bug · Phase 8: full warm-up before Play, shop facades, map-only zoom, natural bat grip, Leave shop item (and mouse not lost), clothes try-on, walk-mode reset, night roofs (atlas tile shared between roof and walls in the same bucket — fixed in `GeoBuilder.gable`), E for cars + entry animation, dancers in costume, fuel + 3 gas stations, every car locked (lockpick + 1★).
+Phases 1-5 (base, vehicles, living city, wanted/missions/economy base, visual polish) · Step 1 performance (atlases, instancing, auto tiers, direct render) · Phase 6 combat + story + economy + Club Velvet + airport · Phase 7 interiors, clothes by parts, rocket launcher, Speedster, lockpicking parked cars, map with navigator, NPC-standing-up bug and bus-stops-in-the-road bug · Phase 8: full warm-up before Play, shop facades, map-only zoom, natural bat grip, Leave shop item (and mouse not lost), clothes try-on, walk-mode reset, night roofs (atlas tile shared between roof and walls in the same bucket — fixed in `GeoBuilder.gable`), E for cars + entry animation, dancers in costume, fuel + 3 gas stations, every car locked (lockpick + 1★) · Phase 9 ("improve everything"): car radio, taxi shifts, time trials, weather, autosave + Continue/New game, stats and completion %, look-behind, bail-out, HUD write guards.
 
 ## 9. Ideas / possible next steps (not yet requested as a priority)
 - Optional MP4 cutscenes (`def.video` in mission defs, file next to the HTML).
 - More languages (Italian) using the structure of `i18n/strings.js` (the UI/HUD still has hardcoded English text to migrate).
 - Real street supercar (needs a CC0 model; at the moment the Speedster is an open-wheel race car).
-- Car door/exit animation (only the entry is animated), more interiors (safehouse), radio, motorcycles.
+- Car door/exit animation (only the entry is animated), more interiors (safehouse), motorcycles.
+- Radio: DJ idents or news lines between songs; more stations. Side jobs: AI opponents for races, vigilante / delivery jobs. Weather: puddle splashes, pedestrians reacting to rain.
+- The real FPS impact of Phase 9 has not been measured on the user's laptop: ask for the "Show FPS" line in clear weather and in rain.
 - `artifacts/game-progress.md` holds the detailed per-phase log: keep updating it.
 
 ## 10. Working rules learned with this user
 - They want frequent playable versions: after every batch, **build the single-file HTML** and hand it over (named e.g. `VistaMar-Fase9.html`).
 - Don't sacrifice visual quality for performance without saying so; always check before/after with screenshots.
 - Before adding content, check that it doesn't overlap streets/buildings (bus stops and palms caused bugs).
-- Commit and push on branch `claude/zen-curie-lxpnlp` after every phase.
+- Commit and push on the session's designated branch after every phase.
