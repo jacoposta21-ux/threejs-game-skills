@@ -65,6 +65,8 @@ Note: effects delayed with `setTimeout` (explosions on cars, shop/interior fades
 
 Memory: under SwiftShader the browser's memory grows with every staged state and the container kills it after a handful (this also happens on the Phase 8 build), so keep each Playwright run short: one concern per launch.
 
+Shader warm-up rules (Phase 9c): anything that changes a material's program after loading causes a multi-second freeze on the user's ANGLE/D3D11 laptop. Keep `scene.environment` present before the warm-up compile, never toggle `castShadow` on lights or add/remove lights at runtime, and check `renderer.info.programs.length` before and after Play when adding materials (it should not grow).
+
 ## 7. Performance reference (Low preset, SwiftShader, after Phase 9b)
 draw calls: boulevard ~289 on a shadow frame / ~192 on the others, about 0.9M / 0.5M triangles (before the Phase 9b pass: 336 / 230 calls, 1.6M / 0.8M triangles). Phase 9b: off-screen pedestrians culled by hand, player merged into one skinned mesh (`utils/mergeCharacter.js`), per-instance LOD in `ChunkedLod` (`split`), small props distance-culled, PMREM only when the sky changes, single output+grade pass. The palm `split` of 4.4 is the smallest that keeps the boulevard looking the same: do not lower it. Phase 9 adds 1 call while it rains and 2-3 while a side job is active. Don't let them grow: prefer merged or instanced geometry, shared materials, and objects hidden when far away. On the user's PC (AMD iGPU): ~60 fps at L3, cpu render ~7 ms.
 

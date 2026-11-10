@@ -49,7 +49,9 @@ const PERF_TIERS = [
   { res: 0.65, msaa: false, bloom: false, shadowMap: 2048, shadowEvery: 3, crowd: 1 },
   // fast path: draw straight to the screen (no post-processing passes / render-target switches)
   { res: 0.55, msaa: false, bloom: false, shadowMap: 1024, shadowEvery: 3, crowd: 0.8, direct: true },
-  { res: 0.5, msaa: false, bloom: false, shadowMap: 1024, shadowEvery: 4, crowd: 0.5, direct: true, shadows: false },
+  // (shadows stay on at every tier: switching them off changes the light setup and makes the
+  // driver recompile every lit shader, a multi-second freeze on ANGLE/D3D11)
+  { res: 0.5, msaa: false, bloom: false, shadowMap: 1024, shadowEvery: 6, crowd: 0.5, direct: true },
 ];
 
 const QUALITY = {
@@ -154,6 +156,9 @@ export class Game {
     // textures uploaded and a few real frames rendered, so Play starts without a hitch
     this.menus.setLoading(0.95, 'Filling the streets…');
     await nextFrame();
+    // the reflection map must exist before shaders are compiled: adding it later changes every
+    // lit material's program and the whole city recompiles in the middle of play
+    this.world.envTimer = 999;
     this.world.update(0.016, this.player.pos);
     this.camera3p.update(0.016);
     this.traffic.prefill(this.player.pos);
@@ -167,8 +172,14 @@ export class Game {
     try { if (this.renderer.compileAsync && this.renderer.extensions.has('KHR_parallel_shader_compile')) await this.renderer.compileAsync(this.scene, this.camera); else this.renderer.compile(this.scene, this.camera); } catch (e) { this.renderer.compile(this.scene, this.camera); }
     this.menus.setLoading(0.99, 'Uploading textures…');
     await nextFrame();
+    // draw every object once, on or off screen: uploads all geometry and textures and lets the
+    // driver build its per-draw pipeline state now instead of at the first glance in game
+    const culled = [];
+    this.scene.traverse((o) => { if (o.frustumCulled && (o.isMesh || o.isLine || o.isPoints || o.isSprite)) { culled.push(o); o.frustumCulled = false; } });
     this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
+    if (!this.directRender) { this.renderer.shadowMap.needsUpdate = true; this.composer.render(0.016); }
+    for (const o of culled) o.frustumCulled = true;
     for (const o of hidden) o.visible = false;
     this.updateChunkVisibility();
     this.renderer.shadowMap.needsUpdate = true;
@@ -278,6 +289,7 @@ export class Game {
     this.menus.showStart(false);
     this.hud.show(true);
     this.state = 'playing';
+    this.perfHold = 6; // let the first seconds settle before judging the frame rate
     if (!this.prefilled) { this.traffic.prefill(this.player.pos); this.npcs.prefill(this.player.pos); }
     this.prefilled = false;
     if (this.loadSave()) setTimeout(() => this.hud.toast('SAVE LOADED', 'Progress restored from your last safehouse visit.', 'reward'), 1200);
@@ -305,6 +317,7 @@ export class Game {
     this.input.keys.clear();
     this.input.wheel = 0;
     this.audio.resume();
+    this.perfHold = 2;
     this.input.requestLock();
   }
 
@@ -686,6 +699,9 @@ export class Game {
    * and climbs back when there is headroom.
    */
   autoPerformance(rawDt) {
+    // one long frame (shader compile, tab switch, garbage collection) is not a trend
+    if (rawDt > 0.2) { this.perfAcc = 0; this.perfFrames = 0; this.perfHold = Math.max(this.perfHold || 0, 1); return; }
+    if (this.perfHold > 0) { this.perfHold -= rawDt; this.perfAcc = 0; this.perfFrames = 0; return; }
     this.perfAcc = (this.perfAcc || 0) + rawDt;
     this.perfFrames = (this.perfFrames || 0) + 1;
     if (this.perfAcc < 2) return;
@@ -693,9 +709,29 @@ export class Game {
     this.perfAcc = 0; this.perfFrames = 0;
     this.measuredFps = fps;
     if (!this.settings.autoPerf) { if (this.perfLevel) this.applyPerfLevel(0); return; }
-    const lvl = this.perfLevel || 0;
-    if (fps < 45 && lvl < PERF_TIERS.length - 1) { this.perfGood = 0; this.applyPerfLevel(lvl + 1); }
-    else if (fps > 58 && lvl > 0) { this.perfGood = (this.perfGood || 0) + 1; if (this.perfGood >= 3) { this.perfGood = 0; this.applyPerfLevel(lvl - 1); } }
+    const lvl = this.perfLevel || 0, now = this.playTime;
+    const set = (l) => { this.perfBad = 0; this.perfGood = 0; this.perfMid = 0; this.perfHold = 1.5; this.applyPerfLevel(l); };
+    // a step up that was only a trial: keep it unless the frame rate paid for it
+    if (this.perfProbe) {
+      const pr = this.perfProbe; this.perfProbe = null;
+      if (fps < 45 || fps < pr.fps - 4) { this.perfBlock = now + 180; set(pr.from); return; }
+    }
+    if (fps < 45) {
+      // two low windows in a row before giving quality away
+      this.perfGood = 0; this.perfMid = 0;
+      this.perfBad = (this.perfBad || 0) + 1;
+      if (this.perfBad >= 2 && lvl < PERF_TIERS.length - 1) set(lvl + 1);
+      return;
+    }
+    this.perfBad = 0;
+    if (lvl === 0 || now < (this.perfBlock || 0)) return;
+    if (fps > 56) { this.perfMid = 0; this.perfGood = (this.perfGood || 0) + 1; if (this.perfGood >= 3) { this.perfProbe = { from: lvl, fps }; set(lvl - 1); } }
+    else {
+      // steady but below the display rate: the limit may be the CPU, not this tier's GPU load,
+      // so try one tier better and keep it if nothing is lost
+      this.perfGood = 0; this.perfMid = (this.perfMid || 0) + 1;
+      if (this.perfMid >= 5) { this.perfProbe = { from: lvl, fps }; set(lvl - 1); }
+    }
   }
 
   applyPerfLevel(level) {
@@ -720,8 +756,6 @@ export class Game {
     this.shadowEvery = t.shadowEvery;
     // the Low preset always uses the direct path; the last tier also drops sun shadows
     this.directRender = !!t.direct || this.settings.quality === 'low';
-    const wantShadows = t.shadows !== false;
-    if (sun.castShadow !== wantShadows) sun.castShadow = wantShadows;
     this.resize();
   }
 
