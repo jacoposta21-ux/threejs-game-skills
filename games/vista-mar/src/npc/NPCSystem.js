@@ -4,6 +4,7 @@ import { bakeCharacter } from './AnimBaker.js';
 import { allBlocks, LINES, terrainHeight, blockDistrict } from '../world/Layout.js';
 import { clamp, damp, dampAngle } from '../utils/random.js';
 import { makeWeaponMesh } from '../combat/Weapons.js';
+import { mergeCharacter } from '../utils/mergeCharacter.js';
 
 // Pedestrians. They walk a sidewalk graph (block corners + signalised crossings),
 // wait for the walk phase, cross, idle at shop windows, chat in pairs, and react
@@ -38,6 +39,9 @@ export const NPC_STATE = { IDLE: 'IDLE', WALKING: 'WALKING', WAITING: 'WAITING',
 
 export class NPCSystem {
   constructor(game, assets) {
+    this.frustum = new THREE.Frustum();
+    this.projView = new THREE.Matrix4();
+    this.sphere = new THREE.Sphere(new THREE.Vector3(), 2.6);
     this.game = game;
     this.scene = game.scene;
     this.rng = Math.random;
@@ -326,13 +330,20 @@ export class NPCSystem {
     const scan = this.threatTimer <= 0;
     if (scan) this.threatTimer = 0.2;
     const pv = g.player.vehicle;
+    // people outside the view are neither drawn nor animated (their skinned meshes cannot be
+    // culled by three.js itself); those right next to the camera stay for their shadows
+    const cam = g.camera;
+    this.frustum.setFromProjectionMatrix(this.projView.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
 
     for (const npc of this.npcs) {
       const dist = Math.hypot(npc.pos.x - p.x, npc.pos.z - p.z);
+      this.sphere.center.set(npc.pos.x, npc.pos.y + 1, npc.pos.z);
+      const seen = dist < 16 || this.frustum.intersectsSphere(this.sphere);
+      if (!seen && npc.animAcc > 0.4) npc.animAcc = 0.4;
       if (npc.role === 'actor') {
         // ambient actors (dancers, mission contacts): animate only when close
-        npc.root.visible = dist < 110;
-        if (dist < 70) { npc.animAcc += dt; if (this.frame % (dist < 30 ? 1 : 2) === 0) { npc.mixer.update(npc.animAcc); npc.animAcc = 0; } }
+        npc.root.visible = seen && dist < 110;
+        if (seen && dist < 70) { npc.animAcc += dt; if (this.frame % (dist < 30 ? 1 : 2) === 0) { npc.mixer.update(npc.animAcc); npc.animAcc = 0; } }
         continue;
       }
       if (npc.state === NPC_STATE.DOWN) {
@@ -341,6 +352,7 @@ export class NPCSystem {
         npc.animAcc += dt;
         if (npc.currentName !== 'Death01') { npc.currentName = ''; this.play(npc, 'Death01', { fade: 0.05, once: true }); }
         if (npc.currentName === 'Death01' && npc.current && npc.current.time < npc.current.getClip().duration) { npc.mixer.update(npc.animAcc); npc.animAcc = 0; }
+        npc.root.visible = seen;
         npc.root.position.copy(npc.pos);
         npc.root.rotation.y = npc.heading;
         continue;
@@ -361,7 +373,8 @@ export class NPCSystem {
       // animation LOD: full rate near, a third of the frames far away
       npc.animAcc += dt;
       const step = dist < 35 ? 1 : dist < 70 ? 2 : 4;
-      if (this.frame % step === 0) { npc.mixer.update(npc.animAcc); npc.animAcc = 0; }
+      npc.root.visible = seen;
+      if (seen && this.frame % step === 0) { npc.mixer.update(npc.animAcc); npc.animAcc = 0; }
       const wantShadow = dist < 32;
       if (wantShadow !== npc.shadowOn) { npc.shadowOn = wantShadow; npc.model.traverse((o) => { if (o.isMesh) o.castShadow = wantShadow; }); }
       npc.root.position.copy(npc.pos);
@@ -900,69 +913,4 @@ function blockDistrictAt(x, z) {
   let i = 0, j = 0;
   for (let k = 0; k < LINES.length - 1; k++) { if (x >= LINES[k]) i = k; if (z >= LINES[k]) j = k; }
   return blockDistrict(clamp(i, 0, 7), clamp(j, 0, 7));
-}
-
-/**
- * Collapses a Quaternius character (several skinned meshes, one flat-colour
- * material per part) into ONE skinned mesh with vertex colours, so each
- * pedestrian costs a single draw call. Skin indices are remapped by bone name.
- */
-function mergeCharacter(scene, recolor = null) {
-  const proto = skeletonClone(scene);
-  proto.updateMatrixWorld(true);
-  const skinned = [];
-  proto.traverse((o) => { if (o.isSkinnedMesh) skinned.push(o); });
-  if (skinned.length < 2) return proto;
-  const main = skinned[0];
-  const bones = main.skeleton.bones;
-  const boneIndex = new Map(bones.map((b, i) => [b.name, i]));
-  const pos = [], nor = [], col = [], si = [], sw = [];
-  const c = new THREE.Color();
-  const v3 = new THREE.Vector3();
-  const mainBindInv = main.bindMatrix.clone().invert();
-  for (const m of skinned) {
-    // bring this part into the main mesh's bind space (parts may carry their own
-    // dequantisation transform in bindMatrix / inverse-bind matrices)
-    const refName = m.skeleton.bones[0].name;
-    const mi = boneIndex.get(refName) ?? 0;
-    const T = new THREE.Matrix4()
-      .copy(mainBindInv)
-      .multiply(main.skeleton.boneInverses[mi].clone().invert())
-      .multiply(m.skeleton.boneInverses[0])
-      .multiply(m.bindMatrix);
-    const Nm = new THREE.Matrix3().getNormalMatrix(T);
-    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
-    const mats = Array.isArray(m.material) ? m.material : [m.material];
-    const groups = g.groups.length ? g.groups : [{ start: 0, count: g.attributes.position.count, materialIndex: 0 }];
-    const remap = m.skeleton.bones.map((b) => boneIndex.get(b.name) ?? 0);
-    const P = g.attributes.position, Nn = g.attributes.normal, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight;
-    for (const gr of groups) {
-      const mat = mats[gr.materialIndex] || mats[0];
-      if (recolor && recolor[mat.name] !== undefined) { const rc = recolor[mat.name]; if (Array.isArray(rc)) c.setRGB(rc[0], rc[1], rc[2]); else c.set(rc); }
-      else c.copy(mat.color || new THREE.Color(1, 1, 1));
-      for (let v = gr.start; v < gr.start + gr.count; v++) {
-        v3.set(P.getX(v), P.getY(v), P.getZ(v)).applyMatrix4(T);
-        pos.push(v3.x, v3.y, v3.z);
-        v3.set(Nn.getX(v), Nn.getY(v), Nn.getZ(v)).applyMatrix3(Nm).normalize();
-        nor.push(v3.x, v3.y, v3.z);
-        col.push(c.r, c.g, c.b);
-        si.push(remap[SI.getX(v)], remap[SI.getY(v)], remap[SI.getZ(v)], remap[SI.getW(v)]);
-        sw.push(SW.getX(v), SW.getY(v), SW.getZ(v), SW.getW(v));
-      }
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
-  geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0 });
-  const merged = new THREE.SkinnedMesh(geo, mat);
-  merged.name = 'NPCBody';
-  main.parent.add(merged);
-  merged.position.copy(main.position); merged.quaternion.copy(main.quaternion); merged.scale.copy(main.scale);
-  merged.bind(main.skeleton, main.bindMatrix);
-  for (const m of skinned) m.parent.remove(m);
-  return proto;
 }

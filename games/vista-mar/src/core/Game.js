@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { createGradePass, Seagulls, SunFlare, windUniforms } from '../world/Effects.js';
 import { InputManager } from './InputManager.js';
@@ -115,6 +114,9 @@ export class Game {
     this.weather = new Weather(this);
     this.city = new CityGenerator(this.scene, this.collision, assets).generate();
     this.world.attachCity(this.city);
+    // the city never moves: skip its per-frame matrix recomposition
+    this.city.group.traverse((o) => { o.updateMatrix(); o.matrixAutoUpdate = false; });
+    this.city.group.updateMatrixWorld(true);
     this.menus.setLoading(0.88, 'Waking up the locals…');
     await nextFrame();
     this.vehicles = new VehicleSystem(this, assets);
@@ -187,7 +189,7 @@ export class Game {
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.4, 0.55, 0.92);
     this.composer.addPass(this.bloom);
-    this.composer.addPass(new OutputPass());
+    // tone mapping + sRGB + colour grade in a single full-screen pass
     this.grade = createGradePass();
     this.composer.addPass(this.grade);
     this.smaa = new SMAAPass();
@@ -527,7 +529,7 @@ export class Game {
       }
     }
     const tB = performance.now();
-    this.updateChunkVisibility();
+    if (this.frame % 3 === 0 || this.state !== 'playing') this.updateChunkVisibility();
     this.renderer.shadowMap.needsUpdate = this.frame % (this.shadowEvery || 2) === 0 || this.state !== 'playing';
     if (this.directRender) this.renderer.render(this.scene, this.camera);
     else this.composer.render(dt);
@@ -619,6 +621,7 @@ export class Game {
     this.bloom.strength = lerp(0.22, 0.85, this.world.night);
     const e = this.world.sunDir.y;
     this.grade.uniforms.uNight.value = this.world.night;
+    this.grade.uniforms.toneMappingExposure.value = this.renderer.toneMappingExposure;
     this.grade.uniforms.uGolden.value = e > 0 ? Math.max(0, 1 - Math.abs(e - 0.1) / 0.14) : 0;
     windUniforms.uTime.value = this.world.elapsed;
     this.seagulls.update(dt);

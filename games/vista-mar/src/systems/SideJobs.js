@@ -281,7 +281,9 @@ export class SideJobs {
   // ------------------------------------------------------------ per frame
   update(dt) {
     const g = this.game, t = g.world.elapsed;
-    this.padMat.opacity = this.active ? 0 : 0.35 + Math.sin(t * 3) * 0.2;
+    this.padMat.opacity = 0.35 + Math.sin(t * 3) * 0.2;
+    const cam = g.camera.position;
+    for (const p of this.places) p.ring.visible = !this.active && Math.hypot(cam.x - p.x, cam.z - p.z) < 170;
     if (this.taxi) this.updateTaxi(dt);
     else if (this.race) this.updateRace(dt);
     else if (g.input.hit('KeyT') && g.player.vehicle && g.player.vehicle.spec.asset === 'taxi') this.startTaxi();

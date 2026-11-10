@@ -102,20 +102,28 @@ export function emissiveSwitchTexture() {
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 export class ChunkedLod {
-  constructor(parent, material, geometries, _max, { castShadow = true, depthMaterial = null, chunk = 200 } = {}) {
+  /**
+   * `split`: inside a chunk that is close enough for detail, each item still picks its own
+   * LOD: full model within nearDist * split of the camera, the far model beyond. A whole
+   * 200 m chunk of detailed palms costs several hundred thousand triangles (twice with
+   * shadows) for trees that are a few pixels tall.
+   */
+  constructor(parent, material, geometries, _max, { castShadow = true, depthMaterial = null, chunk = 200, split = 2.2 } = {}) {
     this.parent = parent;
     this.material = material;
     this.geos = geometries;
     this.castShadow = castShadow;
     this.depthMaterial = depthMaterial;
     this.size = chunk;
+    this.split = split;
     this.items = [];
     this.chunks = [];
+    this.cam = { x: 0, z: 0 };
   }
 
   add(matrix, near, far, { nearDist = 60, farDist = 900, farMatrix = null } = {}) {
     const e = matrix.elements;
-    const it = { x: e[12], z: e[14], m: matrix.clone(), fm: farMatrix ? farMatrix.clone() : null, near, far, nearDist, farDist };
+    const it = { x: e[12], z: e[14], m: matrix.clone(), fm: farMatrix ? farMatrix.clone() : null, near, far, nearDist, farDist, hi: null, hidden: false };
     this.items.push(it);
     return it;
   }
@@ -140,37 +148,69 @@ export class ChunkedLod {
         const meshes = [];
         for (const [gi, list] of byGeo) {
           const im = new THREE.InstancedMesh(this.geos[gi], this.material, list.length);
-          list.forEach((it, i) => { im.setMatrixAt(i, matKey === 'fm' ? (it.fm || it.m) : it.m); (it.refs = it.refs || []).push({ im, i }); });
+          list.forEach((it, i) => im.setMatrixAt(i, matKey === 'fm' ? (it.fm || it.m) : it.m));
           im.castShadow = shadow;
           im.receiveShadow = true;
           if (this.depthMaterial) im.customDepthMaterial = this.depthMaterial;
-          im.computeBoundingSphere();
+          im.computeBoundingSphere(); // over every item: stays valid however the instances are packed later
           im.matrixAutoUpdate = false;
           im.visible = false;
           this.parent.add(im);
-          meshes.push(im);
+          meshes.push({ im, list });
         }
         return meshes;
       };
-      this.chunks.push({ ...g, near: build('near', 'm', this.castShadow), far: build('far', 'fm', false), state: '' });
+      const c = { ...g, near: build('near', 'm', this.castShadow), far: build('far', 'fm', false), state: '', dirty: true };
+      for (const it of c.items) it.chunk = c;
+      this.chunks.push(c);
     }
     this.items = [];
   }
 
   /** Removes one instance (e.g. a parked car the player just stole). */
   hide(it) {
-    for (const r of it.refs || []) { r.im.setMatrixAt(r.i, ZERO); r.im.instanceMatrix.needsUpdate = true; }
+    it.hidden = true;
+    if (it.chunk) { it.chunk.dirty = true; this.pack(it.chunk); }
+  }
+
+  /** Sorts a chunk's items into its near / far meshes for the current camera. */
+  pack(c) {
+    const cam = this.cam;
+    let changed = c.dirty;
+    for (const it of c.items) {
+      let hi = false;
+      if (c.state === 'near') hi = it.far < 0 || Math.hypot(cam.x - it.x, cam.z - it.z) < c.nearDist * this.split * (it.hi ? 1.08 : 1);
+      if (hi !== it.hi) { it.hi = hi; changed = true; }
+    }
+    if (!changed) return;
+    c.dirty = false;
+    const fill = (set, wantHi, matKey) => {
+      for (const m of set) {
+        let k = 0;
+        for (const it of m.list) if (it.hi === wantHi && !it.hidden) m.im.setMatrixAt(k++, matKey === 'fm' ? (it.fm || it.m) : it.m);
+        m.im.count = k;
+        m.im.instanceMatrix.needsUpdate = true;
+        m.im.visible = k > 0 && c.state !== 'none';
+      }
+    };
+    fill(c.near, true, 'm');
+    fill(c.far, false, 'fm');
+    // far models standing in for near ones keep casting shadows, so no shadow disappears
+    for (const m of c.far) m.im.castShadow = this.castShadow && c.state === 'near';
   }
 
   update(cam, farScale = 1) {
     const h = this.size / 2;
+    this.cam.x = cam.x; this.cam.z = cam.z;
     for (const c of this.chunks) {
       const d = Math.hypot(Math.max(0, Math.abs(cam.x - c.x) - h), Math.max(0, Math.abs(cam.z - c.z) - h));
       const want = d < c.nearDist ? 'near' : d < c.farDist * farScale ? 'far' : 'none';
-      if (want === c.state) continue;
-      c.state = want;
-      for (const m of c.near) m.visible = want === 'near';
-      for (const m of c.far) m.visible = want === 'far';
+      if (want !== c.state) {
+        c.state = want;
+        c.dirty = true;
+        if (want === 'none') { for (const m of c.near) m.im.visible = false; for (const m of c.far) m.im.visible = false; continue; }
+      }
+      if (want === 'near' || c.dirty) this.pack(c);
     }
   }
 }

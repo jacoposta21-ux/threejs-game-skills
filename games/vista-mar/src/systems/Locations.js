@@ -47,6 +47,7 @@ export class Locations {
           pm.position.set(p.x + (p.x > 300 ? 7 : 5.2), terrainHeight(p.x + (p.x > 300 ? 7 : 5.2), p.z) + 0.9, p.z + dz);
           pm.castShadow = true;
           group.add(pm);
+          (p.props = p.props || []).push(pm);
           g.collision.addBox(pm.position.x - 0.35, pm.position.z - 0.25, pm.position.x + 0.35, pm.position.z + 0.25, y + 1.8, 'pump');
         }
       }
@@ -63,6 +64,7 @@ export class Locations {
         for (const m of cart.children) m.castShadow = true;
         cart.position.set(p.x + 1.4, y, p.z);
         group.add(cart);
+        (p.props = p.props || []).push(cart);
         g.collision.addBox(p.x + 0.5, p.z - 0.5, p.x + 2.3, p.z + 0.5, y + 1.2, 'cart');
       }
       // floor marker ring for every location
@@ -131,8 +133,14 @@ export class Locations {
   }
 
   update() {
-    const t = this.game.world.elapsed;
-    for (const p of this.places) p.ring.material.opacity = 0.35 + Math.sin(t * 3 + p.x) * 0.2;
+    const t = this.game.world.elapsed, c = this.game.camera.position;
+    for (const p of this.places) {
+      // floor rings and small props are not worth a draw call from blocks away
+      const d = Math.hypot(c.x - p.x, c.z - p.z);
+      p.ring.visible = d < 150;
+      if (p.props) for (const o of p.props) o.visible = d < 260;
+      if (p.ring.visible) p.ring.material.opacity = 0.35 + Math.sin(t * 3 + p.x) * 0.2;
+    }
   }
 
   markers() {

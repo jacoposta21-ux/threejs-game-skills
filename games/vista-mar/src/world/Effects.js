@@ -176,20 +176,29 @@ export class SkidMarks {
 
 // ---------------------------------------------------------------- colour grade
 export function createGradePass() {
-  return new ShaderPass({
+  // raw material, like three's OutputPass: the tone-mapping / colour-space chunks are included by hand
+  return new ShaderPass(new THREE.RawShaderMaterial({
+    defines: { ACES_FILMIC_TONE_MAPPING: '', SRGB_TRANSFER: '' },
     uniforms: {
       tDiffuse: { value: null },
+      toneMappingExposure: { value: 1 },
       uNight: { value: 0 },
       uGolden: { value: 0 },
       uVignette: { value: 0.32 },
       uSat: { value: 1.08 },
     },
-    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    vertexShader: 'precision highp float; uniform mat4 modelViewMatrix; uniform mat4 projectionMatrix; attribute vec3 position; attribute vec2 uv; varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `
+      precision highp float;
       uniform sampler2D tDiffuse; uniform float uNight; uniform float uGolden; uniform float uVignette; uniform float uSat;
+      #include <tonemapping_pars_fragment>
+      #include <colorspace_pars_fragment>
       varying vec2 vUv;
       void main() {
         vec4 c = texture2D(tDiffuse, vUv);
+        // what OutputPass did in its own pass: ACES tone mapping, then sRGB encoding
+        c.rgb = ACESFilmicToneMapping(c.rgb);
+        c = clamp(sRGBTransferOETF(c), 0.0, 1.0);
         vec3 col = c.rgb;
         float l = dot(col, vec3(0.299, 0.587, 0.114));
         // saturation + gentle S-curve contrast
@@ -204,5 +213,5 @@ export function createGradePass() {
         col *= 1.0 - uVignette * smoothstep(0.25, 0.85, dot(d, d) * 2.2);
         gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a);
       }`,
-  });
+  }));
 }

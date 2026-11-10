@@ -1363,7 +1363,7 @@ export class CityGenerator {
     const vegMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0, side: THREE.DoubleSide });
     const vegDepth = addWind([vegMat], { height: 9.5, amp: 0.45, freq: 1.1 });
     const PALM0 = 0, PALMLOW = palmModels.length, TREE0 = PALMLOW + 1, TREEFAR = TREE0 + treeNear.length, BUSH = TREEFAR + 1;
-    const veg = new LodBatch(this.group, vegMat, vegGeos, this.props.palms.length + this.props.trees.length + this.props.bushes.length + 8, { depthMaterial: vegDepth });
+    const veg = new LodBatch(this.group, vegMat, vegGeos, this.props.palms.length + this.props.trees.length + this.props.bushes.length + 8, { depthMaterial: vegDepth, split: 4.4 });
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     const mat4 = (x, y, z, rot, s) => m4.compose(ps.set(x, y, z), q.setFromAxisAngle(up, rot), sc.setScalar(s));
     for (const p of this.props.palms) veg.add(mat4(p.x, p.y, p.z, p.rot, p.s), palmModels.length ? PALM0 + (p.v % palmModels.length) : PALMLOW, PALMLOW, { nearDist: 35, farDist: 900 });
@@ -1399,7 +1399,7 @@ export class CityGenerator {
     const lampMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.3, emissive: 0xffe2b0, emissiveMap: emissiveSwitchTexture(), emissiveIntensity: 0 });
     this.nightMaterials.lamps.push(lampMat);
     const lampGeos = [lampGeo || lampLow, lampLow].map((g) => normalizeGeometry(g));
-    const lamps = new LodBatch(this.group, lampMat, lampGeos, this.props.lamps.length + 4);
+    const lamps = new LodBatch(this.group, lampMat, lampGeos, this.props.lamps.length + 4, { split: 2.6 });
     for (const L of this.props.lamps) {
       const f = L.facing || [Math.sin(L.rot || 0), Math.cos(L.rot || 0)];
       L.rotY = Math.atan2(f[0], f[1]) - armAngle;
@@ -1492,7 +1492,7 @@ export class CityGenerator {
       const PROXY = carGeos.length;
       carGeos.push(proxy);
       this.carBatchMaterial = carModels[carKeysUsed[0]].materials[0];
-      const cars = new LodBatch(this.group, this.carBatchMaterial, carGeos, this.props.cars.length + 4);
+      const cars = new LodBatch(this.group, this.carBatchMaterial, carGeos, this.props.cars.length + 4, { split: 2.6 });
       this.parkedCars = [];
       for (const k of carKeysUsed) for (const c of carLists[k]) { c.item = cars.add(mat4(c.x, c.y, c.z, c.rot, 1), idx[k], PROXY, { nearDist: 40, farDist: 600 }); this.parkedCars.push(c); }
       cars.finalize();

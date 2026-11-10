@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeCharacter } from '../utils/mergeCharacter.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 
 // Drives a Quaternius modular character with clips from Quaternius' Universal
@@ -66,7 +67,11 @@ export class CharacterRig {
     this.root.name = 'CharacterRig';
 
     // ---------- target (visible) ----------
-    this.model = skeletonClone(charGltf.scene);
+    // all body parts collapse into one skinned mesh with vertex colours: 1 draw call
+    // (and 1 in the shadow pass) instead of a dozen
+    let rough = 0, parts = 0;
+    charGltf.scene.traverse((o) => { if (o.isSkinnedMesh) for (const m of (Array.isArray(o.material) ? o.material : [o.material])) { rough += Math.max(0.55, m.roughness ?? 0.8); parts++; } });
+    this.model = mergeCharacter(charGltf.scene, null, { roughness: parts ? rough / parts : 0.75, name: 'PlayerBody' });
     this.model.traverse((o) => {
       if (o.isMesh) {
         o.castShadow = true;

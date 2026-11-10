@@ -288,7 +288,11 @@ export class Economy {
   update(dt) {
     const g = this.game;
     const t = g.world.elapsed;
-    for (const p of this.places) p.ring.material.opacity = 0.35 + Math.sin(t * 3 + p.x) * 0.2;
+    const cam = g.camera.position;
+    for (const p of this.places) {
+      p.ring.visible = Math.hypot(cam.x - p.x, cam.z - p.z) < 150 && Math.abs(cam.y - p.ring.position.y) < 120;
+      if (p.ring.visible) p.ring.material.opacity = 0.35 + Math.sin(t * 3 + p.x) * 0.2;
+    }
     if (!this.dancers.length && g.npcs.baked.length) this.spawnClubLife();
     // daily income at 08:00 (works across sleeping and time skips)
     const now = g.world.timeOfDay;

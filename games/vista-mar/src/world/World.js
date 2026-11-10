@@ -332,8 +332,12 @@ export class World {
 
     // environment reflections refresh every few seconds
     this.envTimer += dt;
-    if (this.envTimer > 4 || (this.envTimer > 1.5 && Math.abs(oc - (this.envOc ?? 0)) > 0.06)) {
-      this.envOc = oc;
+    // (re-rendering the reflection cube is a visible hitch on integrated GPUs, so it only
+    // happens when the sky has really changed: sun height, cloud cover, or a time jump)
+    const skyMoved = Math.abs(e - (this.envE ?? 9)) > 0.012 && e > -0.2;
+    const forced = this.envTimer > 900;
+    if (forced || this.envTimer > 90 || (this.envTimer > 4 && skyMoved) || (this.envTimer > 1.5 && Math.abs(oc - (this.envOc ?? 0)) > 0.06)) {
+      this.envOc = oc; this.envE = e;
       this.envTimer = 0;
       const rt = this.pmrem.fromScene(this.envScene, 0.02, 0.1, 100);
       if (this.envRT) this.envRT.dispose();
