@@ -103,6 +103,20 @@ export class Game {
       this.suppressUnlockPause = false;
     };
     window.addEventListener('keydown', (e) => this.onKey(e));
+    // leaving the tab: pause, and keep the progress made so far
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden || !this.player) return;
+      if (this.state === 'playing' && !this.cutscene?.active) this.pause();
+      if (this.state !== 'loading' && this.state !== 'ready' && !this.respawning && !this.story?.active) this.save();
+    });
+    // the browser can take the graphics context away (driver reset, too many tabs)
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      if (this.state === 'playing') this.pause();
+      const f = document.getElementById('fatal');
+      if (f) { f.classList.remove('hidden'); document.getElementById('fatal-text').textContent = 'The browser lost the graphics context. Your progress is saved: reload the page to continue.'; }
+      try { if (this.player && this.state !== 'loading' && this.state !== 'ready') this.save(); } catch { /* nothing more to do */ }
+    });
   }
 
   async init() {
@@ -292,7 +306,8 @@ export class Game {
     this.perfHold = 6; // let the first seconds settle before judging the frame rate
     if (!this.prefilled) { this.traffic.prefill(this.player.pos); this.npcs.prefill(this.player.pos); }
     this.prefilled = false;
-    if (this.loadSave()) setTimeout(() => this.hud.toast('SAVE LOADED', 'Progress restored from your last safehouse visit.', 'reward'), 1200);
+    if (this.loadSave()) setTimeout(() => this.hud.toast('WELCOME BACK', 'Your progress has been restored.', 'reward'), 1200);
+    this.hud.shownMoney = this.money;
     this.input.requestLock();
     this.hud.toast('WELCOME TO VISTA MAR', 'Twelve lost mixtapes are hidden around the city. Follow the pink beams.');
     setTimeout(() => this.state === 'playing' && this.hud.toast('NEED A RIDE?', 'A sports car is parked on Palm Boulevard right ahead. Walk up and press E.'), 4500);

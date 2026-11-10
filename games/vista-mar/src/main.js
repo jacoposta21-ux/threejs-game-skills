@@ -18,6 +18,8 @@ function webglAvailable() {
 if (!webglAvailable()) {
   fatal('This game needs WebGL, which is disabled or unavailable in this browser. Try a recent Chrome, Edge, Firefox or Safari with hardware acceleration enabled.');
 } else {
+  // phones and tablets: say up front that the controls are keyboard and mouse
+  if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(any-pointer: fine)').matches) document.getElementById('touch-note').classList.remove('hidden');
   const game = new Game(document.getElementById('game'));
   window.__game = game;
   // early test hooks that wait for loading to finish, replaced by the full set in installHooks()

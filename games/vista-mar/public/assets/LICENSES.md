@@ -17,3 +17,6 @@ github.com/J-Ponzo/gltf-universal-animation-library, github.com/Arslan12216775/k
 Credit is appreciated but not required: models by Quaternius and Kenney.
 
 All models were re-encoded with meshopt compression (gltf-transform) to reduce download size; geometry, skeletons and animations are unchanged.
+
+## Fonts
+Barlow Condensed (Jeremy Tribby) and Inter (Rasmus Andersson), both under the SIL Open Font License 1.1, latin subsets embedded in `src/fonts.css`.

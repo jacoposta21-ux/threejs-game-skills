@@ -159,3 +159,11 @@ What changed:
 - Automatic performance scales resolution and crowd density from the measured FPS.
 
 The triangle counts reported for `BatchedMesh` multi-draw may under-count. The draw-call numbers are the meaningful ones here. Frame rate on a real GPU was not measured in this environment (SwiftShader software rendering).
+
+## Launch
+
+- `npm run build` writes `dist/`: a static site (relative paths, no server code). Upload the folder as it is to any static host (itch.io HTML5 upload, Netlify, GitHub Pages, a game portal). Entry point: `index.html`.
+- `npm run build:single` also writes `dist-single/index.html`, one self-contained file that runs by double-click and offline.
+- Fonts are embedded, nothing is fetched from other domains at runtime, and progress is stored in the browser (`localStorage`, keys `vistamar.save` and `vistamar.settings`).
+- Desktop browsers with keyboard and mouse; phones and tablets get a notice on the start screen.
+- Assets: Quaternius and Kenney models (CC0), Barlow Condensed and Inter fonts (OFL). See `public/assets/LICENSES.md`.

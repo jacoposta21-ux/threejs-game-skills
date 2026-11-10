@@ -245,3 +245,6 @@ kbd { display: inline-block; min-width: 1.7em; padding: 0.12em 0.45em; margin: 0
 
 /* ---- title: two-line logo */
 .logo .logo-top { display: block; font-size: 0.42em; letter-spacing: 0.16em; line-height: 1.1; }
+
+#touch-note { margin: 18px auto 0; max-width: 520px; padding: 10px 16px; border: 1px solid var(--gold); border-radius: 6px; color: var(--gold); font: 500 14px var(--body); background: rgba(0,0,0,0.35); }
+#touch-note.hidden { display: none; }
