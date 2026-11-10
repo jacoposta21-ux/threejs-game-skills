@@ -14,6 +14,7 @@ export class HUD {
       vehicle: $('vehicle-hud'), vhName: $('vh-name'), vhSpeed: $('vh-speed'), vhArc: $('vh-arc'), vhGear: $('vh-gear'), vhHealth: $('vh-health'), vhFuel: $('vh-fuel'),
       indLights: $('ind-lights'), indBrake: $('ind-brake'), indDrift: $('ind-drift'), indSiren: $('ind-siren'),
       prompt: $('prompt'), banner: $('banner'), bannerTitle: $('banner-title'), bannerSub: $('banner-sub'), objTimer: $('obj-timer'), objHint: $('obj-hint'), damage: $('damage'), fade: $('fade'), wantedBox: $('wanted'), promptText: $('prompt-text'), toasts: $('toasts'), street: $('street'), lookHint: $('look-hint'), stance: $('stance'), fps: $('fps'),
+      radio: $('radio-pill'), radioName: $('radio-name'), saved: $('saved'),
       wpName: $('wp-name'), wpAmmo: $('wp-ammo'), crosshair: $('crosshair'), armor: $('bar-armor'), armorWrap: $('armor-wrap'),
     };
     this.shownMoney = 0;
@@ -61,6 +62,22 @@ export class HUD {
     this.dmgTimer = setTimeout(() => d.classList.remove('hit'), 90);
   }
 
+  /** Station name pill under the speedometer for a few seconds. */
+  radio(label) {
+    const r = this.el.radio;
+    this.el.radioName.textContent = label;
+    r.classList.remove('hidden');
+    r.classList.remove('show'); void r.offsetWidth; r.classList.add('show');
+    clearTimeout(this.radioTimer);
+    this.radioTimer = setTimeout(() => r.classList.remove('show'), 3200);
+  }
+
+  /** Discreet autosave tick. */
+  saved() {
+    const s = this.el.saved;
+    s.classList.remove('show'); void s.offsetWidth; s.classList.add('show');
+  }
+
   fade(on) {
     this.el.fade.classList.toggle('on', on);
   }
@@ -97,7 +114,8 @@ export class HUD {
 
   update(dt) {
     const g = this.game, p = g.player;
-    this.el.clock.textContent = g.world.clockString;
+    const clk = g.world.clockString;
+    if (clk !== this.lastClock) { this.lastClock = clk; this.el.clock.textContent = clk; }
     // money count-up
     if (this.shownMoney !== g.money) {
       const diff = g.money - this.shownMoney;
@@ -105,12 +123,15 @@ export class HUD {
       if (Math.abs(g.money - this.shownMoney) < 1) this.shownMoney = g.money;
       this.el.money.classList.add('bump');
     } else this.el.money.classList.remove('bump');
-    this.el.money.textContent = '$' + Math.round(this.shownMoney).toLocaleString('en-US');
-    this.el.health.style.width = `${p.health}%`;
+    const shown = Math.round(this.shownMoney);
+    if (shown !== this.lastShown) { this.lastShown = shown; this.el.money.textContent = '$' + shown.toLocaleString('en-US'); }
+    const hp = Math.round(p.health);
+    if (hp !== this.lastHp) { this.lastHp = hp; this.el.health.style.width = `${hp}%`; }
     this.el.health.classList.toggle('low', p.health < 30);
     this.setWanted(g.police.level);
     this.el.wantedBox.classList.toggle('flash', g.police.level > 0 && !g.police.seen);
-    this.el.stamina.style.width = `${p.stamina}%`;
+    const sta = Math.round(p.stamina);
+    if (sta !== this.lastSta) { this.lastSta = sta; this.el.stamina.style.width = `${sta}%`; }
     // weapon, ammo, armour, crosshair
     const cb = g.combat;
     if (cb) {
@@ -122,7 +143,8 @@ export class HUD {
       const a = cb.ammo[w.id];
       this.el.wpAmmo.classList.toggle('empty', !!a && a.mag === 0);
       this.el.armorWrap.classList.toggle('hidden', cb.armor <= 0);
-      this.el.armor.style.width = `${cb.armor}%`;
+      const ar = Math.round(cb.armor);
+      if (ar !== this.lastArmor) { this.lastArmor = ar; this.el.armor.style.width = `${ar}%`; }
       const ch = cb.aiming && !p.vehicle;
       this.el.crosshair.classList.toggle('hidden', !ch);
       if (ch) {
@@ -131,7 +153,8 @@ export class HUD {
       }
     }
     this.el.stamina.classList.toggle('low', p.staminaLock);
-    this.el.stance.textContent = p.crouched ? 'CROUCH' : p.walkMode ? 'WALK' : '';
+    const stance = p.crouched ? 'CROUCH' : p.walkMode ? 'WALK' : '';
+    if (stance !== this.lastStance) { this.lastStance = stance; this.el.stance.textContent = stance; }
 
     // district banner on change
     const c = classify(p.pos.x, p.pos.z);
@@ -156,14 +179,14 @@ export class HUD {
     if (v) {
       if (this.el.vhName.textContent !== v.spec.label) this.el.vhName.textContent = v.spec.label;
       const kmh = Math.round(v.kmh);
-      this.el.vhSpeed.textContent = kmh;
       const frac = Math.min(1, v.kmh / (v.spec.maxSpeed * 3.6));
-      this.el.vhArc.style.strokeDashoffset = String(245 * (1 - frac));
+      if (kmh !== this.lastKmh) { this.lastKmh = kmh; this.el.vhSpeed.textContent = kmh; this.el.vhArc.style.strokeDashoffset = String(245 * (1 - frac)); }
       this.el.vhArc.classList.toggle('hot', frac > 0.82);
-      this.el.vhGear.textContent = v.gear || 'N';
-      this.el.vhHealth.style.width = `${v.health}%`;
+      const gear = v.gear || 'N';
+      if (gear !== this.lastGear) { this.lastGear = gear; this.el.vhGear.textContent = gear; }
       const fuel = v.isAircraft ? 100 : (v.fuel ?? 100);
-      this.el.vhFuel.style.width = `${fuel}%`;
+      const bars = Math.round(v.health) * 1000 + Math.round(fuel);
+      if (bars !== this.lastBars) { this.lastBars = bars; this.el.vhHealth.style.width = `${Math.round(v.health)}%`; this.el.vhFuel.style.width = `${Math.round(fuel)}%`; }
       this.el.vhFuel.classList.toggle('low', fuel < 15);
       this.el.vhHealth.classList.toggle('low', v.health < 35);
       this.el.indLights.classList.toggle('on', v.headlights);

@@ -224,3 +224,21 @@ kbd { display: inline-block; min-width: 1.7em; padding: 0.12em 0.45em; margin: 0
 #map-places button small { white-space: nowrap; }
 
 .fill.fuel { background: linear-gradient(90deg, #d8a12c, #ffd23f); }
+
+/* ---- Phase 9: radio pill, autosave tick, stats page, start screen */
+#radio-pill { margin: 8px 0 2px auto; width: max-content; max-width: 100%; display: flex; gap: 8px; align-items: center; background: var(--panel-strong); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; padding: 5px 12px; font: 700 14px var(--display); letter-spacing: 0.1em; color: var(--ink); opacity: 0; transform: translateY(6px); transition: opacity 0.35s, transform 0.35s; }
+#radio-pill.show { opacity: 1; transform: none; }
+#radio-pill .radio-ico { color: var(--accent); }
+#saved { position: absolute; right: 22px; bottom: 10px; font: 600 11px var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--money); opacity: 0; pointer-events: none; }
+#saved.show { animation: savedTick 2.6s ease-out; }
+@keyframes savedTick { 0% { opacity: 0; } 12% { opacity: 0.9; } 75% { opacity: 0.9; } 100% { opacity: 0; } }
+#hud.driving #saved { bottom: auto; top: 6px; }
+#newgame { display: block; margin: 14px auto 0; font-size: 17px; padding: 8px 22px; }
+#newgame.hidden { display: none; }
+#pause-stats .pct { display: grid; grid-template-columns: 1fr auto; align-items: baseline; margin-bottom: 10px; }
+#pause-stats .pct b { font: italic 800 30px var(--display); color: var(--gold); }
+#pause-stats .pct i { grid-column: 1 / span 2; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
+#pause-stats .pct u { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--gold)); }
+#stats-body { font: 500 15px var(--body); color: var(--ink-dim); }
+#stats-body > div { display: flex; justify-content: space-between; gap: 18px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+#stats-body b { color: var(--ink); font-weight: 600; text-align: right; }

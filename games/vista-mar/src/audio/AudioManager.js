@@ -1,11 +1,14 @@
 // Procedural Web Audio: city ambience, ocean surf, distant traffic swooshes,
 // night crickets, footsteps per surface, jump/land, pickups and UI clicks.
 // No audio files: nothing can fail to load. Starts on the first user gesture.
+import { Radio } from './Radio.js';
+
 export class AudioManager {
   constructor() {
     this.ctx = null;
     this.volume = 0.8;
     this.started = false;
+    this.radio = new Radio(this);
   }
 
   start() {
@@ -37,6 +40,10 @@ export class AudioManager {
     this.crickets.connect(this.master);
     this.cricketTimer = 0;
     this.swooshTimer = 2;
+    // rain: bright hiss + a low patter bed
+    this.rainHi = this.loop(this.noise, 'highpass', 3800, 0);
+    this.rainLo = this.loop(this.brown, 'bandpass', 520, 0);
+    this.radio.ensure();
   }
 
   makeNoise(seconds, type) {
@@ -135,6 +142,9 @@ export class AudioManager {
     this.ocean.g.gain.setTargetAtTime(env.oceanProximity * 0.55 * swell, t, 0.2);
     this.ocean.f.frequency.setTargetAtTime(500 + swell * 900, t, 0.3);
     this.city.g.gain.setTargetAtTime((0.12 + env.cityDensity * 0.25) * (1 - env.oceanProximity * 0.5), t, 0.5);
+    const rain = env.rain || 0, muffle = env.indoors ? 0.25 : env.inCar ? 0.6 : 1;
+    this.rainHi.g.gain.setTargetAtTime(rain * 0.05 * muffle, t, 0.4);
+    this.rainLo.g.gain.setTargetAtTime(rain * 0.3 * muffle, t, 0.4);
     // distant traffic swooshes
     this.swooshTimer -= dt;
     if (this.swooshTimer < 0) {
@@ -269,6 +279,7 @@ export class AudioManager {
     const g = on ? (0.12 + k * 0.18) * (0.65 + 0.35 * Math.abs(Math.sin(this.rotorLfo * Math.PI))) : 0;
     this.rotorSrc.g.gain.setTargetAtTime(g, this.ctx.currentTime, 0.03);
   }
+  thunder(k = 1) { this.burst({ freq: 70, type: 'lowpass', dur: 2.6, gain: 0.5 * k, attack: 0.05, pitchDrop: 0.5 }); this.burst({ freq: 260, q: 0.4, dur: 1.2, gain: 0.16 * k, attack: 0.02 }); }
   thud(k) { this.burst({ freq: 180, type: 'lowpass', dur: 0.25, gain: 0.25 + k * 0.4, pitchDrop: 0.5 }); }
   grunt() { this.tone(170 + Math.random() * 60, 0.12, { type: 'sawtooth', gain: 0.03, slide: 0.7 }); }
   hornAt(dist) {

@@ -35,6 +35,12 @@ import { CombatSystem } from '../combat/CombatSystem.js';
 import { Cutscene, ShopMenu, Lockpick } from '../ui/Overlays.js';
 import { Economy } from '../systems/Economy.js';
 import { Interiors } from '../world/Interiors.js';
+import { SideJobs } from '../systems/SideJobs.js';
+import { Weather } from '../world/Weather.js';
+import { saveSettings } from '../ui/Menus.js';
+
+const SAVE_KEY = 'vistamar.save';
+const newStats = () => ({ walked: 0, driven: 0, flown: 0, topSpeed: 0, stolen: 0, busted: 0, wasted: 0, earned: 0, spent: 0, passed: 0, failed: 0 });
 
 // automatic-performance tiers, mildest first
 const PERF_TIERS = [
@@ -60,6 +66,7 @@ export class Game {
     this.state = 'loading'; // loading | ready | playing | paused | map
     this.money = 500;
     this.playTime = 0;
+    this.stats = newStats();
     this.frame = 0;
     this.pausedForScreenshot = false;
 
@@ -105,6 +112,7 @@ export class Game {
     this.menus.setLoading(0.7, 'Building Vista Mar…');
     await nextFrame();
     this.world = new World(this);
+    this.weather = new Weather(this);
     this.city = new CityGenerator(this.scene, this.collision, assets).generate();
     this.world.attachCity(this.city);
     this.menus.setLoading(0.88, 'Waking up the locals…');
@@ -131,6 +139,8 @@ export class Game {
     this.locations = new Locations(this);
     this.interiors = new Interiors(this);
     this.economy = new Economy(this);
+    this.jobs = new SideJobs(this);
+    this.bindProgressEvents();
     this.seagulls = new Seagulls(this.scene);
     this.sunFlare = new SunFlare(this.scene);
     this.setupComposer();
@@ -224,8 +234,43 @@ export class Game {
   }
 
   // ------------------------------------------------------------- flow
-  begin() {
+  hasSave() {
+    try { const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return !!d && d.v >= 1 && d.v <= 3; } catch { return false; }
+  }
+
+  clearSave() {
+    try { localStorage.removeItem(SAVE_KEY); } catch { /* storage unavailable */ }
+  }
+
+  /** Counters for the stats page and the triggers that autosave progress. */
+  bindProgressEvents() {
+    const ev = this.events, st = () => this.stats;
+    ev.on('carjack', () => st().stolen++);
+    ev.on('carStolen', () => st().stolen++);
+    ev.on('missionPassed', () => { st().passed++; this.autosave(); });
+    for (const n of ['propertyBought', 'fareDone', 'raceDone', 'tapeCollected', 'purchase', 'payday']) ev.on(n, () => this.autosave());
+  }
+
+  /** Progress (not position) is written a moment after anything worth keeping happens. */
+  autosave() {
+    clearTimeout(this.autosaveTimer);
+    this.autosaveTimer = setTimeout(() => {
+      if (this.state === 'loading' || this.state === 'ready' || this.respawning) return;
+      if (this.save()) this.hud.saved();
+    }, 1500);
+  }
+
+  /** Overall completion, 0..100: story 40, tapes 20, properties 15, time trials 15, taxi 10. */
+  completion() {
+    const j = this.jobs.records;
+    const medal = { gold: 1, silver: 0.7, bronze: 0.4 };
+    const races = this.jobs.medals().reduce((a, m) => a + (m.best ? medal[m.best.medal] : 0), 0) / this.jobs.medals().length;
+    return Math.round((this.story.done.size / this.story.defs.length) * 40 + (this.tapes.count / this.tapes.tapes.length) * 20 + (this.economy.owned.size / 5) * 15 + races * 15 + Math.min(1, j.fares / 10) * 10);
+  }
+
+  begin(fresh = false) {
     if (this.state !== 'ready') return;
+    if (fresh) this.clearSave();
     this.audio.start();
     this.audio.setVolume(this.settings.volume);
     this.menus.showStart(false);
@@ -237,6 +282,7 @@ export class Game {
     this.input.requestLock();
     this.hud.toast('WELCOME TO VISTA MAR', 'Twelve lost mixtapes are hidden around the city. Follow the pink beams.');
     setTimeout(() => this.state === 'playing' && this.hud.toast('NEED A RIDE?', 'A sports car is parked on Palm Boulevard right ahead. Walk up and press E.'), 4500);
+    if (!this.stats.passed && !this.story.done.size) setTimeout(() => this.state === 'playing' && this.hud.toast('MAKE A LIVING', 'Yellow markers start story missions. Cabs (T) and time trials (⚑ on the map) pay too.'), 11000);
   }
 
   pause() {
@@ -272,6 +318,12 @@ export class Game {
 
   restart() {
     if (this.driver.vehicle) this.driver.exit();
+    clearTimeout(this.autosaveTimer);
+    this.clearSave();
+    this.jobs.reset();
+    this.stats = newStats();
+    this.waypoint = null; this.waypointRoute = null;
+    this.weather.set('clear', true);
     this.story.reset();
     this.police.reset();
     this.traffic.reset();
@@ -286,7 +338,7 @@ export class Game {
     this.economy.reset();
     this.world.setTime(17.3);
     this.playTime = 0;
-    this.hud.toast('RESTARTED', 'Back at Palm Boulevard.');
+    this.hud.toast('NEW GAME', 'Back at Palm Boulevard with a clean slate.');
   }
 
   onKey(e) {
@@ -312,6 +364,7 @@ export class Game {
     this.events.emit('carjack', v);
     this.audio.grunt();
     this.driver.enter(v);
+    this.audio.radio.index < 0 || this.hud.radio(this.audio.radio.label);
   }
 
   /** A parked prop car becomes a real one once the lock is picked. */
@@ -338,6 +391,7 @@ export class Game {
   busted() {
     if (this.respawning) return;
     const fine = Math.min(this.money, Math.max(100, Math.round(this.money * 0.1)));
+    this.stats.busted++;
     this.endLife('BUSTED', `Fine: -$${fine.toLocaleString('en-US')} · released at VMPD headquarters`, POLICE_STATION, fine);
     this.audio.busted();
   }
@@ -346,6 +400,7 @@ export class Game {
     if (this.respawning) return;
     if (!this.player.vehicle) this.player.knocked = 2.6;
     const bill = Math.min(this.money, 250);
+    this.stats.wasted++;
     this.endLife('WASTED', `Hospital bill: -$${bill}`, HOSPITAL, bill);
     this.audio.busted();
   }
@@ -353,6 +408,7 @@ export class Game {
   endLife(title, sub, spawn, cost) {
     this.respawning = true;
     this.story.abort(title === 'BUSTED' ? 'You were busted.' : 'You were wasted.');
+    this.jobs.abort();
     this.hud.banner(title, sub, 'failed');
     this.hud.fade(true);
     setTimeout(() => {
@@ -382,14 +438,18 @@ export class Game {
   }
 
   save() {
-    const data = { v: 2, money: this.money, tapes: this.tapes.tapes.map((t) => t.collected), missions: [...this.story.done], time: this.world.timeOfDay, combat: this.combat.serialize(), econ: this.economy.serialize() };
-    try { localStorage.setItem('vistamar.save', JSON.stringify(data)); } catch { this.hud.toast('SAVE FAILED', 'This browser blocks local storage.'); }
+    const data = { v: 3, money: this.money, tapes: this.tapes.tapes.map((t) => t.collected), missions: [...this.story.done], time: this.world.timeOfDay, combat: this.combat.serialize(), econ: this.economy.serialize(), jobs: this.jobs.serialize(), stats: this.stats, playTime: Math.round(this.playTime) };
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); return true; } catch { if (!this.saveWarned) { this.saveWarned = true; this.hud.toast('SAVE FAILED', 'This browser blocks local storage.'); } return false; }
   }
 
   loadSave() {
     let data = null;
-    try { data = JSON.parse(localStorage.getItem('vistamar.save') || 'null'); } catch { data = null; }
-    if (!data || (data.v !== 1 && data.v !== 2)) return false;
+    try { data = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch { data = null; }
+    if (!data || !(data.v >= 1 && data.v <= 3)) return false;
+    if (typeof data.time === 'number') this.world.setTime(data.time);
+    if (data.playTime) this.playTime = data.playTime;
+    if (data.stats) this.stats = { ...newStats(), ...data.stats };
+    this.jobs.restore(data.jobs);
     this.money = data.money ?? this.money;
     this.hud.shownMoney = this.money;
     (data.tapes || []).forEach((c, i) => { const t = this.tapes.tapes[i]; if (t && c) { t.collected = true; t.mesh.visible = false; } });
@@ -412,12 +472,14 @@ export class Game {
       if (pl.kind === 'repair') add('Fuel & repairs', pl.name || 'Gas station', pl.x, pl.z, pl.icon, pl.color);
     }
     for (const pl of this.locations.places) if (pl.kind === 'food') add('Food', pl.name, pl.x, pl.z, pl.icon, pl.color);
+    for (const m of this.jobs.medals()) add('Activities', `Time trial: ${m.course.name}${m.best ? ` (${m.best.medal})` : ''}`, m.course.start.x, m.course.start.z, '⚑', '#3fe0e8');
+    add('Activities', 'Sunshine Cab stand (taxi shifts)', 305, -40, 'T', '#ffd23f');
     add('Safehouses', 'Safehouse (Palm Blvd)', this.locations.places[0].x, this.locations.places[0].z, 'H', '#7dff9b');
     for (const pl of E.places) if (pl.kind === 'property') add(E.owned.has(pl.prop.id) ? 'Your properties' : 'Properties for sale', pl.prop.name, pl.x, pl.z, '$', E.owned.has(pl.prop.id) ? '#ffd23f' : '#7dff9b');
     add('Services', 'Vista Mar Airport', 60, -470, '✈', '#9ad8ff');
     add('Services', 'VMPD Headquarters', 109, -60, 'P', '#4f7cff');
     add('Services', 'Hospital', 93, 150, '+', '#ff6b6b');
-    const order = ['Story missions', 'Shops & fun', 'Fuel & repairs', 'Food', 'Safehouses', 'Your properties', 'Properties for sale', 'Services'];
+    const order = ['Story missions', 'Activities', 'Shops & fun', 'Fuel & repairs', 'Food', 'Safehouses', 'Your properties', 'Properties for sale', 'Services'];
     return out.sort((a, b) => order.indexOf(a.cat) - order.indexOf(b.cat));
   }
 
@@ -429,10 +491,11 @@ export class Game {
 
   addMoney(v) {
     this.money += v;
+    if (v > 0) this.stats.earned += v; else this.stats.spent -= v;
   }
 
   markers() {
-    const out = [...this.locations.markers(), ...this.economy.markers(), ...this.vehicles.markers(this.player.pos), ...this.missions.markers(), ...this.story.startMarkers(), ...this.police.markers(), ...this.combat.markers()];
+    const out = [...this.locations.markers(), ...this.economy.markers(), ...this.vehicles.markers(this.player.pos), ...this.missions.markers(), ...this.story.startMarkers(), ...this.police.markers(), ...this.combat.markers(), ...(this.interior ? [] : this.jobs.markers())];
     for (const n of this.npcs.npcs) if (n.role && n.role !== 'actor' && n.state !== 'DOWN' && n.alerted) out.push({ x: n.pos.x, z: n.pos.z, color: n.role === 'cop' ? '#4f7cff' : '#ff4f4f', shape: 'dot', size: 4 });
     const obj = this.story.objective();
     if (obj && obj.target) out.push({ x: obj.target.x, z: obj.target.z, color: '#ffd23f', shape: 'diamond', size: 8, edge: true });
@@ -493,15 +556,18 @@ export class Game {
     this.npcs.update(dt);
     this.combat.update(dt);
     this.camera3p.update(dt);
+    this.weather.update(dt);
     this.world.update(dt, p.pos);
     this.missions.update(dt);
     this.story.update(dt);
     this.locations.update(dt);
     this.economy.update(dt);
     this.interiors.update(dt);
+    this.jobs.update(dt);
+    this.trackStats(dt);
     // interaction: places first, then pickups, then the nearest vehicle
-    const place = this.locations.current() || this.economy.current();
-    const usePlace = (pl) => (pl.kind && this.economy.places.includes(pl) ? this.economy.use(pl) : this.locations.use(pl));
+    const place = this.locations.current() || this.economy.current() || this.jobs.current();
+    const usePlace = (pl) => (pl.job ? this.jobs.use(pl) : pl.kind && this.economy.places.includes(pl) ? this.economy.use(pl) : this.locations.use(pl));
     if (!this.driver.vehicle) {
       const inside = !!this.interior;
       const it = place || inside ? null : this.missions.nearestInteractable(p.pos);
@@ -522,26 +588,29 @@ export class Game {
       this.hud.prompt(place ? place.label : '');
       if (this.input.hit('KeyE') && !this.cinematic) {
         if (place) usePlace(place);
-        else this.driver.exit();
+        else this.driver.exit(true);
         this.input.pressed.delete('KeyE');
       }
     }
     // objective: an active mission overrides the free-roam activity
     const obj = this.story.objective();
-    this.hud.setKicker(obj ? 'STORY MISSION' : this.police.level > 0 ? 'WANTED · LOSE THE COPS' : 'EXPLORE · VISTA MAR');
+    const job = obj ? null : this.jobs.objective();
+    this.hud.setKicker(obj ? 'STORY MISSION' : job ? job.kicker : this.police.level > 0 ? 'WANTED · LOSE THE COPS' : 'EXPLORE · VISTA MAR');
     if (obj) this.hud.setObjective(obj.text, obj.title, obj.timer);
+    else if (job) this.hud.setObjective(job.title, job.sub, job.timer);
     else this.hud.setObjective(this.tapes.objectiveTitle, this.tapes.objectiveSub, null, this.story.available().length ? 'Yellow markers on the radar start story missions.' : '');
     // GPS route to the mission target
     this.routeTimer -= dt;
     if (this.routeTimer <= 0) {
       this.routeTimer = 0.5;
-      const tg = obj && obj.target;
+      const tg = (obj && obj.target) || this.jobs.target();
       this.route = tg ? route({ x: p.pos.x, z: p.pos.z }, tg) : null;
       if (this.waypoint) {
         this.waypointRoute = route({ x: p.pos.x, z: p.pos.z }, this.waypoint);
         if (Math.hypot(p.pos.x - this.waypoint.x, p.pos.z - this.waypoint.z) < 12) { this.hud.toast('ARRIVED', this.waypoint.name, 'reward'); this.waypoint = null; this.waypointRoute = null; }
       }
       if (!this.route && this.waypointRoute) this.route = this.waypointRoute;
+      this.route = this.jobs.routeLine() || this.route;
     }
     // health: slow regeneration out of danger, wasted at zero
     if (p.health > 0 && p.health < 100 && this.playTime - this.lastDamage > 8 && this.police.level === 0) p.health = Math.min(100, p.health + dt * 1.5);
@@ -554,17 +623,41 @@ export class Game {
     windUniforms.uTime.value = this.world.elapsed;
     this.seagulls.update(dt);
     this.sunFlare.update(this.camera, this.world.sunDir);
+    if (this.weather.overcast > 0.45) this.sunFlare.flare.visible = false;
+    // car radio: R cycles the stations
+    const drv = this.driver.vehicle;
+    if (drv && !drv.isAircraft && this.input.hit('KeyR')) {
+      this.hud.radio(this.audio.radio.next());
+      this.settings.station = this.audio.radio.index;
+      saveSettings(this.settings);
+    }
     this.bloom.threshold = lerp(0.95, 0.82, this.world.night);
     // audio environment
     const c = classify(p.pos.x, p.pos.z);
     const oceanProx = Math.max(0, Math.min(1, 1 - (BEACH.oceanStart - p.pos.x) / 140));
     const dense = { downtown: 1, nightlife: 0.9, midtown: 0.8, apartments: 0.5, beach: 0.6, industrial: 0.55, residential: 0.25, park: 0.3, sand: 0.2 }[c.district] ?? 0.4;
-    this.audio.update(dt, { oceanProximity: oceanProx, cityDensity: dense, night: this.world.night, park: c.type === 'grass' ? 1 : 0 });
+    this.audio.update(dt, { oceanProximity: oceanProx, cityDensity: dense, night: this.world.night, park: c.type === 'grass' ? 1 : 0, rain: this.weather.rain, inCar: !!p.vehicle, indoors: !!this.interior });
     this.hud.update(dt);
-    this.minimap.drawRadar(p, this.camera3p.yaw, this.markers(), p.vehicle ? Math.max(0.45, 1.05 - p.speed * 0.012) : p.speed > 6 ? 0.85 : 1.1, {
+    // the radar is a 2D canvas redraw: every other frame is plenty and halves its CPU cost
+    this.radarTick = !this.radarTick;
+    if (this.radarTick) this.minimap.drawRadar(p, this.camera3p.yaw, this.markers(), p.vehicle ? Math.max(0.45, 1.05 - p.speed * 0.012) : p.speed > 6 ? 0.85 : 1.1, {
       route: this.route,
       search: this.police.level > 0 && !this.police.seen && this.police.lastKnown ? { ...this.police.lastKnown, r: this.police.searchRadius } : null,
     });
+    // periodic autosave while nothing is at stake
+    this.autosaveClock = (this.autosaveClock || 0) + dt;
+    if (this.autosaveClock > 90 && !this.story.active && !this.jobs.active && this.police.level === 0) { this.autosaveClock = 0; this.autosave(); }
+  }
+
+  trackStats(dt) {
+    const p = this.player, st = this.stats, v = p.vehicle;
+    const lp = this.lastStatPos || (this.lastStatPos = p.pos.clone());
+    const d = Math.hypot(p.pos.x - lp.x, p.pos.z - lp.z);
+    lp.copy(p.pos);
+    if (d > 0 && d < 90 * dt + 2) { // ignore teleports
+      if (!v) st.walked += d; else if (v.isAircraft) st.flown += d; else st.driven += d;
+    }
+    if (v && !v.isAircraft && v.kmh > st.topSpeed) st.topSpeed = v.kmh;
   }
 
   updateChunkVisibility() {
@@ -651,6 +744,11 @@ export class Game {
       'drive-night': () => game.stageDrive(21.8, 'police', 300, 60, Math.PI, true),
       'drive-day-ocean': () => game.stageDrive(12, 'sports', 400, 120, Math.PI),
       'explore-day': () => game.stage(11.5, 28, -15.4, Math.PI / 2),
+      'rain-day': () => { game.weather.set('rain', true); game.stageDrive(14, 'sports', 60, -8, Math.PI / 2); },
+      'rain-night': () => { game.weather.set('rain', true); game.stage(22.5, 300, -40, Math.PI); },
+      'cloudy-day': () => { game.weather.set('cloudy', true); game.stage(11.5, 28, -15.4, Math.PI / 2); },
+      'taxi-shift': () => { game.stageDrive(12, 'taxi', 300, -60, Math.PI); game.jobs.startTaxi(); for (let i = 0; i < 5; i++) game.update(1 / 60); },
+      'race-dash': () => { game.stageDrive(12, 'sports', 50, -100, Math.PI / 2); game.jobs.startRace(game.jobs.places[0].course); for (let i = 0; i < 230; i++) game.update(1 / 60); },
       'explore-night': () => game.stage(21.5, 28, -15.4, Math.PI / 2),
       'downtown-day': () => game.stage(13, 92, -100, Math.PI * 0.85),
       'neon-night': () => game.stage(22.5, 300, -40, Math.PI),
@@ -677,6 +775,7 @@ export class Game {
       look(dx, dy) { game.input.mouseDX += dx; game.input.mouseDY += dy; },
       teleport(x, z) { game.player.teleport(x, z); },
       setTime(h) { game.world.setTime(h); },
+      setWeather(k) { game.settings.weather = k === 'dynamic' ? 'dynamic' : k; game.weather.set(k === 'dynamic' ? 'clear' : k, true); return true; },
       breakdown() {
         game.updateChunkVisibility();
         const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(game.camera.projectionMatrix, game.camera.matrixWorldInverse));
@@ -753,6 +852,7 @@ export class Game {
     this.state = 'playing';
     this.input.enabled = true;
     this.playTime = 30;
+    this.jobs.abort();
     this.world.setTime(time);
     this.player.teleport(x, z);
     this.player.heading = heading;
@@ -782,6 +882,9 @@ export class Game {
       traffic: this.traffic ? { cars: this.traffic.cars.length, stopped: this.traffic.cars.filter((c) => c.speed < 0.3).length, turning: this.traffic.cars.filter((c) => c.turn).length } : null,
       vehicle: this.driver.vehicle ? { label: this.driver.vehicle.spec.label, kmh: this.driver.vehicle.kmh, health: this.driver.vehicle.health, heading: this.driver.vehicle.heading, slip: this.driver.vehicle.slip, gear: this.driver.vehicle.gear } : null,
       player: { x: this.player.pos.x, y: this.player.pos.y, z: this.player.pos.z, speed: this.player.speed, grounded: this.player.grounded, stamina: this.player.stamina, crouched: this.player.crouched, anim: this.player.rig?.currentName },
+      weather: { target: this.weather.target, overcast: this.weather.overcast, rain: this.weather.rain, wet: this.weather.wet },
+      job: this.jobs.taxi ? { kind: 'taxi', phase: this.jobs.taxi.phase, fares: this.jobs.taxi.fares, earned: this.jobs.taxi.earned, timer: this.jobs.taxi.timer } : this.jobs.race ? { kind: 'race', phase: this.jobs.race.phase, i: this.jobs.race.i, elapsed: this.jobs.race.elapsed } : null,
+      radio: this.audio.radio.label, completion: this.completion(), stats: this.stats,
       camera: { yaw: this.camera3p.yaw, pitch: this.camera3p.pitch, dist: this.camera3p.currentDist },
       pointerLock: this.input.locked, dragLook: this.input.dragLook,
       render: { calls: info.render.calls, triangles: info.render.triangles, geometries: info.memory.geometries, textures: info.memory.textures },

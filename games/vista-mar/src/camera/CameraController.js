@@ -122,7 +122,11 @@ export class CameraController {
     }
     const target = this._look.set(v.pos.x, v.pos.y + v.height + 0.35, v.pos.z);
     this.focus.copy(target);
-    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+    // hold C to look behind
+    const back = !v.isAircraft && input.down('KeyC');
+    const yaw = back ? v.heading + Math.PI : this.yaw;
+    if (back) this.lookIdle = 10;
+    const fx = Math.sin(yaw), fz = Math.cos(yaw);
     const want = v.halfL + 3.6 + (s.cameraDistance - 4.6) * 0.8 + Math.min(speed, 40) * 0.05 + (v.isAircraft ? 4 : 0);
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     const ex = target.x - fx * cp * want, ey = target.y + sp * want, ez = target.z - fz * cp * want;
@@ -134,7 +138,8 @@ export class CameraController {
     cy = Math.max(cy, terrainHeight(cx, cz) + 0.5);
     // impact shake
     this.shake = damp(this.shake, 0, 6, dt);
-    const sh = this.shake * 0.35;
+    const top = v.spec && v.spec.maxSpeed ? speed / v.spec.maxSpeed : 0;
+    const sh = this.shake * 0.35 + (v.isAircraft ? 0 : Math.max(0, top - 0.82) * 0.22); // flat-out rumble
     cx += (Math.random() - 0.5) * sh; cy += (Math.random() - 0.5) * sh; cz += (Math.random() - 0.5) * sh;
     this.camera.position.set(cx, cy - this.kickY, cz);
     this.camera.lookAt(target.x + fx * 3, target.y - 0.3, target.z + fz * 3);

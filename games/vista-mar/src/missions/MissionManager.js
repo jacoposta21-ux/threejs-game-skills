@@ -118,6 +118,7 @@ export class MissionManager {
   fail(reason) {
     const g = this.game;
     g.hud.banner('MISSION FAILED', reason, 'failed');
+    if (g.stats) g.stats.failed++;
     g.audio.missionFailed();
     if (this.active.onFail) this.active.onFail(this.ctx);
     this.cleanup();

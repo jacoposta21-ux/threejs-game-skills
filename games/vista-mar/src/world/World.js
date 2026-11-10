@@ -96,6 +96,7 @@ export class World {
     this.daySpeed = 24 / (16 * 60); // game hours per real second (16 min day)
     this.elapsed = 0;
     this.night = 0;
+    this.grip = 1;
     this.sunDir = new THREE.Vector3();
 
     // --- sky dome
@@ -261,24 +262,39 @@ export class World {
     u.stars.value = smoothstep(0.5, 1, this.night);
     u.groundColor.value.setRGB(col.hor[0] * 0.35, col.hor[1] * 0.4, col.hor[2] * 0.45);
 
+    // weather: clouds close in, colours drain toward grey, visibility drops in the rain
+    const wx = this.game.weather;
+    const oc = wx ? wx.overcast : 0, rain = wx ? wx.rain : 0, wet = wx ? wx.wet : 0, flash = wx ? wx.flash : 0;
+    this.grip = 1 - wet * 0.2;
+    u.cloudCover.value = lerp(0.42, 1.05, oc);
+    if (oc > 0) {
+      const grey = (c, k, dim) => { const l = (c.r * 0.3 + c.g * 0.5 + c.b * 0.2) * dim; c.r = lerp(c.r, l, k); c.g = lerp(c.g, l * 1.02, k); c.b = lerp(c.b, l * 1.08, k); };
+      grey(u.topColor.value, oc * 0.85, 0.75);
+      grey(u.horizonColor.value, oc * 0.8, 0.8);
+      grey(u.cloudColor.value, oc * 0.7, lerp(1, 0.55, oc));
+      u.sunColor.value.multiplyScalar(1 - oc * 0.75);
+      col.hor = [u.horizonColor.value.r, u.horizonColor.value.g, u.horizonColor.value.b];
+    }
+    if (flash > 0) { u.cloudColor.value.addScalar(flash * 0.6); u.horizonColor.value.addScalar(flash * 0.25); }
+
     this.scene.fog.color.setRGB(...col.hor);
-    const fogFar = lerp(1100, 650, this.night) * (this.game.settings.drawDistance || 1);
-    this.scene.fog.near = 90;
+    const fogFar = lerp(1100, 650, this.night) * (this.game.settings.drawDistance || 1) * (1 - rain * 0.4 - oc * 0.1);
+    this.scene.fog.near = lerp(90, 40, rain);
     this.scene.fog.far = fogFar;
 
     // lights
     const dayK = smoothstep(-0.04, 0.3, e);
     this.hemi.color.setRGB(...col.hemiSky);
     this.hemi.groundColor.setRGB(...col.hemiGround);
-    this.hemi.intensity = lerp(0.55, 1.1, dayK);
+    this.hemi.intensity = lerp(0.55, 1.1, dayK) * (1 - oc * 0.12) + flash * 1.6;
     const sunUp = e > -0.03;
     const lightDir = sunUp ? this.sunDir : moonDir;
     if (sunUp) {
       this.sun.color.setRGB(...col.sun);
-      this.sun.intensity = 3.3 * smoothstep(-0.03, 0.12, e);
+      this.sun.intensity = 3.3 * smoothstep(-0.03, 0.12, e) * (1 - oc * 0.72);
     } else {
       this.sun.color.setRGB(0.55, 0.65, 1.0);
-      this.sun.intensity = 0.45 * smoothstep(0.0, 0.2, moonDir.y);
+      this.sun.intensity = 0.45 * smoothstep(0.0, 0.2, moonDir.y) * (1 - oc * 0.6);
     }
     // shadow camera follows the focus point, snapped to texels to avoid shimmer
     const f = focus;
@@ -308,7 +324,7 @@ export class World {
       for (const m of nm.neon) m.emissiveIntensity = lerp(0.35, 3.2, n);
       for (const m of nm.lamps) m.emissiveIntensity = lerp(0, 4, smoothstep(0.3, 0.8, n));
       // evening humidity: streets get a slight sheen after dark
-      for (const m of this.city.wetMaterials) { const w = m.userData.wet || [0.82, 0.48]; m.roughness = lerp(w[0], w[1], smoothstep(0.4, 1, n)); }
+      for (const m of this.city.wetMaterials) { const w = m.userData.wet || [0.82, 0.48]; m.roughness = lerp(lerp(w[0], w[1], smoothstep(0.4, 1, n)), Math.min(w[1], 0.5) - 0.24, wet); }
       this.glowMat.opacity = smoothstep(0.3, 0.9, n) * 0.32;
       this.beaconMat.color.setRGB(4 * (0.5 + 0.5 * Math.sin(this.elapsed * 3)) * (0.2 + n), 0.15, 0.1);
       this.updateSignals(dt);
@@ -316,7 +332,8 @@ export class World {
 
     // environment reflections refresh every few seconds
     this.envTimer += dt;
-    if (this.envTimer > 4) {
+    if (this.envTimer > 4 || (this.envTimer > 1.5 && Math.abs(oc - (this.envOc ?? 0)) > 0.06)) {
+      this.envOc = oc;
       this.envTimer = 0;
       const rt = this.pmrem.fromScene(this.envScene, 0.02, 0.1, 100);
       if (this.envRT) this.envRT.dispose();

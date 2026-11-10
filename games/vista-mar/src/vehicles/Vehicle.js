@@ -174,7 +174,8 @@ export class Vehicle {
     this.steer = damp(this.steer, targetSteer, 9, dt);
     let targetYaw = (-this.steer * vf) / sp.wheelbase;
     // tyres can only deliver so much lateral acceleration: cap the yaw rate at speed
-    const latMax = sp.grip * 1.75 * (input.handbrake ? 2.3 : 1);
+    const wetK = this.system.game.world.grip ?? 1; // rain makes every car a little looser
+    const latMax = sp.grip * wetK * 1.75 * (input.handbrake ? 2.3 : 1);
     const yawCap = latMax / Math.max(4, Math.abs(vf));
     targetYaw = clamp(targetYaw, -yawCap, yawCap);
     if (input.handbrake && Math.abs(vf) > 4) targetYaw *= 1.35;
@@ -182,7 +183,7 @@ export class Vehicle {
 
     // lateral grip: velocity stays in world space while the body rotates, so the
     // sideways component that appears is bled off by tyre grip (low grip = drift)
-    const grip = input.handbrake ? sp.driftGrip : sp.grip * (1 - speedK * 0.35);
+    const grip = (input.handbrake ? sp.driftGrip : sp.grip * (1 - speedK * 0.35)) * wetK;
     vr *= Math.exp(-grip * dt);
     this.slip = Math.abs(vr);
     this.vel.set(fx * vf + rx * vr, fz * vf + rz * vr);

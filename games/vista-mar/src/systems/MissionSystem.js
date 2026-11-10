@@ -157,6 +157,7 @@ export class LostTapes {
     t.collected = true;
     t.mesh.visible = false;
     const g = this.game;
+    g.events.emit('tapeCollected', t);
     g.addMoney(this.reward);
     g.audio.pickup();
     const n = this.count;

@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 
-const DEFAULTS = { quality: 'medium', sensitivity: 1, invertY: false, cameraDistance: 4.6, fov: 68, volume: 0.8, dayMinutes: 16, showFps: false, drawDistance: 1, autoPerf: true };
+const DEFAULTS = { music: 0.6, weather: 'dynamic', station: 0, quality: 'medium', sensitivity: 1, invertY: false, cameraDistance: 4.6, fov: 68, volume: 0.8, dayMinutes: 16, showFps: false, drawDistance: 1, autoPerf: true };
 
 export function loadSettings() {
   let saved = {};
@@ -27,11 +27,22 @@ export class Menus {
     this.page = 'home';
 
     this.playBtn.addEventListener('click', () => { game.audio.click(); game.begin(); });
+    this.newBtn = $('newgame');
+    // starting over erases the save, so it takes a second click
+    this.newBtn.addEventListener('click', () => {
+      game.audio.click();
+      if (!this.newArmed) { this.newArmed = true; this.newBtn.textContent = 'Erase the save and start over?'; return; }
+      game.begin(true);
+    });
     this.pause.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => {
       game.audio.click();
       const a = b.dataset.action;
       if (a === 'resume') game.resume();
-      else if (a === 'restart') { game.restart(); game.resume(); }
+      else if (a === 'restart') {
+        if (!this.restartArmed) { this.restartArmed = true; b.textContent = 'Erase progress?'; setTimeout(() => { this.restartArmed = false; b.textContent = 'New game'; }, 3500); return; }
+        this.restartArmed = false; b.textContent = 'New game';
+        game.restart(); game.resume();
+      }
       else this.showPage(this.page === a ? 'home' : a);
     }));
     this.bindSettings();
@@ -45,6 +56,7 @@ export class Menus {
   ready() {
     $('loading').classList.add('hidden');
     this.playBtn.classList.remove('hidden');
+    if (this.game.hasSave()) { this.playBtn.textContent = 'Continue'; this.newBtn.classList.remove('hidden'); }
     this.playBtn.focus();
   }
 
@@ -57,15 +69,17 @@ export class Menus {
 
   showPage(name) {
     this.page = name;
-    for (const p of ['home', 'settings', 'controls']) $(`panel-${p}`).classList.toggle('hidden', p !== name);
+    for (const p of ['home', 'settings', 'controls', 'stats']) $(`panel-${p}`).classList.toggle('hidden', p !== name);
     this.pause.querySelectorAll('.menu-btn').forEach((b) => b.classList.toggle('active', b.dataset.action === name));
     if (name === 'settings') this.syncSettings();
+    if (name === 'stats') this.refreshFullStats();
   }
 
   refreshStats() {
     const g = this.game;
     const tapes = g.tapes;
     $('pause-stats').innerHTML = `
+      <div class="pct"><span>Completion</span><b>${g.completion()}%</b><i><u style="width:${g.completion()}%"></u></i></div>
       <div>Cash <b>$${g.money.toLocaleString('en-US')}</b></div>
       <div>Lost tapes <b>${tapes.count} / ${tapes.tapes.length}</b></div>
       <div>Story missions <b>${g.story.done.size} / ${g.story.defs.length}</b></div>
@@ -74,6 +88,31 @@ export class Menus {
       <div>Clock <b>${g.world.clockString}</b></div>
       <div>Graphics <b>${g.settings.quality} · auto level ${g.perfLevel || 0} · ${Math.round(g.measuredFps || 0)} fps</b></div>
       <div>GPU <b>${g.gpuName}</b></div>`;
+  }
+
+  refreshFullStats() {
+    const g = this.game, st = g.stats, j = g.jobs.records;
+    const km = (m) => `${(m / 1000).toFixed(1)} km`;
+    const cash = (v) => `$${Math.round(v).toLocaleString('en-US')}`;
+    const tm = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    const rows = [
+      ['Completion', `${g.completion()}%`],
+      ['Story missions', `${g.story.done.size} / ${g.story.defs.length}`],
+      ['Lost tapes', `${g.tapes.count} / ${g.tapes.tapes.length}`],
+      ['Properties owned', `${g.economy.owned.size} / 5`],
+      ...g.jobs.medals().map((m) => [`Time trial · ${m.course.name}`, m.best ? `${tm(m.best.time)} · ${m.best.medal}` : 'no medal yet']),
+      ['Taxi fares delivered', `${j.fares} (best streak x${j.bestStreak}, ${cash(j.taxiEarned)})`],
+      ['Money earned / spent', `${cash(st.earned)} / ${cash(st.spent)}`],
+      ['On foot / driven / flown', `${km(st.walked)} / ${km(st.driven)} / ${km(st.flown)}`],
+      ['Top speed', `${Math.round(st.topSpeed)} km/h`],
+      ['Cars taken', String(st.stolen)],
+      ['Missions passed / failed', `${st.passed} / ${st.failed}`],
+      ['Busted / wasted', `${st.busted} / ${st.wasted}`],
+      ['Time played', `${Math.floor(g.playTime / 3600)} h ${Math.floor((g.playTime % 3600) / 60)} min`],
+    ];
+    const box = $('stats-body');
+    box.innerHTML = '';
+    for (const [k, v] of rows) { const d = document.createElement('div'); const b = document.createElement('b'); d.textContent = k; b.textContent = v; d.appendChild(b); box.appendChild(d); }
   }
 
   showMap(v) {
@@ -157,6 +196,8 @@ export class Menus {
     on('set-dist', 'input', (t) => { s.cameraDistance = +t.value; });
     on('set-fov', 'input', (t) => { s.fov = +t.value; });
     on('set-vol', 'input', (t) => { s.volume = +t.value; g.audio.setVolume(s.volume); });
+    on('set-music', 'input', (t) => { s.music = +t.value; g.audio.radio.setVolume(s.music); });
+    on('set-weather', 'change', (t) => { s.weather = t.value; });
     on('set-day', 'change', (t) => { s.dayMinutes = +t.value; g.applyDaySpeed(); });
     on('set-time', 'input', (t) => { g.world.setTime(+t.value); });
     on('set-fps', 'change', (t) => { s.showFps = t.checked; });
@@ -172,6 +213,8 @@ export class Menus {
     $('set-dist').value = s.cameraDistance; $('val-dist').textContent = `${s.cameraDistance.toFixed(1)} m`;
     $('set-fov').value = s.fov; $('val-fov').textContent = `${s.fov}°`;
     $('set-vol').value = s.volume; $('val-vol').textContent = `${Math.round(s.volume * 100)}%`;
+    $('set-music').value = s.music; $('val-music').textContent = `${Math.round(s.music * 100)}%`;
+    $('set-weather').value = s.weather;
     $('set-day').value = String(s.dayMinutes);
     $('set-time').value = this.game.world.timeOfDay.toFixed(1); $('val-time').textContent = this.game.world.clockString;
     $('set-fps').checked = s.showFps;

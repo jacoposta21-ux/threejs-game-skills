@@ -85,13 +85,22 @@ export class VehicleController {
     this.game.camera3p.enterVehicle(v);
     if (v.kind === 'heli') this.game.hud.toast(v.spec.label.toUpperCase(), 'Space climb · Shift descend · W/S tilt forward/back · A/D turn · E exit');
     else if (v.kind === 'plane') this.game.hud.toast(v.spec.label.toUpperCase(), 'W throttle up · S throttle down/brake · A/D bank · Space pull up (take off above 110 km/h) · Shift nose down · E exit');
-    else this.game.hud.toast(v.spec.label.toUpperCase(), 'W/S drive · A/D steer · Space handbrake · L lights · H horn · E exit');
+    else this.game.hud.toast(v.spec.label.toUpperCase(), 'W/S drive · A/D steer · Space handbrake · R radio · C look back · E exit');
+    // the radio comes on with the engine, on the station you left it on
+    const g = this.game;
+    if (!v.isAircraft && g.audio.ctx) {
+      g.audio.radio.setVolume(g.settings.music ?? 0.6);
+      g.audio.radio.tune(g.settings.station ?? 0);
+      if (g.audio.radio.index >= 0) setTimeout(() => this.vehicle === v && g.hud.radio(g.audio.radio.label), 900);
+    }
   }
 
-  exit() {
+  /** byPlayer: the driver chose to get out (jumping from a moving car hurts). */
+  exit(byPlayer = false) {
     const v = this.vehicle;
     if (!v) return;
     const p = this.game.player;
+    this.game.audio.radio.stop();
     // pick the driver door, or the other side if blocked
     let door = v.doorPoint(1);
     const col = this.game.collision;
@@ -120,6 +129,16 @@ export class VehicleController {
     this.game.audio.engineStop();
     this.game.audio.rotor(false);
     this.game.camera3p.exitVehicle(v);
+    // bailing out at speed: tumble along with the car's momentum
+    const sp = Math.abs(v.speed);
+    if (byPlayer && !v.isAircraft && sp > 7) {
+      p.knocked = 1.3 + Math.min(1.2, sp * 0.04);
+      p.vel.set(v.vel.x * 0.55, 2.6, v.vel.y * 0.55);
+      p.grounded = false;
+      this.game.damagePlayer((sp - 7) * 1.5);
+      this.game.audio.thud(Math.min(1, sp / 20));
+      this.game.camera3p.kick(0.25);
+    }
   }
 
   update(dt) {
@@ -138,7 +157,7 @@ export class VehicleController {
       p.pos.copy(v.pos); p.heading = v.heading; p.speed = v.kmh / 3.6; p.group.position.copy(v.pos);
       if (p.rig) p.rig.update(dt);
       this.game.audio.rotor(true, v.rpm * (v.kind === 'plane' ? 0.4 + v.power * 0.6 : 0.6 + Math.min(1, v.kmh / 120) * 0.4));
-      if (inp.hit('KeyF')) this.exit();
+      if (inp.hit('KeyF')) this.exit(true);
       return;
     }
     if (inp.hit('KeyL')) v.headlights = !v.headlights;
@@ -157,6 +176,6 @@ export class VehicleController {
     // stamina recovers while driving
     p.stamina = Math.min(100, p.stamina + 14 * dt);
     this.game.audio.engine(v, throttle, dt);
-    if (inp.hit('KeyF')) this.exit();
+    if (inp.hit('KeyF')) this.exit(true);
   }
 }

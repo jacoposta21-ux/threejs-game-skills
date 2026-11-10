@@ -310,6 +310,7 @@ export class Economy {
     this.game.addMoney(total);
     this.game.hud.toast('PROPERTY INCOME', `+$${total.toLocaleString('en-US')} from your businesses`, 'reward');
     this.game.audio.cash();
+    this.game.events.emit('payday', total);
   }
 
   bribe() {

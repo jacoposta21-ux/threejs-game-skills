@@ -54,6 +54,7 @@
         </div>
         <div class="vh-cond"><span>CONDITION</span><div class="bar"><div id="vh-health" class="fill health"></div></div></div>
         <div class="vh-cond"><span>FUEL</span><div class="bar"><div id="vh-fuel" class="fill fuel"></div></div></div>
+        <div id="radio-pill" class="hidden"><span class="radio-ico">♪</span><span id="radio-name"></span></div>
         <div class="vh-ind">
           <span id="ind-lights">LIGHTS</span><span id="ind-brake">BRAKE</span><span id="ind-drift">DRIFT</span><span id="ind-siren">SIREN</span>
         </div>
@@ -72,6 +73,7 @@
       <div id="look-hint" class="hidden">Click the game to control the camera with the mouse</div>
       <div id="stance"></div>
       <div id="fps" class="hidden"></div>
+      <div id="saved">● Saved</div>
     </div>
 
     <!-- Story cutscene: letterbox with dialogue lines (or an optional MP4) -->
@@ -117,17 +119,19 @@
           <div id="load-text">Loading…</div>
         </div>
         <button id="play" class="btn primary hidden">Play</button>
+        <button id="newgame" class="btn hidden">New game</button>
         <div class="start-controls">
           <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span>
           <span><kbd>Mouse</kbd> look</span>
           <span><kbd>Shift</kbd> sprint</span>
           <span><kbd>Space</kbd> jump</span>
           <span><kbd>C</kbd> crouch</span>
-          <span><kbd>E</kbd> interact / enter car</span>
-          <span><kbd>F</kbd> exit car</span>
+          <span><kbd>E</kbd> interact / enter-exit car</span>
           <span><kbd>LMB</kbd> punch / fire</span>
           <span><kbd>RMB</kbd> kick / aim</span>
-          <span><kbd>1</kbd>-<kbd>5</kbd> <kbd>Tab</kbd> weapons</span>
+          <span><kbd>1</kbd>-<kbd>6</kbd> <kbd>Tab</kbd> weapons</span>
+          <span><kbd>R</kbd> reload / car radio</span>
+          <span><kbd>T</kbd> taxi shift (in a cab)</span>
           <span><kbd>B</kbd> bribe</span>
           <span><kbd>M</kbd> map</span>
           <span><kbd>Esc</kbd> pause</span>
@@ -144,7 +148,8 @@
           <button class="btn menu-btn" data-action="resume">Resume</button>
           <button class="btn menu-btn" data-action="settings">Settings</button>
           <button class="btn menu-btn" data-action="controls">Controls</button>
-          <button class="btn menu-btn" data-action="restart">Restart</button>
+          <button class="btn menu-btn" data-action="stats">Stats</button>
+          <button class="btn menu-btn" data-action="restart">New game</button>
         </div>
         <div class="menu-body">
           <section id="panel-settings" class="panel-page hidden">
@@ -157,6 +162,10 @@
             <label>Camera distance <span id="val-dist"></span><input id="set-dist" type="range" min="2.2" max="9" step="0.1" /></label>
             <label>Field of view <span id="val-fov"></span><input id="set-fov" type="range" min="55" max="90" step="1" /></label>
             <label>Volume <span id="val-vol"></span><input id="set-vol" type="range" min="0" max="1" step="0.05" /></label>
+            <label>Radio music <span id="val-music"></span><input id="set-music" type="range" min="0" max="1" step="0.05" /></label>
+            <label>Weather
+              <select id="set-weather"><option value="dynamic">Dynamic</option><option value="clear">Always clear</option><option value="cloudy">Overcast</option><option value="rain">Rain</option></select>
+            </label>
             <label>Day length
               <select id="set-day"><option value="0">Frozen</option><option value="32">32 min</option><option value="16">16 min</option><option value="6">6 min</option></select>
             </label>
@@ -179,18 +188,25 @@
               <tr><td><kbd>Left click</kbd></td><td>Punch (combo) · swing bat · fire</td></tr>
               <tr><td><kbd>Right click</kbd> / <kbd>V</kbd></td><td>Kick · hold right click to aim a gun</td></tr>
               <tr><td><kbd>R</kbd></td><td>Reload</td></tr>
-              <tr><td><kbd>1</kbd>-<kbd>5</kbd> / <kbd>Tab</kbd></td><td>Select / cycle weapons</td></tr>
+              <tr><td><kbd>1</kbd>-<kbd>6</kbd> / <kbd>Tab</kbd></td><td>Select / cycle weapons</td></tr>
               <tr><td><kbd>B</kbd></td><td>Call Officer Haskins: pay to lose the stars (when unseen)</td></tr>
               <tr><td><kbd>Space</kbd> <kbd>Shift</kbd></td><td>Helicopter: climb / descend · Plane: nose up / down</td></tr>
               <tr><td><kbd>W</kbd> <kbd>S</kbd></td><td>Driving: accelerate · brake / reverse</td></tr>
               <tr><td><kbd>A</kbd> <kbd>D</kbd></td><td>Driving: steer</td></tr>
               <tr><td><kbd>Space</kbd></td><td>Driving: handbrake (drift)</td></tr>
-              <tr><td><kbd>F</kbd></td><td>Exit vehicle</td></tr>
+              <tr><td><kbd>E</kbd> / <kbd>F</kbd></td><td>Exit vehicle (jumping out at speed hurts)</td></tr>
+              <tr><td><kbd>R</kbd></td><td>Driving: next radio station (the last one is off)</td></tr>
+              <tr><td><kbd>C</kbd></td><td>Driving: hold to look behind</td></tr>
+              <tr><td><kbd>T</kbd></td><td>In a Sunshine Cab: start / end a taxi shift</td></tr>
               <tr><td><kbd>L</kbd> / <kbd>H</kbd></td><td>Headlights · horn (siren in police cars)</td></tr>
               <tr><td><kbd>M</kbd></td><td>City map</td></tr>
               <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
             </table>
             <p class="note">If the mouse cannot be captured (some embedded previews), hold the left mouse button and drag to look.</p>
+          </section>
+          <section id="panel-stats" class="panel-page hidden">
+            <h2>Stats</h2>
+            <div id="stats-body"></div>
           </section>
           <section id="panel-home" class="panel-page">
             <h2>Paused</h2>

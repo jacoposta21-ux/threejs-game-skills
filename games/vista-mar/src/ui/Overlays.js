@@ -163,6 +163,7 @@ export class ShopMenu {
     if (it.price) g.addMoney(-it.price);
     g.hud.shownMoney = g.money;
     g.audio.cash();
+    if (it.price) g.events.emit('purchase', it);
     if (it.closeAfter) { this.close(); return; }
     this.render();
   }
