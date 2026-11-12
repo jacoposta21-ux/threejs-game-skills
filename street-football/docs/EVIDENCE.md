@@ -1,5 +1,20 @@
 # Verification evidence
 
+## v1.8.0 — goalkeeper
+
+`node tools/qa/keepercheck.mjs` (36 shots from varied positions, powers and aims, through the real controller):
+
+| Outcome | Count |
+| --- | --- |
+| Goals | 16 |
+| Saves (catch or parry) | 11 |
+| Blocked by the keeper's body or went wide, with no save called | 9 |
+
+- **Every planned save made contact.** All 11 shots the keeper was meant to save were stopped at a glove or the body. Before the fix to the save geometry, planned saves were being missed because the keeper was still travelling when the ball arrived.
+- **Ball-to-glove distance when stopped:** 0.23–0.34 m for the 9 glove saves (the hand bone sits inside the glove; ball radius 0.11 m), and 2 saves with the body. The old rule allowed up to about 1.15 m.
+
+Dive frame rows were inspected: stretched body, landing flat, getting up.
+
 ## v1.7.1 — recorded audio, night courts relit
 
 **Audio.** Six sounds now load CC0 recordings over the synthesised versions: hard kick, soft kick, touch, kickboard, post, and applause under the goal cheer. In Chromium all six decode, both from the dev server and from the single-file build opened from disk. The leading MP3 padding is trimmed so impacts are not delayed. The six files add 60 KB.

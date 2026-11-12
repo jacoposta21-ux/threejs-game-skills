@@ -3,7 +3,15 @@ import { BALL, COURT, KEEPER } from '../config.js';
 import { CLIP_EVENTS } from '../animation/FootballClips.js';
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-const easeOut = (t) => 1 - (1 - t) * (1 - t);
+const smooth = (t) => {
+  const k = THREE.MathUtils.clamp(t, 0, 1);
+  return k * k * (3 - 2 * k);
+};
+// Feet-to-gloves length of a fully stretched keeper, and how close the ball must come to a glove to be saved.
+const STRETCH = 1.95;
+const GLOVE = 0.34;
+const _h = new THREE.Vector3();
+const _h2 = new THREE.Vector3();
 
 /**
  * Finite-state goalkeeper. `side` is the sign of the defended goal's X.
@@ -44,6 +52,11 @@ export class KeeperAI {
     this.k.anim.stopAll();
     this.k.anim.setOverlay('Keeper_Ready', { fade: 0.01 });
     this.k.setGhost(false);
+    this.k.reach = null;
+    this.k.roll = 0;
+    this.k.lift = 0;
+    this.vel = new THREE.Vector3();
+    this.heldAt = null;
   }
 
   setState(state) {
@@ -51,9 +64,16 @@ export class KeeperAI {
     this.stateTime = 0;
   }
 
+  /** Where a held ball sits: in the gloves during a diving catch, then gathered in to the chest. */
   holdPoint() {
-    const f = this.k.facing(new THREE.Vector3());
-    return new THREE.Vector3(this.k.position.x + f.x * 0.38, 1.0, this.k.position.z + f.z * 0.38);
+    const k = this.k;
+    const f = k.facing(new THREE.Vector3());
+    const chest = new THREE.Vector3(k.position.x + f.x * 0.38, 1.0 + k.lift, k.position.z + f.z * 0.38);
+    const inGloves = this.state === 'dive' || this.state === 'down';
+    const target = inGloves ? k.handWorld('l', _h).add(k.handWorld('r', _h2)).multiplyScalar(0.5) : chest;
+    if (!this.heldAt) this.heldAt = target.clone();
+    else this.heldAt.lerp(target, inGloves ? 0.5 : 0.12);
+    return this.heldAt.clone();
   }
 
   concede() {
@@ -78,6 +98,7 @@ export class KeeperAI {
     this.setState('beaten');
     this.k.roll = 0;
     this.k.lift = 0;
+    this.k.reach = null;
     this.k.anim.stopAll();
     this.k.anim.setOverlay('Dejected', { fade: 0.3 });
   }
@@ -136,24 +157,29 @@ export class KeeperAI {
     const dz = tz - k.position.z;
     const gap = Math.hypot(dx, dz);
     const faceBall = Math.atan2(b.x - k.position.x, b.z - k.position.z);
-    let targetSpeed = 0;
-    let desired = faceBall;
-    if (gap > 0.35) {
-      targetSpeed = Math.min(rushing ? KEEPER.moveSpeed * 1.35 : KEEPER.moveSpeed, gap * 3.2);
-      desired = Math.atan2(dx, dz);
-    }
+    // Short adjustments are shuffled sideways with the eyes on the ball; only a
+    // long way to go (rushing out, getting back) is run facing the way he moves.
+    const running = gap > (this.running ? 1.0 : 1.8);
+    this.running = running;
+    const top = rushing ? KEEPER.moveSpeed * 1.35 : running ? KEEPER.moveSpeed : KEEPER.moveSpeed * 0.72;
+    const want = gap > 0.06 ? Math.min(top, gap * 4) : 0;
+    _h.set(dx, 0, dz);
+    if (gap > 1e-4) _h.multiplyScalar(want / gap);
+    // Velocity eases toward the target: no instant starts or stops.
+    const accel = 1 - Math.exp(-dt * (running ? 7 : 9));
+    this.vel.lerp(_h, accel);
+    k.position.addScaledVector(this.vel, dt);
+    k.velocity.copy(this.vel);
+    const moving = this.vel.length();
+    const desired = running && moving > 0.6 ? Math.atan2(this.vel.x, this.vel.z) : faceBall;
     const diff = wrap(desired - k.heading);
-    k.heading = wrap(k.heading + THREE.MathUtils.clamp(diff, -9 * dt, 9 * dt));
-    // Only move once roughly facing the move direction: feet always carry the body.
-    const aligned = Math.cos(diff) > 0.7;
-    const want = aligned ? targetSpeed : 0;
-    k.speed += THREE.MathUtils.clamp(want - k.speed, -14 * dt, 10 * dt);
-    const f = k.facing(new THREE.Vector3());
-    k.position.addScaledVector(f, k.speed * dt);
-    k.velocity.copy(f).multiplyScalar(k.speed);
-    // Stance overlay only when settled.
-    if (k.speed < 0.3 && gap <= 0.35) k.anim.setOverlay('Keeper_Ready', { fade: 0.2 });
-    else if (k.speed > 0.5) k.anim.setOverlay(null, { fade: 0.15 });
+    k.heading = wrap(k.heading + THREE.MathUtils.clamp(diff, -7 * dt, 7 * dt) * Math.min(1, Math.abs(diff) * 2 + 0.25));
+    // Running uses the run cycle; shuffling keeps the ready stance with quick small steps.
+    k.speed = running ? moving : 0;
+    if (running && moving > 0.8) k.anim.setOverlay(null, { fade: 0.18 });
+    else k.anim.setOverlay('Keeper_Ready', { fade: 0.22 });
+    this.shuffle = (this.shuffle ?? 0) + moving * dt * 5.5;
+    k.lift = running ? 0 : 0.035 * Math.abs(Math.sin(this.shuffle)) * Math.min(1, moving / 1.2);
 
     // Loose ball in the area: claim it.
     const near = Math.hypot(b.x - k.position.x, b.z - k.position.z);
@@ -183,7 +209,11 @@ export class KeeperAI {
     const onTarget = Math.abs(zc) < COURT.goalHalfWidth + 0.15 && yc < COURT.goalHeight + 0.2;
     if (!onTarget) return;
     const k = this.k;
-    const lateral = zc - k.position.z;
+    // The save is made where the keeper stands, in front of the line: the ball gets there earlier and less far across.
+    const tKeep = Math.max(0.02, (this.side * (k.position.x - this.side * 0.2 - p.x)) / vIn);
+    const zk = p.z + v.z * tKeep;
+    const yk = Math.max(BALL.radius, p.y + v.y * tKeep - 4.9 * tKeep * tKeep);
+    const lateral = zk - k.position.z;
     const reach = Math.abs(lateral);
     const speed = v.length();
     let chance = KEEPER.saveChance[this.difficulty] ?? KEEPER.saveChance.normal;
@@ -194,17 +224,23 @@ export class KeeperAI {
     // Facing a Gamebreaker: the keeper is a spectator.
     if (this.debuff) chance -= this.debuff;
     const success = this.rng() < THREE.MathUtils.clamp(chance, 0.05, 0.95);
-    const reaction = KEEPER.reactionTime * (this.difficulty === 'hard' ? 0.75 : this.difficulty === 'easy' ? 1.35 : 1);
+    let reaction = KEEPER.reactionTime * (this.difficulty === 'hard' ? 0.75 : this.difficulty === 'easy' ? 1.35 : 1);
     // A beaten keeper guesses wrong or goes late.
     const errZ = success ? 0 : (this.rng() < 0.5 ? -1 : 1) * this.rng.range(0.55, 1.0);
+    if (!success && this.rng() < 0.5) reaction += 0.12;
+    // The save is timed to the ball: the gloves get to the crossing point as it arrives.
+    reaction = Math.min(reaction, Math.max(0.03, tKeep - 0.24));
     this.plan = {
       at: time + reaction,
-      zc: zc + errZ,
-      yc,
+      arrive: time + tKeep,
+      // Arrive a touch early so the gloves are set when the ball gets there.
+      move: Math.max(0.16, tKeep - reaction - 0.03),
+      zc: zk + errZ,
+      yc: yk,
       success,
       catchable: success && speed < 20 && this.rng() < 0.6,
       side: Math.sign(lateral + errZ) || 1,
-      needsDive: reach > 0.45 || yc > 1.6,
+      needsDive: reach + Math.abs(errZ) * 0 > 0.55 || yc > 1.7,
     };
     this.setState('dive');
     this.k.speed = 0;
@@ -217,92 +253,142 @@ export class KeeperAI {
       this.setState('set');
       return;
     }
+    // Square up to the pitch smoothly (no snap), arms already going to the ball.
+    const turn = wrap(this.fieldHeading - k.heading);
+    k.heading = wrap(k.heading + THREE.MathUtils.clamp(turn, -11 * dt, 11 * dt));
+    k.reach = plan.resolved && !plan.caught ? null : { target: this.ball.mesh.position, w: plan.started ? 1 : 0.35 };
     if (!plan.started) {
-      // Reaction delay: hold the set position, face play.
+      // Reaction: the last of the shuffle bleeds off, weight drops ready to spring.
+      this.vel.multiplyScalar(Math.exp(-dt * 10));
+      k.position.addScaledVector(this.vel, dt);
+      k.lift *= Math.exp(-dt * 14);
       if (time < plan.at) return;
       plan.started = true;
       plan.startZ = k.position.z;
       plan.startX = k.position.x;
       plan.t = 0;
-      k.heading = this.fieldHeading;
+      // Geometry of the save. A stretched keeper is STRETCH long from feet to gloves:
+      // tip the body over by `roll` and slide / spring the feet so the gloves land on the ball's path.
+      const need = plan.zc - plan.startZ;
+      const dir = Math.sign(need) || plan.side;
+      const dist = Math.abs(need);
       if (plan.needsDive) {
-        k.anim.setOverlay(null, { fade: 0.05 });
-        k.anim.play('Keeper_Dive', { fadeIn: 0.08 });
+        const yHands = THREE.MathUtils.clamp(plan.yc, 0.25, 2.6);
+        // Roll that puts the gloves at the ball's height (lower ball → flatter dive).
+        let roll = Math.acos(THREE.MathUtils.clamp(yHands / STRETCH, 0.12, 1));
+        // Not far to go: stay more upright and spring up instead.
+        const maxRoll = Math.asin(THREE.MathUtils.clamp(dist / STRETCH + 0.25, 0, 1));
+        roll = Math.min(roll, Math.max(0.35, maxRoll));
+        plan.roll = roll;
+        plan.dir = dir;
+        plan.travel = THREE.MathUtils.clamp(dist - STRETCH * Math.sin(roll), -0.3, KEEPER.diveReach) * dir;
+        plan.lift = THREE.MathUtils.clamp(yHands - STRETCH * Math.cos(roll), 0, 0.85);
+        k.anim.setOverlay(null, { fade: 0.08 });
+        k.anim.play('Keeper_Dive', { fadeIn: 0.1 });
         k.anim.holdOneShot(true);
+      } else {
+        // Within a step: move across and take it standing (jump for a high one).
+        plan.roll = 0;
+        plan.dir = dir;
+        plan.travel = need;
+        plan.lift = THREE.MathUtils.clamp(plan.yc - 1.9, 0, 0.5);
       }
       this.events.emit('keeperDive', { keeper: k });
     }
     plan.t += dt;
-    const t = Math.min(1, plan.t / KEEPER.diveTime);
-    const reachZ = THREE.MathUtils.clamp(plan.zc - plan.startZ, -KEEPER.diveReach, KEEPER.diveReach);
-    k.position.z = plan.startZ + reachZ * easeOut(t);
-    k.position.x = plan.startX - this.side * 0.25 * easeOut(t);
+    const t = Math.min(1, plan.t / plan.move);
+    // Push off, fly, arrive: eased at both ends.
+    const e = smooth(t);
+    k.position.z = plan.startZ + plan.travel * e;
+    k.position.x = plan.startX - this.side * 0.25 * e;
     if (plan.needsDive) {
-      // Roll toward the dive side; rise for high balls, land by the end.
       // Positive roll falls to the keeper's own left, which is world +Z * side.
-      const dir = Math.sign(reachZ) || plan.side;
-      k.roll = dir * this.side * 1.35 * easeOut(Math.min(1, t * 1.6));
-      const peak = THREE.MathUtils.clamp((plan.yc - 0.9) * 0.6, 0, 0.75);
-      k.lift = Math.sin(Math.min(1, t) * Math.PI) * peak;
+      k.roll = plan.dir * this.side * plan.roll * smooth(Math.min(1, t * 1.25));
+      // Up through the save, then down onto the ground after it.
+      const after = Math.max(0, plan.t - plan.move) / 0.28;
+      k.lift = plan.lift * Math.sin(Math.min(1, t) * Math.PI * 0.5) * (1 - smooth(after));
+      // Landing: the body settles flat.
+      if (after > 0) k.roll = plan.dir * this.side * THREE.MathUtils.lerp(plan.roll, 1.4, smooth(after));
+    } else {
+      k.lift = plan.lift * Math.sin(Math.min(1, t) * Math.PI);
     }
     this.checkSave(time);
-    if (t >= 1) {
-      this.setState(plan.needsDive ? 'down' : 'set');
-      if (!plan.needsDive) this.plan = null;
+    const done = plan.needsDive ? plan.t >= plan.move + 0.28 : t >= 1 && time > plan.arrive + 0.12;
+    if (done) {
+      if (!plan.needsDive) {
+        k.reach = null;
+        const caught = plan.caught;
+        this.plan = null;
+        this.vel.set(0, 0, 0);
+        if (this.pendingConcede) this.enterBeaten();
+        else this.setState(caught ? 'hold' : 'set');
+        return;
+      }
+      plan.roll0 = k.roll;
+      this.setState('down');
     }
   }
 
-  /** When the ball arrives at the gloves on a planned save, catch or parry it. */
+  /** A planned save only happens when the ball actually reaches a glove (or the body). */
   checkSave(time) {
     const plan = this.plan;
-    if (!plan || !plan.success || plan.resolved) return;
+    if (!plan || !plan.success || plan.resolved || !plan.started) return;
     const b = this.ball.position;
     const k = this.k;
-    const hands = new THREE.Vector3(k.position.x, 0.9 + k.lift, k.position.z);
-    if (plan.needsDive) hands.z += Math.sign(k.position.z - plan.startZ) * 0.6;
-    const d = Math.hypot(b.x - hands.x, (b.y - Math.min(plan.yc, 2)) * 0.6, b.z - hands.z);
-    if (d > 1.15 || this.side * (k.position.x - b.x) > 1.2) return;
+    const dl = k.handWorld('l', _h).distanceTo(b);
+    const dr = k.handWorld('r', _h2).distanceTo(b);
+    // Chest / stomach: a ball straight at him is smothered.
+    const body = Math.hypot(b.x - k.position.x, b.z - k.position.z) < 0.45 && b.y < 1.6 + k.lift && Math.abs(k.roll) < 0.5;
+    plan.closest = Math.min(plan.closest ?? 9, dl, dr);
+    if (Math.min(dl, dr) > GLOVE && !body) return;
     plan.resolved = true;
+    plan.contact = body ? 0 : Math.min(dl, dr);
+    plan.byBody = body;
     if (plan.catchable) {
       this.catchBall(true);
       return;
     }
-    // Parry: push the ball wide and back into play.
+    // Parry: off the glove, wide and back into play.
     const v = this.ball.velocity;
-    const out = new THREE.Vector3(-this.side * (Math.abs(v.x) * 0.32 + 2), 2.5 + this.rng() * 2.5, (Math.sign(b.z) || 1) * (3 + this.rng() * 4));
+    const out = new THREE.Vector3(-this.side * (Math.abs(v.x) * 0.32 + 2), 2.5 + this.rng() * 2.5, (plan.dir || Math.sign(b.z) || 1) * (3 + this.rng() * 4));
     this.ball.kick(out, new THREE.Vector3(0, 0, 0), k, time);
-    this.events.emit('save', { keeper: k, type: 'parry' });
+    this.events.emit('save', { keeper: k, type: 'parry', contact: plan.contact });
   }
 
   catchBall(fromShot) {
     const owner = this.match?.owner;
     if (owner) owner.losePossession('stolen');
+    this.heldAt = this.ball.position.clone();
     this.ball.hold(this);
-    this.events.emit('save', { keeper: this.k, type: fromShot ? 'catch' : 'claim' });
-    if (this.state === 'dive' && this.plan?.needsDive) {
+    this.events.emit('save', { keeper: this.k, type: fromShot ? 'catch' : 'claim', contact: this.plan?.contact });
+    if (this.state === 'dive' && this.plan) {
       this.plan.caught = true;
-      return; // finish the dive, then get up holding the ball
+      return; // finish the save, then gather the ball
     }
     this.setState('hold');
     this.k.speed = 0;
     this.k.anim.setOverlay('Keeper_Ready', { fade: 0.2 });
   }
 
-  updateDown(dt) {
+  updateDown() {
     const k = this.k;
-    if (this.stateTime > 0.75) {
-      // Get up: unroll over 0.4 s.
-      const t = Math.min(1, (this.stateTime - 0.75) / 0.4);
-      k.roll *= 1 - t;
-      k.lift *= 1 - t;
+    const plan = this.plan;
+    // A moment on the floor, then up in one smooth movement.
+    const lie = plan?.caught ? 0.35 : 0.55;
+    if (this.stateTime > lie) {
+      k.reach = plan?.caught ? k.reach : null;
+      const t = smooth((this.stateTime - lie) / 0.5);
+      k.roll = (plan?.roll0 ?? k.roll) * (1 - t);
+      k.lift = 0;
       if (t >= 1) {
         k.roll = 0;
-        k.lift = 0;
+        k.reach = null;
         k.anim.holdOneShot(false);
         k.anim.stopAll();
-        k.anim.setOverlay('Keeper_Ready', { fade: 0.15 });
-        const caught = this.plan?.caught;
+        k.anim.setOverlay('Keeper_Ready', { fade: 0.25 });
+        const caught = plan?.caught;
         this.plan = null;
+        this.vel.set(0, 0, 0);
         if (this.pendingConcede) this.enterBeaten();
         else this.setState(caught ? 'hold' : 'set');
       }

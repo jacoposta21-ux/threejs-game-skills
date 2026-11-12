@@ -3,7 +3,7 @@
 ## Build the upload
 
 ```bash
-npm run package        # production build + checks → release/rua10-crazygames-v1.7.1.zip
+npm run package        # production build + checks → release/rua10-crazygames-v1.8.0.zip
 ```
 
 The zip holds `dist/` with `index.html` at the root (33 files, 2.94 MB compressed). The script fails if the build contains source maps, `localhost` references, or absolute asset paths. Every path is relative (`base: './'`), so it runs from any CDN folder.
@@ -78,7 +78,7 @@ On touch: stick and on-screen buttons.
 
 ## Still to do in the CrazyGames portal (needs your account)
 
-1. Upload `release/rua10-crazygames-v1.7.1.zip` and open the QA tool.
+1. Upload `release/rua10-crazygames-v1.8.0.zip` and open the QA tool.
 2. Check that loading start/stop and gameplay start/stop fire, the midgame ad plays after a match, and audio mutes during it.
 3. Paste the listing text above, upload the screenshots and make a cover image (none is included).
 4. Play one match at real speed on a desktop with a GPU and on a phone: this was not possible in the build environment.

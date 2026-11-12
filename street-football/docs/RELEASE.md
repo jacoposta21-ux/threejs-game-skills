@@ -1,8 +1,8 @@
-# Release notes — v1.7.1
+# Release notes — v1.8.0
 
 ## Deliverable
 
-`npm run package` → `release/rua10-crazygames-v1.7.1.zip` (static build, 33 files, `index.html` at the root, relative paths). The same `dist/` can be served from any static host. Hashed files under `assets/` can be cached forever; `index.html` should be served with `no-cache`.
+`npm run package` → `release/rua10-crazygames-v1.8.0.zip` (static build, 33 files, `index.html` at the root, relative paths). The same `dist/` can be served from any static host. Hashed files under `assets/` can be cached forever; `index.html` should be served with `no-cache`.
 
 | Piece | Compressed (gzip) |
 | --- | --- |
@@ -16,7 +16,7 @@
 
 `npm run build:single` also produces `dist-single/index.html` (7.7 MB, everything inlined) for handing the game around as one file. It is not the CrazyGames upload.
 
-## What is in v1.7.1
+## What is in v1.8.0
 
 - **Home screen:** free play on an empty court with a controls card; the menu opens over it (Esc / M / MENU).
 - **Modes:** Quick Match, First to 5, Style Challenge, 1 v 1, three-round Tournament.

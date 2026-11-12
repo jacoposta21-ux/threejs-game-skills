@@ -124,6 +124,9 @@ test('content: every court, team and mode is reachable from the menus', async ({
   await page.locator('#courts [data-back]').click();
   await page.locator('#main-menu [data-menu="modes"]').click();
   await expect(page.locator('#mode-grid [data-mode]')).toHaveCount(5);
+  // Multiplayer is announced but not selectable.
+  await expect(page.locator('#mode-grid .mode-card.soon')).toContainText('MULTIPLAYER');
+  await expect(page.locator('#mode-grid .mode-card.soon')).toBeDisabled();
   await page.locator('#mode-grid [data-mode="firstTo5"]').click();
   await expect(page.locator('#team-grid [data-team]')).toHaveCount(6);
   await page.locator('#team-grid [data-team="bkb"]').click();

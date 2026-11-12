@@ -1327,6 +1327,24 @@ body {
   cursor: pointer;
 }
 
+.mode-card.soon {
+  border-style: dashed;
+  background: rgba(30, 30, 30, 0.6);
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.mode-card.soon em {
+  justify-self: start;
+  padding: 1px 8px;
+  font-style: normal;
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  color: var(--ink);
+  background: var(--yellow);
+}
+
 .mode-card b,
 .team-card b,
 .kit b {

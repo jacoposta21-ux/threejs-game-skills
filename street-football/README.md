@@ -1,4 +1,4 @@
-# RUA 10 — Street Football (v1.7.1 — release candidate)
+# RUA 10 — Street Football (v1.8.0 — release candidate)
 
 A 3D arcade street-football game for the browser: Three.js rendering, Rapier physics, a loose physically simulated ball, skeletal animation, and a Brazilian street court. It is built for CrazyGames-style distribution: one static bundle that loads fast.
 
@@ -17,7 +17,7 @@ Production build, local preview and the CrazyGames upload:
 ```bash
 npm run build      # outputs dist/ (relative paths, deploy anywhere)
 npm run preview    # http://127.0.0.1:4188
-npm run package    # build + checks + release/rua10-crazygames-v1.7.1.zip
+npm run package    # build + checks + release/rua10-crazygames-v1.8.0.zip
 ```
 
 Single self-contained HTML (double-click to play from disk, works offline; about 7.6 MB, physics WASM and models inlined):
@@ -97,6 +97,22 @@ Control follows the ball automatically: when a teammate wins it or receives your
   - On top: a stinger wipe in and out, a white flash on each cut, the scorer's name and number, and a "press any key to skip" hint.
   - Film look: grade, grain and a heavier vignette.
   - The ball trail now draws on the shot.
+
+## v1.8 — goalkeeper rebuilt, multiplayer announced
+
+**Goalkeeper.**
+- **Saves need contact.** A save now happens only when the ball reaches a glove (within 0.34 m of a hand bone) or the keeper's body. Before, it fired when the ball passed within about 1.15 m of a rough "hands" point, so the ball could be stopped in thin air.
+- **Timed to the ball.** The save is planned on the plane where the keeper actually stands, not on the goal line, and the dive lasts exactly as long as the ball takes to arrive (it was a fixed 0.62 s).
+- **Geometry.** A stretched keeper is treated as 1.95 m from feet to gloves; body roll, spring and foot travel are solved so the gloves land on the ball's path. Both arms reach for the ball itself.
+- **Fluid movement.**
+  - Short adjustments are shuffled sideways with the eyes on the ball; longer distances are run.
+  - Velocity is eased, with no instant starts or stops.
+  - There are no heading snaps.
+  - The dive eases in and out, lands flat, and the keeper gets up in one movement.
+  - A caught ball stays in the gloves through the dive, then is gathered to the chest.
+- Check: `node tools/qa/keepercheck.mjs [dir]` fires 36 shots and reports, for every save, how far the ball was from the glove.
+
+**Multiplayer** appears in the mode list as "coming soon" (not selectable). No online code is included yet.
 
 ## v1.7 — foot-driven skill moves, free play as the practice ground
 

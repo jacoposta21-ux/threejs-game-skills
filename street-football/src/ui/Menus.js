@@ -98,7 +98,9 @@ export class Menus {
     const grid = $('mode-grid');
     grid.innerHTML = Object.values(modes)
       .map((m, i) => `<button type="button" class="mode-card${m.id === choice.mode ? ' selected' : ''}" data-mode="${m.id}" style="--i:${i}"><b>${esc(m.label)}</b><span>${esc(m.desc)}</span></button>`)
-      .join('');
+      .join('')
+      // Announced, not playable yet.
+      + `<button type="button" class="mode-card soon" disabled style="--i:${Object.keys(modes).length}"><b>MULTIPLAYER</b><span>Play your friends online. We are working on it.</span><em>COMING SOON</em></button>`;
     for (const btn of grid.querySelectorAll('[data-mode]')) {
       btn.addEventListener('click', () => {
         this.click();

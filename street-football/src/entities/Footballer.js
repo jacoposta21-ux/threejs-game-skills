@@ -13,6 +13,7 @@ const _dq = new THREE.Quaternion();
 const _iq = new THREE.Quaternion();
 const _axis = new THREE.Vector3();
 const _fp = new THREE.Vector3();
+const _to = new THREE.Vector3();
 
 /**
  * Shared body for every footballer: a dressed skinned character, a kinematic
@@ -53,6 +54,41 @@ export class Footballer {
     this.trickIK = new TrickIK(this);
     this.trickAnim = null; // { def, side, u } while a foot-driven trick plays
     this.ballRef = null; // set by the game: the ball's rendered position
+    this.reach = null; // { target: Vector3, w: 0..1 } both arms stretch toward a world point (keeper saves)
+    this.reachW = 0;
+  }
+
+  /** Stretch both arms toward a world point, blended by weight (applied after the clips). */
+  applyReach(dt) {
+    const want = this.reach ? this.reach.w : 0;
+    this.reachW += (want - this.reachW) * (1 - Math.exp(-dt * 16));
+    if (this.reachW < 0.02 || !this.reachTarget) return;
+    const bones = this.character.bones;
+    this.holder.updateMatrixWorld(true);
+    for (const side of ['l', 'r']) {
+      const upper = bones.get(`upperarm_${side}`);
+      const lower = bones.get(`lowerarm_${side}`);
+      const hand = bones.get(`hand_${side}`);
+      if (!upper || !lower || !hand) continue;
+      const aim = (bone, tip) => {
+        bone.getWorldPosition(_fp);
+        tip.getWorldPosition(_axis).sub(_fp).normalize();
+        _to.copy(this.reachTarget).sub(_fp).normalize();
+        _dq.setFromUnitVectors(_axis, _to);
+        _dq.slerp(_iq.identity(), 1 - this.reachW);
+        bone.parent.getWorldQuaternion(_pq);
+        _dq.premultiply(_iq.copy(_pq).invert()).multiply(_pq);
+        bone.quaternion.premultiply(_dq);
+        bone.updateWorldMatrix(false, true);
+      };
+      aim(upper, lower);
+      aim(lower, hand);
+    }
+  }
+
+  /** World position of a hand ('l' | 'r') as of the last rendered pose. */
+  handWorld(side, out = new THREE.Vector3()) {
+    return this.character.bones.get(`hand_${side}`).getWorldPosition(out);
   }
 
   /**
@@ -201,6 +237,8 @@ export class Footballer {
       if (this.trickIK.active !== ta) this.trickIK.begin(ta);
       this.trickIK.apply(h + this.extraYaw, this.ballRef ?? this.holder.position);
     } else this.trickIK.active = null;
+    if (this.reach) (this.reachTarget ??= new THREE.Vector3()).copy(this.reach.target);
+    if (this.reach || this.reachW > 0.02) this.applyReach(dt);
   }
 
   dispose(scene) {
