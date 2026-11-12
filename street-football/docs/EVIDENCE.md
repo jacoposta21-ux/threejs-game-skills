@@ -1,5 +1,19 @@
 # Verification evidence
 
+## v1.7.1 — recorded audio, night courts relit
+
+**Audio.** Six sounds now load CC0 recordings over the synthesised versions: hard kick, soft kick, touch, kickboard, post, and applause under the goal cheer. In Chromium all six decode, both from the dev server and from the single-file build opened from disk. The leading MP3 padding is trimmed so impacts are not delayed. The six files add 60 KB.
+
+**Brightness.** Mean luminance of the playing area in gameplay captures (`tools/qa/venues.mjs`, Low quality):
+
+| Court | Before | After |
+| --- | --- | --- |
+| Brazil | 0.48 | 0.48 |
+| New York | 0.16 | 0.45 |
+| London | 0.16 | 0.44 |
+| Tokyo | 0.14 | 0.40 |
+| Barcelona | 0.40 | 0.40 |
+
 ## v1.7.0 release checks
 
 | Check | Result |

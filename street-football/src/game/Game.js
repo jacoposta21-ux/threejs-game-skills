@@ -342,7 +342,7 @@ export class Game {
     }
     for (const [vid, b] of Object.entries(this.backdrops)) b.group.visible = vid === id;
     for (const m of this.backdrops[id]?.windowMats ?? []) m.emissiveIntensity = style.windows ?? 0;
-    this.renderer.toneMappingExposure = style.night ? 1.08 : 1;
+    this.renderer.toneMappingExposure = style.exposure ?? (style.night ? 1.2 : 1);
   }
 
   /** Dress both sides: names, numbers, ratings and kit colours (characters are reused). */

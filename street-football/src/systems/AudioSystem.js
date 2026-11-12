@@ -1,3 +1,9 @@
+import kickHardUrl from '../assets/audio/kick-hard.mp3?url';
+import kickSoftUrl from '../assets/audio/kick-soft.mp3?url';
+import touchUrl from '../assets/audio/touch.mp3?url';
+import boardUrl from '../assets/audio/board.mp3?url';
+import postUrl from '../assets/audio/post.mp3?url';
+import applauseUrl from '../assets/audio/applause.mp3?url';
 import * as THREE from 'three';
 
 // Every sound is synthesised here at startup (original audio, no licensing
@@ -265,6 +271,17 @@ const SETTINGS_KEY = 'street-football-audio';
  * gesture unlock, mute/volume persisted, pause with the game, stereo pan
  * from the camera's point of view, pitch variance on repeats.
  */
+// Recorded sounds layered in after start-up. gain: level of the recording;
+// mix: how much of the synthesised version stays underneath (0 = replaced).
+const RECORDINGS = {
+  kickHard: { url: kickHardUrl, gain: 0.95, mix: 0.35 },
+  kickSoft: { url: kickSoftUrl, gain: 0.8, mix: 0.25 },
+  touch: { url: touchUrl, gain: 0.55, mix: 0.3 },
+  board: { url: boardUrl, gain: 0.8, mix: 0.4 },
+  post: { url: postUrl, gain: 0.9, mix: 0.3 },
+  cheer: { url: applauseUrl, gain: 1.6, mix: 0.75 },
+};
+
 export class AudioSystem {
   constructor(rng, storage) {
     this.rng = rng;
@@ -273,6 +290,7 @@ export class AudioSystem {
     this.buffers = new Map();
     this.loops = new Map();
     this.lastPlayed = new Map();
+    this.recorded = new Set(); // sounds whose recording loaded
     const saved = storage.get(SETTINGS_KEY);
     this.settings = { master: 0.8, sfx: 1, ambience: 0.7, muted: false, ...(saved ? JSON.parse(saved) : {}) };
     this.externalMute = false;
@@ -304,10 +322,53 @@ export class AudioSystem {
       this.buffers.set(name, buf);
     }
     this.applyVolumes();
+    this.loadRecordings();
     this.startLoop('crowdBed', 'crowd', 0.32);
     this.startLoop('batucada', 'crowd', 0.16);
     this.startLoop('traffic', 'ambience', 0.4);
     if (ctx.state === 'suspended') await ctx.resume();
+  }
+
+  /**
+   * Recorded samples (CC0, see docs/ASSETS.md) replace or layer over the
+   * synthesised sounds once decoded. If one fails to load or decode, the
+   * synthesised version simply stays.
+   */
+  async loadRecordings() {
+    const ctx = this.ctx;
+    await Promise.all(
+      Object.entries(RECORDINGS).map(async ([name, { url, gain, mix }]) => {
+        try {
+          const data = await (await fetch(url)).arrayBuffer();
+          const decoded = await ctx.decodeAudioData(data);
+          const src = decoded.getChannelData(0);
+          // MP3 encoders pad the start: trim to the first audible sample so impacts land on time.
+          let start = 0;
+          while (start < src.length && Math.abs(src[start]) < 0.02) start += 1;
+          start = Math.max(0, start - 16);
+          const synth = this.buffers.get(name);
+          const len = mix && synth ? Math.max(synth.length, Math.round(((src.length - start) * SR) / decoded.sampleRate)) : Math.round(((src.length - start) * SR) / decoded.sampleRate);
+          const out = ctx.createBuffer(1, Math.max(1, len), SR);
+          const o = out.getChannelData(0);
+          const step = decoded.sampleRate / SR;
+          for (let i = 0; i < len; i += 1) {
+            // Linear resample to the engine rate.
+            const p = start + i * step;
+            const i0 = Math.floor(p);
+            if (i0 + 1 >= src.length) break;
+            o[i] = (src[i0] + (src[i0 + 1] - src[i0]) * (p - i0)) * gain;
+          }
+          if (mix && synth) {
+            const sy = synth.getChannelData(0);
+            for (let i = 0; i < sy.length && i < len; i += 1) o[i] += sy[i] * mix;
+          }
+          this.buffers.set(name, out);
+          this.recorded.add(name);
+        } catch {
+          /* keep the synthesised sound */
+        }
+      }),
+    );
   }
 
   setCamera(camera) {

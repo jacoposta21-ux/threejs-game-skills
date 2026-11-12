@@ -3,10 +3,10 @@
 ## Build the upload
 
 ```bash
-npm run package        # production build + checks → release/rua10-crazygames-v1.7.0.zip
+npm run package        # production build + checks → release/rua10-crazygames-v1.7.1.zip
 ```
 
-The zip holds `dist/` with `index.html` at the root (30 files, 2.92 MB compressed). The script fails if the build contains source maps, `localhost` references, or absolute asset paths. Every path is relative (`base: './'`), so it runs from any CDN folder.
+The zip holds `dist/` with `index.html` at the root (33 files, 2.94 MB compressed). The script fails if the build contains source maps, `localhost` references, or absolute asset paths. Every path is relative (`base: './'`), so it runs from any CDN folder.
 
 ## SDK wiring (`src/platform/CrazyGames.js`)
 
@@ -30,7 +30,7 @@ The SDK script (`https://sdk.crazygames.com/crazygames-sdk-v3.js`) loads only on
 | --- | --- |
 | Runs from a zip with relative paths, `index.html` at root | ✓ `npm run package` checks it |
 | No external requests at runtime (except the CrazyGames SDK on their host) | ✓ fonts, models and audio are bundled or synthesised |
-| Fast first load | ✓ about 2.9 MB compressed in total; Rapier WASM streamed and compiled in parallel with the character models; content-hashed, cacheable assets |
+| Fast first load | ✓ 2.94 MB compressed in total; Rapier WASM streamed and compiled in parallel with the character models; content-hashed, cacheable assets |
 | No mouse needed in play | ✓ two keyboard zones (WASD + Shift; J K L / U I O / H); the mouse only clicks menus |
 | Keyboard works inside an iframe | ✓ the canvas takes focus on click; arrow keys and Space do not scroll the host page |
 | Mobile / touch | ✓ stick plus PASS/SHOOT/SPRINT/TACKLE/SWITCH/SKILL/FLAIR/GB buttons and a MENU button; portrait camera; Low quality by default on handhelds |
@@ -74,11 +74,11 @@ On touch: stick and on-screen buttons.
 
 **Category / tags:** Sports, Football (Soccer), 3D, Skill, 1 player.
 
-**Screenshots:** `docs/screenshots/store-*.jpg` (free play, two match shots in Brazil, the four other courts, team select). The two night courts come out dark in these captures.
+**Screenshots:** `docs/screenshots/store-*.jpg` (free play, two match shots in Brazil, the four other courts, team select).
 
 ## Still to do in the CrazyGames portal (needs your account)
 
-1. Upload `release/rua10-crazygames-v1.7.0.zip` and open the QA tool.
+1. Upload `release/rua10-crazygames-v1.7.1.zip` and open the QA tool.
 2. Check that loading start/stop and gameplay start/stop fire, the midgame ad plays after a match, and audio mutes during it.
 3. Paste the listing text above, upload the screenshots and make a cover image (none is included).
 4. Play one match at real speed on a desktop with a GPU and on a phone: this was not possible in the build environment.
