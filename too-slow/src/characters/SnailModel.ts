@@ -328,8 +328,16 @@ export class SnailModel {
     this.bodyGroup.position.set(0, lerp(0.2, 0, out), lerp(-0.12, 0, out));
 
     // --- squash & stretch spring
-    this.squashVel += (-this.squash * 190 - this.squashVel * 13) * dt;
-    this.squash += this.squashVel * dt;
+    // Sub-stepped so the spring stays stable when a frame takes a long time.
+    for (let left = Math.min(dt, 0.3); left > 1e-5; left -= 1 / 120) {
+      const h = Math.min(left, 1 / 120);
+      this.squashVel += (-this.squash * 190 - this.squashVel * 13) * h;
+      this.squash += this.squashVel * h;
+    }
+    if (!Number.isFinite(this.squash)) {
+      this.squash = 0;
+      this.squashVel = 0;
+    }
     const sq = THREE.MathUtils.clamp(this.squash, -0.45, 0.4);
     this.root.scale.set(1 - sq * 0.55, 1 + sq, 1 - sq * 0.55);
 
@@ -385,7 +393,7 @@ export class SnailModel {
       eye.base.rotation.set(0.12 + this.stalkLagZ * 0.55 + sway * 0.5, 0, -eye.side * 0.3 - this.stalkLagX * 0.5 + sway * eye.side * 0.4);
       eye.mid.rotation.set(-0.1 + this.stalkLagZ * 0.75, 0, -eye.side * 0.12 - this.stalkLagX * 0.6);
       // Lid: a hemisphere rolled back over the top of the eye; closing rotates it forward.
-      eye.lid.rotation.x = lerp(1.3, -1.25, Math.min(1.25, lidOpen));
+      eye.lid.rotation.x = lerp(1.3, -1.75, Math.min(1.25, lidOpen));
       eye.lid.rotation.z = eye.side * focus * 0.35;
       const look = dizzy ? Math.sin(t * 18 + eye.side * 1.5) * 0.05 : Math.sin(t * 0.9 + 1) * 0.02;
       eye.pupil.rotation.set(dizzy ? Math.cos(t * 18 + eye.side * 1.5) * 0.4 : -0.05, look * 7 - this.stalkLagX * 0.3 - eye.side * 0.08, 0);

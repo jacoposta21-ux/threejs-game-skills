@@ -232,7 +232,7 @@ export const SECTIONS = [
   { name: 'Final Sprint', s0: 1260, s1: 1960 },
 ];
 
-export const CHECKPOINTS = [150, 330, 550, 760, 965, 1260, 1425, 1575, 1700];
+export const CHECKPOINTS = [150, 330, 550, 752, 965, 1260, 1425, 1575, 1700];
 
 /** Leaf shortcut strip (inside of the big left-hander). */
 export const LEAF_SHORTCUT = { s0: 394, s1: 478, d: -13.9, half: 2.2 };
@@ -526,7 +526,7 @@ export class Track {
     this.patches.push({ s0: 640, s1: 745, d0: 4.6, d1: 11.4, surface: 'stone' }); // precise inside lane
     this.patches.push({ s0: 684, s1: 722, d0: -11.5, d1: -4.5, surface: 'mud', ellipse: true });
     hump(738, 3.4, 0.8, 4.6, 11.6);
-    hump(786, 5, 1.0, -13, 13);
+    hump(786, 5, 0.6, -13, 13);
     this.patches.push({ s0: 858, s1: 892, d0: -9.5, d1: -1.5, surface: 'mud', ellipse: true });
     // Stream under the bridge.
     basin(916, 962, -24, -4.4, 1.5);

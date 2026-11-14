@@ -54,7 +54,8 @@ test('a keyboard-only bot completes the Backyard race', async ({ page }) => {
     sawAir ||= d.air && d.kmh > 60;
 
     // Steering: hold a heading relative to the course that leans back toward the chosen lane.
-    const lane = d.s > 625 && d.s < 770 ? -4 : 0;
+    // The lanes a player would pick by eye: around the root tips, down the wide side of the split.
+    const lane = d.s > 540 && d.s < 578 ? 3 : d.s > 585 && d.s < 618 ? -3 : d.s > 625 && d.s < 770 ? -4 : d.s > 775 && d.s < 812 ? -5 : d.s > 818 && d.s < 856 ? 5 : 0;
     const wantYaw = Math.max(-0.5, Math.min(0.5, (lane - d.d) * 0.09));
     const cmd = wantYaw - d.yaw;
     await hold('KeyD', cmd > 0.07);
@@ -76,6 +77,7 @@ test('a keyboard-only bot completes the Backyard race', async ({ page }) => {
       } else if (d.mode === 'roll') slowSince = -1;
     }
 
+    if (d.s < lastProgress - 20) lastProgress = d.s; // sent back to a checkpoint
     if (d.s > lastProgress + 1) {
       lastProgress = d.s;
       lastProgressT = d.t;

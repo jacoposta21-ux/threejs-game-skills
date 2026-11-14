@@ -7,6 +7,14 @@ You are a snail. You cannot accelerate. Gravity can. Crawl to the edge, tuck int
 let the Backyard do the rest — six snails, one point-to-point course, about a minute and a half of
 slopes, wet leaves, roots, one very big jump and a banked sprint to the line.
 
+![Menu](docs/screens/menu.jpg)
+
+| Leaf Slide | Root Maze |
+| --- | --- |
+| ![Leaf Slide](docs/screens/active-play.jpg) | ![Root Maze](docs/screens/root-maze.jpg) |
+| **The Big Drop** | **Final Sprint** |
+| ![The Big Drop](docs/screens/big-drop.jpg) | ![Final Sprint](docs/screens/final-sprint.jpg) |
+
 ## Run it
 
 ```bash
@@ -127,6 +135,10 @@ Chromium):
 ```bash
 npm test
 ```
+
+The full-race bot takes about ten minutes on a machine without a GPU. What was run and observed for
+this revision is recorded in [docs/VERIFICATION.md](docs/VERIFICATION.md); the design brief, core
+loop and level plan are in [docs/DESIGN.md](docs/DESIGN.md).
 
 URL overrides for low-spec machines: `?q=0` (graphics 0–2) and `?dpr=0.5` (render scale).
 

@@ -324,6 +324,10 @@ function computePixelMetrics(png) {
 // the full Chromium build in new headless mode against the real GPU.
 async function launchBrowser() {
   const { chromium } = await loadDependency('@playwright/test');
+  // Reuse an already-installed Chromium (same switch as playwright.config.ts).
+  if (process.env.PLAYWRIGHT_CHROMIUM_PATH) {
+    return chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH, args: ['--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'] });
+  }
   try {
     return await chromium.launch({ channel: 'chromium' });
   } catch {

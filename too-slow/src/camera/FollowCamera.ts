@@ -29,6 +29,9 @@ export class FollowCamera {
   private fov = 58;
   private focusY = 0;
   private hint = -1;
+  private lookHint = -1;
+  private lookY = 0;
+  private cut = false;
   private trauma = 0;
   private time = 0;
   shakeEnabled = true;
@@ -48,6 +51,9 @@ export class FollowCamera {
     this.fov = 58;
     this.focusY = target.y;
     this.hint = -1;
+    this.lookHint = -1;
+    this.lookY = target.y + 0.6;
+    this.cut = true;
     this.trauma = 0;
     this.place(target, 0);
     this.camera.position.copy(desired);
@@ -80,10 +86,20 @@ export class FollowCamera {
     this.fov = damp(this.fov, 58 + k * 20 + (boosting ? 7 : 0), boosting ? 6 : 3, dt);
     // Vertical follow is softer in the air so jumps read as height, not as a glued camera.
     this.focusY = damp(this.focusY, target.y, racer.grounded ? 12 : 5, dt);
-    if (Math.abs(this.focusY - target.y) > 5) this.focusY = target.y + Math.sign(this.focusY - target.y) * 5;
+    // Let the snail rise away from the camera a little on take-off, but never lose it below the frame on the way down.
+    if (this.focusY < target.y - 3) this.focusY = target.y - 3;
+    if (this.focusY > target.y + 1.1) this.focusY = target.y + 1.1;
 
     // A short lead keeps the snail well above the bottom-centre HUD cluster.
     this.place(target, 1.6 + k * 5);
+    // Aim at the ground ahead rather than a level point, so on descents the view tips down the hill
+    // (you see what is coming) and the snail rides higher on screen.
+    this.lookHint = track.project(look.x, look.z, this.lookHint, proj);
+    const aheadY = track.height(proj.s, proj.d) + 0.6;
+    // In flight the view tips further down: the landing zone is in sight and the snail sits mid-screen.
+    const drop = racer.flightTime > 0.15 ? 5.5 : 2.5;
+    this.lookY = damp(this.lookY, Math.min(look.y, Math.max(look.y - drop, aheadY)), 6, dt);
+    look.y = this.lookY;
 
     // Terrain avoidance: keep clearance above whatever ground is under the camera.
     this.hint = track.project(desired.x, desired.z, this.hint, proj);
@@ -115,14 +131,18 @@ export class FollowCamera {
   }
 
   /** Slow orbit used on the menu, the grid and after the finish. */
-  orbit(dt: number, target: THREE.Vector3, radius: number, height: number, speed: number, phase = 0): void {
+  orbit(dt: number, target: THREE.Vector3, radius: number, height: number, speed: number, phase = 0, swing = 0): void {
     this.time += dt;
-    const a = this.time * speed + phase;
+    // With `swing` the camera sways back and forth around `phase` instead of circling.
+    const a = swing > 0 ? phase + Math.sin(this.time * speed) * swing : this.time * speed + phase;
     desired.set(target.x + Math.sin(a) * radius, target.y + height, target.z + Math.cos(a) * radius);
     this.hint = track.project(desired.x, desired.z, this.hint, proj);
     desired.y = Math.max(desired.y, track.height(proj.s, proj.d) + 0.8);
     const cam = this.camera;
-    cam.position.lerp(desired, 1 - Math.exp(-3 * dt));
+    // First orbit frame after a snap cuts straight to the shot instead of flying through the scene.
+    if (this.cut) cam.position.copy(desired);
+    else cam.position.lerp(desired, 1 - Math.exp(-3 * dt));
+    this.cut = false;
     look.copy(target).setY(target.y + 0.55);
     cam.lookAt(look);
     this.yaw = Math.atan2(target.x - cam.position.x, -(target.z - cam.position.z));

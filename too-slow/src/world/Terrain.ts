@@ -23,6 +23,14 @@ const VERGE = new THREE.Color(0x4c9a36);
 const FAR_A = new THREE.Color(0x5fae3c);
 const FAR_B = new THREE.Color(0x3f8a34);
 const WET = new THREE.Color(0x5a4630);
+const TAPS = [
+  [0, 0],
+  [0.55, 0],
+  [-0.55, 0],
+  [0, 0.55],
+  [0, -0.55],
+];
+const tap = new THREE.Color();
 
 export interface TerrainResult {
   group: THREE.Group;
@@ -94,23 +102,32 @@ export function buildTerrain(): TerrainResult {
         uvs.set([d / 7, s / 7], v * 2);
 
         const ad = Math.abs(d);
-        const surface = track.surface(s, d);
         let stone = 0;
         let leaf = 0;
         if (ad > 24) {
           col.copy(FAR_A).lerp(FAR_B, noise2(s * 0.05, d * 0.05));
-        } else if (surface === 'rough') {
-          col.copy(VERGE).lerp(FAR_A, noise2(s * 0.2, d * 0.2) * 0.6);
         } else {
-          col.copy(surfaceColor(surface));
-          if (surface === 'water') col.copy(WET);
-          if (surface === 'stone') stone = 1;
-          if (surface === 'leaves') leaf = 1;
-          // Shoulders fade into the verge so the racing surface reads as a path.
-          const edge = THREE.MathUtils.smoothstep(ad, hw + 1, hw + 3.5);
-          if (surface !== 'water') col.lerp(VERGE, edge * 0.7);
-          stone *= 1 - edge;
-          leaf *= 1 - edge * 0.5;
+          // Average a small neighbourhood so patch borders blend instead of stair-stepping.
+          let r = 0;
+          let g = 0;
+          let b = 0;
+          for (const [os, od] of TAPS) {
+            const surface = track.surface(s + os, d + od);
+            if (surface === 'rough') tap.copy(VERGE).lerp(FAR_A, noise2(s * 0.2, d * 0.2) * 0.6);
+            else if (surface === 'water') tap.copy(WET);
+            else {
+              tap.copy(surfaceColor(surface));
+              // Shoulders fade into the verge so the racing surface reads as a path.
+              const edge = THREE.MathUtils.smoothstep(ad, hw + 1, hw + 3.5);
+              tap.lerp(VERGE, edge * 0.7);
+              if (surface === 'stone') stone += (1 - edge) / TAPS.length;
+              if (surface === 'leaves') leaf += (1 - edge * 0.5) / TAPS.length;
+            }
+            r += tap.r;
+            g += tap.g;
+            b += tap.b;
+          }
+          col.setRGB(r / TAPS.length, g / TAPS.length, b / TAPS.length);
         }
         const shade = 0.9 + noise2(s * 0.31 + 4, d * 0.31) * 0.2;
         colors.set([col.r * shade, col.g * shade, col.b * shade], v * 3);

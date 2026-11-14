@@ -707,7 +707,7 @@ export class Game {
     const target = this.views[0].pos;
     if (this.state === 'menu') {
       this.tmp2.copy(target).setY(target.y - 0.1);
-      this.rig.orbit(this.reducedMotion ? 0 : delta, this.tmp2, 4.4, 1.25, 0.16, 2.4);
+      this.rig.orbit(this.reducedMotion ? 0 : delta, this.tmp2, 3.5, 1.15, 0.22, Math.PI - p.heading - 0.38, 0.3);
     } else if (race.phase === 'grid' || race.phase === 'countdown') {
       this.rig.update(delta, target, p, false);
     } else if (race.phase === 'finished') {
