@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#7cc152" />
+    <meta name="description" content="TOO SLOW! — The Slowest Racer. The Fastest Game. A 3D downhill snail racing game." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='36' cy='28' r='20' fill='%23ff7a2f'/%3E%3Cpath d='M36 28m-11 0a11 11 0 1 0 22 0a8 8 0 1 0-16 0a4 4 0 1 0 8 0' fill='none' stroke='%23b8431a' stroke-width='4'/%3E%3Cpath d='M4 54q4-12 20-10h30q8 0 6 8z' fill='%23f6d77a'/%3E%3C/svg%3E" />
+    <title>TOO SLOW! — The Slowest Racer. The Fastest Game.</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="game-canvas" aria-label="TOO SLOW! game view"></canvas>
+      <div id="vignette" aria-hidden="true"></div>
+
+      <!-- In-game HUD -->
+      <section id="hud" class="hidden" aria-live="off">
+        <div class="hud-tl">
+          <div class="pos-badge" id="pos-badge">
+            <span id="pos-num">1</span><sup id="pos-suffix">st</sup><span class="pos-total">/ 6</span>
+          </div>
+          <div class="timer-chip">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="8" fill="none" stroke="currentColor" stroke-width="2.6" /><path d="M12 14V9M9 2.5h6M12 2.5V6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none" /></svg>
+            <span id="race-time">0:00.00</span>
+          </div>
+          <ol id="standings" aria-label="Standings"></ol>
+        </div>
+
+        <div class="hud-tr">
+          <div class="progress-card">
+            <div class="progress-head"><span id="section-name">Starting Hill</span><span class="dist"><b id="dist-value">0</b> m</span></div>
+            <div class="progress-track" id="progress-track">
+              <i class="progress-done" id="progress-done"></i>
+              <span class="progress-flag" aria-hidden="true"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-bc">
+          <div class="meter meter-slime" id="slime-meter">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c4 5.2 6.5 8.6 6.5 12a6.5 6.5 0 0 1-13 0c0-3.4 2.5-6.8 6.5-12z" fill="currentColor" /></svg>
+            <div class="bar"><i id="slime-fill"></i></div>
+            <kbd>SHIFT</kbd>
+          </div>
+          <div class="speedo" id="speedo">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <path class="gauge-bg" d="M22 92 A48 48 0 1 1 98 92" />
+              <path class="gauge-fill" id="gauge-fill" d="M22 92 A48 48 0 1 1 98 92" />
+            </svg>
+            <b id="speed-value">0</b>
+            <small>km/h</small>
+            <span id="mode-chip" class="mode-crawl">CRAWL</span>
+          </div>
+          <div class="meter meter-boost" id="boost-meter">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12m-9 0a9 9 0 1 0 18 0a6.5 6.5 0 1 0-13 0a4 4 0 1 0 8 0a1.8 1.8 0 1 0-3.6 0" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" /></svg>
+            <div class="bar"><i id="boost-fill"></i></div>
+            <kbd>E</kbd>
+          </div>
+        </div>
+
+        <div id="countdown" class="hidden"></div>
+        <div id="toasts"></div>
+        <div id="hint" class="hidden"></div>
+        <div id="offtrack" class="hidden">Off the course! Returning to checkpoint…</div>
+      </section>
+
+      <!-- Main menu -->
+      <section id="menu-main" class="screen">
+        <div class="title-block">
+          <h1 class="logo"><span>TOO</span> <span>SLOW!</span></h1>
+          <p class="tagline">The Slowest Racer. The Fastest Game.</p>
+        </div>
+        <nav class="menu-buttons">
+          <button class="btn btn-primary" id="btn-play" type="button">PLAY</button>
+          <button class="btn" id="btn-how" type="button">HOW TO PLAY</button>
+          <button class="btn" id="btn-settings" type="button">SETTINGS</button>
+        </nav>
+        <p class="best-line" id="menu-best"></p>
+      </section>
+
+      <!-- How to play -->
+      <section id="menu-how" class="screen hidden">
+        <div class="panel panel-wide">
+          <h2>How to Play</h2>
+          <p class="lead">You are a snail. You cannot accelerate. <b>Gravity can.</b></p>
+          <div class="how-grid">
+            <div class="how-card how-crawl">
+              <h3>Crawl</h3>
+              <p><kbd>W</kbd> forward · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>S</kbd> brake / reverse</p>
+              <p>Slow and grippy. Use it to line up a descent or recover. Refills slime.</p>
+            </div>
+            <div class="how-card how-roll">
+              <h3>Roll</h3>
+              <p><kbd>SPACE</kbd> tuck into your shell (and pop back out)</p>
+              <p>Slopes make speed, momentum keeps it. The faster you go, the wider you turn. <kbd>S</kbd> drags the shell to brake.</p>
+            </div>
+            <div class="how-card how-slide">
+              <h3>Slide</h3>
+              <p>Hold <kbd>SHIFT</kbd> to slime-slide</p>
+              <p>Almost no friction: glide through mud, shallow slopes and long bends. Drains the slime meter.</p>
+            </div>
+            <div class="how-card how-boost">
+              <h3>Boost &amp; Tricks</h3>
+              <p><kbd>E</kbd> shell boost when the meter is full</p>
+              <p>In the air: <kbd>Q</kbd> / <kbd>E</kbd> spin. Land a full spin for points and boost charge. Land mid-spin and you lose speed.</p>
+            </div>
+          </div>
+          <p class="surfaces">
+            <span class="sw sw-stone"></span>Stone is fast <span class="sw sw-leaves"></span>Wet leaves are fast but slippery <span class="sw sw-grass"></span>Grass is steady
+            <span class="sw sw-mud"></span>Mud and <span class="sw sw-water"></span>water are slow
+          </p>
+          <p class="small"><kbd>R</kbd> back to checkpoint · <kbd>ESC</kbd> pause · <kbd>M</kbd> mute</p>
+          <button class="btn btn-primary" data-back type="button">GOT IT</button>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section id="menu-settings" class="screen hidden">
+        <div class="panel">
+          <h2>Settings</h2>
+          <label class="row"><span>Music</span><input id="set-music" type="range" min="0" max="100" value="60" /></label>
+          <label class="row"><span>Sound effects</span><input id="set-sfx" type="range" min="0" max="100" value="80" /></label>
+          <div class="row">
+            <span>Graphics</span>
+            <div class="seg" id="set-quality">
+              <button type="button" data-q="0">Low</button><button type="button" data-q="1">Medium</button><button type="button" data-q="2">High</button>
+            </div>
+          </div>
+          <label class="row"><span>Camera shake</span><input id="set-shake" type="checkbox" checked /></label>
+          <button class="btn btn-primary" data-back type="button">DONE</button>
+        </div>
+      </section>
+
+      <!-- Pause -->
+      <section id="menu-pause" class="screen hidden">
+        <div class="panel">
+          <h2>Paused</h2>
+          <button class="btn btn-primary" id="btn-resume" type="button">RESUME</button>
+          <button class="btn" id="btn-restart" type="button">RESTART</button>
+          <button class="btn" id="btn-pause-settings" type="button">SETTINGS</button>
+          <button class="btn" id="btn-pause-menu" type="button">MAIN MENU</button>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section id="menu-results" class="screen hidden">
+        <div class="panel panel-wide results">
+          <p class="results-kicker" id="results-kicker">Race complete</p>
+          <h2 class="results-place"><span id="results-place">1st</span><small>place</small></h2>
+          <div class="results-stats">
+            <div><small>Time</small><b id="results-time">0:00.00</b></div>
+            <div><small>Best</small><b id="results-best">–</b></div>
+            <div><small>Top speed</small><b id="results-speed">0 km/h</b></div>
+            <div><small>Tricks</small><b id="results-tricks">0</b></div>
+          </div>
+          <ol id="results-list"></ol>
+          <div class="results-buttons">
+            <button class="btn btn-primary" id="btn-again" type="button">RACE AGAIN</button>
+            <button class="btn" id="btn-results-menu" type="button">MAIN MENU</button>
+          </div>
+        </div>
+      </section>
+
+      <div id="fade" aria-hidden="true"></div>
+      <div id="loading"><span class="loading-snail"></span>Waking up the snails…</div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
