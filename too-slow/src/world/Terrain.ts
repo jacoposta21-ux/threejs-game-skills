@@ -55,7 +55,12 @@ export function buildTerrain(): TerrainResult {
         `#include <color_fragment>
         vec3 det = texture2D(tDetail, vDetailUv).rgb;
         float grain = texture2D(tDetail, vDetailUv * 0.23).r;
-        diffuseColor.rgb *= mix(0.78 + 0.44 * det.r, 0.9 + 0.2 * det.r, max(vMix.x, vMix.y)) * (0.86 + 0.28 * grain);
+        float plain = 1.0 - max(vMix.x, vMix.y);
+        diffuseColor.rgb *= mix(0.9 + 0.2 * det.r, 0.74 + 0.5 * det.r, plain) * (0.84 + 0.32 * grain);
+        // Tufty mottling on grass and dirt so open ground never reads as a flat fill.
+        float tuft = texture2D(tDetail, vDetailUv * 2.7 + 0.11).b;
+        float patchy = texture2D(tDetail, vDetailUv * 0.09 + 0.5).r;
+        diffuseColor.rgb *= mix(1.0, (0.8 + 0.42 * tuft) * (0.86 + 0.3 * patchy), plain);
         diffuseColor.rgb *= mix(1.0, 0.42 + 0.86 * det.g, vMix.x);
         float hueMix = texture2D(tDetail, vDetailUv * 0.61 + 0.37).b;
         vec3 leafCol = mix(vec3(0.80, 0.30, 0.07), vec3(0.98, 0.74, 0.16), hueMix) * (0.5 + 0.75 * det.b);

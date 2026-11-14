@@ -20,6 +20,8 @@ interface ThreeGameDiagnostics {
   player: {
     position: { x: number; y: number; z: number };
     speed: number;
+    trackYaw: number;
+    grade: number;
   };
   renderer: {
     calls: number;

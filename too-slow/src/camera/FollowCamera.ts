@@ -44,7 +44,7 @@ export class FollowCamera {
   snap(target: THREE.Vector3, heading: number): void {
     this.yaw = heading;
     this.dist = 5;
-    this.height = 2.4;
+    this.height = 2.35;
     this.fov = 58;
     this.focusY = target.y;
     this.hint = -1;
@@ -58,7 +58,7 @@ export class FollowCamera {
     const fx = Math.sin(this.yaw);
     const fz = -Math.cos(this.yaw);
     desired.set(target.x - fx * this.dist, this.focusY + this.height, target.z - fz * this.dist);
-    look.set(target.x + fx * lead, this.focusY + 0.75, target.z + fz * lead);
+    look.set(target.x + fx * lead, this.focusY + 0.6, target.z + fz * lead);
   }
 
   update(dt: number, target: THREE.Vector3, racer: RacerBody, boosting: boolean): void {
@@ -76,13 +76,14 @@ export class FollowCamera {
     this.yaw += wrap(yawTarget - this.yaw) * (1 - Math.exp(-(moving ? 4.2 : 2.6) * dt));
 
     this.dist = damp(this.dist, 4.6 + k * 3.6 + (boosting ? 0.8 : 0), 3, dt);
-    this.height = damp(this.height, 2.5 - k * 0.75, 3, dt);
+    this.height = damp(this.height, 2.35 - k * 0.65, 3, dt);
     this.fov = damp(this.fov, 58 + k * 20 + (boosting ? 7 : 0), boosting ? 6 : 3, dt);
     // Vertical follow is softer in the air so jumps read as height, not as a glued camera.
     this.focusY = damp(this.focusY, target.y, racer.grounded ? 12 : 5, dt);
     if (Math.abs(this.focusY - target.y) > 5) this.focusY = target.y + Math.sign(this.focusY - target.y) * 5;
 
-    this.place(target, 3 + k * 5);
+    // A short lead keeps the snail well above the bottom-centre HUD cluster.
+    this.place(target, 1.6 + k * 5);
 
     // Terrain avoidance: keep clearance above whatever ground is under the camera.
     this.hint = track.project(desired.x, desired.z, this.hint, proj);

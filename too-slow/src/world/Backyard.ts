@@ -137,7 +137,7 @@ function bladeGeometry(): THREE.BufferGeometry {
 }
 
 function pebbleGeometry(): THREE.BufferGeometry {
-  const geo = new THREE.IcosahedronGeometry(1, 3);
+  const geo = new THREE.IcosahedronGeometry(1, 2);
   const pos = geo.getAttribute('position');
   for (let i = 0; i < pos.count; i += 1) {
     v.fromBufferAttribute(pos, i);
@@ -169,12 +169,12 @@ function mushroomStemGeometry(): THREE.BufferGeometry {
   // Skirt ring and the classic white spots.
   parts.push(paint(new THREE.TorusGeometry(0.5, 0.09, 6, 16).rotateX(Math.PI / 2).translate(0, 1.25, 0), 0xffe9c4));
   const rng = createSeededRandom(31);
-  for (let i = 0; i < 11; i += 1) {
+  for (let i = 0; i < 9; i += 1) {
     const a = rng() * Math.PI * 2;
     const e = 0.15 + rng() * 1.2;
     const r = Math.sin(e) * 1.3;
     const y = 1.75 + Math.cos(e) * 0.85;
-    const spot = new THREE.SphereGeometry(0.13 + rng() * 0.12, 8, 6);
+    const spot = new THREE.SphereGeometry(0.13 + rng() * 0.12, 6, 4);
     spot.scale(1, 0.35, 1);
     spot.rotateZ(-e).rotateY(-a + Math.PI / 2);
     spot.translate(Math.cos(a) * r, y, Math.sin(a) * r);
@@ -187,7 +187,7 @@ function daisyHeadGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 12; i += 1) {
     const a = (i / 12) * Math.PI * 2;
-    const petal = new THREE.SphereGeometry(1, 8, 5);
+    const petal = new THREE.SphereGeometry(1, 6, 3);
     petal.scale(0.2, 0.035, 0.085);
     petal.translate(0.3, 0, 0);
     petal.rotateZ(0.18).rotateY(a);
@@ -301,9 +301,10 @@ export function buildBackyard(quality: number): BackyardResult {
     return false;
   };
 
+  const miniDaisies: Placement[] = [];
   // --- giant grass along both verges
   const blades: Placement[] = [];
-  const grassStep = quality > 1 ? 0.62 : quality > 0 ? 0.95 : 1.6;
+  const grassStep = quality > 1 ? 0.62 : quality > 0 ? 0.95 : 2.4;
   const greens = [0x9bd65a, 0x7cc64a, 0xb3e06a, 0x62b446, 0x8fd060];
   for (let s = -30; s < track.length + 30; s += grassStep) {
     const hw = track.halfWidth(s);
@@ -316,7 +317,7 @@ export function buildBackyard(quality: number): BackyardResult {
           s: s + rng() * grassStep,
           d,
           scale: 2.2 + rng() * 3.4 + Math.min(4, e * 0.18),
-          sx: 1.6 + rng() * 1.2,
+          sx: 1.1 + rng() * 0.9,
           yaw: rng() * Math.PI * 2,
           tilt: (rng() - 0.5) * 0.35,
           color: new THREE.Color(greens[Math.floor(rng() * greens.length)]).multiplyScalar(0.85 + rng() * 0.3),
@@ -324,7 +325,20 @@ export function buildBackyard(quality: number): BackyardResult {
       }
     }
   }
-  instanced(group, bladeGeometry(), grassMat, blades);
+  // Short tufts and clover-sized daisies sprinkled on the grass racing surface (visual only).
+  const tufts: Placement[] = [];
+  const minis: Placement[] = [];
+  const tuftCount = quality > 0 ? 5200 : 1800;
+  for (let i = 0; i < tuftCount; i += 1) {
+    const s = rng() * track.length;
+    const d = (rng() * 2 - 1) * (track.halfWidth(s) + 4);
+    if (track.surface(s, d) !== 'grass') continue;
+    const item = { s, d, scale: 0.28 + rng() * 0.5, sx: 1.4, yaw: rng() * 6.28, tilt: (rng() - 0.5) * 0.5, color: new THREE.Color(greens[Math.floor(rng() * greens.length)]).multiplyScalar(0.9 + rng() * 0.25) };
+    tufts.push(item);
+    if (rng() < 0.16) minis.push({ s: s + 0.3, d: d + 0.2, scale: 0.5 + rng() * 0.4, yaw: rng() * 6.28, color: new THREE.Color(0xffffff) });
+  }
+  instanced(group, bladeGeometry(), grassMat, [...blades, ...tufts]);
+  miniDaisies.push(...minis);
 
   // --- flowers, mushrooms, pebbles, leaves scattered through the verge
   const stems: Placement[] = [];
@@ -407,6 +421,7 @@ export function buildBackyard(quality: number): BackyardResult {
   }
   instanced(group, stemGeometry(), mats.prop, stems);
   instanced(group, daisyHeadGeometry(), mats.prop, daisies);
+  instanced(group, daisyHeadGeometry().translate(0, -0.9, 0), mats.prop, miniDaisies, { align: true });
   instanced(group, cupHeadGeometry(), mats.veg, cups);
   instanced(group, mushroomStemGeometry(), mats.prop, mStems, { cast: true });
   instanced(group, mushroomCapGeometry(), mats.cap, caps, { cast: true });

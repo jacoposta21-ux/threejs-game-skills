@@ -38,7 +38,7 @@ export const PLAYER_PROFILE: RacerProfile = {
 };
 
 export const AI_PROFILES: RacerProfile[] = [
-  { name: 'Turbo', shell: 0xe8413c, shellDark: 0x8f1f2b, skin: 0xf0b98a, line: 0.1, risk: 0.9, aggression: 0.9, precision: 0.93, reaction: 0.35, slideAt: 0.45, boostDelay: 0.3 },
+  { name: 'Turbo', shell: 0xe8413c, shellDark: 0x8f1f2b, skin: 0xf0b98a, line: 0.1, risk: 0.7, aggression: 0.8, precision: 0.97, reaction: 0.35, slideAt: 0.45, boostDelay: 0.3 },
   { name: 'Shelldon', shell: 0x3f8fe8, shellDark: 0x24508f, skin: 0xb9d77a, line: -0.45, risk: 0.35, aggression: 0.3, precision: 0.9, reaction: 0.7, slideAt: 0.6, boostDelay: 1.2 },
   { name: 'Gooey Louie', shell: 0x58c26a, shellDark: 0x2c7a45, skin: 0xe6cf72, line: 0.5, risk: 0.6, aggression: 0.5, precision: 0.8, reaction: 0.9, slideAt: 0.3, boostDelay: 2.0 },
   { name: 'Slimothy', shell: 0xa968e0, shellDark: 0x62379a, skin: 0xf0a8c6, line: -0.75, risk: 0.75, aggression: 0.7, precision: 0.72, reaction: 0.55, slideAt: 0.7, boostDelay: 0.8 },

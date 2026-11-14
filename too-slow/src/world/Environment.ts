@@ -14,6 +14,8 @@ export interface EnvironmentResult {
   /** Keep sky and shadow frustum centred on the action. */
   follow(target: THREE.Vector3, camera: THREE.Camera): void;
   setShadowQuality(level: number): void;
+  /** Fog and far-plane distance; the sky dome and clouds are rescaled to stay inside it. */
+  setViewDistance(far: number, camera: THREE.PerspectiveCamera): void;
 }
 
 const SUN_DIR = new THREE.Vector3(-0.45, 0.78, 0.44).normalize();
@@ -48,7 +50,7 @@ export function buildEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRender
         gl_FragColor = vec4(col, 1.0);
       }`,
   });
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 16), skyMat);
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(720, 24, 16), skyMat);
   sky.frustumCulled = false;
   sky.renderOrder = -10;
   group.add(sky);
@@ -61,9 +63,9 @@ export function buildEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRender
   seeds.forEach((seed, i) => {
     const a = seed * Math.PI * 2;
     const el = 0.22 + ((i * 37) % 10) * 0.035;
-    const cx = Math.cos(a) * Math.cos(el) * 780;
-    const cy = Math.sin(el) * 780;
-    const cz = Math.sin(a) * Math.cos(el) * 780;
+    const cx = Math.cos(a) * Math.cos(el) * 640;
+    const cy = Math.sin(el) * 640;
+    const cz = Math.sin(a) * Math.cos(el) * 640;
     for (let k = 0; k < 5; k += 1) {
       const puff = new THREE.Sprite(cloudMat);
       const size = 120 + ((i + k) % 3) * 50;
@@ -121,6 +123,16 @@ export function buildEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRender
       snapped.set(Math.round(target.x / texel) * texel, Math.round(target.y / texel) * texel, Math.round(target.z / texel) * texel);
       sun.target.position.copy(snapped);
       sun.position.copy(snapped).addScaledVector(SUN_DIR, 120);
+    },
+    setViewDistance(far, camera) {
+      const fog = scene.fog as THREE.Fog;
+      fog.near = far * 0.2;
+      fog.far = far * 0.95;
+      camera.far = far;
+      camera.updateProjectionMatrix();
+      const k = (far * 0.96) / 720;
+      sky.scale.setScalar(k);
+      clouds.scale.setScalar(k);
     },
     setShadowQuality(level) {
       sun.castShadow = level > 0;

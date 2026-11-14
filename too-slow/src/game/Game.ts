@@ -22,7 +22,8 @@ type GameState = 'menu' | 'racing' | 'results';
 /** Displayed speed: arcade "km/h", calibrated for feel rather than physics. */
 const KMH = 3.6;
 const R = TUNE.radius;
-const MAX_STEPS_PER_FRAME = 12;
+// Up to a quarter of a second of fixed steps per rendered frame: the race stays real-time down to ~4 fps.
+const MAX_STEPS_PER_FRAME = 30;
 
 const COLORS = {
   dust: new THREE.Color(0xe9dcc0),
@@ -60,7 +61,7 @@ interface RacerView {
 export class Game {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.15, 1100);
+  private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.15, 800);
   private readonly rig = new FollowCamera(this.camera);
   private readonly race = new RaceManager();
   private readonly views: RacerView[] = [];
@@ -94,12 +95,14 @@ export class Game {
   private reducedMotion = false;
   private muted = false;
   private maxDpr = 2;
+  private dprOverride = 0;
   private finishTimer = 0;
   private resultsShown = false;
   private boostWasReady = false;
   private raceCount = loadRaceCount();
-  private readonly seen = { roll: false, slide: false, boost: false, spin: false, steerTime: 0, stallTime: 0 };
+  private readonly seen = { roll: false, slide: false, boost: false, spin: false, steerTime: 0, stallTime: 0, wrongWay: 0 };
   private lastSection = -1;
+  private lastOvertakeToast = -9;
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
   private readonly basisX = new THREE.Vector3();
@@ -144,6 +147,10 @@ export class Game {
       },
       this.race.profiles,
     );
+    // URL overrides for low-spec machines and automated tests: ?q=0..2 (graphics), ?dpr=0.5..2 (render scale).
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('q')) this.menus.settings.quality = THREE.MathUtils.clamp(Number(params.get('q')) | 0, 0, 2);
+    if (params.has('dpr')) this.dprOverride = THREE.MathUtils.clamp(Number(params.get('dpr')) || 1, 0.25, 2);
     this.backyard = buildBackyard(this.menus.settings.quality);
     this.scene.add(this.backyard.group);
 
@@ -243,8 +250,9 @@ export class Game {
   private applySettings(s: Settings): void {
     this.audio.setVolumes(s.music, s.sfx);
     this.rig.shakeEnabled = s.shake;
-    this.maxDpr = s.quality >= 2 ? 2 : s.quality === 1 ? 1.5 : 1;
+    this.maxDpr = this.dprOverride || (s.quality >= 2 ? 2 : s.quality === 1 ? 1.5 : 1);
     this.env.setShadowQuality(s.quality);
+    this.env.setViewDistance(s.quality >= 2 ? 800 : s.quality === 1 ? 520 : 280, this.camera);
     this.renderer.shadowMap.needsUpdate = true;
   }
 
@@ -278,6 +286,7 @@ export class Game {
     this.seen.roll = this.seen.slide = this.seen.boost = this.seen.spin = false;
     this.seen.steerTime = 0;
     this.seen.stallTime = 0;
+    this.seen.wrongWay = 0;
   }
 
   private toMenu(immediate = false): void {
@@ -339,7 +348,7 @@ export class Game {
 
     if (this.state === 'racing') {
       this.readInput();
-      this.accumulator += Math.min(delta, 0.1);
+      this.accumulator += Math.min(delta, 0.25);
       let steps = 0;
       while (this.accumulator >= FIXED_DT && steps < MAX_STEPS_PER_FRAME) {
         this.race.step();
@@ -498,8 +507,12 @@ export class Game {
           this.audio.play('checkpoint');
           break;
         case 'overtake':
-          this.hud.toast('OVERTAKE!', 'good', `${e.value}${ordinal(e.value)}`);
-          this.audio.play('overtake');
+          // Side-by-side jostling flips the order rapidly; celebrate at most every couple of seconds.
+          if (this.time - this.lastOvertakeToast > 2) {
+            this.lastOvertakeToast = this.time;
+            this.hud.toast('OVERTAKE!', 'good', `${e.value}${ordinal(e.value)}`);
+            this.audio.play('overtake');
+          }
           break;
         case 'overtaken':
           this.audio.play('overtaken');
@@ -577,8 +590,13 @@ export class Game {
     if (p.mode !== 'crawl' && p.speed < 1 && p.grounded) this.seen.stallTime += delta;
     else this.seen.stallTime = 0;
 
+    const yawOff = Math.abs(lerpAngle(0, p.heading - track.heading(p.s), 1));
+    if (yawOff > 2 && p.speed > 1) this.seen.wrongWay += delta;
+    else this.seen.wrongWay = 0;
+
     let hint: string | null = null;
-    if (this.seen.stallTime > 0.8) hint = 'Out of momentum! <kbd>SPACE</kbd> to pop out and crawl';
+    if (this.seen.wrongWay > 1.2) hint = '<b>Wrong way!</b> Turn around — or press <kbd>R</kbd> for the last checkpoint';
+    else if (this.seen.stallTime > 0.8) hint = 'Out of momentum! <kbd>SPACE</kbd> to pop out and crawl';
     else if (!novice) hint = null;
     else if (!this.seen.roll && p.mode === 'crawl' && slope > 0.045) hint = 'Downhill! Press <kbd>SPACE</kbd> to tuck into your shell and <b>ROLL</b>';
     else if (!this.seen.roll && this.race.time < 6) hint = 'Hold <kbd>W</kbd> to crawl to the edge of the hill';
@@ -622,7 +640,7 @@ export class Game {
     const simulating = this.state !== 'menu';
     // On the menu the physics is frozen, so results keep simulating (snails coast) but the menu idles.
     if (this.state === 'results' && !this.paused) {
-      this.accumulator += Math.min(delta, 0.1);
+      this.accumulator += Math.min(delta, 0.25);
       let steps = 0;
       while (this.accumulator >= FIXED_DT && steps < MAX_STEPS_PER_FRAME) {
         race.step();
@@ -889,7 +907,14 @@ export class Game {
       boost: p.boost,
       fps: this.fps,
       racers: race.racers.map((r, i) => ({ name: race.profiles[i].name, s: r.s, d: r.d, finished: r.finished, time: r.finishTime, mode: r.mode })),
-      player: { position: { x: p.pos.x, y: p.pos.y, z: p.pos.z }, speed: p.speed },
+      player: {
+        position: { x: p.pos.x, y: p.pos.y, z: p.pos.z },
+        speed: p.speed,
+        // Downhill grade of the ground just ahead (+ = descending), bumps included.
+        grade: -(track.height(p.s + 1.5, p.d) - track.height(p.s - 0.5, p.d)) / 2,
+        // Travel direction relative to the course (0 = straight down the track, + = pointing right).
+        trackYaw: lerpAngle(0, (p.speed > 1.5 && p.mode !== 'crawl' ? Math.atan2(p.vel.x, -p.vel.z) : p.heading) - track.heading(p.s), 1),
+      },
       renderer: {
         calls: info.render.calls,
         triangles: info.render.triangles,
