@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Theme } from './Track';
 import { createSoftSprite } from './Textures';
 
 export const SKY = {
@@ -16,6 +17,8 @@ export interface EnvironmentResult {
   setShadowQuality(level: number): void;
   /** Fog and far-plane distance; the sky dome and clouds are rescaled to stay inside it. */
   setViewDistance(far: number, camera: THREE.PerspectiveCamera): void;
+  /** Recolour sky, fog, lights and the reflection map for a course. */
+  setTheme(theme: Theme): void;
 }
 
 const SUN_DIR = new THREE.Vector3(-0.45, 0.78, 0.44).normalize();
@@ -93,12 +96,17 @@ export function buildEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRender
   group.add(rim);
 
   // Image-based light from the sky itself so the glossy shells pick up reflections.
-  const pmrem = new THREE.PMREMGenerator(renderer);
   const envScene = new THREE.Scene();
   envScene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 24, 16), skyMat));
-  scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+  const bakeEnvironment = () => {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const old = scene.environment;
+    scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+    old?.dispose();
+    pmrem.dispose();
+  };
+  bakeEnvironment();
   scene.environmentIntensity = 0.32;
-  pmrem.dispose();
 
   let extent = 46;
   const applyShadow = () => {
@@ -133,6 +141,20 @@ export function buildEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRender
       const k = (far * 0.96) / 720;
       sky.scale.setScalar(k);
       clouds.scale.setScalar(k);
+    },
+    setTheme(theme) {
+      SKY.top.set(theme.skyTop);
+      SKY.horizon.set(theme.skyHorizon);
+      SKY.ground.set(theme.skyGround);
+      SKY.fog.set(theme.fog);
+      (scene.fog as THREE.Fog).color.set(theme.fog);
+      hemi.color.set(theme.hemiSky);
+      hemi.groundColor.set(theme.hemiGround);
+      hemi.intensity = theme.hemiIntensity;
+      sun.color.set(theme.sunColor);
+      sun.intensity = theme.sunIntensity;
+      cloudMat.color.set(theme.fireflies ? 0xffd6e8 : 0xffffff);
+      bakeEnvironment();
     },
     setShadowQuality(level) {
       sun.castShadow = level > 0;

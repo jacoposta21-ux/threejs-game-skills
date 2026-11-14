@@ -17,10 +17,15 @@ export interface Intent {
   boost: boolean;
   /** Airborne trick spin, -1 (Q) … +1 (E). */
   spin: number;
+  /** Edge-triggered: use the held item. */
+  useItem: boolean;
 }
 
+/** Kart-style pickups from item boxes. */
+export type ItemKind = 'mushroom' | 'banana' | 'acorn' | 'slime' | 'shield';
+
 export function emptyIntent(): Intent {
-  return { steer: 0, throttle: 0, toggleRoll: false, slide: false, boost: false, spin: 0 };
+  return { steer: 0, throttle: 0, toggleRoll: false, slide: false, boost: false, spin: 0, useItem: false };
 }
 
 export type RacerEventType =
@@ -39,7 +44,13 @@ export type RacerEventType =
   | 'enterShell'
   | 'exitShell'
   | 'slideStart'
-  | 'respawn';
+  | 'respawn'
+  | 'pad'
+  | 'driftCharge'
+  | 'miniturbo'
+  | 'mushroom'
+  | 'spinout'
+  | 'shieldBlock';
 
 export interface RacerEvent {
   type: RacerEventType;
@@ -73,7 +84,20 @@ export const TUNE = {
   airSteer: 4,
   spinRate: 9.5,
   offTrackTime: 2.5,
+  /** Boost pad: speed added, minimum speed out, and how long the drag break lasts. */
+  padKick: 6,
+  padMinSpeed: 20,
+  padTime: 0.9,
+  /** Drift mini-turbo: seconds of steered sliding for each spark level, and the kick it pays. */
+  driftLevel1: 0.75,
+  driftLevel2: 1.6,
+  driftKick1: 4,
+  driftKick2: 7.5,
+  mushroomKick: 11,
+  mushroomTime: 1.4,
 };
+
+const IDLE: Intent = emptyIntent();
 
 const tmpN = new THREE.Vector3();
 const tmpA = new THREE.Vector3();
@@ -128,6 +152,22 @@ export class RacerBody {
   trickScore = 0;
   slideLocked = false;
   frozen = true;
+  /** Held item, and seconds left on the item-box roulette before it is decided. */
+  item: ItemKind | null = null;
+  itemRoulette = 0;
+  /** Seconds left of the spin-out after a banana or acorn hit; inputs are ignored meanwhile. */
+  spinOut = 0;
+  private spinOutDur = 1;
+  /** Visual yaw added during a spin-out (eases out to a whole number of turns). */
+  spinOutAngle = 0;
+  driftCharge = 0;
+  /** 0 none, 1 blue sparks, 2 orange sparks. */
+  driftLevel = 0;
+  private padCooldown = 0;
+  /** Seconds left of Super Slime (sliding drains nothing). */
+  superSlime = 0;
+  /** Seconds left of the acorn-shell shield. */
+  shield = 0;
   readonly events: RacerEvent[] = [];
 
   constructor(readonly index: number) {}
@@ -151,6 +191,11 @@ export class RacerBody {
     this.speed = 0;
     this.offTrack = 0;
     this.boostTimer = 0;
+    this.spinOut = 0;
+    this.spinOutAngle = 0;
+    this.driftCharge = 0;
+    this.driftLevel = 0;
+    this.padCooldown = 0;
     track.normal(this.s, this.d, this.normal);
   }
 
@@ -167,6 +212,10 @@ export class RacerBody {
     this.trickScore = 0;
     this.slideLocked = false;
     this.frozen = true;
+    this.item = null;
+    this.itemRoulette = 0;
+    this.superSlime = 0;
+    this.shield = 0;
     this.events.length = 0;
   }
 
@@ -176,7 +225,7 @@ export class RacerBody {
     this.emit('respawn', 0);
   }
 
-  private emit(type: RacerEventType, value: number): void {
+  emit(type: RacerEventType, value: number): void {
     if (this.events.length < 16) this.events.push({ type, value });
   }
 
@@ -192,6 +241,23 @@ export class RacerBody {
     this.prevPos.copy(this.pos);
     this.prevHeading = this.heading;
     if (this.frozen) return;
+
+    this.padCooldown -= dt;
+    if (this.superSlime > 0) this.superSlime -= dt;
+    if (this.shield > 0) this.shield -= dt;
+    if (this.spinOut > 0) {
+      // Spinning out: hands off the controls while the shell skids and twirls.
+      this.spinOut -= dt;
+      const p = 1 - Math.max(0, this.spinOut) / this.spinOutDur;
+      this.spinOutAngle = Math.PI * 4 * (1 - (1 - p) * (1 - p));
+      if (this.spinOut <= 0) this.spinOutAngle = 0;
+      intent = IDLE;
+      if (this.airTime < 0.07) {
+        const k = Math.exp(-1.4 * dt);
+        this.vel.x *= k;
+        this.vel.z *= k;
+      }
+    }
 
     const contact = this.airTime < 0.07;
     const steerTarget = Math.max(-1, Math.min(1, intent.steer));
@@ -238,6 +304,7 @@ export class RacerBody {
     const wantSlide = intent.slide && !this.slideLocked && this.slime > 0;
     if (this.mode === 'slide') {
       if (!wantSlide) {
+        this.releaseDrift();
         const sp = this.vel.length();
         this.mode = sp > 5 ? 'roll' : 'crawl';
         if (this.mode === 'roll') this.emit('enterShell', 0);
@@ -312,7 +379,8 @@ export class RacerBody {
     const vel = this.vel;
     const n = this.normal;
     const sp = vel.length();
-    this.slime -= TUNE.slideDrain * dt;
+    if (this.superSlime > 0) this.slime = 1;
+    else this.slime -= TUNE.slideDrain * dt;
     if (this.slime <= 0) {
       this.slime = 0;
       this.slideLocked = true;
@@ -331,6 +399,71 @@ export class RacerBody {
     const after = vel.length();
     const resist = Math.max(0.004, roll * TUNE.slideFriction) * TUNE.gravity + TUNE.airDrag * 0.8 * sp * sp * (this.boostTimer > 0 ? 0.5 : 1);
     vel.multiplyScalar(Math.max(0, sp - resist * dt) / after);
+
+    // Drift charge: hold a steered slide at speed and the sparks go blue, then orange.
+    if (Math.abs(this.steer) > 0.45 && sp > 8) this.driftCharge += dt;
+    else this.driftCharge = Math.max(0, this.driftCharge - dt * 0.8);
+    const level = this.driftCharge >= TUNE.driftLevel2 ? 2 : this.driftCharge >= TUNE.driftLevel1 ? 1 : 0;
+    if (level > this.driftLevel) this.emit('driftCharge', level);
+    this.driftLevel = level;
+  }
+
+  /** Letting go of a charged drift pays out a mini-turbo. */
+  private releaseDrift(): void {
+    if (this.driftLevel > 0 && this.airTime < 0.2) {
+      const two = this.driftLevel === 2;
+      this.kick(two ? TUNE.driftKick2 : TUNE.driftKick1, two ? 1.0 : 0.6, 0);
+      this.emit('miniturbo', this.driftLevel);
+    }
+    this.driftCharge = 0;
+    this.driftLevel = 0;
+  }
+
+  /** Add speed along the direction of travel (or facing, from rest) and open a low-drag window. */
+  kick(add: number, time: number, minSpeed: number): void {
+    const vel = this.vel;
+    const sp = vel.length();
+    const target = Math.max(sp + add, minSpeed);
+    if (sp > 3) vel.multiplyScalar(target / sp);
+    else {
+      const phi = track.heading(this.s);
+      const fx = sp > 0.5 ? vel.x / sp : Math.sin(phi);
+      const fz = sp > 0.5 ? vel.z / sp : -Math.cos(phi);
+      vel.set(fx * target, vel.y, fz * target);
+    }
+    this.boostTimer = Math.max(this.boostTimer, time);
+  }
+
+  /** Fungo Turbo item. */
+  useMushroom(): void {
+    if (this.mode === 'crawl') {
+      this.mode = 'roll';
+      this.emit('enterShell', 0);
+    }
+    this.kick(TUNE.mushroomKick, TUNE.mushroomTime, 16);
+    this.emit('mushroom', 0);
+  }
+
+  /** Banana or acorn hit. Returns false if a shield soaked it up. */
+  hitBy(kind: 'banana' | 'acorn'): boolean {
+    if (this.shield > 0) {
+      this.shield = 0;
+      this.emit('shieldBlock', 0);
+      return false;
+    }
+    if (this.spinOut > 0 || this.finished) return false;
+    const acorn = kind === 'acorn';
+    this.spinOutDur = acorn ? 1.3 : 1.05;
+    this.spinOut = this.spinOutDur;
+    this.vel.x *= acorn ? 0.35 : 0.5;
+    this.vel.z *= acorn ? 0.35 : 0.5;
+    if (acorn) this.vel.y += 4;
+    this.boostTimer = 0;
+    this.driftCharge = 0;
+    this.driftLevel = 0;
+    if (this.mode === 'slide') this.mode = 'roll';
+    this.emit('spinout', acorn ? 2 : 1);
+    return true;
   }
 
   private airForces(dt: number, intent: Intent): void {
@@ -408,6 +541,16 @@ export class RacerBody {
       const surface = track.surface(this.s, this.d);
       if (surface === 'water' && this.surface !== 'water' && vel.length() > 3) this.emit('splash', vel.length());
       this.surface = surface;
+      if (this.padCooldown <= 0 && track.padAt(this.s, this.d)) {
+        // Dash panel: works in any mode; a crawling snail gets tucked into its shell.
+        this.padCooldown = 0.5;
+        if (this.mode === 'crawl') {
+          this.mode = 'roll';
+          this.emit('enterShell', 0);
+        }
+        this.kick(TUNE.padKick, TUNE.padTime, TUNE.padMinSpeed);
+        this.emit('pad', 0);
+      }
       if (this.spinAngle !== 0 && this.flightTime === 0) {
         this.spinAngle = 0;
         this.spinVel = 0;

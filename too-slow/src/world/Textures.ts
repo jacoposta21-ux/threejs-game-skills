@@ -283,3 +283,34 @@ export function createNameTag(name: string, color: number): THREE.CanvasTexture 
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+
+/** Tiling chevrons for boost pads (points along +V). */
+export function createChevronTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  const grad = ctx.createLinearGradient(0, 0, 128, 0);
+  grad.addColorStop(0, 'rgba(255,120,20,0.0)');
+  grad.addColorStop(0.12, 'rgba(255,140,30,0.85)');
+  grad.addColorStop(0.5, 'rgba(255,190,40,0.9)');
+  grad.addColorStop(0.88, 'rgba(255,140,30,0.85)');
+  grad.addColorStop(1, 'rgba(255,120,20,0.0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 128, 128);
+  ctx.strokeStyle = '#fffbe0';
+  ctx.lineWidth = 16;
+  ctx.lineJoin = 'miter';
+  for (const y of [-64, 0, 64, 128]) {
+    ctx.beginPath();
+    ctx.moveTo(24, y + 16);
+    ctx.lineTo(64, y + 56);
+    ctx.lineTo(104, y + 16);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}

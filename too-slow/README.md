@@ -4,8 +4,8 @@
 
 A 3D downhill snail racing game for desktop browsers, built with Three.js, TypeScript and Vite.
 You are a snail. You cannot accelerate. Gravity can. Crawl to the edge, tuck into your shell, and
-let the Backyard do the rest — six snails, one point-to-point course, about a minute and a half of
-slopes, wet leaves, roots, one very big jump and a banked sprint to the line.
+let the hill do the rest — six snails, three point-to-point courses, kart-style item boxes, boost
+pads and drift mini-turbos, and a garage to dress up your snail.
 
 ![Menu](docs/screens/menu.jpg)
 
@@ -14,6 +14,10 @@ slopes, wet leaves, roots, one very big jump and a banked sprint to the line.
 | ![Leaf Slide](docs/screens/active-play.jpg) | ![Root Maze](docs/screens/root-maze.jpg) |
 | **The Big Drop** | **Final Sprint** |
 | ![The Big Drop](docs/screens/big-drop.jpg) | ![Final Sprint](docs/screens/final-sprint.jpg) |
+| **Veggie Patch** | **Lily Pond** |
+| ![Veggie Patch](docs/screens/veggie.jpg) | ![Lily Pond](docs/screens/pond.jpg) |
+| **Track select** | **Customize** |
+| ![Track select](docs/screens/tracks.jpg) | ![Customize](docs/screens/garage.jpg) |
 
 ## Run it
 
@@ -48,6 +52,7 @@ npm run preview
 | `SHIFT` (hold) | slime slide | slime slide | — |
 | `E` | — | shell boost when charged | spin right |
 | `Q` | — | — | spin left |
+| `F` | use item | use item | use item |
 | `R` | back to last checkpoint | | |
 | `ESC` | pause | `M` mute | |
 
@@ -68,7 +73,30 @@ Arrow keys mirror `WASD`.
   mid-spin and you lose a quarter of your speed.
 - **Surfaces**: stone is fastest, wet leaves are fast but slippery, wood is good for ramps, grass is
   steady, mud and water are slow, tall verge grass is very slow.
+- **Boost pads**: glowing orange chevrons on the ground fire you forward in any mode.
+- **Drift mini-turbo**: steer hard while sliding at speed; the sparks turn blue, then orange.
+  Let go of `SHIFT` for a small or big mini-turbo.
+- **Items**: roll through a `?` box and, after a short roulette, press `F`:
+  - Turbo Mushroom — instant burst of speed.
+  - Banana Peel — dropped behind you; whoever rolls over it spins out.
+  - Acorn — rolls along the course at the snail ahead of you and knocks it into a spin.
+  - Super Slime — five seconds of slide that costs no slime.
+  - Shell Shield — a bubble that blocks the next banana or acorn.
+
+  Leaders mostly get bananas and shields, the back of the pack mostly mushrooms and acorns. The AI
+  snails use the same boxes, items and rules. Items can be switched off in Settings.
+- **Customize**: name, shell colour, shell pattern, body colour and hat; saved in the browser.
 - Leave the course for 2.5 s (or press `R`) and you return to the last checkpoint.
+
+### Tracks
+
+| Track | Length | Character |
+| --- | --- | --- |
+| The Backyard | 1,840 m | wet-leaf bends, a leaf-bridge shortcut, the root maze and the Big Drop |
+| Veggie Patch | 1,418 m | golden hour; muddy furrows with pad-to-pad lines, a boardwalk bridge, Pumpkin Plunge |
+| Lily Pond | 1,538 m | dusk with fireflies; two lily-pad shortcuts, a stepping-stone ribbon, the Frog Leap over the pond |
+
+Personal bests are kept per track.
 
 ### The Backyard course
 
@@ -87,17 +115,20 @@ Arrow keys mirror `WASD`.
 src/
   main.ts                 boot, font loading
   game/Game.ts            state machine, fixed-step loop, events → VFX / audio / HUD, test hooks
-  world/Track.ts          the course as functions of (s, d): height, surface, obstacles, AI gates
+  world/Track.ts          course engine: height, surface, obstacles, AI gates, pads, item rows as functions of (s, d)
+  world/tracks/           the three course definitions (layout, profile, theme, features)
   world/Terrain.ts        ribbon terrain mesh + water, generated from Track
   world/Backyard.ts       procedural prop kit (grass, flowers, mushrooms, roots, bridge, tools …)
   world/Environment.ts    sky, lights, shadows, fog, view distance
   world/Textures.ts       canvas-generated textures
   physics/RacerBody.ts    crawl / roll / slide / air physics, collisions (shared by player and AI)
   racing/RaceManager.ts   grid, countdown, checkpoints, placement, finish (DOM-free)
+  racing/Items.ts         item boxes, roulette, bananas, acorns, hits (DOM-free, seeded)
   ai/SnailAI.ts           racing-line AI + the six racer profiles
   characters/SnailModel.ts procedural snail and its animation
   camera/FollowCamera.ts  speed-adaptive chase camera
   fx/Effects.ts           pooled particles, slime / boost ribbons, speed streaks
+  fx/ItemView.ts          item boxes, banana peels and acorns on screen
   audio/AudioManager.ts   fully synthesised SFX, music and ambience (Web Audio)
   ui/Hud.ts, ui/Menus.ts  HUD, menus, settings and best-time storage
 scripts/sim.ts            headless race simulation (track + physics + AI, no rendering)
@@ -128,6 +159,8 @@ Headless tuning run (prints section splits and every racer's result):
 ```bash
 npm run sim -- 1 10
 ```
+
+Add `--track=veggie` or `--track=pond` for the other courses, and `--no-items` for a clean race.
 
 Real-input smoke test and full-race bot (set `PLAYWRIGHT_CHROMIUM_PATH` to reuse an installed
 Chromium):

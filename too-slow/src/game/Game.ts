@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { AudioManager, type Sfx } from '../audio/AudioManager';
 import { FollowCamera } from '../camera/FollowCamera';
 import { SnailModel, type SnailPose } from '../characters/SnailModel';
+import { ItemView } from '../fx/ItemView';
+import { ITEM_NAMES } from '../racing/Items';
 import { Input } from '../core/Input';
 import { Loop } from '../core/Loop';
 import { createRenderer, resizeRenderer } from '../core/Renderer';
@@ -9,13 +11,14 @@ import { Particles, SpeedLines, Trail } from '../fx/Effects';
 import { TUNE, type RacerBody } from '../physics/RacerBody';
 import { FIXED_DT, RACER_COUNT, RaceManager } from '../racing/RaceManager';
 import { formatTime, Hud, ordinal } from '../ui/Hud';
-import { loadBest, loadRaceCount, Menus, saveBest, saveRaceCount, type Settings } from '../ui/Menus';
+import { loadBest, loadRaceCount, Menus, saveBest, saveRaceCount, type PlayerLook, type Settings } from '../ui/Menus';
+import { TRACKS } from '../world/tracks';
 import { createSeededRandom } from '../utils/random';
 import { buildBackyard, type BackyardResult } from '../world/Backyard';
 import { buildEnvironment, type EnvironmentResult } from '../world/Environment';
 import { buildTerrain, type TerrainResult } from '../world/Terrain';
 import { createNameTag } from '../world/Textures';
-import { FINISH_S, KICKER, SECTIONS, track } from '../world/Track';
+import { FINISH_S, KICKER, SECTIONS, loadTrack, track } from '../world/Track';
 
 type GameState = 'menu' | 'racing' | 'results';
 
@@ -36,6 +39,11 @@ const COLORS = {
   white: new THREE.Color(0xffffff),
   mud: new THREE.Color(0x6b4a2e),
   grass: new THREE.Color(0x8fd060),
+  blueSpark: new THREE.Color(0x6fd0ff),
+  orangeSpark: new THREE.Color(0xffa02e),
+  peel: new THREE.Color(0xffe04a),
+  acorn: new THREE.Color(0xa0662e),
+  shield: new THREE.Color(0x9fe0ff),
   confetti: [0xff5a4a, 0xffd23a, 0x4fb8ff, 0x7ad65a, 0xff8fd0].map((c) => new THREE.Color(c)),
 };
 
@@ -72,8 +80,9 @@ export class Game {
   private readonly menus: Menus;
   private readonly input: Input;
   private readonly env: EnvironmentResult;
-  private readonly terrain: TerrainResult;
-  private readonly backyard: BackyardResult;
+  private terrain: TerrainResult;
+  private backyard: BackyardResult;
+  private readonly itemView = new ItemView();
   private readonly loop = new Loop(
     (delta, elapsed) => this.update(delta, elapsed),
     () => this.render(),
@@ -100,7 +109,7 @@ export class Game {
   private resultsShown = false;
   private boostWasReady = false;
   private raceCount = loadRaceCount();
-  private readonly seen = { roll: false, slide: false, boost: false, spin: false, steerTime: 0, stallTime: 0, wrongWay: 0 };
+  private readonly seen = { roll: false, slide: false, boost: false, spin: false, item: false, steerTime: 0, stallTime: 0, wrongWay: 0 };
   private lastSection = -1;
   private lastOvertakeToast = -9;
   private readonly tmp = new THREE.Vector3();
@@ -119,6 +128,8 @@ export class Game {
     spinAngle: 0,
     boosting: false,
     sinceHit: 9,
+    spinOut: 0,
+    shield: false,
   };
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -135,9 +146,14 @@ export class Game {
     this.hud = new Hud(this.race.profiles);
     this.menus = new Menus(
       {
-        play: () => this.startRace(),
+        chooseTrack: (id) => this.startRace(id),
+        nextTrack: () => {
+          const i = TRACKS.findIndex((d) => d.id === track.def.id);
+          this.startRace(TRACKS[(i + 1) % TRACKS.length].id);
+        },
+        lookChanged: (look) => this.applyLook(look),
         resume: () => this.setPaused(false),
-        restart: () => this.startRace(),
+        restart: () => this.startRace(track.def.id),
         toMenu: () => this.toMenu(),
         settingsChanged: (s) => this.applySettings(s),
         sound: (name) => {
@@ -153,6 +169,9 @@ export class Game {
     if (params.has('dpr')) this.dprOverride = THREE.MathUtils.clamp(Number(params.get('dpr')) || 1, 0.25, 2);
     this.backyard = buildBackyard(this.menus.settings.quality);
     this.scene.add(this.backyard.group);
+    this.scene.add(this.itemView.group);
+    this.env.setTheme(track.def.theme);
+    this.applyLook(this.menus.look, false);
 
     for (let i = 0; i < RACER_COUNT; i += 1) {
       const profile = this.race.profiles[i];
@@ -189,7 +208,9 @@ export class Game {
     document.addEventListener('visibilitychange', this.onBlur);
 
     this.applySettings(this.menus.settings);
+    this.views[0].model.setLook(this.menus.look);
     this.race.reset(this.rng);
+    this.itemView.reset(this.race.items);
     this.toMenu(true);
     resizeRenderer(this.renderer, this.camera, this.maxDpr);
     this.particles.setViewportHeight(this.canvas.clientHeight);
@@ -247,7 +268,50 @@ export class Game {
     this.canvas.focus();
   }
 
+  /** Player colours, pattern, hat and name from the garage. */
+  private applyLook(look: PlayerLook, rebuild = true): void {
+    const p = this.race.profiles[0];
+    p.shell = look.shell;
+    p.shellDark = look.shellDark;
+    p.skin = look.skin;
+    p.pattern = look.pattern;
+    p.hat = look.hat;
+    p.name = look.name;
+    if (rebuild && this.views[0]) {
+      this.views[0].model.setLook(look);
+      this.hud.refreshColors();
+    }
+  }
+
+  /** Swap the course: rebuild terrain and props, recolour the sky. */
+  private setTrack(id: string): void {
+    if (id === track.def.id) return;
+    loadTrack(id);
+    const dispose = (g: THREE.Object3D) => {
+      this.scene.remove(g);
+      g.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh && !(o as THREE.Sprite).isSprite) return;
+        m.geometry?.dispose();
+        const mats = Array.isArray(m.material) ? m.material : [m.material];
+        for (const mat of mats) {
+          for (const v of Object.values(mat)) if (v instanceof THREE.Texture) v.dispose();
+          mat.dispose();
+        }
+      });
+    };
+    dispose(this.terrain.group);
+    dispose(this.backyard.group);
+    this.terrain = buildTerrain();
+    this.backyard = buildBackyard(this.menus.settings.quality);
+    this.scene.add(this.terrain.group, this.backyard.group);
+    this.env.setTheme(track.def.theme);
+    this.hud.setTrack();
+    this.renderer.shadowMap.needsUpdate = true;
+  }
+
   private applySettings(s: Settings): void {
+    this.race.items.enabled = s.items;
     this.audio.setVolumes(s.music, s.sfx);
     this.rig.shakeEnabled = s.shake;
     this.maxDpr = this.dprOverride || (s.quality >= 2 ? 2 : s.quality === 1 ? 1.5 : 1);
@@ -283,7 +347,8 @@ export class Game {
     this.resultsShown = false;
     this.boostWasReady = false;
     this.lastSection = -1;
-    this.seen.roll = this.seen.slide = this.seen.boost = this.seen.spin = false;
+    this.itemView.reset(this.race.items);
+    this.seen.roll = this.seen.slide = this.seen.boost = this.seen.spin = this.seen.item = false;
     this.seen.steerTime = 0;
     this.seen.stallTime = 0;
     this.seen.wrongWay = 0;
@@ -298,7 +363,7 @@ export class Game {
       this.resetRaceVisuals();
       this.hud.show(false);
       this.hud.reset();
-      this.menus.setBest(loadBest());
+      this.menus.setBest(track.def.name, loadBest(track.def.id));
       this.menus.show('main');
       this.audio.silenceMotion();
       this.audio.setMusic(true, 100);
@@ -308,9 +373,12 @@ export class Game {
     else this.fade(go);
   }
 
-  private startRace(): void {
+  private startRace(trackId: string): void {
     this.onGesture();
-    this.fade(() => this.beginRace());
+    this.fade(() => {
+      this.setTrack(trackId);
+      this.beginRace();
+    });
   }
 
   private beginRace(): void {
@@ -376,9 +444,11 @@ export class Game {
     it.spin = live ? this.input.spin : 0;
     const roll = this.input.takeRoll();
     const boost = this.input.takeBoost();
+    const item = this.input.takeItem();
     if (live) {
       if (roll) it.toggleRoll = true;
       if (boost) it.boost = true;
+      if (item) it.useItem = true;
     }
   }
 
@@ -478,6 +548,45 @@ export class Game {
             this.sfxFor(i, 'slideStart');
             if (me) this.seen.slide = true;
             break;
+          case 'pad':
+            this.sfxFor(i, 'pad');
+            this.particles.burst(foot, 12, COLORS.boost, 5, 0.22, 0.5, 3, 0.8, this.fxRng);
+            if (me) {
+              this.rig.addShake(0.15);
+              this.hud.toast('DASH!', 'good');
+            }
+            break;
+          case 'driftCharge':
+            if (me) this.audio.play('spark', e.value);
+            break;
+          case 'miniturbo':
+            this.sfxFor(i, 'miniturbo');
+            this.particles.burst(r.pos, 16, e.value === 2 ? COLORS.orangeSpark : COLORS.blueSpark, 5, 0.22, 0.5, 2, 0.6, this.fxRng);
+            if (me) {
+              this.hud.toast(e.value === 2 ? 'SUPER MINI-TURBO!' : 'MINI-TURBO!', e.value === 2 ? 'great' : 'good');
+              this.rig.addShake(0.15);
+            }
+            break;
+          case 'mushroom':
+            this.sfxFor(i, 'boost');
+            this.particles.burst(r.pos, 18, COLORS.boost, 6, 0.26, 0.6, 2, 0.6, this.fxRng);
+            if (me) this.rig.addShake(0.25);
+            break;
+          case 'spinout':
+            view.sinceHit = 0;
+            view.model.impact(0.8);
+            this.particles.burst(r.pos.clone().setY(r.pos.y + 0.9), 14, COLORS.star, 3, 0.2, 0.9, 1, 0.4, this.fxRng);
+            this.sfxFor(i, 'spinout');
+            if (me) {
+              this.rig.addShake(0.5);
+              this.hud.toast(e.value === 2 ? 'BONK!' : 'WHOOPS!', 'bad', 'spun out');
+            }
+            break;
+          case 'shieldBlock':
+            this.particles.burst(r.pos, 18, COLORS.shield, 5, 0.24, 0.5, 2, 1, this.fxRng);
+            this.sfxFor(i, 'shieldBreak');
+            if (me) this.hud.toast('BLOCKED!', 'good');
+            break;
           case 'respawn':
             view.slime.clear();
             view.boost.clear();
@@ -491,6 +600,40 @@ export class Game {
       }
       r.events.length = 0;
     }
+
+    for (const e of this.race.items.events) {
+      const me = e.racer === 0;
+      switch (e.type) {
+        case 'pickup':
+          this.particles.burst(e.pos, 14, COLORS.confetti[e.racer % 5], 4, 0.2, 0.5, 4, 1, this.fxRng);
+          if (me) this.audio.play('itemBox');
+          break;
+        case 'got':
+          if (me && e.kind) this.audio.play('itemGot');
+          break;
+        case 'use':
+          if (me) this.seen.item = true;
+          if (e.kind === 'banana') this.sfxFor(e.racer, 'drop');
+          else if (e.kind === 'acorn') this.sfxFor(e.racer, 'throw');
+          else if (e.kind === 'shield') this.sfxFor(e.racer, 'shield');
+          else if (e.kind === 'slime') {
+            this.sfxFor(e.racer, 'slimeUp');
+            this.particles.burst(e.pos, 16, COLORS.slime, 4, 0.22, 0.6, 4, 1, this.fxRng);
+          }
+          if (me && e.kind && e.kind !== 'mushroom') this.hud.toast(ITEM_NAMES[e.kind].toUpperCase(), 'info');
+          break;
+        case 'hit':
+          this.particles.burst(e.pos, 10, e.kind === 'acorn' ? COLORS.acorn : COLORS.peel, 4, 0.22, 0.5, 8, 1, this.fxRng);
+          if (!me && this.race.items.events.some((x) => x.type === 'use' && x.racer === 0)) this.hud.toast('HIT!', 'great');
+          break;
+        case 'acornBreak':
+          this.particles.burst(e.pos, 8, COLORS.acorn, 3, 0.2, 0.4, 8, 1, this.fxRng);
+          break;
+        default:
+          break;
+      }
+    }
+    this.race.items.events.length = 0;
 
     for (const e of this.race.events) {
       switch (e.type) {
@@ -564,7 +707,11 @@ export class Game {
       order: race.order,
       sectionIndex: section,
       offTrack: live && p.offTrack > 0.5,
+      item: p.item,
+      rolling: p.itemRoulette > 0,
+      itemsEnabled: race.items.enabled,
     });
+    if (p.itemRoulette > 0 && this.frame % 4 === 0) this.audio.play('roulette');
 
     if (live) {
       const ready = p.boost >= 1;
@@ -601,8 +748,9 @@ export class Game {
     else if (!this.seen.roll && p.mode === 'crawl' && slope > 0.045) hint = 'Downhill! Press <kbd>SPACE</kbd> to tuck into your shell and <b>ROLL</b>';
     else if (!this.seen.roll && this.race.time < 6) hint = 'Hold <kbd>W</kbd> to crawl to the edge of the hill';
     else if (this.seen.roll && this.seen.steerTime > 0.5 && this.seen.steerTime < 5) hint = '<kbd>A</kbd> <kbd>D</kbd> steer · speed comes from the slope, not from <kbd>W</kbd>';
+    else if (p.item && p.itemRoulette <= 0 && this.race.time < 60 && !this.seen.item) hint = `Got ${/^[AEIOU]/.test(ITEM_NAMES[p.item]) ? 'an' : 'a'} <b>${ITEM_NAMES[p.item]}</b>! Press <kbd>F</kbd> to use it`;
     else if (!this.seen.boost && p.boost >= 1 && p.mode !== 'crawl') hint = 'Shell boost charged — press <kbd>E</kbd>!';
-    else if (!this.seen.slide && p.s > 545 && p.s < 900 && p.slime > 0.4 && p.mode === 'roll') hint = 'Hold <kbd>SHIFT</kbd> to slime-slide and keep your momentum';
+    else if (!this.seen.slide && p.s > SECTIONS[2].s0 && p.s < SECTIONS[3].s0 && p.slime > 0.4 && p.mode === 'roll' && p.speed > 9) hint = 'Hold <kbd>SHIFT</kbd> to slime-slide and keep your momentum';
     else if (!this.seen.spin && p.s > KICKER.s0 - 70 && p.s < KICKER.s1 + 60 && (airborne || p.s < KICKER.s1)) hint = 'Big jump! <kbd>Q</kbd> / <kbd>E</kbd> to spin in the air — land it clean';
     this.hud.hint(hint);
   }
@@ -611,9 +759,9 @@ export class Game {
     this.resultsShown = true;
     const race = this.race;
     const p = race.player;
-    const previous = loadBest();
+    const previous = loadBest(track.def.id);
     const newBest = previous === null || p.finishTime < previous;
-    if (newBest) saveBest(p.finishTime);
+    if (newBest) saveBest(track.def.id, p.finishTime);
     this.raceCount += 1;
     saveRaceCount(this.raceCount);
     this.hud.show(false);
@@ -626,6 +774,8 @@ export class Game {
       tricks: p.tricks,
       trickScore: p.trickScore,
       rows: race.order.map((i) => ({ racer: i, time: race.racers[i].finished ? race.racers[i].finishTime : null })),
+      trackName: track.def.name,
+      hasNext: TRACKS.length > 1,
     });
     this.state = 'results';
     this.audio.setMusic(true, 100);
@@ -650,6 +800,7 @@ export class Game {
       this.alpha = this.accumulator / FIXED_DT;
       for (const r of race.racers) r.events.length = 0;
       race.events.length = 0;
+      race.items.events.length = 0;
     }
 
     const pose = this.pose;
@@ -680,6 +831,8 @@ export class Game {
       pose.spinAngle = r.spinAngle;
       pose.boosting = r.boostTimer > 0;
       pose.sinceHit = view.sinceHit;
+      pose.spinOut = r.spinOutAngle;
+      pose.shield = r.shield > 0;
       view.model.update(animDt, pose);
 
       const grounded = r.airTime < 0.08;
@@ -740,6 +893,7 @@ export class Game {
     }
 
     this.particles.update(delta);
+    this.itemView.update(race.items, this.reducedMotion ? 0 : this.time);
     const ambient = this.reducedMotion ? 0 : this.time;
     this.backyard.update(ambient, animDt);
     this.terrain.update(ambient);
@@ -752,6 +906,17 @@ export class Game {
     if (!grounded) return;
     const rnd = this.fxRng;
     view.dustTimer -= delta * (isPlayer ? 1 : 0.5);
+    if (r.mode === 'slide' && r.driftLevel > 0 && rnd() < delta * 70) {
+      // Drift sparks from both sides of the foot: blue, then orange.
+      const c = r.driftLevel === 2 ? COLORS.orangeSpark : COLORS.blueSpark;
+      const side = rnd() < 0.5 ? -1 : 1;
+      const rx = -r.vel.z / Math.max(speed, 1);
+      const rz = r.vel.x / Math.max(speed, 1);
+      this.particles.emit(foot.x + rx * side * 0.45, foot.y + 0.08, foot.z + rz * side * 0.45, -r.vel.x * 0.1 + rx * side * 2, 1.5 + rnd() * 2, -r.vel.z * 0.1 + rz * side * 2, c, 0.12 + rnd() * 0.06, 0.3, 10);
+    }
+    if (r.superSlime > 0 && rnd() < delta * 30) {
+      this.particles.emit(view.pos.x + (rnd() - 0.5), view.pos.y + rnd() * 0.6, view.pos.z + (rnd() - 0.5), 0, 1.2, 0, COLORS.slime, 0.14, 0.6, 0);
+    }
     if (r.mode === 'slide' && speed > 2) {
       if (view.dustTimer <= 0) {
         view.dustTimer = 0.03;
@@ -815,7 +980,8 @@ export class Game {
       this.render();
       this.publishDiagnostics();
     };
-    const raceTo = (s: number, extra?: () => boolean) => {
+    const raceTo = (s: number, extra?: () => boolean, trackId = 'backyard') => {
+      this.setTrack(trackId);
       this.beginRace();
       this.race.autopilot = true;
       simulateUntil(() => this.race.player.s >= s && (extra ? extra() : true), 200);
@@ -823,6 +989,7 @@ export class Game {
     };
     const states: Record<string, () => void> = {
       menu: () => {
+        this.setTrack('backyard');
         this.toMenu(true);
         for (let i = 0; i < 30; i += 1) this.syncVisuals(1 / 60);
         this.render();
@@ -840,6 +1007,22 @@ export class Game {
       'root-maze': () => raceTo(640),
       'big-drop': () => raceTo(KICKER.s1 + 6, () => !this.race.player.grounded),
       'final-sprint': () => raceTo(1330),
+      'veggie-play': () => raceTo(270, undefined, 'veggie'),
+      'veggie-drop': () => raceTo(KICKER.s1 + 6, () => !this.race.player.grounded, 'veggie'),
+      'pond-play': () => raceTo(380, undefined, 'pond'),
+      'pond-leap': () => raceTo(KICKER.s1 + 6, () => !this.race.player.grounded, 'pond'),
+      tracks: () => {
+        this.toMenu(true);
+        (document.getElementById('btn-play') as HTMLButtonElement).click();
+        this.render();
+      },
+      garage: () => {
+        this.setTrack('backyard');
+        this.toMenu(true);
+        this.menus.show('garage');
+        for (let i = 0; i < 30; i += 1) this.syncVisuals(1 / 60);
+        this.render();
+      },
       paused: () => {
         raceTo(236);
         this.setPaused(true);

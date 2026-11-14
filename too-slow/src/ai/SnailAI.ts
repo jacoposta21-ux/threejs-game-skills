@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { emptyIntent, TUNE, type Intent, type RacerBody } from '../physics/RacerBody';
+import type { ItemSystem } from '../racing/Items';
+import type { HatKind, ShellPattern } from '../characters/SnailModel';
 import { KICKER, SPLITS, SURFACES, track } from '../world/Track';
 
 export interface RacerProfile {
@@ -21,6 +23,8 @@ export interface RacerProfile {
   slideAt: number;
   /** Seconds it sits on a full boost before firing. */
   boostDelay: number;
+  pattern?: ShellPattern;
+  hat?: HatKind;
 }
 
 export const PLAYER_PROFILE: RacerProfile = {
@@ -38,11 +42,11 @@ export const PLAYER_PROFILE: RacerProfile = {
 };
 
 export const AI_PROFILES: RacerProfile[] = [
-  { name: 'Turbo', shell: 0xe8413c, shellDark: 0x8f1f2b, skin: 0xf0b98a, line: 0.1, risk: 0.7, aggression: 0.8, precision: 0.97, reaction: 0.35, slideAt: 0.45, boostDelay: 0.3 },
-  { name: 'Shelldon', shell: 0x3f8fe8, shellDark: 0x24508f, skin: 0xb9d77a, line: -0.45, risk: 0.35, aggression: 0.3, precision: 0.9, reaction: 0.7, slideAt: 0.6, boostDelay: 1.2 },
-  { name: 'Gooey Louie', shell: 0x58c26a, shellDark: 0x2c7a45, skin: 0xe6cf72, line: 0.5, risk: 0.6, aggression: 0.5, precision: 0.8, reaction: 0.9, slideAt: 0.3, boostDelay: 2.0 },
-  { name: 'Slimothy', shell: 0xa968e0, shellDark: 0x62379a, skin: 0xf0a8c6, line: -0.75, risk: 0.75, aggression: 0.7, precision: 0.72, reaction: 0.55, slideAt: 0.7, boostDelay: 0.8 },
-  { name: 'Escargo', shell: 0xf2c230, shellDark: 0xa87a12, skin: 0xd6b07e, line: 0.8, risk: 0.2, aggression: 0.2, precision: 0.84, reaction: 1.3, slideAt: 0.8, boostDelay: 3.0 },
+  { name: 'Turbo', shell: 0xe8413c, shellDark: 0x8f1f2b, skin: 0xf0b98a, line: 0.1, risk: 0.7, aggression: 0.8, precision: 0.97, reaction: 0.35, slideAt: 0.45, boostDelay: 0.3, pattern: 'stripes', hat: 'cap' },
+  { name: 'Shelldon', shell: 0x3f8fe8, shellDark: 0x24508f, skin: 0xb9d77a, line: -0.45, risk: 0.35, aggression: 0.3, precision: 0.9, reaction: 0.7, slideAt: 0.6, boostDelay: 1.2, pattern: 'spots' },
+  { name: 'Gooey Louie', shell: 0x58c26a, shellDark: 0x2c7a45, skin: 0xe6cf72, line: 0.5, risk: 0.6, aggression: 0.5, precision: 0.8, reaction: 0.9, slideAt: 0.3, boostDelay: 2.0, pattern: 'swirl', hat: 'flower' },
+  { name: 'Slimothy', shell: 0xa968e0, shellDark: 0x62379a, skin: 0xf0a8c6, line: -0.75, risk: 0.75, aggression: 0.7, precision: 0.72, reaction: 0.55, slideAt: 0.7, boostDelay: 0.8, pattern: 'stripes', hat: 'party' },
+  { name: 'Escargo', shell: 0xf2c230, shellDark: 0xa87a12, skin: 0xd6b07e, line: 0.8, risk: 0.2, aggression: 0.2, precision: 0.84, reaction: 1.3, slideAt: 0.8, boostDelay: 3.0, pattern: 'solid', hat: 'crown' },
 ];
 
 const target = new THREE.Vector3();
@@ -68,6 +72,7 @@ export class SnailAI {
   private boostWait = 0;
   private sliding = false;
   private rollCooldown = 0;
+  private itemHold = 0;
   /** Debug: last target lateral offset. */
   targetD = 0;
 
@@ -75,10 +80,10 @@ export class SnailAI {
 
   reset(rng: () => number): void {
     const p = this.profile;
-    this.routes = {
-      leaf: rng() < p.risk * 0.75 ? 'risky' : 'safe',
-      maze: rng() < p.risk * 0.9 ? 'risky' : 'safe',
-    };
+    this.routes = {};
+    for (const g of track.gates) {
+      if (g.group && !(g.group in this.routes)) this.routes[g.group] = rng() < p.risk * (g.group === 'maze' ? 0.9 : 0.75) ? 'risky' : 'safe';
+    }
     this.phase = rng() * 10;
     this.stuck = 0;
     this.reverse = 0;
@@ -87,15 +92,17 @@ export class SnailAI {
     this.boostWait = 0;
     this.sliding = false;
     this.rollCooldown = 0;
+    this.itemHold = 0;
   }
 
-  update(dt: number, me: RacerBody, all: RacerBody[], raceTime: number): Intent {
+  update(dt: number, me: RacerBody, all: RacerBody[], raceTime: number, items?: ItemSystem): Intent {
     const it = this.intent;
     const p = this.profile;
     it.toggleRoll = false;
     it.boost = false;
     it.slide = false;
     it.spin = 0;
+    it.useItem = false;
     it.throttle = 1;
     it.steer = 0;
     if (me.frozen) return it;
@@ -167,6 +174,36 @@ export class SnailAI {
       }
     }
 
+    // Banana peels are obstacles too.
+    if (items) {
+      for (const b of items.bananas) {
+        if (b.s < me.s - 1 || b.s > me.s + look + 6) continue;
+        if (Math.abs(b.d - dT) < 1.5) {
+          const side = me.d >= b.d ? 1 : -1;
+          let c = b.d + side * 1.9;
+          if (c > g1 || c < g0 || Math.abs(c) > hw - 1) c = b.d - side * 1.9;
+          dT = c;
+        }
+      }
+      // Without an item, drift toward the nearest box in a row coming up.
+      if (!me.item && me.itemRoulette <= 0) {
+        let best = Infinity;
+        for (const b of items.boxes) {
+          if (b.respawn > 0 || b.s < me.s + 4 || b.s > me.s + look + 10 || b.d < g0 || b.d > g1) continue;
+          const cost = Math.abs(b.d - dT);
+          if (cost < 3.5 && cost < best) {
+            best = cost;
+            dT = b.d;
+          }
+        }
+      }
+    }
+    // Boost pads on the line are worth a small detour.
+    for (const pad of track.pads) {
+      if (pad.s0 < me.s + 3 || pad.s0 > me.s + look + 8 || pad.d < g0 || pad.d > g1) continue;
+      if (Math.abs(pad.d - dT) < 3.2) dT = pad.d;
+    }
+
     // Other snails: pick a side to pass on.
     const room = 2.2 - p.aggression * 0.9;
     for (const o of all) {
@@ -221,6 +258,23 @@ export class SnailAI {
         }
       }
     }
+
+    // Items.
+    if (me.item && me.itemRoulette <= 0 && contact) {
+      this.itemHold += dt;
+      const hold = this.itemHold;
+      let fire = false;
+      if (me.item === 'mushroom') fire = hold > 0.6 + (1 - p.risk) && Math.abs(err) < 0.2 && Math.abs(kAhead) < 0.008 && !gateSoon;
+      else if (me.item === 'banana') fire = hold > 8 || all.some((o) => o !== me && me.s - o.s > 1 && me.s - o.s < 14 && Math.abs(o.d - me.d) < 4);
+      else if (me.item === 'acorn') fire = hold > 10 || all.some((o) => o !== me && !o.finished && o.s - me.s > 4 && o.s - me.s < 40 && Math.abs(o.d - me.d) < 5);
+      else if (me.item === 'slime') fire = hold > 0.5 && (SURFACES[me.surface].roll > 0.05 || (me.mode !== 'crawl' && speed < 14)) || hold > 12;
+      else fire = hold > 0.8;
+      if (fire) {
+        it.useItem = true;
+        this.itemHold = 0;
+      }
+    } else if (!me.item) this.itemHold = 0;
+    if (me.superSlime > 0 && me.mode !== 'crawl' && speed > 6 && contact) it.slide = true;
 
     // Arriving too hot for the next bend: drag the shell (risk-takers brake later).
     if (me.mode === 'roll' && contact) {

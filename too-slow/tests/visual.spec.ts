@@ -22,6 +22,14 @@ test('boots to the menu, renders a varied canvas, and the snail answers real key
   }
   expect(buckets.size).toBeGreaterThan(40);
 
+  // Track select and garage open; a garage change persists.
+  await page.click('#btn-garage');
+  await expect(page.locator('#menu-garage')).toBeVisible();
+  await page.click('#garage-hat button[data-v="crown"]');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#menu-main')).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tooslow.look.v1') ?? '{}').hat)).toBe('crown');
+
   // How-to and settings open and close.
   await page.click('#btn-how');
   await expect(page.locator('#menu-how')).toBeVisible();
@@ -30,6 +38,7 @@ test('boots to the menu, renders a varied canvas, and the snail answers real key
 
   // PLAY → countdown → GO, then W crawls the snail forward.
   await page.click('#btn-play');
+  await page.click('.track-card[data-track="backyard"]');
   await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.state === 'racing', null, { timeout: 120_000 });
   await expect(page.locator('#hud')).toBeVisible();
   const before = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__!.score);
@@ -40,6 +49,8 @@ test('boots to the menu, renders a varied canvas, and the snail answers real key
   // SPACE tucks into the shell; ESC pauses and resumes.
   await page.keyboard.press('Space');
   await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.mode === 'roll', null, { timeout: 30_000 });
+  // F with an empty slot does nothing harmful.
+  await page.keyboard.press('KeyF');
   await page.keyboard.press('Escape');
   await expect(page.locator('#menu-pause')).toBeVisible();
   const frozen = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__!.elapsed);

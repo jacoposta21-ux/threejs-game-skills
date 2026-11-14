@@ -26,6 +26,12 @@
           <ol id="standings" aria-label="Standings"></ol>
         </div>
 
+        <div class="item-slot" id="item-slot" aria-label="Item">
+          <span class="item-icon" id="item-icon"></span>
+          <kbd>F</kbd>
+          <span class="item-name" id="item-name"></span>
+        </div>
+
         <div class="hud-tr">
           <div class="progress-card">
             <div class="progress-head"><span id="section-name">Starting Hill</span><span class="dist"><b id="dist-value">0</b> m</span></div>
@@ -72,10 +78,36 @@
         </div>
         <nav class="menu-buttons">
           <button class="btn btn-primary" id="btn-play" type="button">PLAY</button>
+          <button class="btn" id="btn-garage" type="button">CUSTOMIZE</button>
           <button class="btn" id="btn-how" type="button">HOW TO PLAY</button>
           <button class="btn" id="btn-settings" type="button">SETTINGS</button>
         </nav>
         <p class="best-line" id="menu-best"></p>
+      </section>
+
+      <!-- Track select -->
+      <section id="menu-tracks" class="screen hidden">
+        <div class="panel panel-wide">
+          <h2>Choose a Track</h2>
+          <div class="track-list" id="track-list"></div>
+          <button class="btn" data-back type="button">BACK</button>
+        </div>
+      </section>
+
+      <!-- Garage -->
+      <section id="menu-garage" class="screen hidden">
+        <div class="panel garage">
+          <h2>Customize</h2>
+          <label class="row"><span>Name</span><input id="garage-name" type="text" maxlength="12" autocomplete="off" spellcheck="false" /></label>
+          <div class="garage-group"><span>Shell</span><div class="swatches" id="garage-shell"></div></div>
+          <div class="garage-group"><span>Pattern</span><div class="seg seg-wrap" id="garage-pattern"></div></div>
+          <div class="garage-group"><span>Body</span><div class="swatches" id="garage-skin"></div></div>
+          <div class="garage-group"><span>Hat</span><div class="seg seg-wrap" id="garage-hat"></div></div>
+          <div class="garage-buttons">
+            <button class="btn" id="btn-random-look" type="button">RANDOM</button>
+            <button class="btn btn-primary" data-back type="button">DONE</button>
+          </div>
+        </div>
       </section>
 
       <!-- How to play -->
@@ -101,8 +133,13 @@
             </div>
             <div class="how-card how-boost">
               <h3>Boost &amp; Tricks</h3>
-              <p><kbd>E</kbd> shell boost when the meter is full</p>
-              <p>In the air: <kbd>Q</kbd> / <kbd>E</kbd> spin. Land a full spin for points and boost charge. Land mid-spin and you lose speed.</p>
+              <p><kbd>E</kbd> shell boost when the meter is full · glowing chevron pads boost you for free</p>
+              <p>Steer hard while sliding: blue, then orange sparks. Let go of <kbd>SHIFT</kbd> for a mini-turbo. In the air <kbd>Q</kbd> / <kbd>E</kbd> spin.</p>
+            </div>
+            <div class="how-card how-items">
+              <h3>Items</h3>
+              <p>Roll through a <b>?</b> box, then <kbd>F</kbd> to use what you got:</p>
+              <p>Turbo Mushroom · Banana Peel (dropped behind) · Acorn (rolls at the snail ahead) · Super Slime (endless slide) · Shell Shield (blocks one hit)</p>
             </div>
           </div>
           <p class="surfaces">
@@ -127,6 +164,7 @@
             </div>
           </div>
           <label class="row"><span>Camera shake</span><input id="set-shake" type="checkbox" checked /></label>
+          <label class="row"><span>Items</span><input id="set-items" type="checkbox" checked /></label>
           <button class="btn btn-primary" data-back type="button">DONE</button>
         </div>
       </section>
@@ -156,6 +194,7 @@
           <ol id="results-list"></ol>
           <div class="results-buttons">
             <button class="btn btn-primary" id="btn-again" type="button">RACE AGAIN</button>
+            <button class="btn" id="btn-next" type="button">NEXT TRACK</button>
             <button class="btn" id="btn-results-menu" type="button">MAIN MENU</button>
           </div>
         </div>

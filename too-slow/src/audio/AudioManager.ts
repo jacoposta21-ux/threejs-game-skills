@@ -26,7 +26,19 @@ export type Sfx =
   | 'splash'
   | 'respawn'
   | 'squelch'
-  | 'pause';
+  | 'pause'
+  | 'pad'
+  | 'spark'
+  | 'miniturbo'
+  | 'itemBox'
+  | 'itemGot'
+  | 'roulette'
+  | 'drop'
+  | 'throw'
+  | 'spinout'
+  | 'shield'
+  | 'shieldBreak'
+  | 'slimeUp';
 
 interface Loop {
   gain: GainNode;
@@ -338,6 +350,50 @@ export class AudioManager {
       case 'respawn':
         this.tone(700, 0.35, 'sine', 0.25, 220);
         this.tone(220, 0.25, 'triangle', 0.2, 660, 0.3);
+        break;
+      case 'pad':
+        this.tone(300, 0.35, 'sawtooth', 0.16, 1200);
+        this.burst(0.35, 'bandpass', 1200, 0.3, 4800, 0, 1.1);
+        break;
+      case 'spark':
+        this.tone(intensity > 1.5 ? 1400 : 1000, 0.12, 'square', 0.08, intensity > 1.5 ? 1800 : 1300);
+        break;
+      case 'miniturbo':
+        this.tone(220, 0.4, 'sawtooth', 0.18, 700);
+        this.burst(0.4, 'bandpass', 800, 0.3, 3600, 0, 1);
+        break;
+      case 'itemBox':
+        for (const [i, f] of [880, 1109, 1319].entries()) this.tone(f, 0.12, 'triangle', 0.16, f, i * 0.04);
+        break;
+      case 'roulette':
+        this.tone(1200 + Math.random() * 400, 0.04, 'square', 0.05);
+        break;
+      case 'itemGot':
+        this.tone(988, 0.1, 'triangle', 0.2);
+        this.tone(1480, 0.2, 'triangle', 0.2, 1480, 0.08);
+        break;
+      case 'drop':
+        this.tone(420, 0.18, 'sine', 0.3, 160);
+        this.burst(0.08, 'lowpass', 700, 0.2);
+        break;
+      case 'throw':
+        this.burst(0.3, 'bandpass', 600, 0.3, 2400, 0, 1.4);
+        this.tone(500, 0.2, 'triangle', 0.15, 900);
+        break;
+      case 'spinout':
+        for (let k = 0; k < 4; k += 1) this.tone(700 - k * 90, 0.12, 'triangle', 0.2 * v, 400 - k * 60, k * 0.11);
+        break;
+      case 'shield':
+        this.tone(520, 0.5, 'sine', 0.2, 1040);
+        this.tone(780, 0.5, 'sine', 0.12, 1560, 0.05);
+        break;
+      case 'shieldBreak':
+        this.burst(0.3, 'highpass', 2500, 0.35);
+        this.tone(1200, 0.25, 'triangle', 0.2, 300);
+        break;
+      case 'slimeUp':
+        this.burst(0.4, 'bandpass', 500, 0.3, 1800, 0, 3);
+        this.tone(300, 0.4, 'sine', 0.2, 900);
         break;
       case 'finish':
         for (const [i, f] of [523, 659, 784, 1047, 1319, 1568].entries()) this.tone(f, 0.5, 'triangle', 0.24, f, i * 0.1);

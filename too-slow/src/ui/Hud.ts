@@ -1,5 +1,22 @@
 import type { RacerProfile } from '../ai/SnailAI';
+import type { ItemKind } from '../physics/RacerBody';
+import { ITEM_NAMES } from '../racing/Items';
 import { FINISH_S, SECTIONS } from '../world/Track';
+
+/** Inline icons for the item slot. */
+export const ITEM_ICONS: Record<ItemKind, string> = {
+  mushroom:
+    '<svg viewBox="0 0 64 64"><path d="M22 36h20l-2 18a4 4 0 0 1-4 4h-8a4 4 0 0 1-4-4z" fill="#fff3dc" stroke="#23331a" stroke-width="3"/><path d="M6 36C6 18 18 8 32 8s26 10 26 28z" fill="#e5382e" stroke="#23331a" stroke-width="3" stroke-linejoin="round"/><circle cx="22" cy="22" r="5" fill="#fff"/><circle cx="40" cy="18" r="4" fill="#fff"/><circle cx="46" cy="30" r="3.5" fill="#fff"/><circle cx="28" cy="46" r="2" fill="#23331a"/><circle cx="36" cy="46" r="2" fill="#23331a"/></svg>',
+  banana:
+    '<svg viewBox="0 0 64 64"><path d="M30 30C18 34 10 46 8 56c8-6 16-10 24-12z" fill="#ffe04a" stroke="#23331a" stroke-width="3" stroke-linejoin="round"/><path d="M34 30c12 4 20 16 22 26-8-6-16-10-24-12z" fill="#f7d43a" stroke="#23331a" stroke-width="3" stroke-linejoin="round"/><path d="M26 32c0-12 4-20 6-24 2 4 6 12 6 24-4 4-8 4-12 0z" fill="#fff2b0" stroke="#23331a" stroke-width="3" stroke-linejoin="round"/><path d="M29 8h6l-1-5h-4z" fill="#6b4a2e" stroke="#23331a" stroke-width="2"/></svg>',
+  acorn:
+    '<svg viewBox="0 0 64 64"><path d="M14 30h36c0 16-8 28-18 28S14 46 14 30z" fill="#d08a44" stroke="#23331a" stroke-width="3"/><path d="M10 30c0-10 10-16 22-16s22 6 22 16z" fill="#7a5232" stroke="#23331a" stroke-width="3" stroke-linejoin="round"/><path d="M32 14l2-8" stroke="#23331a" stroke-width="4" stroke-linecap="round"/><path d="M18 24h28M22 19h20" stroke="#5a3a20" stroke-width="2"/></svg>',
+  slime:
+    '<svg viewBox="0 0 64 64"><path d="M32 6c10 14 18 22 18 34a18 18 0 0 1-36 0C14 28 22 20 32 6z" fill="#9cf05a" stroke="#23331a" stroke-width="3" stroke-linejoin="round"/><path d="M24 40a8 8 0 0 0 8 8" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/><path d="M44 8l3 6 6 3-6 3-3 6-3-6-6-3 6-3z" fill="#fff07a" stroke="#23331a" stroke-width="2"/></svg>',
+  shield:
+    '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="#bfe8ff" stroke="#23331a" stroke-width="3"/><path d="M32 32m-14 0a14 14 0 1 0 28 0a10 10 0 1 0-20 0a6 6 0 1 0 12 0" fill="none" stroke="#3a7fd0" stroke-width="4" stroke-linecap="round"/><path d="M18 20a18 18 0 0 1 12-8" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/></svg>',
+};
+const ROULETTE_ORDER: ItemKind[] = ['mushroom', 'banana', 'acorn', 'slime', 'shield'];
 
 function el<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -36,6 +53,9 @@ export interface HudState {
   order: number[];
   sectionIndex: number;
   offTrack: boolean;
+  item: ItemKind | null;
+  rolling: boolean;
+  itemsEnabled: boolean;
 }
 
 const GAUGE_LEN = 227;
@@ -66,6 +86,11 @@ export class Hud {
   private readonly hintEl = el('hint');
   private readonly offtrack = el('offtrack');
   private readonly vignette = el('vignette');
+  private readonly itemSlot = el('item-slot');
+  private readonly itemIcon = el('item-icon');
+  private readonly itemName = el('item-name');
+  private readonly ticks: HTMLElement[] = [];
+  private rouletteTick = 0;
   private readonly dots: HTMLElement[] = [];
   private readonly rows: HTMLElement[] = [];
   private last: Record<string, string | number | boolean> = {};
@@ -84,12 +109,27 @@ export class Hud {
       this.standings.appendChild(row);
       this.rows.push(row);
     });
+    this.setTrack();
+  }
+
+  /** Rebuild the section ticks for the current course. */
+  setTrack(): void {
+    for (const t of this.ticks) t.remove();
+    this.ticks.length = 0;
     for (const sec of SECTIONS.slice(1)) {
+      if (sec.s0 >= FINISH_S) continue;
       const tick = document.createElement('i');
       tick.className = 'progress-tick';
       tick.style.left = `${(sec.s0 / FINISH_S) * 100}%`;
       this.track.appendChild(tick);
+      this.ticks.push(tick);
     }
+  }
+
+  /** Repaint the player's colour dots after a garage change. */
+  refreshColors(): void {
+    this.dots.forEach((dot, i) => (dot.style.background = hex(this.profiles[i].shell)));
+    this.last.order = '';
   }
 
   show(visible: boolean): void {
@@ -161,6 +201,21 @@ export class Hud {
         (row.children[1] as HTMLElement).style.background = hex(this.profiles[racer].shell);
         (row.children[2] as HTMLElement).textContent = this.profiles[racer].name;
       });
+    }
+    if (this.set('itemsOn', s.itemsEnabled)) this.itemSlot.classList.toggle('hidden', !s.itemsEnabled);
+    if (s.rolling) {
+      this.rouletteTick += 1;
+      const k = ROULETTE_ORDER[Math.floor(this.rouletteTick / 4) % ROULETTE_ORDER.length];
+      if (this.set('itemShow', `r${k}`)) this.itemIcon.innerHTML = ITEM_ICONS[k];
+    } else if (this.set('itemShow', s.item ?? '')) {
+      this.itemIcon.innerHTML = s.item ? ITEM_ICONS[s.item] : '';
+      this.itemName.textContent = s.item ? ITEM_NAMES[s.item] : '';
+    }
+    if (this.set('itemState', s.rolling ? 'rolling' : s.item ? 'ready' : 'empty')) {
+      this.itemSlot.classList.toggle('rolling', s.rolling);
+      this.itemSlot.classList.toggle('ready', !s.rolling && !!s.item);
+      this.itemSlot.classList.toggle('empty', !s.rolling && !s.item);
+      if (s.rolling) this.itemName.textContent = '';
     }
     if (this.set('off', s.offTrack)) this.offtrack.classList.toggle('hidden', !s.offTrack);
 

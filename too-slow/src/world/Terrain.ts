@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { KICKER, SMALL_JUMP, SURFACES, noise2, track, type Surface } from './Track';
+import { SURFACES, noise2, track, type Surface } from './Track';
 import { createGroundDetail, createRippleTexture } from './Textures';
 
 const COLS: number[] = [];
@@ -19,9 +19,9 @@ function surfaceColor(surface: Surface): THREE.Color {
   return c;
 }
 
-const VERGE = new THREE.Color(0x4c9a36);
-const FAR_A = new THREE.Color(0x5fae3c);
-const FAR_B = new THREE.Color(0x3f8a34);
+const VERGE = new THREE.Color();
+const FAR_A = new THREE.Color();
+const FAR_B = new THREE.Color();
 const WET = new THREE.Color(0x5a4630);
 const TAPS = [
   [0, 0],
@@ -42,11 +42,15 @@ export interface TerrainResult {
 export function buildTerrain(): TerrainResult {
   const group = new THREE.Group();
   group.name = 'terrain';
+  const theme = track.def.theme;
+  VERGE.set(theme.verge);
+  FAR_A.set(theme.farA);
+  FAR_B.set(theme.farB);
 
   const rows: number[] = [];
   for (let s = -40; s <= track.length + 40; s += 1) rows.push(s);
   // Extra rows so the kicker lips are crisp cliffs instead of 1 m smears.
-  for (const lip of [KICKER.s1, SMALL_JUMP.s1]) rows.push(lip - 0.02, lip + 0.02);
+  for (const jump of track.jumps) rows.push(jump.s1 - 0.02, jump.s1 + 0.02);
   rows.sort((a, b) => a - b);
 
   const detail = createGroundDetail();
@@ -168,7 +172,7 @@ export function buildTerrain(): TerrainResult {
     wPos.push(pos.x, track.height(s, d, true) - 0.16, pos.z);
     wUv.push(d / 9, s / 9);
   };
-  for (let s = 370; s < track.length; s += 2) {
+  for (let s = 40; s < track.length; s += 2) {
     for (let d = -24; d < 24; d += 1.5) {
       const dug = track.height(s + 1, d + 0.75, true) - track.height(s + 1, d + 0.75);
       if (dug < 0.2 || track.surface(s + 1, d + 0.75) === 'mud') continue;

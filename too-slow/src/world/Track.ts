@@ -32,9 +32,9 @@ export const SURFACES: Record<Surface, SurfaceDef> = {
   rough: { roll: 0.12, grip: 0.8, crawl: 0.75, color: 0x4f9a3a, label: 'Tall grass' },
 };
 
-type Key = [number, number];
+export type Key = [number, number];
 
-function keyed(keys: Key[], s: number): number {
+export function keyed(keys: Key[], s: number): number {
   if (s <= keys[0][0]) return keys[0][1];
   for (let i = 1; i < keys.length; i += 1) {
     if (s <= keys[i][0]) {
@@ -118,132 +118,97 @@ export interface RootSpec {
   skew: number;
 }
 
-/** Curvature layout: [length, total turn in degrees (+ = right)]. */
-const LAYOUT: Key[] = [
-  [150, 0], // 1 · Starting Hill            0 –  150
-  [50, 0], //  2 · Leaf Slide             150 –  550
-  [120, 75],
-  [40, 0],
-  [130, -95],
-  [60, 0],
-  [60, 0], //  3 · Root Maze              550 –  960
-  [150, 80],
-  [70, 0],
-  [90, -40],
-  [40, 0],
-  [300, 0], // 4 · The Big Drop           960 – 1260
-  [150, 70], // 5 · Final Sprint         1260 – 1960
-  [30, 0],
-  [120, -90],
-  [30, 0],
-  [100, 60],
-  [270, 0],
-];
+export interface Jump {
+  s0: number;
+  s1: number;
+  height: number;
+}
 
-/** Downhill slope in degrees keyed by s. */
-const SLOPE: Key[] = [
-  [0, 0],
-  [21, 0],
-  [46, 7.5],
-  [150, 9],
-  [200, 10],
-  [320, 8],
-  [450, 9],
-  [550, 6],
-  [600, 4.5],
-  [656, 3],
-  [672, -2.6],
-  [698, -2.6],
-  [716, 4],
-  [860, 6],
-  [960, 3.5],
-  [1000, 2],
-  [1022, 22],
-  [1034, 30],
-  [1080, 30],
-  [1096, 12],
-  [1122, 12],
-  [1130, 22],
-  [1218, 20],
-  [1262, 6.5],
-  [1300, 5.5],
-  [1640, 5],
-  [1700, 3.5],
-  [1800, 2.5],
-  [1860, 1],
-  [1900, 0],
-  [1960, -4],
-];
+export interface LeafBridge {
+  s0: number;
+  s1: number;
+  d: number;
+  half: number;
+  side: number;
+}
 
-const HALF_WIDTH: Key[] = [
-  [0, 9],
-  [150, 9.5],
-  [360, 10],
-  [550, 10.5],
-  [620, 12],
-  [770, 12],
-  [900, 9],
-  [918, 4.2],
-  [960, 4.2],
-  [978, 9],
-  [1122, 9.5],
-  [1137, 13],
-  [1240, 12],
-  [1280, 9.5],
-  [1700, 9.5],
-  [1740, 10.5],
-  [1960, 10.5],
-];
+/** A dash panel: rolling or sliding over it gives an instant burst of speed. */
+export interface BoostPad {
+  s0: number;
+  s1: number;
+  d: number;
+  half: number;
+}
 
-const BANK_GAIN: Key[] = [
-  [0, 6],
-  [1240, 6],
-  [1270, 19],
-  [1690, 19],
-  [1720, 4],
-];
+export interface Split {
+  group: string;
+  s0: number;
+  s1: number;
+  d: number;
+  left: string;
+  right: string;
+}
 
-const BERM: Key[] = [
-  [0, 1.0],
-  [140, 1.9],
-  [900, 1.9],
-  [915, 0.2],
-  [962, 0.2],
-  [980, 2.2],
-  [1122, 2.2],
-  [1132, 2.8],
-  [1250, 2.6],
-  [1270, 3.4],
-  [1700, 3.4],
-  [1730, 2.0],
-  [1960, 2.0],
-];
+export interface Landmark {
+  kind: 'can' | 'trowel' | 'hose' | 'rake' | 'pot' | 'potTipped' | 'trunk';
+  s: number;
+  d: number;
+  /** End of the span for long props (hose). */
+  s1?: number;
+}
+
+export interface Theme {
+  skyTop: number;
+  skyHorizon: number;
+  skyGround: number;
+  fog: number;
+  hemiSky: number;
+  hemiGround: number;
+  hemiIntensity: number;
+  sunColor: number;
+  sunIntensity: number;
+  verge: number;
+  farA: number;
+  farB: number;
+  grassTints: number[];
+  /** Glowing fireflies instead of butterflies. */
+  fireflies?: boolean;
+}
+
+export interface Section {
+  name: string;
+  s0: number;
+  s1: number;
+}
+
+/** Everything that makes one course: shape, profile, rules, look, and a build script for its features. */
+export interface TrackDef {
+  id: string;
+  name: string;
+  blurb: string;
+  /** Curvature layout: [length, total turn in degrees (+ = right)]. */
+  layout: Key[];
+  /** Downhill slope in degrees keyed by s. */
+  slope: Key[];
+  halfWidth: Key[];
+  bankGain: Key[];
+  berm: Key[];
+  startS: number;
+  gridS: number;
+  finishS: number;
+  sections: Section[];
+  checkpoints: number[];
+  theme: Theme;
+  landmarks: Landmark[];
+  /** Picket fence behind the start and along one side up to `s1`. */
+  fence?: { side: number; s1: number };
+  /** Index into the built jumps of the signature jump (AI tricks, air hint). */
+  mainJump: number;
+  baseSurface(s: number, ad: number): Surface;
+  build(b: Track): void;
+}
 
 export const TRACK_EDGE = 22;
-export const START_S = 22;
-export const GRID_S = 14;
-export const FINISH_S = 1862;
-
-export const SECTIONS = [
-  { name: 'Starting Hill', s0: 0, s1: 150 },
-  { name: 'Leaf Slide', s0: 150, s1: 550 },
-  { name: 'Root Maze', s0: 550, s1: 960 },
-  { name: 'The Big Drop', s0: 960, s1: 1260 },
-  { name: 'Final Sprint', s0: 1260, s1: 1960 },
-];
-
-export const CHECKPOINTS = [150, 330, 550, 752, 965, 1260, 1425, 1575, 1700];
-
-/** Leaf shortcut strip (inside of the big left-hander). */
-export const LEAF_SHORTCUT = { s0: 394, s1: 478, d: -13.9, half: 2.2 };
-export const BRIDGE = { s0: 920, s1: 958 };
-export const KICKER = { s0: 1090, s1: 1122, height: 5.2 };
-/** Places where the course splits around a divider; `d` is the divider's lateral position. */
-export const SPLITS = [
-  { group: 'leaf', s0: 398, s1: 478, d: -11.9, left: 'risky', right: 'safe' },
-  { group: 'maze', s0: 648, s1: 745, d: 2.65, left: 'safe', right: 'risky' },
-];
-export const SMALL_JUMP = { s0: 300, s1: 314, height: 1.5 };
 
 export class Track {
   readonly n: number;
@@ -255,20 +220,29 @@ export class Track {
   private readonly base: Float32Array;
   private readonly features: Feature[] = [];
   private readonly patches: Patch[] = [];
+  private readonly bermCuts: { s0: number; s1: number; side: number }[] = [];
+  private readonly deferred: (() => void)[] = [];
   readonly obstacles: Obstacle[] = [];
   readonly roots: RootSpec[] = [];
   readonly gates: Gate[] = [];
+  readonly jumps: Jump[] = [];
+  readonly bridges: { s0: number; s1: number }[] = [];
+  readonly leafBridges: LeafBridge[] = [];
+  readonly pads: BoostPad[] = [];
+  readonly splits: Split[] = [];
+  /** s positions of item-box rows. */
+  readonly itemRows: number[] = [];
   private readonly buckets: Obstacle[][] = [];
 
-  constructor() {
-    this.length = LAYOUT.reduce((sum, seg) => sum + seg[0], 0);
+  constructor(readonly def: TrackDef) {
+    this.length = def.layout.reduce((sum, seg) => sum + seg[0], 0);
     this.n = Math.round(this.length);
     const n = this.n;
 
     // Raw curvature per unit, then two box-filter passes for clothoid-like transitions.
     let raw = new Float32Array(n + 1);
     let cursor = 0;
-    for (const [len, turn] of LAYOUT) {
+    for (const [len, turn] of def.layout) {
       const k = (turn * Math.PI) / 180 / len;
       for (let i = 0; i < len; i += 1) raw[cursor + i] = k;
       cursor += len;
@@ -294,12 +268,29 @@ export class Track {
       const mid = (this.phi[i] + this.phi[i - 1]) * 0.5;
       this.px[i] = this.px[i - 1] + Math.sin(mid);
       this.pz[i] = this.pz[i - 1] - Math.cos(mid);
-      const slope = (keyed(SLOPE, i - 0.5) * Math.PI) / 180;
+      const slope = (keyed(def.slope, i - 0.5) * Math.PI) / 180;
       this.base[i] = this.base[i - 1] - Math.tan(slope);
     }
 
-    this.buildFeatures();
-    this.buildObstacles();
+    def.build(this);
+    // Arch legs at the start and finish lines.
+    for (const s of [def.startS, def.finishS]) {
+      const half = this.halfWidth(s) + 0.9;
+      this.add('post', s, -half, 0.75, 0.4, 0, 6);
+      this.add('post', s, half, 0.75, 0.4, 0, 6);
+    }
+    // Obstacles are placed last so they sit on the finished ground.
+    for (const fn of this.deferred) fn();
+    this.deferred.length = 0;
+    this.gates.sort((g0, g1) => g0.s0 - g1.s0);
+
+    const bucketCount = Math.ceil(this.length / 8) + 2;
+    for (let i = 0; i < bucketCount; i += 1) this.buckets.push([]);
+    for (const o of this.obstacles) {
+      const lo = Math.max(0, Math.floor((o.s - 12) / 8));
+      const hi = Math.min(bucketCount - 1, Math.floor((o.s + 12) / 8));
+      for (let i = lo; i <= hi; i += 1) this.buckets[i].push(o);
+    }
   }
 
   // ---------------------------------------------------------------- frame
@@ -320,7 +311,7 @@ export class Track {
   }
 
   halfWidth(s: number): number {
-    return keyed(HALF_WIDTH, s);
+    return keyed(this.def.halfWidth, s);
   }
 
   /** Downhill slope (radians, positive = descending) of the base profile. */
@@ -384,9 +375,11 @@ export class Track {
   // --------------------------------------------------------------- height
 
   berm(s: number, side: number): number {
-    let b = keyed(BERM, s);
-    // The inside of the leaf-slide left-hander opens onto the stream + leaf shortcut.
-    if (side < 0) b *= 1 - smoothstep(350, 366, s) * (1 - smoothstep(498, 514, s));
+    let b = keyed(this.def.berm, s);
+    // The bank opens up where a leaf-bridge shortcut leaves the course.
+    for (const c of this.bermCuts) {
+      if (c.side === side) b *= 1 - smoothstep(c.s0, c.s0 + 16, s) * (1 - smoothstep(c.s1 - 16, c.s1, s));
+    }
     return b;
   }
 
@@ -397,7 +390,7 @@ export class Track {
     if (s > this.n) h += (s - this.n) * 0.07;
 
     const lim = hw + 5;
-    h += -keyed(BANK_GAIN, s) * this.curvature(s) * Math.min(lim, Math.max(-lim, d));
+    h += -keyed(this.def.bankGain, s) * this.curvature(s) * Math.min(lim, Math.max(-lim, d));
 
     const inner = Math.min(ad, hw);
     h += 0.008 * inner * inner;
@@ -448,235 +441,214 @@ export class Track {
       return p.surface;
     }
     if (ad > hw + 3.5) return 'rough';
-    if (s < 150) return ad < 5.5 + Math.sin(s * 0.2) * 0.8 ? 'dirt' : 'grass';
-    if (s < 550) return 'leaves';
-    if (s < 915) return 'grass';
-    if (s < 962) return 'wood';
-    if (s < KICKER.s0) return 'stone';
-    if (s < KICKER.s1) return 'wood';
-    if (s < 1262) return 'grass';
-    if (s < 1695) return 'stone';
-    return ad < 3.6 ? 'stone' : 'grass';
+    return this.def.baseSurface(s, ad);
   }
 
-  // ------------------------------------------------------------- features
-
-  private buildFeatures(): void {
-    const ramp = (s0: number, s1: number, height: number, d0 = -99, d1 = 99) => {
-      this.features.push({
-        s0,
-        s1,
-        h: (s, d) => {
-          if (d < d0 || d > d1) return 0;
-          const t = (s - s0) / (s1 - s0);
-          const edge = Math.min(1, Math.min(d - d0, d1 - d) / 1.5);
-          return height * t * t * edge;
-        },
-      });
-    };
-    const hump = (sc: number, width: number, height: number, d0: number, d1: number) => {
-      this.features.push({
-        s0: sc - width * 2.5,
-        s1: sc + width * 1.2,
-        h: (s, d) => {
-          if (d < d0 || d > d1) return 0;
-          const edge = Math.min(1, Math.min(d - d0, d1 - d) / 1.2);
-          // Gentle approach, sharp drop-off: a natural launch ramp.
-          const x = s - sc;
-          const g = x < 0 ? Math.exp(-(x * x) / (width * width)) : Math.exp(-(x * x) / (width * width * 0.12));
-          return height * g * edge;
-        },
-      });
-    };
-    const basin = (s0: number, s1: number, d0: number, d1: number, depth: number, surface: Surface = 'water') => {
-      this.features.push({
-        s0,
-        s1,
-        water: surface === 'water',
-        h: (s, d) => {
-          if (d < d0 || d > d1) return 0;
-          const es = Math.min(s - s0, s1 - s) / 4;
-          const ed = Math.min(d - d0, d1 - d) / 1.6;
-          return -depth * smoothstep(0, 1, Math.min(es, ed));
-        },
-      });
-      this.patches.push({ s0: s0 + 1, s1: s1 - 1, d0: d0 + 0.5, d1: d1 - 0.5, surface });
-    };
-
-    // 2 · Leaf Slide: plank hop, then stream + leaf shortcut on the inside of the left-hander.
-    ramp(SMALL_JUMP.s0, SMALL_JUMP.s1, SMALL_JUMP.height);
-    this.patches.push({ s0: SMALL_JUMP.s0 - 1, s1: SMALL_JUMP.s1, d0: -11, d1: 11, surface: 'wood' });
-    basin(384, 486, -21.5, -10.4, 0.9);
-    const lf = LEAF_SHORTCUT;
-    this.features.push({
-      s0: lf.s0 - 6,
-      s1: lf.s1 + 6,
-      h: (s, d) => {
-        const lat = 1 - smoothstep(lf.half - 0.4, lf.half + 0.9, Math.abs(d - lf.d));
-        const lon = smoothstep(lf.s0 - 6, lf.s0, s) * (1 - smoothstep(lf.s1, lf.s1 + 6, s));
-        return 1.05 * lat * lon;
-      },
-    });
-    this.patches.push({ s0: lf.s0 - 5, s1: lf.s1 + 5, d0: lf.d - lf.half, d1: lf.d + lf.half, surface: 'leaves' });
-    // Stepping connection from the main line onto the leaf.
-    this.patches.push({ s0: 356, s1: 396, d0: -16, d1: -9, surface: 'leaves' });
-    this.patches.push({ s0: 474, s1: 510, d0: -16, d1: -9, surface: 'leaves' });
-
-    // 3 · Root Maze
-    this.patches.push({ s0: 640, s1: 745, d0: 4.6, d1: 11.4, surface: 'stone' }); // precise inside lane
-    this.patches.push({ s0: 684, s1: 722, d0: -11.5, d1: -4.5, surface: 'mud', ellipse: true });
-    hump(738, 3.4, 0.8, 4.6, 11.6);
-    hump(786, 5, 0.6, -13, 13);
-    this.patches.push({ s0: 858, s1: 892, d0: -9.5, d1: -1.5, surface: 'mud', ellipse: true });
-    // Stream under the bridge.
-    basin(916, 962, -24, -4.4, 1.5);
-    basin(916, 962, 4.4, 24, 1.5);
-    this.features.push({
-      s0: BRIDGE.s0,
-      s1: BRIDGE.s1,
-      h: (s, d) => (Math.abs(d) < 4.4 ? 0.7 * Math.sin(((s - BRIDGE.s0) / (BRIDGE.s1 - BRIDGE.s0)) * Math.PI) : 0),
-    });
-
-    // 4 · The Big Drop: kicker at the bottom of the plunge, ski-jump landing after.
-    ramp(KICKER.s0, KICKER.s1, KICKER.height);
-    basin(1222, 1258, 3, 12.5, 0.5, 'mud');
-
-    // 5 · Final Sprint: slippery outside lines, a puddle chicane on the straight.
-    this.patches.push({ s0: 1300, s1: 1352, d0: -9.5, d1: -3.5, surface: 'leaves', ellipse: true });
-    this.patches.push({ s0: 1470, s1: 1530, d0: 3.5, d1: 9.5, surface: 'leaves', ellipse: true });
-    this.patches.push({ s0: 1620, s1: 1666, d0: -9.5, d1: -4, surface: 'leaves', ellipse: true });
-    basin(1752, 1782, -10, -1.2, 0.45);
-    basin(1800, 1830, 1.2, 10, 0.45, 'mud');
-    hump(1728, 4, 0.6, -3.4, 3.4);
-  }
-
-  private buildObstacles(): void {
-    const a = new THREE.Vector3();
-    const b = new THREE.Vector3();
-    const add = (kind: Obstacle['kind'], s: number, d: number, r: number, bounce: number, avoid: number, height = 0) => {
-      this.toWorld(s, d, a);
-      b.copy(a);
-      a.y += r * 0.55;
-      b.y = a.y + height;
-      this.obstacles.push({ kind, a: a.clone(), b: b.clone(), r, bounce, s, d, avoid });
-    };
-    /** Root lying across the track from d0 to d1. */
-    const root = (s: number, d0: number, d1: number, r: number, skew = 0) => {
-      this.roots.push({ s, d0, d1, r, skew });
-      const pieces = Math.max(1, Math.round(Math.abs(d1 - d0) / 4));
-      for (let i = 0; i < pieces; i += 1) {
-        const t0 = i / pieces;
-        const t1 = (i + 1) / pieces;
-        this.toWorld(s + skew * t0, d0 + (d1 - d0) * t0, a);
-        this.toWorld(s + skew * t1, d0 + (d1 - d0) * t1, b);
-        a.y += r * 0.35;
-        b.y += r * 0.35;
-        this.obstacles.push({
-          kind: 'root',
-          a: a.clone(),
-          b: b.clone(),
-          r,
-          bounce: 0.35,
-          s: s + skew * (t0 + t1) * 0.5,
-          d: d0 + (d1 - d0) * (t0 + t1) * 0.5,
-          avoid: 0,
-        });
-      }
-    };
-
-    // 1 · Starting Hill
-    add('mushroom', 96, -7.2, 1.0, 1.25, 2);
-    add('pebble', 118, 6.4, 0.9, 0.5, 1.8);
-    add('mushroom', 136, 8.1, 0.9, 1.25, 1.8);
-
-    // 2 · Leaf Slide
-    add('pebble', 232, -5.5, 1.0, 0.5, 2);
-    add('mushroom', 268, 8.6, 1.1, 1.25, 2);
-    add('pebble', 286, 3.2, 0.8, 0.5, 1.8);
-    add('mushroom', 352, 7.8, 1.0, 1.25, 2);
-    add('pebble', 446, 4.5, 1.0, 0.5, 2);
-    add('mushroom', 516, -6.8, 1.1, 1.25, 2);
-
-    // 3 · Root Maze: slalom, then the split around the big divider root.
-    root(566, -14, -2.4, 0.75, 5);
-    this.gates.push({ s0: 558, s1: 574, d0: -0.4, d1: 10 });
-    root(610, 14, 2.4, 0.75, -4);
-    this.gates.push({ s0: 600, s1: 614, d0: -10.5, d1: 0.4 });
-    // Divider root running along the track between the two lanes.
-    for (let s = 650; s < 742; s += 13) root(s, 2.4 + Math.sin(s) * 0.4, 2.9 + Math.sin(s + 13) * 0.4, 1.15, 13);
-    this.gates.push({ s0: 632, s1: 745, d0: -10.5, d1: -0.9, group: 'maze', option: 'safe' });
-    this.gates.push({ s0: 632, s1: 745, d0: 5.8, d1: 10.4, group: 'maze', option: 'risky' });
-    // Inside lane slalom (stone, precise).
-    root(664, 13, 8.9, 0.6, 2);
-    this.gates.push({ s0: 658, s1: 668, d0: 5.2, d1: 7.4, group: 'maze', option: 'risky' });
-    root(694, 4.2, 7.0, 0.6, 2);
-    this.gates.push({ s0: 689, s1: 699, d0: 8.6, d1: 10.6, group: 'maze', option: 'risky' });
-    root(726, 13, 9.4, 0.6, -2);
-    this.gates.push({ s0: 721, s1: 730, d0: 5.2, d1: 8, group: 'maze', option: 'risky' });
-    // Outside lane: wide, a couple of mushrooms.
-    add('mushroom', 668, -7.5, 1.1, 1.25, 2.2);
-    add('mushroom', 742, -3.6, 1.0, 1.25, 2);
-    add('stump', 757, 2.7, 1.6, 0.4, 2.8, 2);
-    // After the split.
-    root(800, 13, 0.6, 0.75, 5);
-    this.gates.push({ s0: 792, s1: 808, d0: -9.5, d1: -1.5 });
-    root(846, -13, -0.6, 0.75, -4);
-    this.gates.push({ s0: 838, s1: 852, d0: 1.5, d1: 9.5 });
-    add('pebble', 884, 4.2, 1.0, 0.5, 2);
-
-    // Bridge: low rails + entry posts. Gate funnels the AI on.
-    this.gates.push({ s0: 902, s1: 968, d0: -2.3, d1: 2.3 });
-    for (const side of [-1, 1]) {
-      for (let s = BRIDGE.s0; s < BRIDGE.s1; s += 9.5) {
-        this.toWorld(s, side * 4.1, a);
-        this.toWorld(Math.min(BRIDGE.s1, s + 9.5), side * 4.1, b);
-        a.y += 0.75;
-        b.y += 0.75;
-        this.obstacles.push({ kind: 'rail', a: a.clone(), b: b.clone(), r: 0.32, bounce: 0.4, s: s + 4.7, d: side * 4.1, avoid: 0 });
-      }
-      add('post', BRIDGE.s0 - 0.5, side * 4.3, 0.55, 0.4, 0, 2.2);
-      add('post', BRIDGE.s1 + 0.5, side * 4.3, 0.55, 0.4, 0, 2.2);
+  /** The boost pad under (s, d), if any. */
+  padAt(s: number, d: number): BoostPad | null {
+    for (const p of this.pads) {
+      if (s >= p.s0 && s <= p.s1 && Math.abs(d - p.d) <= p.half) return p;
     }
-
-    // 4 · The Big Drop
-    add('pebble', 1004, -6.5, 1.1, 0.5, 2.2);
-    add('pebble', 1010, 6.8, 1.0, 0.5, 2);
-
-    // 5 · Final Sprint
-    add('pebble', 1318, 5.8, 1.0, 0.5, 2);
-    add('mushroom', 1388, -1.5, 1.0, 1.25, 2);
-    add('pebble', 1462, -5.4, 1.1, 0.5, 2.2);
-    add('pebble', 1552, 2.4, 0.9, 0.5, 2);
-    add('mushroom', 1600, 6.6, 1.0, 1.25, 2);
-    add('pebble', 1712, -6.8, 1.0, 0.5, 2);
-    add('mushroom', 1766, 7.2, 1.1, 1.25, 2);
-    add('pebble', 1838, -6.2, 1.0, 0.5, 2);
-    // Finish arch legs.
-    add('post', FINISH_S, -11.4, 0.8, 0.4, 0, 6);
-    add('post', FINISH_S, 11.4, 0.8, 0.4, 0, 6);
-    add('post', START_S, -10.2, 0.7, 0.4, 0, 6);
-    add('post', START_S, 10.2, 0.7, 0.4, 0, 6);
-
-    // Leaf shortcut is an optional AI route.
-    const lf = LEAF_SHORTCUT;
-    this.gates.push({ s0: lf.s0 - 4, s1: lf.s1 + 4, d0: lf.d - 0.8, d1: lf.d + 0.8, group: 'leaf', option: 'risky' });
-    this.gates.push({ s0: lf.s0 - 4, s1: lf.s1 + 4, d0: -7.5, d1: 8.5, group: 'leaf', option: 'safe' });
-    this.gates.push({ s0: 348, s1: lf.s0 - 5, d0: -9.2, d1: -6, group: 'leaf', option: 'risky' });
-    this.gates.sort((g0, g1) => g0.s0 - g1.s0);
-
-    const bucketCount = Math.ceil(this.length / 8) + 2;
-    for (let i = 0; i < bucketCount; i += 1) this.buckets.push([]);
-    for (const o of this.obstacles) {
-      const lo = Math.max(0, Math.floor((o.s - 12) / 8));
-      const hi = Math.min(bucketCount - 1, Math.floor((o.s + 12) / 8));
-      for (let i = lo; i <= hi; i += 1) this.buckets[i].push(o);
-    }
+    return null;
   }
 
   obstaclesNear(s: number): Obstacle[] {
     const i = Math.min(this.buckets.length - 1, Math.max(0, Math.floor(s / 8)));
     return this.buckets[i];
   }
+
+  // ------------------------------------------------- builder API (used by TrackDef.build)
+
+  ramp(s0: number, s1: number, height: number, d0 = -99, d1 = 99): void {
+    this.features.push({
+      s0,
+      s1,
+      h: (s, d) => {
+        if (d < d0 || d > d1) return 0;
+        const t = (s - s0) / (s1 - s0);
+        const edge = Math.min(1, Math.min(d - d0, d1 - d) / 1.5);
+        return height * t * t * edge;
+      },
+    });
+  }
+
+  /** Gentle approach, sharp drop-off: a natural launch ramp. */
+  hump(sc: number, width: number, height: number, d0: number, d1: number): void {
+    this.features.push({
+      s0: sc - width * 2.5,
+      s1: sc + width * 1.2,
+      h: (s, d) => {
+        if (d < d0 || d > d1) return 0;
+        const edge = Math.min(1, Math.min(d - d0, d1 - d) / 1.2);
+        const x = s - sc;
+        const g = x < 0 ? Math.exp(-(x * x) / (width * width)) : Math.exp(-(x * x) / (width * width * 0.12));
+        return height * g * edge;
+      },
+    });
+  }
+
+  basin(s0: number, s1: number, d0: number, d1: number, depth: number, surface: Surface = 'water'): void {
+    this.features.push({
+      s0,
+      s1,
+      water: surface === 'water',
+      h: (s, d) => {
+        if (d < d0 || d > d1) return 0;
+        const es = Math.min(s - s0, s1 - s) / 4;
+        const ed = Math.min(d - d0, d1 - d) / 1.6;
+        return -depth * smoothstep(0, 1, Math.min(es, ed));
+      },
+    });
+    this.patches.push({ s0: s0 + 1, s1: s1 - 1, d0: d0 + 0.5, d1: d1 - 0.5, surface });
+  }
+
+  patch(s0: number, s1: number, d0: number, d1: number, surface: Surface, ellipse = false): void {
+    this.patches.push({ s0, s1, d0, d1, surface, ellipse });
+  }
+
+  gate(s0: number, s1: number, d0: number, d1: number, group?: string, option?: string): void {
+    this.gates.push({ s0, s1, d0, d1, group, option });
+  }
+
+  split(group: string, s0: number, s1: number, d: number, left: string, right: string): void {
+    this.splits.push({ group, s0, s1, d, left, right });
+  }
+
+  itemRow(...s: number[]): void {
+    this.itemRows.push(...s);
+  }
+
+  pad(s: number, d: number, length = 8, half = 1.7): void {
+    this.pads.push({ s0: s, s1: s + length, d, half });
+  }
+
+  /** Wooden kicker across the course. */
+  jump(s0: number, s1: number, height: number): void {
+    this.ramp(s0, s1, height);
+    this.patches.push({ s0: s0 - 1, s1, d0: -14, d1: 14, surface: 'wood' });
+    this.jumps.push({ s0, s1, height });
+  }
+
+  add(kind: Obstacle['kind'], s: number, d: number, r: number, bounce: number, avoid: number, height = 0): void {
+    this.deferred.push(() => {
+      const a = this.toWorld(s, d, new THREE.Vector3());
+      const b = a.clone();
+      a.y += r * 0.55;
+      b.y = a.y + height;
+      this.obstacles.push({ kind, a, b, r, bounce, s, d, avoid });
+    });
+  }
+
+  /** Root lying across the track from d0 to d1. */
+  root(s: number, d0: number, d1: number, r: number, skew = 0): void {
+    this.roots.push({ s, d0, d1, r, skew });
+    this.deferred.push(() => {
+      const pieces = Math.max(1, Math.round(Math.abs(d1 - d0) / 4));
+      for (let i = 0; i < pieces; i += 1) {
+        const t0 = i / pieces;
+        const t1 = (i + 1) / pieces;
+        const a = this.toWorld(s + skew * t0, d0 + (d1 - d0) * t0, new THREE.Vector3());
+        const b = this.toWorld(s + skew * t1, d0 + (d1 - d0) * t1, new THREE.Vector3());
+        a.y += r * 0.35;
+        b.y += r * 0.35;
+        this.obstacles.push({ kind: 'root', a, b, r, bounce: 0.35, s: s + skew * (t0 + t1) * 0.5, d: d0 + (d1 - d0) * (t0 + t1) * 0.5, avoid: 0 });
+      }
+    });
+  }
+
+  /** Narrow plank bridge over a stream: water both sides, low rails, an AI gate to funnel onto it. */
+  bridge(s0: number, s1: number): void {
+    this.basin(s0 - 4, s1 + 4, -24, -4.4, 1.5);
+    this.basin(s0 - 4, s1 + 4, 4.4, 24, 1.5);
+    this.features.push({
+      s0,
+      s1,
+      h: (s, d) => (Math.abs(d) < 4.4 ? 0.7 * Math.sin(((s - s0) / (s1 - s0)) * Math.PI) : 0),
+    });
+    this.patches.push({ s0: s0 - 5, s1: s1 + 4, d0: -4.4, d1: 4.4, surface: 'wood' });
+    this.gates.push({ s0: s0 - 18, s1: s1 + 10, d0: -2.3, d1: 2.3 });
+    this.bridges.push({ s0, s1 });
+    this.deferred.push(() => {
+      for (const side of [-1, 1]) {
+        for (let s = s0; s < s1; s += 9.5) {
+          const a = this.toWorld(s, side * 4.1, new THREE.Vector3());
+          const b = this.toWorld(Math.min(s1, s + 9.5), side * 4.1, new THREE.Vector3());
+          a.y += 0.75;
+          b.y += 0.75;
+          this.obstacles.push({ kind: 'rail', a, b, r: 0.32, bounce: 0.4, s: s + 4.7, d: side * 4.1, avoid: 0 });
+        }
+      }
+    });
+    for (const side of [-1, 1]) {
+      this.add('post', s0 - 0.5, side * 4.3, 0.55, 0.4, 0, 2.2);
+      this.add('post', s1 + 0.5, side * 4.3, 0.55, 0.4, 0, 2.2);
+    }
+  }
+
+  /**
+   * Leaf-bridge shortcut over a stream on the inside of a bend. `side` is -1 (left) or +1 (right).
+   * It is an optional, riskier AI route.
+   */
+  leafBridge(s0: number, s1: number, side: number): void {
+    const lf: LeafBridge = { s0, s1, d: side * 13.9, half: 2.2, side };
+    const group = `leaf${this.leafBridges.length}`;
+    this.leafBridges.push(lf);
+    const lo = (a: number, b: number) => Math.min(side * a, side * b);
+    const hi = (a: number, b: number) => Math.max(side * a, side * b);
+    this.basin(s0 - 10, s1 + 8, lo(10.4, 21.5), hi(10.4, 21.5), 0.9);
+    this.features.push({
+      s0: s0 - 6,
+      s1: s1 + 6,
+      h: (s, d) => {
+        const lat = 1 - smoothstep(lf.half - 0.4, lf.half + 0.9, Math.abs(d - lf.d));
+        const lon = smoothstep(s0 - 6, s0, s) * (1 - smoothstep(s1, s1 + 6, s));
+        return 1.05 * lat * lon;
+      },
+    });
+    this.patches.push({ s0: s0 - 5, s1: s1 + 5, d0: lf.d - lf.half, d1: lf.d + lf.half, surface: 'leaves' });
+    // Dry leafy aprons leading on and off the bridge.
+    this.patches.push({ s0: s0 - 38, s1: s0 + 2, d0: lo(9, 16), d1: hi(9, 16), surface: 'leaves' });
+    this.patches.push({ s0: s1 - 4, s1: s1 + 32, d0: lo(9, 16), d1: hi(9, 16), surface: 'leaves' });
+    this.bermCuts.push({ s0: s0 - 44, s1: s1 + 36, side });
+    this.gates.push({ s0: s0 - 4, s1: s1 + 4, d0: lf.d - 0.8, d1: lf.d + 0.8, group, option: 'risky' });
+    this.gates.push({ s0: s0 - 4, s1: s1 + 4, d0: lo(7.5, -8.5), d1: hi(7.5, -8.5), group, option: 'safe' });
+    this.gates.push({ s0: s0 - 46, s1: s0 - 5, d0: lo(6, 9.2), d1: hi(6, 9.2), group, option: 'risky' });
+    if (side < 0) this.split(group, s0 + 4, s1, side * 11.9, 'risky', 'safe');
+    else this.split(group, s0 + 4, s1, side * 11.9, 'safe', 'risky');
+  }
 }
 
-export const track = new Track();
+// ------------------------------------------------------------------ current course
+// These are live bindings: `loadTrack` swaps them, and every importer sees the new course.
+
+import { TRACKS } from './tracks';
+
+export let track: Track = new Track(TRACKS[0]);
+export let START_S = track.def.startS;
+export let GRID_S = track.def.gridS;
+export let FINISH_S = track.def.finishS;
+export let SECTIONS: Section[] = track.def.sections;
+export let CHECKPOINTS: number[] = track.def.checkpoints;
+export let SPLITS: Split[] = track.splits;
+/** The course's signature jump. */
+export let KICKER: Jump = track.jumps[track.def.mainJump];
+
+const built = new Map<string, Track>([[track.def.id, track]]);
+
+export function loadTrack(id: string): Track {
+  const def = TRACKS.find((t) => t.id === id) ?? TRACKS[0];
+  let next = built.get(def.id);
+  if (!next) {
+    next = new Track(def);
+    built.set(def.id, next);
+  }
+  track = next;
+  START_S = def.startS;
+  GRID_S = def.gridS;
+  FINISH_S = def.finishS;
+  SECTIONS = def.sections;
+  CHECKPOINTS = def.checkpoints;
+  SPLITS = next.splits;
+  KICKER = next.jumps[def.mainJump];
+  return next;
+}

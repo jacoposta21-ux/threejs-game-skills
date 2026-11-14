@@ -6,13 +6,14 @@ export interface InputCallbacks {
   gesture(): void;
 }
 
-const GAME_KEYS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ShiftLeft', 'ShiftRight']);
+const GAME_KEYS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ShiftLeft', 'ShiftRight', 'KeyF']);
 
 /** Keyboard state + edge events. Translating keys into race intents is the Game's job. */
 export class Input {
   private readonly down = new Set<string>();
   private rollEdge = false;
   private boostEdge = false;
+  private itemEdge = false;
   enabled = true;
 
   constructor(private readonly callbacks: InputCallbacks) {
@@ -33,6 +34,7 @@ export class Input {
     if (!this.enabled) return;
     if (e.code === 'Space') this.rollEdge = true;
     if (e.code === 'KeyE') this.boostEdge = true;
+    if (e.code === 'KeyF') this.itemEdge = true;
     if (e.code === 'KeyR') this.callbacks.respawn();
   };
 
@@ -75,6 +77,12 @@ export class Input {
     return v;
   }
 
+  takeItem(): boolean {
+    const v = this.itemEdge;
+    this.itemEdge = false;
+    return v;
+  }
+
   takeBoost(): boolean {
     const v = this.boostEdge;
     this.boostEdge = false;
@@ -85,6 +93,7 @@ export class Input {
     this.down.clear();
     this.rollEdge = false;
     this.boostEdge = false;
+    this.itemEdge = false;
   }
 
   dispose(): void {

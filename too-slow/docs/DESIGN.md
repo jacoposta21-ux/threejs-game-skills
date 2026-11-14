@@ -60,3 +60,18 @@ All racer constants live in `TUNE` (`physics/RacerBody.ts`); surface constants i
 (`world/Track.ts`). Balance was set with the headless simulation (`npm run sim`): over 40 seeded
 races every snail finishes, wins are spread across all six profiles, and finishing times fall
 between roughly 80 and 115 s.
+
+## Update: tracks, kart-style items, customization
+
+- **Three courses**, all built by the same engine (`world/Track.ts`) from data in `world/tracks/`:
+  The Backyard (all-rounder), Veggie Patch (short, fast, golden hour; mud strips punish the wrong
+  line and boost pads reward the right one) and Lily Pond (technical, dusk; two lily-pad shortcuts
+  and a stepping-stone ribbon flanked by mud).
+- **Boost pads** are free speed placed on the better line, so reading the course still matters.
+- **Drift mini-turbo** turns the slide into a skill: a steered slide at speed charges blue, then
+  orange sparks; releasing pays out a kick. It spends slime, so it competes with plain gliding.
+- **Items** add the kart-style swing without replacing momentum: the leader mostly draws defensive
+  items (banana, shield), the back of the pack draws catch-up items (mushroom, acorn). There is no
+  hidden speed rubber-banding; everything is a visible item. A setting turns items off.
+- **Garage**: name, shell colour, pattern, body colour, hat. Rivals got patterns and hats too so
+  every snail reads at a glance.

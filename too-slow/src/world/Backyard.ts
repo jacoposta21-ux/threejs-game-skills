@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createSeededRandom } from '../utils/random';
-import { BRIDGE, CHECKPOINTS, FINISH_S, KICKER, LEAF_SHORTCUT, SMALL_JUMP, START_S, noise2, track } from './Track';
-import { createBannerTexture, createBarkTexture, createCheckerTexture, createWoodTexture } from './Textures';
+import { CHECKPOINTS, FINISH_S, START_S, noise2, track, type Landmark } from './Track';
+import { createBannerTexture, createBarkTexture, createCheckerTexture, createChevronTexture, createWoodTexture } from './Textures';
 
 /**
  * The Backyard prop kit. Everything is procedural: authored geometry factories,
@@ -295,9 +295,9 @@ export function buildBackyard(quality: number): BackyardResult {
   };
 
   const blocked = (s: number, d: number): boolean => {
-    // Keep vegetation out of the stream, the leaf shortcut and the bridge approach.
-    if (s > 352 && s < 512 && d < 0) return true;
-    if (s > 908 && s < 970) return true;
+    // Keep vegetation out of streams, leaf shortcuts and bridge approaches.
+    for (const lf of track.leafBridges) if (s > lf.s0 - 42 && s < lf.s1 + 34 && d * lf.side > 0) return true;
+    for (const br of track.bridges) if (s > br.s0 - 12 && s < br.s1 + 12) return true;
     return false;
   };
 
@@ -305,7 +305,8 @@ export function buildBackyard(quality: number): BackyardResult {
   // --- giant grass along both verges
   const blades: Placement[] = [];
   const grassStep = quality > 1 ? 0.62 : quality > 0 ? 0.95 : 2.4;
-  const greens = [0x9bd65a, 0x7cc64a, 0xb3e06a, 0x62b446, 0x8fd060];
+  const greens = track.def.theme.grassTints;
+  const marks = (...kinds: Landmark['kind'][]) => track.def.landmarks.filter((l) => kinds.includes(l.kind));
   for (let s = -30; s < track.length + 30; s += grassStep) {
     const hw = track.halfWidth(s);
     for (const side of [-1, 1]) {
@@ -396,19 +397,13 @@ export function buildBackyard(quality: number): BackyardResult {
       pebbles.push({ s: o.s, d: o.d, scale: o.r * 1.12, yaw: rng() * 6.28, color: new THREE.Color(0xaeb2b8), lift: o.r * 0.35 });
     }
   }
-  // Loose leaves on and around the Leaf Slide, plus a sprinkle on later slick patches.
-  const leafZones: [number, number, number][] = [
-    [150, 550, 420],
-    [1290, 1360, 40],
-    [1465, 1535, 40],
-    [1615, 1670, 40],
-  ];
-  for (const [s0, s1, count] of leafZones) {
-    for (let i = 0; i < count; i += 1) {
-      const s = s0 + rng() * (s1 - s0);
+  // Loose leaves wherever the ground is leaf-covered (and a little beyond the edges).
+  {
+    for (let i = 0; i < 2600 && leaves.length < 520; i += 1) {
+      const s = rng() * track.length;
       const hw = track.halfWidth(s);
       const d = (rng() * 2 - 1) * (hw + 7);
-      if (track.surface(s, d) === 'water') continue;
+      if (track.surface(s, Math.max(-hw, Math.min(hw, d))) !== 'leaves' || track.surface(s, d) === 'water') continue;
       leaves.push({
         s,
         d,
@@ -490,11 +485,13 @@ export function buildBackyard(quality: number): BackyardResult {
     divider.push(track.toWorld(last.s + last.skew + 6, last.d1 - 0.5, new THREE.Vector3()).add(new THREE.Vector3(0, -1.6, 0)));
     addRoot(divider, 1.15);
   }
-  const rootMesh = new THREE.Mesh(mergeGeometries(rootGeos)!, mats.bark);
-  rootMesh.castShadow = true;
-  rootMesh.receiveShadow = true;
-  rootMesh.name = 'roots';
-  group.add(rootMesh);
+  if (rootGeos.length) {
+    const rootMesh = new THREE.Mesh(mergeGeometries(rootGeos)!, mats.bark);
+    rootMesh.castShadow = true;
+    rootMesh.receiveShadow = true;
+    rootMesh.name = 'roots';
+    group.add(rootMesh);
+  }
 
   // Stump at the end of the divider and the trunks the roots belong to.
   for (const o of track.obstacles) {
@@ -514,11 +511,7 @@ export function buildBackyard(quality: number): BackyardResult {
     new THREE.Vector2(15, 50),
     new THREE.Vector2(14.5, 220),
   ];
-  for (const [s, d] of [
-    [690, -52],
-    [640, 54],
-    [835, 50],
-  ]) {
+  for (const { s, d } of marks('trunk')) {
     const trunk = new THREE.Mesh(new THREE.LatheGeometry(trunkProfile, 20), mats.bark);
     track.toWorld(s, d, trunk.position);
     trunk.position.y -= 6;
@@ -563,17 +556,18 @@ export function buildBackyard(quality: number): BackyardResult {
     mesh.receiveShadow = true;
     group.add(mesh);
   };
-  const lf = LEAF_SHORTCUT;
-  const sheetColors = [0xf0a52c, 0xe2702a, 0xf4c63a, 0xd95a28, 0xeb962e];
-  const sheetLen = (lf.s1 - lf.s0 + 16) / 5;
-  for (let i = 0; i < 5; i += 1) {
-    leafSheet(lf.s0 - 8 + i * sheetLen - 2, sheetLen + 5, lf.d + (i % 2 ? 0.25 : -0.25), lf.half + 0.9, sheetColors[i], 0.05 + (i % 2) * 0.05);
+  const sheetColors = track.def.theme.fireflies ? [0x58b86a, 0x7acc6a, 0x46a868, 0x8ad67a, 0x5cc07a] : [0xf0a52c, 0xe2702a, 0xf4c63a, 0xd95a28, 0xeb962e];
+  for (const lf of track.leafBridges) {
+    const sheetLen = (lf.s1 - lf.s0 + 16) / 5;
+    for (let i = 0; i < 5; i += 1) {
+      leafSheet(lf.s0 - 8 + i * sheetLen - 2, sheetLen + 5, lf.d + (i % 2 ? 0.25 : -0.25), lf.half + 0.9, sheetColors[i], 0.05 + (i % 2) * 0.05);
+    }
   }
 
   // --- wooden ramps: plank decks over the kickers
   const planks: Placement[] = [];
   const woodTints = [0xffffff, 0xf2dcc0, 0xe6c8a0, 0xfff0d8];
-  for (const jump of [SMALL_JUMP, KICKER]) {
+  for (const jump of track.jumps) {
     for (let s = jump.s0 + 0.6; s < jump.s1; s += 1.25) {
       planks.push({
         s,
@@ -603,8 +597,8 @@ export function buildBackyard(quality: number): BackyardResult {
     group.add(mesh);
   }
 
-  // --- bridge: deck planks, posts and rope rails
-  {
+  // --- bridges: deck planks, posts and rope rails
+  for (const BRIDGE of track.bridges) {
     const deck: THREE.Matrix4[] = [];
     for (let s = BRIDGE.s0 - 2; s <= BRIDGE.s1 + 2; s += 1.05) {
       track.toWorld(s, 0, v);
@@ -728,8 +722,8 @@ export function buildBackyard(quality: number): BackyardResult {
     line.receiveShadow = true;
     group.add(line);
   };
-  arch(START_S, 10.2, 'START', '#3fa34d', '#ffffff', false, 0x4fb8ff);
-  arch(FINISH_S, 11.4, 'FINISH', '#ffd23a', '#1f2430', true, 0xffc21a);
+  arch(START_S, track.halfWidth(START_S) + 0.9, 'START', '#3fa34d', '#ffffff', false, 0x4fb8ff);
+  arch(FINISH_S, track.halfWidth(FINISH_S) + 0.9, 'FINISH', '#ffd23a', '#1f2430', true, 0xffc21a);
 
   // --- checkpoint flags (toothpick pennants)
   const cpColors = [0x4fb8ff, 0xff8fd0, 0x7ad65a, 0xffa23a];
@@ -763,15 +757,18 @@ export function buildBackyard(quality: number): BackyardResult {
     pickets.push(dummy.matrix.clone());
   };
   for (let d = -130; d <= 130; d += 9.4) fencePost(-34, d, -track.heading(0) + Math.PI, 62 + Math.sin(d) * 2);
-  for (let s = -30; s < 520; s += 9.4) fencePost(s, 98 + Math.sin(s * 0.01) * 10, -track.heading(s) - Math.PI / 2, 66 + Math.sin(s) * 2);
+  const fenceDef = track.def.fence;
+  if (fenceDef) {
+    for (let s = -30; s < fenceDef.s1; s += 9.4) fencePost(s, fenceDef.side * (98 + Math.sin(s * 0.01) * 10), -track.heading(s) - (fenceDef.side * Math.PI) / 2, 66 + Math.sin(s) * 2);
+  }
   const fence = new THREE.InstancedMesh(picket, new THREE.MeshStandardMaterial({ map: wood, color: 0xfff4e2, roughness: 0.8 }), pickets.length);
   pickets.forEach((m, i) => fence.setMatrixAt(i, m));
   fence.castShadow = false;
   group.add(fence);
 
   // --- garden tools & yard clutter as landmarks
-  // Watering can by the start.
-  {
+  // Watering can.
+  for (const lm of marks('can')) {
     const can = new THREE.Group();
     const body = new THREE.Mesh(
       new THREE.LatheGeometry([new THREE.Vector2(0.01, 0), new THREE.Vector2(13, 0), new THREE.Vector2(14, 2), new THREE.Vector2(13.4, 24), new THREE.Vector2(14.2, 25), new THREE.Vector2(12.4, 25.2)], 28),
@@ -789,14 +786,14 @@ export function buildBackyard(quality: number): BackyardResult {
     band.rotation.x = Math.PI / 2;
     band.position.y = 17;
     can.add(body, spout, rose, handle, band);
-    track.toWorld(70, 52, can.position);
+    track.toWorld(lm.s, lm.d, can.position);
     can.position.y -= 2;
     can.rotation.y = 2.2;
     can.traverse((o) => (o.castShadow = true));
     group.add(can);
   }
-  // Trowel stabbed into the hill at the top of the Big Drop.
-  {
+  // Trowel stabbed into the hill.
+  for (const lm of marks('trowel')) {
     const trowel = new THREE.Group();
     const bladeShape = new THREE.Shape();
     bladeShape.moveTo(0, -20);
@@ -814,17 +811,18 @@ export function buildBackyard(quality: number): BackyardResult {
     cap.rotation.x = Math.PI / 2;
     cap.position.set(0, 21.5, 0.4);
     trowel.add(blade, neck, grip, cap);
-    track.toWorld(1012, -46, trowel.position);
+    track.toWorld(lm.s, lm.d, trowel.position);
     trowel.position.y += 9;
     trowel.rotation.set(0.25, 0.9, 0.3);
     trowel.traverse((o) => (o.castShadow = true));
     group.add(trowel);
   }
-  // Garden hose snaking down beside the Big Drop.
-  {
+  // Garden hose snaking down beside the course.
+  for (const lm of marks('hose')) {
+    const hoseEnd = lm.s1 ?? lm.s + 300;
     const pts: THREE.Vector3[] = [];
-    for (let s = 968; s <= 1290; s += 14) {
-      const d = 27 + Math.sin(s * 0.045) * 6;
+    for (let s = lm.s; s <= hoseEnd; s += 14) {
+      const d = lm.d + Math.sin(s * 0.045) * 6;
       pts.push(track.toWorld(s, d, new THREE.Vector3()).add(new THREE.Vector3(0, 1.5, 0)));
     }
     const hose = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 160, 2.1, 10), mats.hose);
@@ -832,11 +830,11 @@ export function buildBackyard(quality: number): BackyardResult {
     group.add(hose);
     const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.6, 9, 12), mats.metal);
     nozzle.position.copy(pts[pts.length - 1]);
-    nozzle.rotation.set(Math.PI / 2, 0, track.heading(1290));
+    nozzle.rotation.set(Math.PI / 2, 0, track.heading(hoseEnd));
     group.add(nozzle);
   }
-  // Rake lying beside the final straight.
-  {
+  // Rake lying beside the course.
+  for (const lm of marks('rake')) {
     const rake = new THREE.Group();
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 130, 10), mats.woodDark);
     handle.rotation.x = Math.PI / 2;
@@ -848,9 +846,9 @@ export function buildBackyard(quality: number): BackyardResult {
       tine.position.set(i * 2.25, 3, -65);
       rake.add(tine);
     }
-    track.toWorld(1800, -34, rake.position);
+    track.toWorld(lm.s, lm.d, rake.position);
     rake.position.y += 1.6;
-    rake.rotation.y = -track.heading(1800) + 0.12;
+    rake.rotation.y = -track.heading(lm.s) + 0.12;
     rake.traverse((o) => (o.castShadow = true));
     group.add(rake);
   }
@@ -859,12 +857,10 @@ export function buildBackyard(quality: number): BackyardResult {
     [new THREE.Vector2(0.01, 0), new THREE.Vector2(9, 0), new THREE.Vector2(12.5, 17), new THREE.Vector2(13.6, 17.4), new THREE.Vector2(13.6, 20.5), new THREE.Vector2(12, 20.5), new THREE.Vector2(11.4, 18)],
     24,
   );
-  for (const [s, d, tip] of [
-    [1340, -44, 0],
-    [1500, 46, 0],
-    [1618, -50, 1],
-    [505, 44, 0],
-  ]) {
+  const potLeaf = paint(frond.clone(), new THREE.Color().setHSL(0.3, 0.6, 0.38), 0.3);
+  for (const lm of marks('pot', 'potTipped')) {
+    const { s, d } = lm;
+    const tip = lm.kind === 'potTipped';
     const pot = new THREE.Mesh(potGeo, mats.terracotta);
     track.toWorld(s, d, pot.position);
     pot.position.y -= 2;
@@ -876,19 +872,53 @@ export function buildBackyard(quality: number): BackyardResult {
       soil.position.y = 18.4;
       pot.add(soil);
       for (let k = 0; k < 9; k += 1) {
-        const leaf = new THREE.Mesh(frond, mats.veg);
+        const leaf = new THREE.Mesh(potLeaf, mats.veg);
         leaf.scale.setScalar(9 + (k % 3) * 2);
         leaf.position.y = 22 + (k % 3) * 2;
         leaf.rotation.set(0, (k / 9) * 6.28, 0.7 + (k % 3) * 0.25);
-        const tint = new THREE.Color().setHSL(0.3, 0.6, 0.38);
-        const cg = leaf.geometry.clone();
-        paint(cg, tint, 0.3);
-        leaf.geometry = cg;
         pot.add(leaf);
       }
     }
     pot.castShadow = true;
     group.add(pot);
+  }
+
+  // --- boost pads: glowing chevron strips laid on the ground
+  const chevrons = createChevronTexture();
+  const padMat = new THREE.MeshBasicMaterial({ map: chevrons, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, toneMapped: false });
+  {
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const idx: number[] = [];
+    for (const pad of track.pads) {
+      const base = pos.length / 3;
+      const rowsN = 8;
+      for (let i = 0; i <= rowsN; i += 1) {
+        const s = pad.s0 + ((pad.s1 - pad.s0) * i) / rowsN;
+        for (let j = 0; j <= 4; j += 1) {
+          const d = pad.d - pad.half + (pad.half * 2 * j) / 4;
+          track.toWorld(s, d, v);
+          pos.push(v.x, v.y + 0.07, v.z);
+          uv.push(j / 4, (s - pad.s0) / 4);
+        }
+        if (i < rowsN) {
+          for (let j = 0; j < 4; j += 1) {
+            const a0 = base + i * 5 + j;
+            idx.push(a0, a0 + 1, a0 + 5, a0 + 1, a0 + 6, a0 + 5);
+          }
+        }
+      }
+    }
+    if (idx.length) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      geo.setIndex(idx);
+      const mesh = new THREE.Mesh(geo, padMat);
+      mesh.renderOrder = 2;
+      mesh.name = 'boostPads';
+      group.add(mesh);
+    }
   }
 
   // --- butterflies: a little life in the air
@@ -899,17 +929,21 @@ export function buildBackyard(quality: number): BackyardResult {
   const wingGeo = new THREE.ShapeGeometry(wingShape, 5).rotateX(-Math.PI / 2);
   const flyers: { root: THREE.Group; l: THREE.Mesh; r: THREE.Mesh; anchor: THREE.Vector3; phase: number; radius: number }[] = [];
   const wingColors = [0xffd23a, 0xff8fd0, 0x6fd0ff, 0xffa23a, 0xffffff];
-  for (let i = 0; i < 16; i += 1) {
-    const s = 30 + (i / 16) * (track.length - 60) + rng() * 40;
+  const fireflies = !!track.def.theme.fireflies;
+  const flyerCount = fireflies ? 46 : 16;
+  for (let i = 0; i < flyerCount; i += 1) {
+    const s = 30 + (i / flyerCount) * (track.length - 60) + rng() * 40;
     const anchor = track.toWorld(s, (rng() * 2 - 1) * 16, new THREE.Vector3());
     anchor.y += 4 + rng() * 5;
-    const mat = new THREE.MeshStandardMaterial({ color: wingColors[i % wingColors.length], side: THREE.DoubleSide, roughness: 0.7 });
+    const mat = fireflies
+      ? new THREE.MeshBasicMaterial({ color: 0xfff27a, side: THREE.DoubleSide })
+      : new THREE.MeshStandardMaterial({ color: wingColors[i % wingColors.length], side: THREE.DoubleSide, roughness: 0.7 });
     const root = new THREE.Group();
     const l = new THREE.Mesh(wingGeo, mat);
     const r = new THREE.Mesh(wingGeo, mat);
     r.scale.x = -1;
     root.add(l, r);
-    root.scale.setScalar(0.9 + rng() * 0.6);
+    root.scale.setScalar(fireflies ? 0.22 + rng() * 0.12 : 0.9 + rng() * 0.6);
     group.add(root);
     flyers.push({ root, l, r, anchor, phase: rng() * 10, radius: 3 + rng() * 5 });
   }
@@ -918,6 +952,7 @@ export function buildBackyard(quality: number): BackyardResult {
     group,
     update(time: number) {
       windUniform.value = time;
+      chevrons.offset.y = -time * 1.6;
       for (const f of flyers) {
         const t = time * 0.6 + f.phase;
         f.root.position.set(f.anchor.x + Math.cos(t) * f.radius, f.anchor.y + Math.sin(t * 2.3) * 1.2, f.anchor.z + Math.sin(t * 0.8) * f.radius);

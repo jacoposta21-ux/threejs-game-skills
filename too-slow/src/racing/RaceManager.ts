@@ -1,6 +1,7 @@
 import { AI_PROFILES, PLAYER_PROFILE, SnailAI, type RacerProfile } from '../ai/SnailAI';
 import { emptyIntent, RacerBody, stepWorld, type Intent } from '../physics/RacerBody';
 import { CHECKPOINTS, FINISH_S, GRID_S, track } from '../world/Track';
+import { ItemSystem } from './Items';
 
 export type RacePhase = 'grid' | 'countdown' | 'racing' | 'finished';
 
@@ -38,6 +39,8 @@ export class RaceManager {
   private lastCount = 4;
   finishedCount = 0;
   private checkpointIndex: number[] = [];
+  readonly items = new ItemSystem();
+  private rng: () => number = Math.random;
 
   constructor() {
     for (let i = 0; i < RACER_COUNT; i += 1) {
@@ -55,6 +58,7 @@ export class RaceManager {
   }
 
   reset(rng: () => number): void {
+    this.rng = rng;
     // Player starts mid-grid; the rest are shuffled around them.
     const slots = [0, 1, 2, 3, 4, 5];
     for (let i = slots.length - 1; i > 0; i -= 1) {
@@ -77,6 +81,7 @@ export class RaceManager {
     this.lastCount = 4;
     this.finishedCount = 0;
     this.events.length = 0;
+    this.items.reset();
     this.updateOrder(false);
   }
 
@@ -109,7 +114,7 @@ export class RaceManager {
       const r = this.racers[i];
       const ai = i === 0 ? (this.autopilot || r.finished ? this.autoAI : null) : this.ais[i];
       if (ai) {
-        const src = ai.update(dt, r, this.racers, this.time);
+        const src = ai.update(dt, r, this.racers, this.time, this.items);
         Object.assign(this.intents[i], src);
         if (r.finished) this.coast(this.intents[i], r);
       } else {
@@ -119,8 +124,11 @@ export class RaceManager {
     // Edge-triggered inputs are consumed by exactly one step.
     this.playerIntent.toggleRoll = false;
     this.playerIntent.boost = false;
+    this.playerIntent.useItem = false;
 
+    if (racing && this.items.enabled) this.items.preStep(dt, this.racers, this.intents, this.rank, this.rng);
     stepWorld(this.racers, this.intents, dt);
+    if (racing && this.items.enabled) this.items.postStep(dt, this.racers);
 
     if (racing) {
       for (let i = 0; i < RACER_COUNT; i += 1) this.checkProgress(i);
@@ -133,6 +141,7 @@ export class RaceManager {
     intent.slide = false;
     intent.boost = false;
     intent.spin = 0;
+    intent.useItem = false;
     intent.toggleRoll = r.mode !== 'crawl' && r.airTime < 0.07;
     intent.throttle = r.s > FINISH_S + 55 ? 0 : 0.6;
   }

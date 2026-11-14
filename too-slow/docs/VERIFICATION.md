@@ -1,5 +1,21 @@
 # Verification record
 
+## Update: three tracks, items, boost pads, drift mini-turbo, garage
+
+- Headless simulation, 12 seeded six-snail races per track with items on: no DNF on any course.
+  Average finishing time 93 s (Backyard), 64 s (Veggie Patch), 70 s (Lily Pond); 2–4 spin-outs per
+  race from bananas and acorns; wins spread over at least five of the six snails on every track.
+- A naive keyboard-style controller (bang-bang steering, no items) finished the Backyard with items
+  active at reaction lags of 0.1 / 0.25 / 0.4 / 0.5 s, with no softlocks.
+- Browser smoke test (`tests/visual.spec.ts`) passed: track select, garage change saved to
+  `localStorage`, PLAY → track card → GO, `W`, `SPACE`, `F`, pause and resume, no console errors.
+- In the browser an item was picked up from a box and fired with the real `F` key (the acorn left
+  the slot and appeared on the course); no page errors.
+- Screenshots of the track select, garage, Veggie Patch and Lily Pond are in `docs/screens/`.
+
+The record below is from the first release and still applies to the Backyard.
+
+
 What was run against this revision, and what was seen. Everything here ran in a cloud sandbox with
 **no GPU** (Chromium on SwiftShader, a CPU rasteriser), so functional, pixel and budget results are
 valid but **no frame-rate figure from it means anything** — performance on real hardware is still

@@ -14,10 +14,11 @@ test('a keyboard-only bot completes the Backyard race', async ({ page }) => {
   });
   page.on('pageerror', (e) => errors.push(e.message));
 
-  await page.goto('/?q=0&dpr=0.5');
+  await page.goto('/?q=0&dpr=0.25');
   await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 5, null, { timeout: 60_000 });
   await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.seed(42));
   await page.click('#btn-play');
+  await page.click('.track-card[data-track="backyard"]');
   await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.state === 'racing', null, { timeout: 120_000 });
 
   const held = new Set<string>();

@@ -5,23 +5,28 @@
  */
 import { FIXED_DT, RaceManager } from '../src/racing/RaceManager';
 import { createSeededRandom } from '../src/utils/random';
-import { SECTIONS, track } from '../src/world/Track';
+import { SECTIONS, loadTrack, track } from '../src/world/Track';
 
 const seed0 = Number(process.argv[2] ?? 1);
 const races = Number(process.argv[3] ?? 1);
 const trace = process.argv.includes('--trace');
+const trackArg = process.argv.find((a) => a.startsWith('--track='));
+if (trackArg) loadTrack(trackArg.slice(8));
+const noItems = process.argv.includes('--no-items');
 
-console.log(`track length ${track.length}, drop ${(-track.height(track.length - 1, 0)).toFixed(1)}`);
+console.log(`${track.def.name}: track length ${track.length}, drop ${(-track.height(track.length - 1, 0)).toFixed(1)}`);
 
 for (let n = 0; n < races; n += 1) {
   const rng = createSeededRandom(seed0 + n);
   const race = new RaceManager();
   race.autopilot = true;
+  race.items.enabled = !noItems;
   race.reset(rng);
   race.startCountdown();
   const respawns = new Array(6).fill(0);
   const last: number[][] = new Array(6).fill([0, 0]);
   const hits = new Array(6).fill(0);
+  const spins = new Array(6).fill(0);
   const maxAir = new Array(6).fill(0);
   const sectionTime: number[] = [];
   let nextSection = 1;
@@ -34,6 +39,7 @@ for (let n = 0; n < races; n += 1) {
       for (const e of r.events) {
         if (e.type === 'respawn') { respawns[i] += 1; if (process.argv.includes('--log')) console.log(`   respawn ${race.profiles[i].name} from s=${last[i][0].toFixed(0)} d=${last[i][1].toFixed(1)} t=${race.time.toFixed(1)}`); }
         if (e.type === 'hit') hits[i] += 1;
+        if (e.type === 'spinout') spins[i] += 1;
       }
       r.events.length = 0;
       if (steps % 30 === 0) { if (process.argv.includes('--log') && r.speed < 0.5 && !r.frozen && !r.finished && steps % 240 === 0) console.log(`   slow ${race.profiles[i].name} s=${r.s.toFixed(0)} d=${r.d.toFixed(1)} ${r.mode} t=${race.time.toFixed(1)}`); }
@@ -41,6 +47,7 @@ for (let n = 0; n < races; n += 1) {
       maxAir[i] = Math.max(maxAir[i], r.flightTime);
     });
     race.events.length = 0;
+    race.items.events.length = 0;
     const p = race.player;
     if (nextSection < SECTIONS.length && p.s >= SECTIONS[nextSection].s0) {
       sectionTime.push(race.time);
@@ -56,7 +63,7 @@ for (let n = 0; n < races; n += 1) {
   for (const i of race.order) {
     const r = race.racers[i];
     console.log(
-      `  ${race.profiles[i].name.padEnd(12)} ${r.finished ? r.finishTime.toFixed(2).padStart(7) : `DNF s=${r.s.toFixed(0)}`}  vmax=${r.maxSpeed.toFixed(1)} air=${maxAir[i].toFixed(2)} respawn=${respawns[i]} hits=${hits[i]} tricks=${r.tricks}`,
+      `  ${race.profiles[i].name.padEnd(12)} ${r.finished ? r.finishTime.toFixed(2).padStart(7) : `DNF s=${r.s.toFixed(0)}`}  vmax=${r.maxSpeed.toFixed(1)} air=${maxAir[i].toFixed(2)} respawn=${respawns[i]} hits=${hits[i]} spinouts=${spins[i]} tricks=${r.tricks}`,
     );
   }
 }
