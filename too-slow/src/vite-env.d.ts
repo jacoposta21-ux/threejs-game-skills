@@ -47,6 +47,7 @@ interface ThreeGameTestHooks {
   /** Let the racing-line AI drive the player's snail (bot playtests / attract). */
   autopilot(enabled: boolean): void;
   /** Fast-forward the fixed-step simulation without rendering. Returns race time. */
+  stepFrame(dt: number): void;
   simulate(seconds: number): number;
 }
 

@@ -1673,3 +1673,4 @@ body.touch-race #hud .bottom-cluster { transform: translateY(-110px); }
 .fame-list { width: 100%; }
 .fame-list li { grid-template-columns: 2.6em 1fr auto auto; }
 .btn-reward { font-size: 18px; background: #fff3c4; }
+.mode-card.locked { filter: grayscale(0.8); opacity: 0.7; cursor: not-allowed; }

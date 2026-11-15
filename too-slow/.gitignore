@@ -7,3 +7,5 @@ artifacts/
 
 scripts/_*.mjs
 .shots.mjs
+.promo.mjs
+promo/frames/

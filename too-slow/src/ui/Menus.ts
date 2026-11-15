@@ -249,6 +249,7 @@ export class Menus {
         card.addEventListener('click', () => {
           handlers.sound('click');
           const mode = card.dataset.mode as RaceMode;
+          if (card.classList.contains('locked')) return;
           this.mode = mode;
           if (mode === 'gp') handlers.startGp();
           else if (mode === 'tutorial') handlers.startTutorial();
@@ -432,7 +433,10 @@ export class Menus {
     el('tt-badge').textContent = medals ? `🥇 ${medals}` : '';
     const trophies = loadTrophies();
     const best = Math.min(...Object.values(trophies), 99);
-    el('gp-badge').textContent = best <= 3 ? `🏆 ${best}${ordinal(best)}` : '';
+    const open = loadUnlocked().size;
+    const gpLocked = open < 3;
+    el('gp-badge').textContent = gpLocked ? `🔒 unlock ${3 - open} more track${3 - open > 1 ? 's' : ''}` : best <= 3 ? `🏆 ${best}${ordinal(best)}` : `${open} tracks`;
+    el('mode-list').querySelector('[data-mode="gp"]')?.classList.toggle('locked', gpLocked);
     el('tut-badge').textContent = tutorialDone() ? '' : 'START HERE';
     // First time ever: the tutorial is the obvious choice.
     el('mode-list')

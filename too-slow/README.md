@@ -4,9 +4,11 @@
 
 A 3D downhill snail racing game for desktop browsers, built with Three.js, TypeScript and Vite.
 You are a snail. You cannot accelerate. Gravity can. Crawl to the edge, tuck into your shell, and
-let the hill do the rest — six snails, five unlockable three-lap circuits, a giant Boing Mushroom
-that throws you back to the top every lap, kart-style items, boost pads, drift mini-turbos, insects
-on the course, and a garage to dress up your snail.
+let the hill do the rest — six snails, six unlockable three-lap circuits, a giant Boing Mushroom
+that throws you back to the top every lap, kart-style items, boost pads, drift mini-turbos,
+slipstreams, insects on the course and a garage full of unlockable hats, shells and slime trails.
+Play a quick race, a five-track Grand Prix, a Time Trial against your own ghost, a guided tutorial
+lap, or split-screen with a friend on one PC — keyboard, gamepad or touch.
 
 ![Menu](docs/screens/menu.jpg)
 
@@ -15,10 +17,14 @@ on the course, and a garage to dress up your snail.
 | ![The Backyard](docs/screens/big-drop.jpg) | ![Veggie Patch](docs/screens/veggie.jpg) |
 | **Lily Pond** | **Sandbox Canyon** |
 | ![Lily Pond](docs/screens/pond.jpg) | ![Sandbox Canyon](docs/screens/sandbox.jpg) |
-| **Frosty Morning** | **Boing Mushroom throw** |
-| ![Frosty Morning](docs/screens/frost.jpg) | ![Boing Mushroom](docs/screens/cannon.jpg) |
-| **Track select** | **Customize** |
-| ![Track select](docs/screens/tracks.jpg) | ![Customize](docs/screens/garage.jpg) |
+| **Frosty Morning** | **Glow Grove** |
+| ![Frosty Morning](docs/screens/frost.jpg) | ![Glow Grove](docs/screens/glow.jpg) |
+| **Boing Mushroom throw** | **Game modes** |
+| ![Boing Mushroom](docs/screens/cannon.jpg) | ![Modes](docs/screens/modes.jpg) |
+| **2 Players split-screen** | **Time Trial ghost** |
+| ![Split-screen](docs/screens/duo.jpg) | ![Time Trial](docs/screens/tt.jpg) |
+| **Grand Prix podium** | **Customize** |
+| ![Podium](docs/screens/podium.jpg) | ![Customize](docs/screens/garage.jpg) |
 
 ## Run it
 
@@ -57,7 +63,19 @@ npm run preview
 | `R` | back to last checkpoint | | |
 | `ESC` | pause | `M` mute | |
 
-Arrow keys mirror `WASD`.
+Arrow keys mirror `WASD`. `F3` shows a frame-rate overlay.
+
+**Gamepad** (standard mapping): left stick / d-pad steer, `RT` crawl, `LT` brake, `A` shell,
+`B` or `RB` slide, `X` boost (spin right in the air), `LB` spin left, `Y` item, `Back` checkpoint,
+`Start` pause. The d-pad / stick and `A` / `B` also drive every menu.
+
+**Touch**: on-screen buttons appear on touch screens — ◀ ▶ steer, SHELL, SLIDE (hold), BOOST,
+ITEM, BRAKE; crawling forward is automatic.
+
+**2 Players** (split-screen, top / bottom): player 1 uses `WASD`, `SPACE` shell, left `SHIFT` slide,
+`Q` / `E`, `F` item. Player 2 uses the arrows, `ENTER` shell, right `SHIFT` (or numpad `0`) slide,
+`,` / `.` spin and boost, `/` item. A single gamepad goes to player 2; with two pads each player
+gets one.
 
 ## How it plays
 
@@ -97,6 +115,27 @@ up onto the plateau — three and a half seconds of flight in which `Q` / `E` sp
 (land straight or lose speed). The finish line is on the plateau, just after the landing. A lap
 only counts once every checkpoint of it has been passed, so cutting across the infield gains nothing.
 
+### Modes
+
+- **Quick Race** — one track, five rivals, three laps.
+- **Grand Prix** — every unlocked track in a row (opens once three tracks are unlocked); 10-8-6-4-2-1 points per race, a podium at the end and a
+  trophy per difficulty.
+- **Time Trial** — alone, no items, against a see-through ghost of your personal best. Bronze,
+  silver and gold target times per track.
+- **2 Players** — split-screen against each other and four rivals.
+- **Tutorial** — a guided practice lap with a checklist that ticks itself off: crawl, shell, steer,
+  slide, item, boost, spin. Recommended on the first run.
+- **Rival snails**: Easy / Normal / Hard changes how bravely and precisely the AI drives — the AI
+  never gets extra speed.
+- **Slipstream**: roll close behind another snail to halve your air drag and charge boost faster.
+
+### Unlocks
+
+Finishing in the top three unlocks the next track. Hats (Chef, Viking, Wizard, Halo), shells (Gold,
+Galaxy) and slime trails (Sky, Bubblegum, Gold, Rainbow) are earned by finishing the tutorial,
+winning races, landing tricks, Time Trial medals and Grand Prix wins — the garage shows how to earn
+each one. A local **Hall of Fame** keeps your five fastest finishes per track.
+
 ### Tracks
 
 Finish in the top three to unlock the next track. Personal bests are kept per track.
@@ -108,11 +147,13 @@ Finish in the top three to unlock the next track. Personal bests are kept per tr
 | 3 | Lily Pond | dusk, fireflies | two lily-pad shortcuts, the Frog Leap over the pond, a stone ribbon between mud flats |
 | 4 | Sandbox Canyon | hot sandpit, dust | a packed-sand groove that wanders across loose sand (which eats speed), a cactus zigzag, the Spade Ramp |
 | 5 | Frosty Morning | snowy dawn, snowfall | a fast, slippery ice line down the middle, grippy slow snow either side, icicles and a glare-ice pond |
+| 6 | Glow Grove | midnight, glowing mushrooms, bloom | a long left-hander through glowshrooms, S-bends on a stone ribbon, the Moon Jump over a moon-pool, Glow-worm Gully |
 
 ### Insects
 
-- On the course: ant columns marching across (bump one and you stumble), woodlice rolling side to
-  side, rhino beetles wandering about and grasshoppers hopping across. Beetles, woodlice and
+- On the course: ant columns marching across (they scatter as you come through; bump one and you
+  stumble), woodlice rolling side to side, rhino beetles wandering about on walking legs and
+  grasshoppers hopping across. Beetles, woodlice and
   grasshoppers knock you into a spin; a Shell Shield blocks one. The AI reads where they will be and
   steers round them.
 - Around the course: bees, dragonflies (most over the pond), ladybugs, butterflies and, at the pond,
@@ -125,7 +166,7 @@ src/
   main.ts                 boot, font loading
   game/Game.ts            state machine, fixed-step loop, events → VFX / audio / HUD, test hooks
   world/Track.ts          course engine: height, surface, obstacles, AI gates, pads, item rows as functions of (s, d)
-  world/tracks/           the five circuit definitions (shape, profile, theme, features)
+  world/tracks/           the six circuit definitions (shape, profile, theme, features)
   world/Terrain.ts        ribbon terrain mesh + water, generated from Track
   world/Backyard.ts       procedural prop kit (grass, flowers, mushrooms, roots, bridge, tools …)
   world/Environment.ts    sky, lights, shadows, fog, view distance
@@ -144,6 +185,12 @@ src/
   fx/ItemView.ts          item boxes, banana peels and acorns on screen
   audio/AudioManager.ts   fully synthesised SFX, music and ambience (Web Audio)
   ui/Hud.ts, ui/Menus.ts  HUD, menus, settings and best-time storage
+  ui/Hud2.ts              player-two HUD for split-screen
+  ui/Progress.ts          medals, ghosts, trophies, stats, cosmetic unlocks, Hall of Fame
+  game/GhostRunner.ts     time-trial ghost recording and playback
+  game/Tutorial.ts        the guided practice-lap checklist
+  core/Input.ts           keyboard (1–2 players), gamepads, touch buttons, gamepad menu cursor
+  core/Platform.ts        CrazyGames SDK wrapper (gameplay events, midgame / rewarded ads)
 scripts/sim.ts            headless race simulation (track + physics + AI, no rendering)
 tests/                    Playwright smoke test and keyboard-only full-race bot
 ```
@@ -175,7 +222,9 @@ Headless tuning run (prints section splits and every racer's result):
 npm run sim -- 1 10
 ```
 
-Add `--track=veggie`, `--track=pond`, `--track=sandbox` or `--track=frost` for the other circuits, and `--no-items` for a clean race.
+Add `--track=veggie`, `--track=pond`, `--track=sandbox`, `--track=frost` or `--track=glow` for the
+other circuits, `--no-items` for a clean race, `--diff=0|2` for easy / hard rivals and `--mode=tt`
+for a solo time-trial run.
 
 Real-input smoke test and full-race bot (set `PLAYWRIGHT_CHROMIUM_PATH` to reuse an installed
 Chromium):
@@ -188,14 +237,29 @@ The full-race bot takes about ten minutes on a machine without a GPU. What was r
 this revision is recorded in [docs/VERIFICATION.md](docs/VERIFICATION.md); the design brief, core
 loop and level plan are in [docs/DESIGN.md](docs/DESIGN.md).
 
-URL overrides: `?q=0` (graphics 0–2), `?dpr=0.5` (render scale) and `?unlock=all` (open every track for testing).
+URL overrides: `?q=0` (graphics 0–2), `?dpr=0.5` (render scale), `?unlock=all` (open every track
+and cosmetic for testing) and `?crazygames=1` / `?crazygames=0` (force the platform SDK on / off).
+
+**Performance:** `F3` shows fps, frame time, draw calls and triangles. With *Auto graphics* on
+(Settings, default) the game lowers render scale, shadows and view distance in steps if a race
+runs below ~38 fps for a few seconds.
 
 ## Publishing notes (CrazyGames)
 
-The build is fully static with relative paths, no external requests and no third-party runtime
-URLs. The CrazyGames SDK is not integrated yet: load their SDK script in `index.html`, call
-`gameplayStart` / `gameplayStop` from the race start, pause and results transitions in
-`src/game/Game.ts`, and add the loading events around boot.
+The build is fully static with relative paths. `src/core/Platform.ts` wraps the CrazyGames HTML5
+SDK v3: the SDK script is loaded **only** when the game runs on a CrazyGames domain (or with
+`?crazygames=1`), so the standalone build makes no external requests. Wired in:
+
+- `loadingStart` / `loadingStop` around boot, `gameplayStart` / `gameplayStop` whenever a race is
+  running or stops (pause, results, menus), `happytime` on wins and records.
+- A midgame ad between races (never mid-race, at most every three minutes); audio is muted and the
+  game holds while it shows.
+- A rewarded ad on the results screen: watch it and the next race starts with a Turbo Mushroom.
+  Without the SDK the button is hidden — there are no fake ads.
+
+Online leaderboards need a platform account system or a backend; the game keeps a local Hall of
+Fame per track instead. Promo art is in `promo/`: cover 1920×1080 and 800×1200, thumbnail 800×450,
+icon 512×512, two extra screenshots and a short Boing Mushroom clip (`promo/boing-clip.mp4`).
 
 ## Credits and licences
 

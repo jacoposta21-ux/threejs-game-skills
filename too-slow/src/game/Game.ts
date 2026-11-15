@@ -192,7 +192,8 @@ export class Game {
         },
         startGp: () => {
           this.mode = 'gp';
-          this.gp = { tracks: TRACKS.map((d) => d.id), index: 0, points: new Array(RACER_COUNT).fill(0) };
+          const open = loadUnlocked();
+          this.gp = { tracks: TRACKS.filter((d) => open.has(d.id)).map((d) => d.id), index: 0, points: new Array(RACER_COUNT).fill(0) };
           this.startRace(this.gp.tracks[0]);
         },
         startTutorial: () => {
@@ -1414,6 +1415,10 @@ export class Game {
       'leaf-slide': () => raceTo(400),
       'root-maze': () => raceTo(640),
       'big-drop': kicker('backyard'),
+      'pre-cannon': () => {
+        loadTrack('backyard');
+        raceTo(track.cannon.launchS - 30);
+      },
       cannon: () => {
         loadTrack('backyard');
         raceTo(track.cannon.launchS + 25, () => this.race.player.cannon > 1.4);
@@ -1551,6 +1556,14 @@ export class Game {
       },
       autopilot: (enabled: boolean) => {
         this.race.autopilot = enabled;
+      },
+      /** Advance one real frame (physics, visuals, render) while screenshots are frozen: for promo clips. */
+      stepFrame: (dt: number) => {
+        const was = this.pausedForScreenshot;
+        this.pausedForScreenshot = false;
+        this.update(dt, 0);
+        this.render();
+        this.pausedForScreenshot = was;
       },
       simulate: (seconds: number) => {
         simulateUntil(() => false, seconds);
