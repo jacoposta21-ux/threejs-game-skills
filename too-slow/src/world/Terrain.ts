@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { SURFACES, noise2, track, type Surface } from './Track';
 import { createGroundDetail, createRippleTexture } from './Textures';
 
+// The ribbon covers the course and its verges; a ground grid (below) fills the rest of the world.
 const COLS: number[] = [];
-for (const d of [-120, -86, -60, -42, -31, -24, -21, -18.5, -16.5]) COLS.push(d);
+for (const d of [-30, -27, -24, -21, -18.5, -16.5]) COLS.push(d);
 for (let d = -15; d <= 15; d += 1) COLS.push(d);
-for (const d of [16.5, 18.5, 21, 24, 31, 42, 60, 86, 120]) COLS.push(d);
+for (const d of [16.5, 18.5, 21, 24, 27, 30]) COLS.push(d);
 
 const ROWS_PER_CHUNK = 72;
 
@@ -39,7 +40,7 @@ export interface TerrainResult {
 }
 
 /** Builds the ribbon terrain straight from the track's height and surface functions. */
-export function buildTerrain(): TerrainResult {
+export function buildTerrain(quality = 2): TerrainResult {
   const group = new THREE.Group();
   group.name = 'terrain';
   const theme = track.def.theme;
@@ -48,13 +49,14 @@ export function buildTerrain(): TerrainResult {
   FAR_B.set(theme.farB);
 
   const rows: number[] = [];
-  for (let s = -40; s <= track.length + 40; s += 1) rows.push(s);
+  for (let s = 0; s <= track.length; s += 1) rows.push(s);
   // Extra rows so the kicker lips are crisp cliffs instead of 1 m smears.
   for (const jump of track.jumps) rows.push(jump.s1 - 0.02, jump.s1 + 0.02);
   rows.sort((a, b) => a - b);
 
   const detail = createGroundDetail();
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, metalness: 0 });
+  // Pulled toward the camera so it wins where it overlaps the ground grid at its outer edge.
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.tDetail = { value: detail };
     shader.vertexShader = shader.vertexShader
@@ -117,7 +119,7 @@ export function buildTerrain(): TerrainResult {
           let b = 0;
           for (const [os, od] of TAPS) {
             const surface = track.surface(s + os, d + od);
-            if (surface === 'rough') tap.copy(VERGE).lerp(FAR_A, noise2(s * 0.2, d * 0.2) * 0.6);
+            if (surface === 'rough' || (ad > hw + 3.5 && (surface === 'sand' || surface === 'snow'))) tap.copy(VERGE).lerp(FAR_A, noise2(s * 0.2, d * 0.2) * 0.6);
             else if (surface === 'water') tap.copy(WET);
             else {
               tap.copy(surfaceColor(surface));
@@ -172,7 +174,7 @@ export function buildTerrain(): TerrainResult {
     wPos.push(pos.x, track.height(s, d, true) - 0.16, pos.z);
     wUv.push(d / 9, s / 9);
   };
-  for (let s = 40; s < track.length; s += 2) {
+  for (let s = 0; s < track.length - 2; s += 2) {
     for (let d = -24; d < 24; d += 1.5) {
       const dug = track.height(s + 1, d + 0.75, true) - track.height(s + 1, d + 0.75);
       if (dug < 0.2 || track.surface(s + 1, d + 0.75) === 'mud') continue;
@@ -198,6 +200,8 @@ export function buildTerrain(): TerrainResult {
   water.renderOrder = 1;
   group.add(water);
 
+  group.add(buildGround(quality, material, detail));
+
   return {
     group,
     water,
@@ -205,4 +209,60 @@ export function buildTerrain(): TerrainResult {
       ripple.offset.set(time * 0.02, -time * 0.05);
     },
   };
+}
+
+/** The world between and around the parts of the circuit: a coarse grid on the track's terrain field. */
+function buildGround(quality: number, ribbonMat: THREE.MeshStandardMaterial, detail: THREE.Texture): THREE.Mesh {
+  const b = track.bounds;
+  const pad = 300;
+  const step = quality >= 2 ? 6 : quality === 1 ? 8 : 11;
+  const x0 = b.minX - pad;
+  const z0 = b.minZ - pad;
+  const nx = Math.ceil((b.maxX - b.minX + pad * 2) / step);
+  const nz = Math.ceil((b.maxZ - b.minZ + pad * 2) / step);
+  const positions = new Float32Array((nx + 1) * (nz + 1) * 3);
+  const colors = new Float32Array((nx + 1) * (nz + 1) * 3);
+  const uvs = new Float32Array((nx + 1) * (nz + 1) * 2);
+  const proj = { s: 0, d: 0 };
+  const col = new THREE.Color();
+  let v = 0;
+  for (let iz = 0; iz <= nz; iz += 1) {
+    for (let ix = 0; ix <= nx; ix += 1) {
+      const x = x0 + ix * step;
+      const z = z0 + iz * step;
+      let y = track.groundAt(x, z, proj);
+      const ad = Math.abs(proj.d);
+      // Tuck the grid under the ribbon; from |d| = 27 outwards the two share the same surface.
+      y -= 1.4 * THREE.MathUtils.smoothstep(ad, 27, 21);
+      positions.set([x, y, z], v * 3);
+      col.copy(FAR_A).lerp(FAR_B, noise2(x * 0.02, z * 0.02));
+      col.lerp(VERGE, (1 - THREE.MathUtils.smoothstep(ad, 26, 60)) * 0.5);
+      const shade = 0.88 + noise2(x * 0.07 + 3, z * 0.07) * 0.24;
+      colors.set([col.r * shade, col.g * shade, col.b * shade], v * 3);
+      uvs.set([x / 7, z / 7], v * 2);
+      v += 1;
+    }
+  }
+  const idx: number[] = [];
+  for (let iz = 0; iz < nz; iz += 1) {
+    for (let ix = 0; ix < nx; ix += 1) {
+      const a = iz * (nx + 1) + ix;
+      idx.push(a, a + nx + 1, a + 1, a + 1, a + nx + 1, a + nx + 2);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setAttribute('aMix', new THREE.BufferAttribute(new Float32Array((nx + 1) * (nz + 1) * 2), 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mat = ribbonMat.clone();
+  mat.polygonOffset = false;
+  mat.onBeforeCompile = ribbonMat.onBeforeCompile;
+  void detail;
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  mesh.name = 'ground';
+  return mesh;
 }

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { emptyIntent, TUNE, type Intent, type RacerBody } from '../physics/RacerBody';
+import type { CritterSystem } from '../racing/Critters';
 import type { ItemSystem } from '../racing/Items';
 import type { HatKind, ShellPattern } from '../characters/SnailModel';
 import { KICKER, SPLITS, SURFACES, track } from '../world/Track';
@@ -73,6 +74,7 @@ export class SnailAI {
   private sliding = false;
   private rollCooldown = 0;
   private itemHold = 0;
+  private lastSpeed = 0;
   /** Debug: last target lateral offset. */
   targetD = 0;
 
@@ -95,7 +97,7 @@ export class SnailAI {
     this.itemHold = 0;
   }
 
-  update(dt: number, me: RacerBody, all: RacerBody[], raceTime: number, items?: ItemSystem): Intent {
+  update(dt: number, me: RacerBody, all: RacerBody[], raceTime: number, items?: ItemSystem, critters?: CritterSystem): Intent {
     const it = this.intent;
     const p = this.profile;
     it.toggleRoll = false;
@@ -132,17 +134,21 @@ export class SnailAI {
     const reach = 12 + speed * 1.3;
     let gateSoon = false;
     for (const g of track.gates) {
-      if (g.s0 > me.s + 130) break;
-      if (g.s1 > me.s && (!g.group || this.routes[g.group] === g.option)) gateSoon = true;
+      const a0 = track.rel(g.s0, me.s);
+      const a1 = a0 + (g.s1 - g.s0);
+      if (a0 < 130 && a1 > 0 && (!g.group || this.routes[g.group] === g.option)) gateSoon = true;
     }
-    for (const g of track.gates) {
-      if (g.s0 > me.s + reach) break;
-      if (g.s1 < me.s - 0.5) continue;
+    // Gates ordered by how far ahead they start (the course wraps).
+    const ahead = track.gates
+      .map((g) => ({ g, a0: track.rel(g.s0, me.s) }))
+      .filter(({ g, a0 }) => a0 <= reach && a0 + (g.s1 - g.s0) >= -0.5)
+      .sort((x, y) => x.a0 - y.a0);
+    for (const { g, a0 } of ahead) {
       if (g.group && this.routes[g.group] !== g.option) continue;
-      if (g.s0 > me.s && gateBrake === 0) {
+      if (a0 > 0 && gateBrake === 0) {
         // Can we still make this window? If not, scrub speed before the roots do it for us.
         const need = me.d < g.d0 ? g.d0 - me.d : me.d > g.d1 ? me.d - g.d1 : 0;
-        const tGate = (g.s0 - me.s) / Math.max(speed, 1);
+        const tGate = a0 / Math.max(speed, 1);
         gateBrake = need > 1.2 && (2 * need) / (tGate * tGate) > 9 + p.risk * 4 ? 1 : -1;
       }
       const n0 = Math.max(g0, g.d0);
@@ -161,10 +167,34 @@ export class SnailAI {
     if (pull < 0 && g0 > -Infinity) dT = g0;
     if (pull > 0 && g1 < Infinity) dT = g1;
 
+    // Prefer the faster ground: slide over from loose sand, mud, snow or water when a better strip is near.
+    {
+      const here = SURFACES[track.surface(sT, dT)].roll;
+      if (here > 0.04) {
+        let best = here;
+        let bestD = dT;
+        for (let k = 1; k <= 7; k += 1) {
+          for (const sgn of [-1, 1]) {
+            const dd = dT + sgn * k;
+            if (dd < g0 || dd > g1 || Math.abs(dd) > hw - 1) continue;
+            const sd = SURFACES[track.surface(sT, dd)];
+            // Low-grip ground (ice) is only worth it for the brave.
+            const r = sd.roll + k * 0.003 + (sd.grip < 0.6 ? 0.06 * (1 - p.risk) + 0.02 : 0);
+            if (r < best - 0.01) {
+              best = r;
+              bestD = dd;
+            }
+          }
+        }
+        dT = bestD;
+      }
+    }
+
     // Loose obstacles: pebbles, mushrooms, stumps.
     for (let pass = 0; pass < 2; pass += 1) {
       for (const o of track.obstaclesNear(me.s + pass * 12)) {
-        if (o.avoid <= 0 || o.s < me.s - 1 || o.s > me.s + look + 8) continue;
+        const ao = track.rel(o.s, me.s);
+        if (o.avoid <= 0 || ao < -1 || ao > look + 8) continue;
         if (Math.abs(o.d - dT) < o.avoid) {
           const side = me.d >= o.d ? 1 : -1;
           let c = o.d + side * (o.avoid + 0.5);
@@ -177,7 +207,8 @@ export class SnailAI {
     // Banana peels are obstacles too.
     if (items) {
       for (const b of items.bananas) {
-        if (b.s < me.s - 1 || b.s > me.s + look + 6) continue;
+        const ab = track.rel(b.s, me.s);
+        if (ab < -1 || ab > look + 6) continue;
         if (Math.abs(b.d - dT) < 1.5) {
           const side = me.d >= b.d ? 1 : -1;
           let c = b.d + side * 1.9;
@@ -189,7 +220,8 @@ export class SnailAI {
       if (!me.item && me.itemRoulette <= 0) {
         let best = Infinity;
         for (const b of items.boxes) {
-          if (b.respawn > 0 || b.s < me.s + 4 || b.s > me.s + look + 10 || b.d < g0 || b.d > g1) continue;
+          const ab = track.rel(b.s, me.s);
+          if (b.respawn > 0 || ab < 4 || ab > look + 10 || b.d < g0 || b.d > g1) continue;
           const cost = Math.abs(b.d - dT);
           if (cost < 3.5 && cost < best) {
             best = cost;
@@ -200,15 +232,32 @@ export class SnailAI {
     }
     // Boost pads on the line are worth a small detour.
     for (const pad of track.pads) {
-      if (pad.s0 < me.s + 3 || pad.s0 > me.s + look + 8 || pad.d < g0 || pad.d > g1) continue;
+      const ap = track.rel(pad.s0, me.s);
+      if (ap < 3 || ap > look + 8 || pad.d < g0 || pad.d > g1) continue;
       if (Math.abs(pad.d - dT) < 3.2) dT = pad.d;
+    }
+
+    // Bugs on the course: steer round where they will be.
+    if (critters) {
+      for (const c of critters.bodies) {
+
+        const ac = track.rel(c.s, me.s);
+        if (ac < -1 || ac > look + 6) continue;
+        const avoid = c.kind === 'ants' ? 0.9 : c.r + 1.6;
+        if (Math.abs(c.dAhead - dT) < avoid || Math.abs(c.d - dT) < avoid) {
+          const side = me.d >= c.dAhead ? 1 : -1;
+          let cd = c.dAhead + side * (avoid + 0.6);
+          if (Math.abs(cd) > hw - 0.8) cd = c.dAhead - side * (avoid + 0.6);
+          dT = Math.max(g0, Math.min(g1, cd));
+        }
+      }
     }
 
     // Other snails: pick a side to pass on.
     const room = 2.2 - p.aggression * 0.9;
     for (const o of all) {
       if (o === me) continue;
-      const ds = o.s - me.s;
+      const ds = o.dist - me.dist;
       if (ds > 0.3 && ds < 5 + speed * 0.25 && Math.abs(o.d - dT) < room && speed > o.speed + 0.5) {
         const side = me.d >= o.d ? 1 : -1;
         const c = o.d + side * room;
@@ -224,7 +273,8 @@ export class SnailAI {
     const err = wrap(desired - yaw);
     it.steer = Math.max(-1, Math.min(1, err * (me.mode === 'crawl' ? 2.4 : 3.4)));
 
-    const slope = track.slope(me.s + 3);
+    // Real downhill gradient under this line (banking can make the inside of a corner climb).
+    const slope = (track.height(me.s, me.d) - track.height(me.s + 3, me.d)) / 3;
     const contact = me.airTime < 0.07;
 
     if (me.mode === 'crawl') {
@@ -234,7 +284,9 @@ export class SnailAI {
       if (ready && ((slope > 0.05 && speed > pace - 0.5 && me.surface !== 'mud' && me.surface !== 'water') || speed > TUNE.crawlMax + 0.6)) it.toggleRoll = true;
     } else {
       // Momentum gone on the flat or uphill: get out and crawl.
-      if (contact && speed < 1.4 && slope < 0.05) this.slow += dt;
+      // Rolling slower than a crawl and not picking up speed: get out and crawl.
+      const gaining = speed > this.lastSpeed + 0.01;
+      if (contact && ((speed < 1.4 && slope < 0.05) || (speed < 2.2 && !gaining && me.spinOut <= 0))) this.slow += dt;
       else this.slow = 0;
       if (this.slow > 0.35 && me.mode === 'roll') {
         it.toggleRoll = true;
@@ -265,8 +317,8 @@ export class SnailAI {
       const hold = this.itemHold;
       let fire = false;
       if (me.item === 'mushroom') fire = hold > 0.6 + (1 - p.risk) && Math.abs(err) < 0.2 && Math.abs(kAhead) < 0.008 && !gateSoon;
-      else if (me.item === 'banana') fire = hold > 8 || all.some((o) => o !== me && me.s - o.s > 1 && me.s - o.s < 14 && Math.abs(o.d - me.d) < 4);
-      else if (me.item === 'acorn') fire = hold > 10 || all.some((o) => o !== me && !o.finished && o.s - me.s > 4 && o.s - me.s < 40 && Math.abs(o.d - me.d) < 5);
+      else if (me.item === 'banana') fire = hold > 8 || all.some((o) => o !== me && me.dist - o.dist > 1 && me.dist - o.dist < 14 && Math.abs(o.d - me.d) < 4);
+      else if (me.item === 'acorn') fire = hold > 10 || all.some((o) => o !== me && !o.finished && o.dist - me.dist > 4 && o.dist - me.dist < 40 && Math.abs(o.d - me.d) < 5);
       else if (me.item === 'slime') fire = hold > 0.5 && (SURFACES[me.surface].roll > 0.05 || (me.mode !== 'crawl' && speed < 14)) || hold > 12;
       else fire = hold > 0.8;
       if (fire) {
@@ -283,10 +335,14 @@ export class SnailAI {
       if (speed > safe || (gateBrake > 0 && speed > 9)) it.throttle = -1;
     }
 
-    // One clean spin off the big kicker for the showboats.
-    if (!contact && p.risk > 0.55 && me.s > KICKER.s1 && me.s < KICKER.s1 + 60 && me.flightTime > 0.2) {
-      if (Math.abs(me.spinAngle) < Math.PI * 2 - 0.25) it.spin = p.line >= 0 ? 1 : -1;
+    // Showboats spin off the big kicker, and everybody plays in the Boing Mushroom throw.
+    const kick = KICKER ? track.rel(me.s, KICKER.s1) : -1;
+    if (!contact && me.flightTime > 0.2 && ((p.risk > 0.55 && kick > 0 && kick < 60) || (me.cannon > 0.6 && p.risk > 0.3))) {
+      const goal = me.cannon > 0 && p.risk > 0.65 ? Math.PI * 4 : Math.PI * 2;
+      if (Math.abs(me.spinAngle) < goal - 0.25) it.spin = p.line >= 0 ? 1 : -1;
     }
+
+    this.lastSpeed = speed;
 
     // Recovery: reverse out, and as a last resort use the checkpoint like a player would.
     if (me.finished) return it;

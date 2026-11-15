@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SURFACES, TRACK_EDGE, track, type Surface } from '../world/Track';
+import { GRAVITY, SURFACES, TRACK_EDGE, track, type Surface } from '../world/Track';
 
 export type Mode = 'crawl' | 'roll' | 'slide';
 
@@ -50,7 +50,9 @@ export type RacerEventType =
   | 'miniturbo'
   | 'mushroom'
   | 'spinout'
-  | 'shieldBlock';
+  | 'shieldBlock'
+  | 'cannon'
+  | 'critter';
 
 export interface RacerEvent {
   type: RacerEventType;
@@ -60,7 +62,7 @@ export interface RacerEvent {
 /** Tuned constants. Units: world units, seconds. */
 export const TUNE = {
   radius: 0.55,
-  gravity: 28,
+  gravity: GRAVITY,
   airDrag: 0.0042,
   crawlMax: 3.1,
   crawlAccel: 9,
@@ -168,6 +170,14 @@ export class RacerBody {
   superSlime = 0;
   /** Seconds left of the acorn-shell shield. */
   shield = 0;
+  /** Race progress in metres from the start line, unwrapped across laps (negative on the grid). */
+  dist = 0;
+  /** Unwrapped progress of the last checkpoint passed, restored on respawn. */
+  checkpointDist = 0;
+  /** Seconds left in a Boing Mushroom throw (steering locked, no drag). */
+  cannon = 0;
+  /** Brief immunity after a critter collision so one bug cannot hit twice. */
+  critterCooldown = 0;
   readonly events: RacerEvent[] = [];
 
   constructor(readonly index: number) {}
@@ -196,6 +206,7 @@ export class RacerBody {
     this.driftCharge = 0;
     this.driftLevel = 0;
     this.padCooldown = 0;
+    this.cannon = 0;
     track.normal(this.s, this.d, this.normal);
   }
 
@@ -222,6 +233,7 @@ export class RacerBody {
   respawn(): void {
     const lane = (this.index - 2.5) * 1.6;
     this.place(this.checkpointS, lane);
+    this.dist = this.checkpointDist;
     this.emit('respawn', 0);
   }
 
@@ -243,6 +255,8 @@ export class RacerBody {
     if (this.frozen) return;
 
     this.padCooldown -= dt;
+    if (this.critterCooldown > 0) this.critterCooldown -= dt;
+    const sBefore = this.s;
     if (this.superSlime > 0) this.superSlime -= dt;
     if (this.shield > 0) this.shield -= dt;
     if (this.spinOut > 0) {
@@ -290,8 +304,21 @@ export class RacerBody {
     this.pos.addScaledVector(vel, dt);
     this.resolveGround(dt);
 
+    // Progress along the lap; a projection jump (respawn, cutting the infield) earns nothing.
+    const ds = track.rel(this.s, sBefore);
+    if (Math.abs(ds) < 25) this.dist += ds;
+
+    // The Boing Mushroom at the bottom throws everyone back up to the start plateau.
+    const c = track.cannon;
+    if (this.cannon <= 0 && Math.abs(this.d) < TRACK_EDGE + 2) {
+      const before = track.rel(sBefore, c.launchS);
+      const after = track.rel(this.s, c.launchS);
+      if (before < 0 && after >= 0 && after < 6) this.launch();
+    }
+
     this.speed = vel.length();
-    if (this.speed > this.maxSpeed) this.maxSpeed = this.speed;
+    // Top speed is measured on the course, not in the Boing Mushroom throw.
+    if (this.cannon <= 0 && this.speed > this.maxSpeed) this.maxSpeed = this.speed;
 
     // Out of bounds: a short grace period, then back to the last checkpoint.
     if (Math.abs(this.d) > TRACK_EDGE || this.pos.y < track.height(this.s, this.d) - 3) this.offTrack += dt;
@@ -445,7 +472,8 @@ export class RacerBody {
   }
 
   /** Banana or acorn hit. Returns false if a shield soaked it up. */
-  hitBy(kind: 'banana' | 'acorn'): boolean {
+  hitBy(kind: 'banana' | 'acorn' | 'ant' | 'bug'): boolean {
+    if (this.cannon > 0) return false;
     if (this.shield > 0) {
       this.shield = 0;
       this.emit('shieldBlock', 0);
@@ -453,22 +481,51 @@ export class RacerBody {
     }
     if (this.spinOut > 0 || this.finished) return false;
     const acorn = kind === 'acorn';
-    this.spinOutDur = acorn ? 1.3 : 1.05;
+    const keep = kind === 'acorn' ? 0.35 : kind === 'banana' ? 0.5 : kind === 'bug' ? 0.55 : 0.75;
+    this.spinOutDur = kind === 'acorn' ? 1.3 : kind === 'banana' ? 1.05 : kind === 'bug' ? 0.9 : 0.5;
     this.spinOut = this.spinOutDur;
-    this.vel.x *= acorn ? 0.35 : 0.5;
-    this.vel.z *= acorn ? 0.35 : 0.5;
-    if (acorn) this.vel.y += 4;
+    this.vel.x *= keep;
+    this.vel.z *= keep;
+    if (acorn || kind === 'bug') this.vel.y += kind === 'bug' ? 3 : 4;
     this.boostTimer = 0;
     this.driftCharge = 0;
     this.driftLevel = 0;
     if (this.mode === 'slide') this.mode = 'roll';
-    this.emit('spinout', acorn ? 2 : 1);
+    this.emit('spinout', acorn ? 2 : kind === 'bug' ? 3 : kind === 'ant' ? 4 : 1);
     return true;
+  }
+
+  private launch(): void {
+    const c = track.cannon;
+    track.toWorld(c.launchS + 0.01, this.d, this.pos);
+    this.pos.y += TUNE.radius + 0.05;
+    const fx = Math.sin(c.heading);
+    const fz = -Math.cos(c.heading);
+    this.vel.set(fx * c.vh, c.vy, fz * c.vh);
+    this.heading = c.heading;
+    if (this.mode !== 'roll') this.mode = 'roll';
+    this.cannon = c.time + 0.4;
+    this.grounded = false;
+    this.airTime = 0.08;
+    this.flightTime = 0.33;
+    this.spinOut = 0;
+    this.spinOutAngle = 0;
+    this.driftCharge = 0;
+    this.driftLevel = 0;
+    this.emit('cannon', 0);
   }
 
   private airForces(dt: number, intent: Intent): void {
     const vel = this.vel;
     const sp = Math.hypot(vel.x, vel.z);
+    if (this.cannon > 0) {
+      // Ballistic: the throw is aimed, so no drag and no steering; spins are still allowed.
+      this.cannon -= dt;
+      const spin = Math.max(-1, Math.min(1, intent.spin));
+      this.spinVel = moveToward(this.spinVel, spin * TUNE.spinRate, dt * 60);
+      this.spinAngle += this.spinVel * dt;
+      return;
+    }
     if (sp > 0.5) {
       const rx = -vel.z / sp;
       const rz = vel.x / sp;
@@ -534,6 +591,7 @@ export class RacerBody {
         vel.addScaledVector(n, -vn);
       }
       if (!wasGrounded && this.flightTime > 0.32) this.onLand(impact);
+      this.cannon = 0;
       this.normal.copy(n);
       this.grounded = true;
       this.airTime = 0;
@@ -541,7 +599,7 @@ export class RacerBody {
       const surface = track.surface(this.s, this.d);
       if (surface === 'water' && this.surface !== 'water' && vel.length() > 3) this.emit('splash', vel.length());
       this.surface = surface;
-      if (this.padCooldown <= 0 && track.padAt(this.s, this.d)) {
+      if (this.padCooldown <= 0 && this.cannon <= 0 && track.padAt(this.s, this.d)) {
         // Dash panel: works in any mode; a crawling snail gets tucked into its shell.
         this.padCooldown = 0.5;
         if (this.mode === 'crawl') {

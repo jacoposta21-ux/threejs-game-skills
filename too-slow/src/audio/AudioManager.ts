@@ -38,7 +38,9 @@ export type Sfx =
   | 'spinout'
   | 'shield'
   | 'shieldBreak'
-  | 'slimeUp';
+  | 'slimeUp'
+  | 'cannon'
+  | 'finalLap';
 
 interface Loop {
   gain: GainNode;
@@ -394,6 +396,14 @@ export class AudioManager {
       case 'slimeUp':
         this.burst(0.4, 'bandpass', 500, 0.3, 1800, 0, 3);
         this.tone(300, 0.4, 'sine', 0.2, 900);
+        break;
+      case 'cannon':
+        this.tone(90, 0.6, 'sine', 0.6, 420);
+        this.tone(180, 0.55, 'triangle', 0.25, 900, 0.04);
+        this.burst(0.7, 'bandpass', 400, 0.35, 3000, 0, 0.8);
+        break;
+      case 'finalLap':
+        for (const [i, f] of [659, 784, 988, 1319].entries()) this.tone(f, 0.22, 'square', 0.12, f, i * 0.09);
         break;
       case 'finish':
         for (const [i, f] of [523, 659, 784, 1047, 1319, 1568].entries()) this.tone(f, 0.5, 'triangle', 0.24, f, i * 0.1);

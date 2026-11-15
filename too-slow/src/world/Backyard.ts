@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createSeededRandom } from '../utils/random';
-import { CHECKPOINTS, FINISH_S, START_S, noise2, track, type Landmark } from './Track';
+import { CHECKPOINTS, START_S, noise2, track, type Landmark } from './Track';
 import { createBannerTexture, createBarkTexture, createCheckerTexture, createChevronTexture, createWoodTexture } from './Textures';
 
 /**
@@ -294,6 +294,7 @@ export function buildBackyard(quality: number): BackyardResult {
       );
   };
 
+  const lanterns: THREE.Object3D[] = [];
   const blocked = (s: number, d: number): boolean => {
     // Keep vegetation out of streams, leaf shortcuts and bridge approaches.
     for (const lf of track.leafBridges) if (s > lf.s0 - 42 && s < lf.s1 + 34 && d * lf.side > 0) return true;
@@ -306,18 +307,27 @@ export function buildBackyard(quality: number): BackyardResult {
   const blades: Placement[] = [];
   const grassStep = quality > 1 ? 0.62 : quality > 0 ? 0.95 : 2.4;
   const greens = track.def.theme.grassTints;
+  const flora = track.def.theme.flora;
+  const bladesPerSide = flora === 'sand' ? 1 : flora === 'snow' ? 2 : 4;
+  const proj = { s: 0, d: 0 };
+  /** True when a spot at (s, d) would sit on, or too close to, another part of the circuit. */
+  const crowded = (s: number, d: number, radius: number): boolean => {
+    track.toWorld(s, d, v);
+    track.project(v.x, v.z, -1, proj);
+    return Math.abs(track.rel(proj.s, s)) > 30 && Math.abs(proj.d) < track.halfWidth(proj.s) + 4 + radius;
+  };
   const marks = (...kinds: Landmark['kind'][]) => track.def.landmarks.filter((l) => kinds.includes(l.kind));
-  for (let s = -30; s < track.length + 30; s += grassStep) {
+  for (let s = 0; s < track.length; s += grassStep) {
     const hw = track.halfWidth(s);
     for (const side of [-1, 1]) {
-      for (let k = 0; k < 4; k += 1) {
-        const e = 3.6 + Math.pow(rng(), 1.6) * 24;
+      for (let k = 0; k < bladesPerSide; k += 1) {
+        const e = 3.6 + Math.pow(rng(), 1.6) * 22;
         const d = side * (hw + e);
         if (blocked(s, d)) continue;
         blades.push({
           s: s + rng() * grassStep,
           d,
-          scale: 2.2 + rng() * 3.4 + Math.min(4, e * 0.18),
+          scale: (flora === 'sand' ? 0.5 : flora === 'snow' ? 0.7 : 1) * (2.2 + rng() * 3.4 + Math.min(4, e * 0.18)),
           sx: 1.1 + rng() * 0.9,
           yaw: rng() * Math.PI * 2,
           tilt: (rng() - 0.5) * 0.35,
@@ -356,7 +366,9 @@ export function buildBackyard(quality: number): BackyardResult {
   const stoneColors = [0xb6b9be, 0x9a9da4, 0xc9c1b4, 0x8c9096];
   const leafColors = [0xe8862a, 0xd1541f, 0xf2b530, 0xb8431e, 0xe0a030, 0x9c6a2a];
 
-  for (let s = -20; s < track.length + 20; s += 5) {
+  const special: Record<string, Placement[]> = { cabbage: [], cattail: [], cactus: [], rosette: [], pine: [], mound: [], pumpkin: [] };
+  const pick = <T,>(a: T[]) => a[Math.floor(rng() * a.length)];
+  for (let s = 0; s < track.length; s += 5) {
     const hw = track.halfWidth(s);
     for (const side of [-1, 1]) {
       const d = side * (hw + 5 + rng() * 15);
@@ -366,15 +378,32 @@ export function buildBackyard(quality: number): BackyardResult {
       if (roll < 0.3) {
         const scale = 4 + rng() * 5;
         const item = { s: ss, d, scale, yaw: rng() * 6.28, tilt: (rng() - 0.5) * 0.2, color: white };
-        stems.push(item);
-        if (rng() < 0.6) daisies.push({ ...item, color: new THREE.Color(petalColors[Math.floor(rng() * petalColors.length)]) });
-        else cups.push({ ...item, color: new THREE.Color(cupColors[Math.floor(rng() * cupColors.length)]) });
-      } else if (roll < 0.42) {
+        if (flora === 'garden' || (flora === 'veggie' && rng() < 0.35)) {
+          stems.push(item);
+          if (rng() < 0.6) daisies.push({ ...item, color: new THREE.Color(pick(petalColors)) });
+          else cups.push({ ...item, color: new THREE.Color(pick(cupColors)) });
+        } else if (flora === 'veggie') {
+          if (rng() < 0.7) special.cabbage.push({ ...item, scale: 1.6 + rng() * 1.4, tilt: 0, color: new THREE.Color().setHSL(0.27 + rng() * 0.06, 0.55, 0.42 + rng() * 0.12) });
+          else special.pumpkin.push({ ...item, scale: 1.2 + rng() * 1.2, tilt: 0, color: new THREE.Color(pick([0xf08a24, 0xe9761c, 0xf4a83a])) });
+        } else if (flora === 'pond') {
+          if (rng() < 0.6) special.cattail.push({ ...item, scale: 5 + rng() * 4, color: white });
+          else {
+            stems.push(item);
+            cups.push({ ...item, color: new THREE.Color(pick([0x6f7cff, 0x9a6cf0, 0x5aa0ff, 0xff8fd0])) });
+          }
+        } else if (flora === 'sand') {
+          if (rng() < 0.55) special.cactus.push({ ...item, scale: 1.6 + rng() * 2.2, tilt: 0, color: new THREE.Color().setHSL(0.3 + rng() * 0.05, 0.45, 0.36 + rng() * 0.1) });
+          else special.rosette.push({ ...item, scale: 1 + rng() * 1.3, tilt: 0, color: new THREE.Color().setHSL(0.36 + rng() * 0.1, 0.35, 0.5 + rng() * 0.1) });
+        } else {
+          if (rng() < 0.6) special.pine.push({ ...item, scale: 3 + rng() * 4, tilt: 0, color: white });
+          else special.mound.push({ ...item, scale: 1.4 + rng() * 2.4, tilt: 0, color: white, lift: -0.3 });
+        }
+      } else if (roll < 0.42 && flora !== 'sand') {
         const scale = 0.8 + rng() * 1.6;
         const item = { s: ss, d: side * (hw + 4.5 + rng() * 6), scale, yaw: rng() * 6.28, tilt: (rng() - 0.5) * 0.12, color: white };
         mStems.push(item);
-        caps.push({ ...item, color: new THREE.Color(capColors[Math.floor(rng() * capColors.length)]) });
-      } else if (roll < 0.62) {
+        caps.push({ ...item, color: new THREE.Color(flora === 'snow' ? pick([0xf4f8ff, 0xe8f0ff]) : pick(capColors)) });
+      } else if (roll < (flora === 'sand' ? 0.7 : 0.62)) {
         pebbles.push({
           s: ss,
           d: side * (hw + 3 + rng() * 9),
@@ -422,14 +451,34 @@ export function buildBackyard(quality: number): BackyardResult {
   instanced(group, mushroomCapGeometry(), mats.cap, caps, { cast: true });
   instanced(group, pebbleGeometry(), mats.stone, pebbles, { cast: true, receive: true });
   instanced(group, leafGeometry(), mats.veg, leaves, { align: true });
+  if (special.cabbage.length) instanced(group, cabbageGeometry(), mats.veg, special.cabbage, { cast: true });
+  if (special.pumpkin.length) instanced(group, pumpkinGeometry(), mats.cap, special.pumpkin, { cast: true });
+  if (special.cattail.length) instanced(group, cattailGeometry(), mats.prop, special.cattail);
+  if (special.cactus.length) instanced(group, cactusGeometry(), mats.prop, special.cactus, { cast: true });
+  if (special.rosette.length) instanced(group, rosetteGeometry(), mats.veg, special.rosette);
+  if (special.pine.length) instanced(group, pineGeometry(), mats.prop, special.pine, { cast: true });
+  if (special.mound.length) instanced(group, snowMoundGeometry(), mats.stone, special.mound, { receive: true });
+
+  // Obstacles with their own look: cacti, snowballs and icicles.
+  const cacti: Placement[] = [];
+  const snowballs: Placement[] = [];
+  const icicles: Placement[] = [];
+  for (const o of track.obstacles) {
+    if (o.kind === 'cactus') cacti.push({ s: o.s, d: o.d, scale: o.r * 2.6, yaw: rng() * 6.28, color: new THREE.Color(0x4f9a4a) });
+    if (o.kind === 'snowball') snowballs.push({ s: o.s, d: o.d, scale: o.r, yaw: rng() * 6.28, color: new THREE.Color(0xffffff), lift: o.r * 0.8 });
+    if (o.kind === 'icicle') icicles.push({ s: o.s, d: o.d, scale: 1, yaw: rng() * 6.28, color: new THREE.Color(0xd6f2ff) });
+  }
+  if (cacti.length) instanced(group, cactusGeometry(), mats.prop, cacti, { cast: true });
+  if (snowballs.length) instanced(group, snowballGeometry(), mats.stone, snowballs, { cast: true, receive: true });
+  if (icicles.length) instanced(group, icicleGeometry(), new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.08, transmission: 0.2, clearcoat: 1, transparent: true, opacity: 0.88 }), icicles, { cast: true });
 
   // --- broad-leaf plants (hosta-like) as oversized mid-ground foliage
   const frond = leafGeometry();
   const fronds: Placement[] = [];
-  for (let s = 40; s < track.length; s += 46 + rng() * 30) {
+  for (let s = 40; s < track.length && (flora === 'garden' || flora === 'veggie' || flora === 'pond'); s += 46 + rng() * 30) {
     const side = rng() < 0.5 ? -1 : 1;
     const d = side * (track.halfWidth(s) + 13 + rng() * 9);
-    if (blocked(s, d)) continue;
+    if (blocked(s, d) || crowded(s, d, 8)) continue;
     const scale = 5 + rng() * 4;
     const hue = new THREE.Color().setHSL(0.27 + rng() * 0.08, 0.6, 0.36 + rng() * 0.1);
     for (let k = 0; k < 7; k += 1) {
@@ -512,6 +561,7 @@ export function buildBackyard(quality: number): BackyardResult {
     new THREE.Vector2(14.5, 220),
   ];
   for (const { s, d } of marks('trunk')) {
+    if (crowded(s, d, 32)) continue;
     const trunk = new THREE.Mesh(new THREE.LatheGeometry(trunkProfile, 20), mats.bark);
     track.toWorld(s, d, trunk.position);
     trunk.position.y -= 6;
@@ -722,8 +772,8 @@ export function buildBackyard(quality: number): BackyardResult {
     line.receiveShadow = true;
     group.add(line);
   };
-  arch(START_S, track.halfWidth(START_S) + 0.9, 'START', '#3fa34d', '#ffffff', false, 0x4fb8ff);
-  arch(FINISH_S, track.halfWidth(FINISH_S) + 0.9, 'FINISH', '#ffd23a', '#1f2430', true, 0xffc21a);
+  arch(START_S, track.halfWidth(START_S) + 0.9, 'FINISH', '#ffd23a', '#1f2430', true, 0xffc21a);
+  buildBoingMushroom(group);
 
   // --- checkpoint flags (toothpick pennants)
   const cpColors = [0x4fb8ff, 0xff8fd0, 0x7ad65a, 0xffa23a];
@@ -750,16 +800,19 @@ export function buildBackyard(quality: number): BackyardResult {
   const pickets: THREE.Matrix4[] = [];
   const fencePost = (s: number, d: number, yaw: number, h: number) => {
     track.toWorld(s, d, v);
-    dummy.position.set(v.x, v.y - 8, v.z);
+    dummy.position.set(v.x, v.y - 6, v.z);
     dummy.rotation.set(0, yaw, 0);
     dummy.scale.set(8.6, h, 8);
     dummy.updateMatrix();
     pickets.push(dummy.matrix.clone());
   };
-  for (let d = -130; d <= 130; d += 9.4) fencePost(-34, d, -track.heading(0) + Math.PI, 62 + Math.sin(d) * 2);
   const fenceDef = track.def.fence;
   if (fenceDef) {
-    for (let s = -30; s < fenceDef.s1; s += 9.4) fencePost(s, fenceDef.side * (98 + Math.sin(s * 0.01) * 10), -track.heading(s) - (fenceDef.side * Math.PI) / 2, 66 + Math.sin(s) * 2);
+    for (let s = fenceDef.s0; s < fenceDef.s1; s += 9.4) {
+      const d = fenceDef.side * (track.halfWidth(s) + 52);
+      if (crowded(s, d, 10)) continue;
+      fencePost(s, d, -track.heading(s) - (fenceDef.side * Math.PI) / 2, 46 + Math.sin(s) * 2);
+    }
   }
   const fence = new THREE.InstancedMesh(picket, new THREE.MeshStandardMaterial({ map: wood, color: 0xfff4e2, roughness: 0.8 }), pickets.length);
   pickets.forEach((m, i) => fence.setMatrixAt(i, m));
@@ -769,6 +822,7 @@ export function buildBackyard(quality: number): BackyardResult {
   // --- garden tools & yard clutter as landmarks
   // Watering can.
   for (const lm of marks('can')) {
+    if (crowded(lm.s, lm.d, 20)) continue;
     const can = new THREE.Group();
     const body = new THREE.Mesh(
       new THREE.LatheGeometry([new THREE.Vector2(0.01, 0), new THREE.Vector2(13, 0), new THREE.Vector2(14, 2), new THREE.Vector2(13.4, 24), new THREE.Vector2(14.2, 25), new THREE.Vector2(12.4, 25.2)], 28),
@@ -794,6 +848,7 @@ export function buildBackyard(quality: number): BackyardResult {
   }
   // Trowel stabbed into the hill.
   for (const lm of marks('trowel')) {
+    if (crowded(lm.s, lm.d, 20)) continue;
     const trowel = new THREE.Group();
     const bladeShape = new THREE.Shape();
     bladeShape.moveTo(0, -20);
@@ -835,6 +890,7 @@ export function buildBackyard(quality: number): BackyardResult {
   }
   // Rake lying beside the course.
   for (const lm of marks('rake')) {
+    if (crowded(lm.s, lm.d, 20)) continue;
     const rake = new THREE.Group();
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 130, 10), mats.woodDark);
     handle.rotation.x = Math.PI / 2;
@@ -860,6 +916,7 @@ export function buildBackyard(quality: number): BackyardResult {
   const potLeaf = paint(frond.clone(), new THREE.Color().setHSL(0.3, 0.6, 0.38), 0.3);
   for (const lm of marks('pot', 'potTipped')) {
     const { s, d } = lm;
+    if (crowded(s, d, 16)) continue;
     const tip = lm.kind === 'potTipped';
     const pot = new THREE.Mesh(potGeo, mats.terracotta);
     track.toWorld(s, d, pot.position);
@@ -881,6 +938,17 @@ export function buildBackyard(quality: number): BackyardResult {
     }
     pot.castShadow = true;
     group.add(pot);
+  }
+
+  // Theme landmarks.
+  for (const lm of marks('bucket', 'spade', 'pumpkin', 'snowman', 'lantern')) {
+    if (crowded(lm.s, lm.d, 16)) continue;
+    const obj = lm.kind === 'bucket' ? bucketGroup(rng) : lm.kind === 'spade' ? spadeGroup() : lm.kind === 'pumpkin' ? giantPumpkin() : lm.kind === 'snowman' ? snowmanGroup() : lanternGroup();
+    track.toWorld(lm.s, lm.d, obj.position);
+    obj.rotation.y = -track.heading(lm.s) + (rng() - 0.5) * 1.2;
+    obj.traverse((o) => (o.castShadow = true));
+    group.add(obj);
+    if (lm.kind === 'lantern') lanterns.push(obj);
   }
 
   // --- boost pads: glowing chevron strips laid on the ground
@@ -930,7 +998,8 @@ export function buildBackyard(quality: number): BackyardResult {
   const flyers: { root: THREE.Group; l: THREE.Mesh; r: THREE.Mesh; anchor: THREE.Vector3; phase: number; radius: number }[] = [];
   const wingColors = [0xffd23a, 0xff8fd0, 0x6fd0ff, 0xffa23a, 0xffffff];
   const fireflies = !!track.def.theme.fireflies;
-  const flyerCount = fireflies ? 46 : 16;
+  if (flora === 'snow' || flora === 'sand') void 0;
+  const flyerCount = fireflies ? 46 : flora === 'snow' ? 0 : flora === 'sand' ? 6 : 16;
   for (let i = 0; i < flyerCount; i += 1) {
     const s = 30 + (i / flyerCount) * (track.length - 60) + rng() * 40;
     const anchor = track.toWorld(s, (rng() * 2 - 1) * 16, new THREE.Vector3());
@@ -953,6 +1022,10 @@ export function buildBackyard(quality: number): BackyardResult {
     update(time: number) {
       windUniform.value = time;
       chevrons.offset.y = -time * 1.6;
+      for (const l of lanterns) {
+        const glow = l.getObjectByName('glow') as THREE.Mesh | undefined;
+        if (glow) (glow.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.4 + Math.sin(time * 3 + l.position.x) * 0.3;
+      }
       for (const f of flyers) {
         const t = time * 0.6 + f.phase;
         f.root.position.set(f.anchor.x + Math.cos(t) * f.radius, f.anchor.y + Math.sin(t * 2.3) * 1.2, f.anchor.z + Math.sin(t * 0.8) * f.radius);
@@ -963,4 +1036,253 @@ export function buildBackyard(quality: number): BackyardResult {
       }
     },
   };
+}
+
+// ------------------------------------------------------------- theme props
+
+function cabbageGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [paint(new THREE.SphereGeometry(0.55, 14, 10).scale(1, 0.85, 1).translate(0, 0.45, 0), 0xbfe08a, 0.3)];
+  for (let i = 0; i < 7; i += 1) {
+    const a = (i / 7) * Math.PI * 2;
+    const leaf = new THREE.SphereGeometry(0.62, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55);
+    leaf.scale(1, 0.55, 0.7).rotateX(-0.9).translate(0, 0.25, 0.32).rotateY(a);
+    parts.push(paint(leaf, 0xffffff, 0.4));
+  }
+  return merge(parts);
+}
+
+function pumpkinGeometry(): THREE.BufferGeometry {
+  const body = new THREE.SphereGeometry(0.7, 20, 12);
+  const pos = body.getAttribute('position');
+  for (let i = 0; i < pos.count; i += 1) {
+    v.fromBufferAttribute(pos, i);
+    const a = Math.atan2(v.z, v.x);
+    const k = 1 - 0.08 * Math.pow(Math.abs(Math.cos(a * 4)), 0.5);
+    pos.setXYZ(i, v.x * k, v.y * 0.72, v.z * k);
+  }
+  body.computeVertexNormals();
+  body.translate(0, 0.5, 0);
+  const stem = new THREE.CylinderGeometry(0.06, 0.1, 0.3, 6).translate(0, 1.05, 0);
+  return merge([paint(body, 0xffffff, 0.3), paint(stem, 0x5a7a2a)]);
+}
+
+function cattailGeometry(): THREE.BufferGeometry {
+  const stalk = new THREE.CylinderGeometry(0.02, 0.035, 1, 5).translate(0, 0.5, 0);
+  const head = new THREE.CapsuleGeometry(0.06, 0.18, 3, 6).translate(0, 0.88, 0);
+  const blade = new THREE.ConeGeometry(0.04, 0.9, 3).scale(1, 1, 0.3).rotateZ(0.25).translate(0.08, 0.42, 0);
+  return merge([paint(stalk, 0x5f9a3a, 0.3), paint(head, 0x6b4426), paint(blade, 0x6fae44, 0.3)]);
+}
+
+function cactusGeometry(): THREE.BufferGeometry {
+  const trunk = new THREE.CapsuleGeometry(0.28, 1.1, 4, 10).translate(0, 0.8, 0);
+  const armL = new THREE.CapsuleGeometry(0.16, 0.45, 3, 8).translate(-0.42, 0.95, 0);
+  const elbowL = new THREE.CapsuleGeometry(0.16, 0.25, 3, 8).rotateZ(Math.PI / 2).translate(-0.28, 0.7, 0);
+  const armR = new THREE.CapsuleGeometry(0.14, 0.3, 3, 8).translate(0.38, 1.2, 0);
+  const elbowR = new THREE.CapsuleGeometry(0.14, 0.2, 3, 8).rotateZ(Math.PI / 2).translate(0.26, 1.0, 0);
+  const flower = new THREE.SphereGeometry(0.1, 8, 6).translate(0, 1.48, 0);
+  const g = merge([paint(trunk, 0xffffff, 0.3), paint(armL, 0xffffff, 0.3), paint(elbowL, 0xffffff, 0.3), paint(armR, 0xffffff, 0.3), paint(elbowR, 0xffffff, 0.3), paint(flower, 0xff6fa8)]);
+  // Ribs: darken along vertical grooves.
+  const pos = g.getAttribute('position');
+  const col = g.getAttribute('color');
+  for (let i = 0; i < pos.count; i += 1) {
+    const a = Math.atan2(pos.getZ(i), pos.getX(i));
+    const k = 0.82 + 0.18 * Math.abs(Math.cos(a * 4));
+    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
+  }
+  return g;
+}
+
+function rosetteGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (let ring = 0; ring < 3; ring += 1) {
+    for (let i = 0; i < 7; i += 1) {
+      const a = (i / 7) * Math.PI * 2 + ring * 0.45;
+      const leaf = new THREE.ConeGeometry(0.16 - ring * 0.03, 0.7 - ring * 0.15, 5).scale(1, 1, 0.5);
+      leaf.rotateX(Math.PI / 2 - 0.5 - ring * 0.35).translate(0, 0.15 + ring * 0.08, 0.3 - ring * 0.08).rotateY(a);
+      parts.push(paint(leaf, 0xffffff, 0.4));
+    }
+  }
+  return merge(parts);
+}
+
+function pineGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [paint(new THREE.CylinderGeometry(0.05, 0.08, 0.4, 6).translate(0, 0.2, 0), 0x6b4426)];
+  for (let i = 0; i < 4; i += 1) {
+    const r = 0.5 - i * 0.1;
+    parts.push(paint(new THREE.ConeGeometry(r, 0.45, 9).translate(0, 0.45 + i * 0.25, 0), 0x2f6a4a, 0.2));
+    parts.push(paint(new THREE.ConeGeometry(r * 0.8, 0.14, 9).translate(0, 0.6 + i * 0.25, 0), 0xf4f8ff));
+  }
+  return merge(parts);
+}
+
+function snowMoundGeometry(): THREE.BufferGeometry {
+  const g = new THREE.SphereGeometry(1, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+  g.scale(1.3, 0.55, 1);
+  return paint(g, 0xf6f9ff, 0.2);
+}
+
+function snowballGeometry(): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(1, 2);
+  const pos = g.getAttribute('position');
+  for (let i = 0; i < pos.count; i += 1) {
+    v.fromBufferAttribute(pos, i);
+    v.multiplyScalar(0.92 + noise2(v.x * 3 + v.z, v.y * 3) * 0.16);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  return paint(g, 0xf8fbff, 0.25);
+}
+
+function icicleGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const spikes: [number, number, number, number][] = [
+    [0, 0, 0.45, 2.6],
+    [0.45, 0.15, 0.28, 1.6],
+    [-0.38, -0.2, 0.3, 1.9],
+    [0.1, -0.42, 0.22, 1.2],
+  ];
+  for (const [x, z, r, h] of spikes) parts.push(paint(new THREE.ConeGeometry(r, h, 7).translate(x, h / 2, z), 0xffffff, 0.5));
+  return merge(parts);
+}
+
+function std(color: number, opts: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.5, ...opts });
+}
+
+function bucketGroup(rng: () => number): THREE.Group {
+  const g = new THREE.Group();
+  const colors = [0xff4a3a, 0x3fa0ff, 0xffd23a, 0x5ac46a];
+  const mat = std(colors[Math.floor(rng() * colors.length)], { roughness: 0.35 });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(15, 11, 22, 24, 1, true), mat);
+  body.position.y = 11;
+  (mat as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(15, 1.1, 8, 28).rotateX(Math.PI / 2), mat);
+  rim.position.y = 22;
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(14.5, 0.6, 6, 24, Math.PI), std(0xf4f0e4));
+  handle.position.y = 22;
+  handle.rotation.z = 0.5;
+  const sand = new THREE.Mesh(new THREE.CircleGeometry(14.2, 24).rotateX(-Math.PI / 2), std(0xe6cf92, { roughness: 1 }));
+  sand.position.y = 18;
+  g.add(body, rim, handle, sand);
+  g.position.y = -3;
+  return g;
+}
+
+function spadeGroup(): THREE.Group {
+  const g = new THREE.Group();
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(14, 0.8, 16), std(0x3fa0ff, { roughness: 0.3 }));
+  blade.position.set(0, 2, 0);
+  blade.rotation.x = -0.35;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 34, 10), std(0xffd23a));
+  shaft.rotation.x = Math.PI / 2 - 0.35;
+  shaft.position.set(0, 7.5, 22);
+  const grip = new THREE.Mesh(new THREE.TorusGeometry(3.2, 1, 8, 16), std(0xffd23a));
+  grip.position.set(0, 13.5, 38);
+  grip.rotation.x = 0.4;
+  g.add(blade, shaft, grip);
+  return g;
+}
+
+function giantPumpkin(): THREE.Group {
+  const g = new THREE.Group();
+  const m = new THREE.Mesh(pumpkinGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, color: 0xf08a24 }));
+  m.scale.setScalar(16);
+  m.position.y = -3;
+  g.add(m);
+  return g;
+}
+
+function snowmanGroup(): THREE.Group {
+  const g = new THREE.Group();
+  const snow = std(0xf8fbff, { roughness: 0.9 });
+  for (const [r, y] of [
+    [9, 7],
+    [6.5, 19],
+    [4.6, 28],
+  ]) {
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), snow);
+    ball.position.y = y;
+    g.add(ball);
+  }
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.9, 5, 10), std(0xff8a2a));
+  nose.rotation.x = Math.PI / 2;
+  nose.position.set(0, 28, 6.5);
+  const coal = std(0x22252b);
+  for (const x of [-1.6, 1.6]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.7, 8, 6), coal);
+    eye.position.set(x, 30, 4.1);
+    g.add(eye);
+  }
+  const scarf = new THREE.Mesh(new THREE.TorusGeometry(5.4, 1.3, 8, 20).rotateX(Math.PI / 2), std(0xe8413c));
+  scarf.position.y = 24;
+  const hat = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, 5, 16), coal);
+  hat.position.y = 34.5;
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(5.2, 5.2, 0.6, 16), coal);
+  brim.position.y = 32.2;
+  g.add(nose, scarf, hat, brim);
+  g.position.y = -2;
+  return g;
+}
+
+function lanternGroup(): THREE.Group {
+  const g = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.32, 9, 8), std(0x3a2a20));
+  post.position.y = 4.5;
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.4, 6), std(0x3a2a20));
+  arm.rotation.z = Math.PI / 2;
+  arm.position.set(1.1, 8.8, 0);
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.9, 14, 10), new THREE.MeshStandardMaterial({ color: 0xffe08a, emissive: 0xffc04a, emissiveIntensity: 1.6 }));
+  glow.position.set(2.2, 7.9, 0);
+  glow.name = 'glow';
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.1, 0.8, 8), std(0x3a2a20));
+  cap.position.set(2.2, 8.9, 0);
+  g.add(post, arm, glow, cap);
+  return g;
+}
+
+/** The Boing Mushroom: a huge springy cap set into the bottom of the lap that throws snails home. */
+function buildBoingMushroom(group: THREE.Group): void {
+  const c = track.cannon;
+  const hw = track.halfWidth(c.launchS);
+  const base = track.toWorld(c.launchS, 0, new THREE.Vector3());
+  const root = new THREE.Group();
+  root.name = 'boingMushroom';
+  root.position.copy(base);
+  root.rotation.y = -c.heading;
+  const capGeo = new THREE.SphereGeometry(1, 40, 14, 0, Math.PI * 2, 0, Math.PI * 0.32);
+  const capMat = new THREE.MeshStandardMaterial({ color: 0xe5382e, roughness: 0.35 });
+  const cap = new THREE.Mesh(capGeo, capMat);
+  const r = hw + 2;
+  cap.scale.set(r, r * 0.55, 7);
+  cap.position.y = -r * 0.55 * Math.cos(Math.PI * 0.32) + 0.5;
+  cap.receiveShadow = true;
+  root.add(cap);
+  const spots = new THREE.MeshStandardMaterial({ color: 0xfffdf4, roughness: 0.4 });
+  for (let i = 0; i < 9; i += 1) {
+    const sp = new THREE.Mesh(new THREE.CircleGeometry(0.7 + (i % 3) * 0.3, 14), spots);
+    sp.rotation.x = -Math.PI / 2;
+    sp.position.set(((i % 5) - 2) * r * 0.36, 0.62, (Math.floor(i / 5) - 0.5) * 3.2);
+    root.add(sp);
+  }
+  // Big up-arrows painted on the approach.
+  const arrowShape = new THREE.Shape();
+  arrowShape.moveTo(-1.2, 0);
+  arrowShape.lineTo(0, 1.6);
+  arrowShape.lineTo(1.2, 0);
+  arrowShape.lineTo(0.5, 0);
+  arrowShape.lineTo(0.5, -1.4);
+  arrowShape.lineTo(-0.5, -1.4);
+  arrowShape.lineTo(-0.5, 0);
+  const arrowMat = new THREE.MeshBasicMaterial({ color: 0xfff27a, polygonOffset: true, polygonOffsetFactor: -4, toneMapped: false });
+  for (let k = 1; k <= 3; k += 1) {
+    for (const dx of [-hw * 0.5, 0, hw * 0.5]) {
+      const p = track.toWorld(c.launchS - k * 9, dx, new THREE.Vector3());
+      const arrow = new THREE.Mesh(new THREE.ShapeGeometry(arrowShape), arrowMat);
+      arrow.rotation.set(-Math.PI / 2, 0, -c.heading);
+      arrow.position.copy(p).setY(p.y + 0.08);
+      arrow.scale.setScalar(1.3);
+      group.add(arrow);
+    }
+  }
+  group.add(root);
 }

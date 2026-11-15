@@ -1,6 +1,7 @@
 import { AI_PROFILES, PLAYER_PROFILE, SnailAI, type RacerProfile } from '../ai/SnailAI';
 import { emptyIntent, RacerBody, stepWorld, type Intent } from '../physics/RacerBody';
-import { CHECKPOINTS, FINISH_S, GRID_S, track } from '../world/Track';
+import { CHECKPOINTS, START_S, track } from '../world/Track';
+import { CritterSystem } from './Critters';
 import { ItemSystem } from './Items';
 
 export type RacePhase = 'grid' | 'countdown' | 'racing' | 'finished';
@@ -10,7 +11,7 @@ export const RACER_COUNT = 6;
 export const COUNTDOWN_TIME = 3.6;
 
 export interface RaceEvent {
-  type: 'countdown' | 'go' | 'checkpoint' | 'overtake' | 'overtaken' | 'finish' | 'aiFinish';
+  type: 'countdown' | 'go' | 'checkpoint' | 'overtake' | 'overtaken' | 'finish' | 'aiFinish' | 'lap';
   value: number;
   racer: number;
 }
@@ -40,6 +41,12 @@ export class RaceManager {
   finishedCount = 0;
   private checkpointIndex: number[] = [];
   readonly items = new ItemSystem();
+  readonly critters = new CritterSystem();
+  laps = 3;
+  /** Player's lap times (seconds), filled as laps complete. */
+  readonly lapTimes: number[] = [];
+  private lapStart = 0;
+  private readonly lapOf: number[] = [];
   private rng: () => number = Math.random;
 
   constructor() {
@@ -50,6 +57,7 @@ export class RaceManager {
       this.order.push(i);
       this.rank.push(i);
       this.checkpointIndex.push(0);
+      this.lapOf.push(1);
     }
   }
 
@@ -68,7 +76,13 @@ export class RaceManager {
     const playerSlot = slots.indexOf(2);
     [slots[0], slots[playerSlot]] = [slots[playerSlot], slots[0]];
     for (let i = 0; i < RACER_COUNT; i += 1) {
-      this.racers[i].reset(GRID_S, (slots[i] - 2.5) * 2.7);
+      // Two staggered rows on the plateau, just behind the line.
+      const row = slots[i] % 2;
+      const r = this.racers[i];
+      r.reset(START_S - 10 - row * 5, (slots[i] - 2.5) * 2.9);
+      r.dist = -10 - row * 5;
+      r.checkpointDist = r.dist;
+      this.lapOf[i] = 1;
       this.ais[i]?.reset(rng);
       this.order[i] = i;
       this.rank[i] = i;
@@ -82,6 +96,10 @@ export class RaceManager {
     this.finishedCount = 0;
     this.events.length = 0;
     this.items.reset();
+    this.critters.reset();
+    this.laps = track.def.laps;
+    this.lapTimes.length = 0;
+    this.lapStart = 0;
     this.updateOrder(false);
   }
 
@@ -114,7 +132,7 @@ export class RaceManager {
       const r = this.racers[i];
       const ai = i === 0 ? (this.autopilot || r.finished ? this.autoAI : null) : this.ais[i];
       if (ai) {
-        const src = ai.update(dt, r, this.racers, this.time, this.items);
+        const src = ai.update(dt, r, this.racers, this.time, this.items, this.critters);
         Object.assign(this.intents[i], src);
         if (r.finished) this.coast(this.intents[i], r);
       } else {
@@ -129,6 +147,7 @@ export class RaceManager {
     if (racing && this.items.enabled) this.items.preStep(dt, this.racers, this.intents, this.rank, this.rng);
     stepWorld(this.racers, this.intents, dt);
     if (racing && this.items.enabled) this.items.postStep(dt, this.racers);
+    if (racing) this.critters.update(this.time, this.racers);
 
     if (racing) {
       for (let i = 0; i < RACER_COUNT; i += 1) this.checkProgress(i);
@@ -143,26 +162,54 @@ export class RaceManager {
     intent.spin = 0;
     intent.useItem = false;
     intent.toggleRoll = r.mode !== 'crawl' && r.airTime < 0.07;
-    intent.throttle = r.s > FINISH_S + 55 ? 0 : 0.6;
+    intent.throttle = r.dist > this.totalDist + 55 ? 0 : 0.6;
+  }
+
+  get totalDist(): number {
+    return this.laps * track.length;
+  }
+
+  /** Unwrapped distance from the line to checkpoint number k (counting across laps). */
+  private checkpointTarget(k: number): number {
+    const per = CHECKPOINTS.length;
+    const lap = Math.floor(k / per);
+    return lap * track.length + track.wrap(CHECKPOINTS[k % per] - START_S);
   }
 
   private checkProgress(i: number): void {
     const r = this.racers[i];
     if (r.finished) return;
-    const next = CHECKPOINTS[this.checkpointIndex[i]];
-    if (next !== undefined && r.s >= next && Math.abs(r.d) < track.halfWidth(r.s) + 6) {
+    const per = CHECKPOINTS.length;
+    const k = this.checkpointIndex[i];
+    if (k < per * this.laps && r.dist >= this.checkpointTarget(k) && Math.abs(r.d) < track.halfWidth(r.s) + 6) {
       this.checkpointIndex[i] += 1;
-      r.checkpointS = next;
+      r.checkpointS = CHECKPOINTS[k % per];
+      r.checkpointDist = this.checkpointTarget(k);
       if (i === 0) this.events.push({ type: 'checkpoint', value: this.checkpointIndex[i], racer: 0 });
     }
-    // The line must be physically crossed, on the course.
-    if (r.s >= FINISH_S && Math.abs(r.d) < track.halfWidth(FINISH_S) + 4) {
+    // A lap only counts once every checkpoint of it has been passed: no infield cuts.
+    const lap = Math.min(this.laps, Math.floor(Math.max(0, r.dist) / track.length) + 1);
+    if (lap > this.lapOf[i] && this.checkpointIndex[i] >= (lap - 1) * per) {
+      this.lapOf[i] = lap;
+      if (i === 0) {
+        this.lapTimes.push(this.time - this.lapStart);
+        this.lapStart = this.time;
+        this.events.push({ type: 'lap', value: lap, racer: 0 });
+      }
+    }
+    // The line must be physically crossed, on the course, after every checkpoint.
+    if (r.dist >= this.totalDist && this.checkpointIndex[i] >= per * this.laps && Math.abs(r.d) < track.halfWidth(START_S) + 4) {
       r.finished = true;
       r.finishTime = this.time;
       this.finishedCount += 1;
+      if (i === 0) this.lapTimes.push(this.time - this.lapStart);
       this.events.push({ type: i === 0 ? 'finish' : 'aiFinish', value: this.finishedCount, racer: i });
       if (i === 0) this.phase = 'finished';
     }
+  }
+
+  lap(i: number): number {
+    return this.lapOf[i];
   }
 
   private updateOrder(emit: boolean): void {
@@ -174,7 +221,7 @@ export class RaceManager {
       if (ra.finished && rb.finished) return ra.finishTime - rb.finishTime;
       if (ra.finished) return -1;
       if (rb.finished) return 1;
-      return rb.s - ra.s;
+      return rb.dist - ra.dist;
     });
     for (let p = 0; p < RACER_COUNT; p += 1) this.rank[this.order[p]] = p;
     if (emit && !racers[0].finished && this.time > 2) {
@@ -185,6 +232,6 @@ export class RaceManager {
 
   /** Remaining distance to the line for the player. */
   get distanceToFinish(): number {
-    return Math.max(0, FINISH_S - this.player.s);
+    return Math.max(0, this.totalDist - this.player.dist);
   }
 }

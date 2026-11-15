@@ -684,6 +684,10 @@ kbd {
   background: linear-gradient(100deg, rgba(255, 248, 228, 0.5) 0%, rgba(255, 248, 228, 0) 46%);
 }
 
+#menu-tracks .panel-wide {
+  width: min(1100px, 96vw);
+}
+
 #menu-tracks,
 #menu-how,
 #menu-settings,
@@ -1072,6 +1076,106 @@ kbd {
   margin-top: 6px;
 }
 
+/* ------------------------------------------------------------------ laps */
+.lap-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 14px 4px;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: #c9ecff;
+  box-shadow: 0 3px 0 var(--ink);
+  font: 400 26px var(--title);
+}
+
+.lap-chip small {
+  font: 600 14px var(--body);
+  opacity: 0.75;
+}
+
+.lap-chip span {
+  font-size: 18px;
+  opacity: 0.6;
+}
+
+.lap-chip.final {
+  background: var(--sun);
+  animation: ready 0.5s ease-in-out infinite alternate;
+}
+
+.progress-tick.lap-tick {
+  opacity: 0.7;
+  width: 3px;
+}
+
+.results-laps {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font: 600 15px var(--body);
+}
+
+.results-laps span {
+  padding: 2px 12px 3px;
+  border-radius: 999px;
+  background: #efe7cc;
+  font-variant-numeric: tabular-nums;
+}
+
+.results-laps span.best {
+  background: var(--sun);
+}
+
+.results-unlock {
+  margin: 0;
+  padding: 4px 18px 6px;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: #d9ff9a;
+  font: 400 20px var(--title);
+  animation: ready 0.5s ease-in-out infinite alternate;
+}
+
+.track-card.locked {
+  cursor: not-allowed;
+  filter: grayscale(0.85);
+  opacity: 0.75;
+}
+
+.track-card.locked:hover {
+  transform: none;
+  box-shadow: 0 6px 0 var(--ink);
+}
+
+.track-lock {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  font: 400 34px var(--title);
+  color: #fff;
+  -webkit-text-stroke: 5px var(--ink);
+  paint-order: stroke fill;
+}
+
+.track-card.locked .track-lock {
+  display: flex;
+}
+
+.track-num {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  padding: 0 9px 2px;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: var(--cream);
+  font: 400 16px var(--title);
+}
+
 /* ------------------------------------------------------------- items HUD */
 .item-slot {
   position: absolute;
@@ -1147,7 +1251,7 @@ kbd {
 /* ------------------------------------------------------------- track select */
 .track-list {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 14px;
 }
 
@@ -1183,7 +1287,7 @@ kbd {
 .track-art {
   position: relative;
   display: block;
-  height: 96px;
+  height: 84px;
   overflow: hidden;
   background: linear-gradient(var(--sky), var(--hor) 70%);
   border-bottom: 4px solid var(--ink);

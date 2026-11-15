@@ -174,7 +174,7 @@ export class ItemSystem {
       if (r.frozen || r.finished) continue;
       // Item boxes.
       for (const b of this.boxes) {
-        if (b.respawn > 0 || Math.abs(b.s - r.s) > 3) continue;
+        if (b.respawn > 0 || Math.abs(track.rel(b.s, r.s)) > 3) continue;
         if (r.pos.distanceToSquared(b.pos) < 2.0 * 2.0) {
           b.respawn = BOX_RESPAWN;
           this.emit('pickup', i, null, b.pos);
@@ -184,7 +184,7 @@ export class ItemSystem {
       // Banana peels.
       for (let k = this.bananas.length - 1; k >= 0; k -= 1) {
         const ban = this.bananas[k];
-        if (Math.abs(ban.s - r.s) > 3) continue;
+        if (Math.abs(track.rel(ban.s, r.s)) > 3) continue;
         if (ban.owner === i && ban.age < 0.6) continue;
         if (r.pos.distanceToSquared(ban.pos) < 1.0) {
           const hit = r.hitBy('banana');
@@ -202,15 +202,16 @@ export class ItemSystem {
       a.s += a.vs * dt;
       const t = a.target >= 0 ? racers[a.target] : null;
       const hw = track.halfWidth(a.s);
-      if (t && !t.finished && t.s > a.s - 3) a.d += Math.max(-8 * dt, Math.min(8 * dt, t.d - a.d));
+      if (t && !t.finished && track.rel(t.s, a.s) > -3) a.d += Math.max(-8 * dt, Math.min(8 * dt, t.d - a.d));
       a.d = Math.max(-hw - 1, Math.min(hw + 1, a.d));
       track.toWorld(a.s, a.d, a.pos);
       a.pos.y += 0.5;
-      let dead = a.age > 3.5 || a.s > track.length - 2;
+      a.s = track.wrap(a.s);
+      let dead = a.age > 3.5;
       if (!dead) {
         for (const o of track.obstaclesNear(a.s)) {
           if (o.kind === 'rail' || o.kind === 'post') continue;
-          if (Math.abs(o.s - a.s) < o.r + 0.4 && Math.abs(o.d - a.d) < o.r + 0.4 && o.kind !== 'root') dead = true;
+          if (Math.abs(track.rel(o.s, a.s)) < o.r + 0.4 && Math.abs(o.d - a.d) < o.r + 0.4 && o.kind !== 'root') dead = true;
         }
       }
       if (!dead) {

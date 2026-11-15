@@ -14,7 +14,8 @@ const trackArg = process.argv.find((a) => a.startsWith('--track='));
 if (trackArg) loadTrack(trackArg.slice(8));
 const noItems = process.argv.includes('--no-items');
 
-console.log(`${track.def.name}: track length ${track.length}, drop ${(-track.height(track.length - 1, 0)).toFixed(1)}`);
+const c = track.cannon;
+console.log(`${track.def.name}: lap ${track.length} m x${track.def.laps}, drop ${(-track.centreHeight(c.launchS)).toFixed(1)} m, throw ${c.time.toFixed(2)} s (vh ${c.vh.toFixed(0)}, vy ${c.vy.toFixed(0)})`);
 
 for (let n = 0; n < races; n += 1) {
   const rng = createSeededRandom(seed0 + n);
@@ -27,11 +28,12 @@ for (let n = 0; n < races; n += 1) {
   const last: number[][] = new Array(6).fill([0, 0]);
   const hits = new Array(6).fill(0);
   const spins = new Array(6).fill(0);
+  const crit = new Array(6).fill(0);
   const maxAir = new Array(6).fill(0);
   const sectionTime: number[] = [];
   let nextSection = 1;
   let steps = 0;
-  const limit = 400 / FIXED_DT;
+  const limit = 600 / FIXED_DT;
   while (steps < limit && race.racers.some((r) => !r.finished)) {
     race.step();
     steps += 1;
@@ -40,6 +42,7 @@ for (let n = 0; n < races; n += 1) {
         if (e.type === 'respawn') { respawns[i] += 1; if (process.argv.includes('--log')) console.log(`   respawn ${race.profiles[i].name} from s=${last[i][0].toFixed(0)} d=${last[i][1].toFixed(1)} t=${race.time.toFixed(1)}`); }
         if (e.type === 'hit') hits[i] += 1;
         if (e.type === 'spinout') spins[i] += 1;
+        if (e.type === 'critter') crit[i] += 1;
       }
       r.events.length = 0;
       if (steps % 30 === 0) { if (process.argv.includes('--log') && r.speed < 0.5 && !r.frozen && !r.finished && steps % 240 === 0) console.log(`   slow ${race.profiles[i].name} s=${r.s.toFixed(0)} d=${r.d.toFixed(1)} ${r.mode} t=${race.time.toFixed(1)}`); }
@@ -48,6 +51,8 @@ for (let n = 0; n < races; n += 1) {
     });
     race.events.length = 0;
     race.items.events.length = 0;
+    race.critters.events.forEach((e) => (crit[e.racer] += 1));
+    race.critters.events.length = 0;
     const p = race.player;
     if (nextSection < SECTIONS.length && p.s >= SECTIONS[nextSection].s0) {
       sectionTime.push(race.time);
@@ -59,11 +64,11 @@ for (let n = 0; n < races; n += 1) {
       );
     }
   }
-  console.log(`\nseed ${seed0 + n} — sections(player) ${sectionTime.map((t) => t.toFixed(1)).join(' / ')}`);
+  console.log(`\nseed ${seed0 + n} — player laps ${race.lapTimes.map((t) => t.toFixed(1)).join(' / ')}`);
   for (const i of race.order) {
     const r = race.racers[i];
     console.log(
-      `  ${race.profiles[i].name.padEnd(12)} ${r.finished ? r.finishTime.toFixed(2).padStart(7) : `DNF s=${r.s.toFixed(0)}`}  vmax=${r.maxSpeed.toFixed(1)} air=${maxAir[i].toFixed(2)} respawn=${respawns[i]} hits=${hits[i]} spinouts=${spins[i]} tricks=${r.tricks}`,
+      `  ${race.profiles[i].name.padEnd(12)} ${r.finished ? r.finishTime.toFixed(2).padStart(7) : `DNF dist=${r.dist.toFixed(0)} s=${r.s.toFixed(0)}`}  vmax=${r.maxSpeed.toFixed(1)} air=${maxAir[i].toFixed(2)} respawn=${respawns[i]} hits=${hits[i]} spinouts=${spins[i]} bugs=${crit[i]} tricks=${r.tricks}`,
     );
   }
 }

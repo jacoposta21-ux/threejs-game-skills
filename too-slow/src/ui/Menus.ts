@@ -88,6 +88,29 @@ export function saveLook(look: PlayerLook): void {
   write(LOOK_KEY, look);
 }
 
+const UNLOCK_KEY = 'tooslow.unlocked.v1';
+const unlockAll = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('unlock') === 'all';
+
+/** Tracks open to play. The first is always open; a top-three finish opens the next. */
+export function loadUnlocked(): Set<string> {
+  const saved = read<{ ids: string[] }>(UNLOCK_KEY, { ids: [] }).ids;
+  const set = new Set<string>([TRACKS[0].id, ...saved]);
+  if (unlockAll) for (const d of TRACKS) set.add(d.id);
+  return set;
+}
+
+/** Unlock the track after `id`; returns its name if it was newly unlocked. */
+export function unlockAfter(id: string): string | null {
+  const i = TRACKS.findIndex((d) => d.id === id);
+  const next = TRACKS[i + 1];
+  if (!next) return null;
+  const set = loadUnlocked();
+  if (set.has(next.id)) return null;
+  const saved = read<{ ids: string[] }>(UNLOCK_KEY, { ids: [] }).ids;
+  write(UNLOCK_KEY, { ids: [...saved, next.id] });
+  return next.name;
+}
+
 export function loadRaceCount(): number {
   return read<{ n: number }>(RACES_KEY, { n: 0 }).n;
 }
@@ -125,6 +148,8 @@ export interface ResultsData {
   rows: ResultRow[];
   trackName: string;
   hasNext: boolean;
+  lapTimes: number[];
+  unlocked: string | null;
 }
 
 function el<T extends HTMLElement>(id: string): T {
@@ -236,11 +261,12 @@ export class Menus {
       card.style.setProperty('--sky', hex(def.theme.skyTop));
       card.style.setProperty('--hor', hex(def.theme.skyHorizon));
       card.style.setProperty('--ground', hex(def.theme.farA));
-      const len = Math.round(def.finishS - def.startS);
-      card.innerHTML = `<span class="track-art"><i></i></span><b></b><span class="track-blurb"></span><span class="track-meta"><span>${len} m</span><span class="track-best"></span></span>`;
+      const num = TRACKS.indexOf(def) + 1;
+      card.innerHTML = `<span class="track-art"><i></i><span class="track-num">${num}</span><span class="track-lock">LOCKED</span></span><b></b><span class="track-blurb"></span><span class="track-meta"><span>${def.laps} laps</span><span class="track-best"></span></span>`;
       (card.querySelector('b') as HTMLElement).textContent = def.name;
       (card.querySelector('.track-blurb') as HTMLElement).textContent = def.blurb;
       card.addEventListener('click', () => {
+        if (card.classList.contains('locked')) return;
         handlers.sound('click');
         handlers.chooseTrack(def.id);
       });
@@ -253,8 +279,13 @@ export class Menus {
     el('track-list')
       .querySelectorAll<HTMLElement>('.track-card')
       .forEach((card) => {
-        const best = loadBest(card.dataset.track ?? '');
-        (card.querySelector('.track-best') as HTMLElement).textContent = best ? `Best ${formatTime(best)}` : 'No time yet';
+        const id = card.dataset.track ?? '';
+        const open = loadUnlocked().has(id);
+        card.classList.toggle('locked', !open);
+        card.setAttribute('aria-disabled', String(!open));
+        const best = loadBest(id);
+        const prev = TRACKS[TRACKS.findIndex((d) => d.id === id) - 1];
+        (card.querySelector('.track-best') as HTMLElement).textContent = !open && prev ? `Top 3 on ${prev.name}` : best ? `Best ${formatTime(best)}` : 'No time yet';
       });
   }
 
@@ -364,6 +395,18 @@ export class Menus {
     kicker.textContent = data.newBest ? 'New personal best!' : data.place === 1 ? `You won ${data.trackName}!` : data.place <= 3 ? 'On the podium!' : 'Race complete';
     kicker.classList.toggle('best', data.newBest);
     el('btn-next').classList.toggle('hidden', !data.hasNext);
+    const laps = el('results-laps');
+    laps.replaceChildren();
+    const bestLap = Math.min(...data.lapTimes);
+    data.lapTimes.forEach((lt, i) => {
+      const span = document.createElement('span');
+      span.textContent = `Lap ${i + 1} ${formatTime(lt)}`;
+      if (lt === bestLap && data.lapTimes.length > 1) span.className = 'best';
+      laps.appendChild(span);
+    });
+    const unlock = el('results-unlock');
+    unlock.classList.toggle('hidden', !data.unlocked);
+    unlock.textContent = data.unlocked ? `New track unlocked: ${data.unlocked}!` : '';
     el('results-time').textContent = formatTime(data.time);
     el('results-best').textContent = data.best ? formatTime(data.best) : '–';
     el('results-speed').textContent = `${Math.round(data.topSpeedKmh)} km/h`;

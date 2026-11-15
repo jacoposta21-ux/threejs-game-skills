@@ -11,14 +11,16 @@ import { Particles, SpeedLines, Trail } from '../fx/Effects';
 import { TUNE, type RacerBody } from '../physics/RacerBody';
 import { FIXED_DT, RACER_COUNT, RaceManager } from '../racing/RaceManager';
 import { formatTime, Hud, ordinal } from '../ui/Hud';
-import { loadBest, loadRaceCount, Menus, saveBest, saveRaceCount, type PlayerLook, type Settings } from '../ui/Menus';
+import { loadBest, loadRaceCount, loadUnlocked, Menus, saveBest, saveRaceCount, unlockAfter, type PlayerLook, type Settings } from '../ui/Menus';
 import { TRACKS } from '../world/tracks';
 import { createSeededRandom } from '../utils/random';
 import { buildBackyard, type BackyardResult } from '../world/Backyard';
 import { buildEnvironment, type EnvironmentResult } from '../world/Environment';
 import { buildTerrain, type TerrainResult } from '../world/Terrain';
 import { createNameTag } from '../world/Textures';
-import { FINISH_S, KICKER, SECTIONS, loadTrack, track } from '../world/Track';
+import { KICKER, SECTIONS, loadTrack, track } from '../world/Track';
+import { CritterView } from '../fx/CritterView';
+import { Weather } from '../fx/Weather';
 
 type GameState = 'menu' | 'racing' | 'results';
 
@@ -83,6 +85,8 @@ export class Game {
   private terrain: TerrainResult;
   private backyard: BackyardResult;
   private readonly itemView = new ItemView();
+  private readonly critterView = new CritterView();
+  private readonly weather = new Weather();
   private readonly loop = new Loop(
     (delta, elapsed) => this.update(delta, elapsed),
     () => this.render(),
@@ -112,6 +116,7 @@ export class Game {
   private readonly seen = { roll: false, slide: false, boost: false, spin: false, item: false, steerTime: 0, stallTime: 0, wrongWay: 0 };
   private lastSection = -1;
   private lastOvertakeToast = -9;
+  private menuAngle = 2.2;
   private readonly tmp = new THREE.Vector3();
   private readonly tmp2 = new THREE.Vector3();
   private readonly basisX = new THREE.Vector3();
@@ -140,16 +145,21 @@ export class Game {
 
     this.env = buildEnvironment(this.scene, this.renderer);
     this.scene.add(this.env.group);
-    this.terrain = buildTerrain();
-    this.scene.add(this.terrain.group);
 
     this.hud = new Hud(this.race.profiles);
     this.menus = new Menus(
       {
         chooseTrack: (id) => this.startRace(id),
         nextTrack: () => {
+          const open = loadUnlocked();
           const i = TRACKS.findIndex((d) => d.id === track.def.id);
-          this.startRace(TRACKS[(i + 1) % TRACKS.length].id);
+          for (let k = 1; k <= TRACKS.length; k += 1) {
+            const next = TRACKS[(i + k) % TRACKS.length];
+            if (open.has(next.id)) {
+              this.startRace(next.id);
+              return;
+            }
+          }
         },
         lookChanged: (look) => this.applyLook(look),
         resume: () => this.setPaused(false),
@@ -167,10 +177,13 @@ export class Game {
     const params = new URLSearchParams(window.location.search);
     if (params.has('q')) this.menus.settings.quality = THREE.MathUtils.clamp(Number(params.get('q')) | 0, 0, 2);
     if (params.has('dpr')) this.dprOverride = THREE.MathUtils.clamp(Number(params.get('dpr')) || 1, 0.25, 2);
+    this.terrain = buildTerrain(this.menus.settings.quality);
+    this.scene.add(this.terrain.group);
     this.backyard = buildBackyard(this.menus.settings.quality);
     this.scene.add(this.backyard.group);
-    this.scene.add(this.itemView.group);
+    this.scene.add(this.itemView.group, this.critterView.group, this.weather.points);
     this.env.setTheme(track.def.theme);
+    this.weather.setKind(track.def.theme.weather);
     this.applyLook(this.menus.look, false);
 
     for (let i = 0; i < RACER_COUNT; i += 1) {
@@ -302,10 +315,11 @@ export class Game {
     };
     dispose(this.terrain.group);
     dispose(this.backyard.group);
-    this.terrain = buildTerrain();
+    this.terrain = buildTerrain(this.menus.settings.quality);
     this.backyard = buildBackyard(this.menus.settings.quality);
     this.scene.add(this.terrain.group, this.backyard.group);
     this.env.setTheme(track.def.theme);
+    this.weather.setKind(track.def.theme.weather);
     this.hud.setTrack();
     this.renderer.shadowMap.needsUpdate = true;
   }
@@ -348,6 +362,7 @@ export class Game {
     this.boostWasReady = false;
     this.lastSection = -1;
     this.itemView.reset(this.race.items);
+    this.critterView.reset(this.race.critters);
     this.seen.roll = this.seen.slide = this.seen.boost = this.seen.spin = this.seen.item = false;
     this.seen.steerTime = 0;
     this.seen.stallTime = 0;
@@ -578,14 +593,24 @@ export class Game {
             this.particles.burst(r.pos.clone().setY(r.pos.y + 0.9), 14, COLORS.star, 3, 0.2, 0.9, 1, 0.4, this.fxRng);
             this.sfxFor(i, 'spinout');
             if (me) {
-              this.rig.addShake(0.5);
-              this.hud.toast(e.value === 2 ? 'BONK!' : 'WHOOPS!', 'bad', 'spun out');
+              this.rig.addShake(e.value === 4 ? 0.2 : 0.5);
+              const label = e.value === 2 ? 'BONK!' : e.value === 3 ? 'BUG BUMP!' : e.value === 4 ? 'ANT TRAFFIC!' : 'WHOOPS!';
+              this.hud.toast(label, 'bad', e.value === 4 ? 'stumbled' : 'spun out');
             }
             break;
           case 'shieldBlock':
             this.particles.burst(r.pos, 18, COLORS.shield, 5, 0.24, 0.5, 2, 1, this.fxRng);
             this.sfxFor(i, 'shieldBreak');
             if (me) this.hud.toast('BLOCKED!', 'good');
+            break;
+          case 'cannon':
+            this.sfxFor(i, 'cannon');
+            view.model.impact(1.2);
+            this.particles.burst(foot, 26, COLORS.confetti[i % 5], 8, 0.3, 0.8, 6, 1.5, this.fxRng);
+            if (me) {
+              this.rig.addShake(0.4);
+              this.hud.toast('BOING!', 'great', 'Q / E to spin');
+            }
             break;
           case 'respawn':
             view.slime.clear();
@@ -635,6 +660,12 @@ export class Game {
     }
     this.race.items.events.length = 0;
 
+    for (const e of this.race.critters.events) {
+      this.particles.burst(e.pos, 8, e.kind === 'ants' ? COLORS.mud : COLORS.star, 3, 0.18, 0.4, 6, 1, this.fxRng);
+      this.sfxFor(e.racer, e.kind === 'ants' ? 'squelch' : 'bump');
+    }
+    this.race.critters.events.length = 0;
+
     for (const e of this.race.events) {
       switch (e.type) {
         case 'countdown':
@@ -644,6 +675,11 @@ export class Game {
         case 'go':
           this.hud.countdown('GO!', true);
           this.audio.play('go');
+          break;
+        case 'lap':
+          this.hud.toast(e.value === this.race.laps ? 'FINAL LAP!' : `LAP ${e.value}`, e.value === this.race.laps ? 'great' : 'info', formatTime(this.race.lapTimes[this.race.lapTimes.length - 1] ?? 0));
+          this.audio.play(e.value === this.race.laps ? 'finalLap' : 'checkpoint');
+          if (e.value === this.race.laps) this.audio.setMusic(true, 142);
           break;
         case 'checkpoint':
           this.hud.toast('CHECKPOINT', 'info', formatTime(this.race.time));
@@ -703,7 +739,9 @@ export class Game {
       boosting: p.boostTimer > 0,
       mode: airborne ? 'air' : p.mode,
       distance: race.distanceToFinish,
-      progress: race.racers.map((r) => r.s),
+      progress: race.racers.map((r) => r.dist / race.totalDist),
+      lap: race.lap(0),
+      laps: race.laps,
       order: race.order,
       sectionIndex: section,
       offTrack: live && p.offTrack > 0.5,
@@ -751,7 +789,8 @@ export class Game {
     else if (p.item && p.itemRoulette <= 0 && this.race.time < 60 && !this.seen.item) hint = `Got ${/^[AEIOU]/.test(ITEM_NAMES[p.item]) ? 'an' : 'a'} <b>${ITEM_NAMES[p.item]}</b>! Press <kbd>F</kbd> to use it`;
     else if (!this.seen.boost && p.boost >= 1 && p.mode !== 'crawl') hint = 'Shell boost charged — press <kbd>E</kbd>!';
     else if (!this.seen.slide && p.s > SECTIONS[2].s0 && p.s < SECTIONS[3].s0 && p.slime > 0.4 && p.mode === 'roll' && p.speed > 9) hint = 'Hold <kbd>SHIFT</kbd> to slime-slide and keep your momentum';
-    else if (!this.seen.spin && p.s > KICKER.s0 - 70 && p.s < KICKER.s1 + 60 && (airborne || p.s < KICKER.s1)) hint = 'Big jump! <kbd>Q</kbd> / <kbd>E</kbd> to spin in the air — land it clean';
+    else if (p.cannon > 0) hint = 'BOING! Spin with <kbd>Q</kbd> / <kbd>E</kbd> on the way up — land it clean';
+    else if (!this.seen.spin && KICKER && track.rel(p.s, KICKER.s0) > -70 && track.rel(p.s, KICKER.s1) < 60 && (airborne || track.rel(p.s, KICKER.s1) < 0)) hint = 'Big jump! <kbd>Q</kbd> / <kbd>E</kbd> to spin in the air — land it clean';
     this.hud.hint(hint);
   }
 
@@ -762,6 +801,8 @@ export class Game {
     const previous = loadBest(track.def.id);
     const newBest = previous === null || p.finishTime < previous;
     if (newBest) saveBest(track.def.id, p.finishTime);
+    const unlocked = race.rank[0] <= 2 ? unlockAfter(track.def.id) : null;
+    if (unlocked) this.audio.play('trick');
     this.raceCount += 1;
     saveRaceCount(this.raceCount);
     this.hud.show(false);
@@ -775,7 +816,9 @@ export class Game {
       trickScore: p.trickScore,
       rows: race.order.map((i) => ({ racer: i, time: race.racers[i].finished ? race.racers[i].finishTime : null })),
       trackName: track.def.name,
-      hasNext: TRACKS.length > 1,
+      hasNext: TRACKS.some((d) => d.id !== track.def.id && loadUnlocked().has(d.id)),
+      lapTimes: [...race.lapTimes],
+      unlocked,
     });
     this.state = 'results';
     this.audio.setMusic(true, 100);
@@ -860,7 +903,7 @@ export class Game {
     const target = this.views[0].pos;
     if (this.state === 'menu') {
       this.tmp2.copy(target).setY(target.y - 0.1);
-      this.rig.orbit(this.reducedMotion ? 0 : delta, this.tmp2, 3.5, 1.15, 0.22, Math.PI - p.heading - 0.38, 0.3);
+      this.rig.orbit(this.reducedMotion ? 0 : delta, this.tmp2, 3.6, 1.2, 0.22, Math.PI - p.heading - this.menuAngle, 0.3);
     } else if (race.phase === 'grid' || race.phase === 'countdown') {
       this.rig.update(delta, target, p, false);
     } else if (race.phase === 'finished') {
@@ -894,6 +937,8 @@ export class Game {
 
     this.particles.update(delta);
     this.itemView.update(race.items, this.reducedMotion ? 0 : this.time);
+    this.critterView.update(race.critters, this.reducedMotion ? 0 : this.time);
+    this.weather.update(this.reducedMotion ? 0 : delta, this.time, this.camera);
     const ambient = this.reducedMotion ? 0 : this.time;
     this.backyard.update(ambient, animDt);
     this.terrain.update(ambient);
@@ -980,12 +1025,19 @@ export class Game {
       this.render();
       this.publishDiagnostics();
     };
+    /** Autopilot the player to a distance into the race (s on lap 1 = distance from the line). */
     const raceTo = (s: number, extra?: () => boolean, trackId = 'backyard') => {
       this.setTrack(trackId);
       this.beginRace();
       this.race.autopilot = true;
-      simulateUntil(() => this.race.player.s >= s && (extra ? extra() : true), 200);
+      const target = track.rel(s, track.def.startS);
+      simulateUntil(() => this.race.player.dist >= (target < 0 ? target + track.length : target) && (extra ? extra() : true), 200);
       settle();
+    };
+    const kicker = (id: string) => () => {
+      loadTrack(id);
+      const k = KICKER!;
+      raceTo(k.s1 + 6, () => !this.race.player.grounded, id);
     };
     const states: Record<string, () => void> = {
       menu: () => {
@@ -1005,12 +1057,19 @@ export class Game {
       'active-play': () => raceTo(236),
       'leaf-slide': () => raceTo(400),
       'root-maze': () => raceTo(640),
-      'big-drop': () => raceTo(KICKER.s1 + 6, () => !this.race.player.grounded),
-      'final-sprint': () => raceTo(1330),
+      'big-drop': kicker('backyard'),
+      cannon: () => {
+        loadTrack('backyard');
+        raceTo(track.cannon.launchS + 25, () => this.race.player.cannon > 1.4);
+      },
       'veggie-play': () => raceTo(270, undefined, 'veggie'),
-      'veggie-drop': () => raceTo(KICKER.s1 + 6, () => !this.race.player.grounded, 'veggie'),
-      'pond-play': () => raceTo(380, undefined, 'pond'),
-      'pond-leap': () => raceTo(KICKER.s1 + 6, () => !this.race.player.grounded, 'pond'),
+      'veggie-drop': kicker('veggie'),
+      'pond-play': () => raceTo(300, undefined, 'pond'),
+      'pond-leap': kicker('pond'),
+      'sandbox-play': () => raceTo(250, undefined, 'sandbox'),
+      'sandbox-zigzag': () => raceTo(520, undefined, 'sandbox'),
+      'frost-play': () => raceTo(240, undefined, 'frost'),
+      'frost-pond': () => raceTo(560, undefined, 'frost'),
       tracks: () => {
         this.toMenu(true);
         (document.getElementById('btn-play') as HTMLButtonElement).click();
@@ -1077,8 +1136,8 @@ export class Game {
     window.__THREE_GAME_DIAGNOSTICS__ = {
       frame: this.frame,
       elapsed: race.time,
-      score: Math.round(p.s),
-      targetScore: FINISH_S,
+      score: Math.round(p.dist),
+      targetScore: Math.round(race.totalDist),
       complete: p.finished,
       state: this.state === 'racing' ? race.phase : this.state,
       paused: this.paused,

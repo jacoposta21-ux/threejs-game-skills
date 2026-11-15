@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 
 /**
- * The Backyard course, described entirely in track coordinates:
+ * A closed circuit, described entirely in track coordinates:
  *   s — distance along the centre line (world units)
  *   d — signed lateral offset, positive to the racer's right
  * Height, surface type, obstacles, AI gates and checkpoints are all functions
  * of (s, d), so physics, AI, rendering and race logic share one source of truth.
  */
 
-export type Surface = 'grass' | 'dirt' | 'mud' | 'stone' | 'leaves' | 'wood' | 'water' | 'rough';
+export type Surface = 'grass' | 'dirt' | 'mud' | 'stone' | 'leaves' | 'wood' | 'water' | 'rough' | 'sand' | 'packed' | 'ice' | 'snow';
 
 export interface SurfaceDef {
   /** Rolling resistance coefficient (multiplied by gravity). */
@@ -30,6 +30,10 @@ export const SURFACES: Record<Surface, SurfaceDef> = {
   wood: { roll: 0.02, grip: 0.95, crawl: 1.0, color: 0xc9995c, label: 'Wood' },
   water: { roll: 0.2, grip: 0.7, crawl: 0.5, color: 0x4aa6d8, label: 'Water' },
   rough: { roll: 0.12, grip: 0.8, crawl: 0.75, color: 0x4f9a3a, label: 'Tall grass' },
+  sand: { roll: 0.045, grip: 0.82, crawl: 0.8, color: 0xead49a, label: 'Loose sand' },
+  packed: { roll: 0.02, grip: 1.0, crawl: 1.0, color: 0xcfa76a, label: 'Packed sand' },
+  ice: { roll: 0.005, grip: 0.34, crawl: 0.7, color: 0xbfe6f5, label: 'Ice' },
+  snow: { roll: 0.085, grip: 0.9, crawl: 0.55, color: 0xf2f6fa, label: 'Snow' },
 };
 
 export type Key = [number, number];
@@ -88,7 +92,7 @@ interface Patch {
 }
 
 export interface Obstacle {
-  kind: 'root' | 'pebble' | 'mushroom' | 'post' | 'rail' | 'stump';
+  kind: 'root' | 'pebble' | 'mushroom' | 'post' | 'rail' | 'stump' | 'cactus' | 'snowball' | 'icicle';
   a: THREE.Vector3;
   b: THREE.Vector3;
   r: number;
@@ -149,13 +153,27 @@ export interface Split {
   right: string;
 }
 
+export type CritterKind = 'ants' | 'pillbug' | 'beetle' | 'grasshopper';
+
+/** A moving insect hazard on the course. */
+export interface CritterSpec {
+  kind: CritterKind;
+  s: number;
+  /** Seconds offset so identical critters move out of step. */
+  phase: number;
+  /** Ants: number in the column. */
+  count: number;
+}
+
 export interface Landmark {
-  kind: 'can' | 'trowel' | 'hose' | 'rake' | 'pot' | 'potTipped' | 'trunk';
+  kind: 'can' | 'trowel' | 'hose' | 'rake' | 'pot' | 'potTipped' | 'trunk' | 'bucket' | 'spade' | 'pumpkin' | 'snowman' | 'lantern';
   s: number;
   d: number;
   /** End of the span for long props (hose). */
   s1?: number;
 }
+
+export type Flora = 'garden' | 'veggie' | 'pond' | 'sand' | 'snow';
 
 export interface Theme {
   skyTop: number;
@@ -171,8 +189,11 @@ export interface Theme {
   farA: number;
   farB: number;
   grassTints: number[];
+  flora: Flora;
   /** Glowing fireflies instead of butterflies. */
   fireflies?: boolean;
+  /** Falling snow / drifting sand motes. */
+  weather?: 'snow' | 'dust';
 }
 
 export interface Section {
@@ -181,34 +202,51 @@ export interface Section {
   s1: number;
 }
 
-/** Everything that makes one course: shape, profile, rules, look, and a build script for its features. */
+/** Everything that makes one circuit: shape, profile, rules, look, and a build script for its features. */
 export interface TrackDef {
   id: string;
   name: string;
   blurb: string;
-  /** Curvature layout: [length, total turn in degrees (+ = right)]. */
-  layout: Key[];
-  /** Downhill slope in degrees keyed by s. */
+  /** Closed centripetal Catmull-Rom control points (x, z). Point 0 is s = 0 on the start plateau. */
+  points: [number, number][];
+  laps: number;
+  /** Downhill slope in degrees keyed by s, from the plateau (s = 0) to the launcher. */
   slope: Key[];
   halfWidth: Key[];
   bankGain: Key[];
   berm: Key[];
+  /** Start / finish line. The grid sits just behind it on the plateau. */
   startS: number;
-  gridS: number;
-  finishS: number;
+  /** The Boing Mushroom: at the bottom of each lap it throws everyone back up to the plateau. */
+  launchS: number;
+  /** Where the throw lands, measured from s = 0 on the plateau. */
+  landS: number;
   sections: Section[];
   checkpoints: number[];
   theme: Theme;
   landmarks: Landmark[];
-  /** Picket fence behind the start and along one side up to `s1`. */
-  fence?: { side: number; s1: number };
-  /** Index into the built jumps of the signature jump (AI tricks, air hint). */
+  /** Picket fence along one side, between two s positions. */
+  fence?: { side: number; s0: number; s1: number };
+  /** Index into the built jumps of the signature jump (air hint), -1 for none. */
   mainJump: number;
   baseSurface(s: number, ad: number): Surface;
   build(b: Track): void;
 }
 
 export const TRACK_EDGE = 22;
+export const GRAVITY = 28;
+const BLEND0 = 24;
+const BLEND1 = 46;
+
+export interface Cannon {
+  launchS: number;
+  landS: number;
+  /** Flight time, horizontal speed along the launch heading, vertical launch speed. */
+  time: number;
+  vh: number;
+  vy: number;
+  heading: number;
+}
 
 export class Track {
   readonly n: number;
@@ -218,6 +256,8 @@ export class Track {
   private readonly phi: Float32Array;
   private readonly kappa: Float32Array;
   private readonly base: Float32Array;
+  /** Coarse centre-line samples (x, z, height) for the terrain field between parts of the circuit. */
+  private readonly fieldPts: Float32Array;
   private readonly features: Feature[] = [];
   private readonly patches: Patch[] = [];
   private readonly bermCuts: { s0: number; s1: number; side: number }[] = [];
@@ -230,74 +270,135 @@ export class Track {
   readonly leafBridges: LeafBridge[] = [];
   readonly pads: BoostPad[] = [];
   readonly splits: Split[] = [];
+  readonly critters: CritterSpec[] = [];
   /** s positions of item-box rows. */
   readonly itemRows: number[] = [];
+  readonly cannon: Cannon;
+  readonly bounds = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
   private readonly buckets: Obstacle[][] = [];
 
   constructor(readonly def: TrackDef) {
-    this.length = def.layout.reduce((sum, seg) => sum + seg[0], 0);
-    this.n = Math.round(this.length);
+    const curve = new THREE.CatmullRomCurve3(
+      def.points.map(([x, z]) => new THREE.Vector3(x, 0, z)),
+      true,
+      'centripetal',
+    );
+    this.n = Math.round(curve.getLength());
+    this.length = this.n;
     const n = this.n;
-
-    // Raw curvature per unit, then two box-filter passes for clothoid-like transitions.
-    let raw = new Float32Array(n + 1);
-    let cursor = 0;
-    for (const [len, turn] of def.layout) {
-      const k = (turn * Math.PI) / 180 / len;
-      for (let i = 0; i < len; i += 1) raw[cursor + i] = k;
-      cursor += len;
-    }
-    for (let pass = 0; pass < 2; pass += 1) {
-      const out = new Float32Array(n + 1);
-      const half = 13;
-      for (let i = 0; i <= n; i += 1) {
-        let sum = 0;
-        for (let j = -half; j <= half; j += 1) sum += raw[Math.min(n, Math.max(0, i + j))];
-        out[i] = sum / (half * 2 + 1);
-      }
-      raw = out;
-    }
-    this.kappa = raw;
-
+    const pts = curve.getSpacedPoints(n);
     this.px = new Float32Array(n + 1);
     this.pz = new Float32Array(n + 1);
-    this.phi = new Float32Array(n + 1);
+    for (let i = 0; i <= n; i += 1) {
+      this.px[i] = pts[i].x;
+      this.pz[i] = pts[i].z;
+    }
+    this.px[n] = this.px[0];
+    this.pz[n] = this.pz[0];
+
+    // Heading from the curve, unwrapped so it rises (or falls) by exactly one turn round the lap.
+    const phi = new Float64Array(n + 1);
+    for (let i = 0; i <= n; i += 1) {
+      const a = (i - 1 + n) % n;
+      const b = (i + 1) % n;
+      phi[i] = Math.atan2(this.px[b] - this.px[a], -(this.pz[b] - this.pz[a]));
+      if (i > 0) {
+        while (phi[i] - phi[i - 1] > Math.PI) phi[i] -= Math.PI * 2;
+        while (phi[i] - phi[i - 1] < -Math.PI) phi[i] += Math.PI * 2;
+      }
+    }
+    this.phi = Float32Array.from(phi);
+
+    // Curvature, smoothed round the loop for clothoid-like transitions.
+    let k = new Float64Array(n + 1);
+    for (let i = 0; i < n; i += 1) k[i] = phi[i + 1] - phi[i];
+    for (let pass = 0; pass < 2; pass += 1) {
+      const out = new Float64Array(n + 1);
+      for (let i = 0; i < n; i += 1) {
+        let sum = 0;
+        for (let j = -13; j <= 13; j += 1) sum += k[(i + j + n) % n];
+        out[i] = sum / 27;
+      }
+      k = out;
+    }
+    k[n] = k[0];
+    this.kappa = Float32Array.from(k);
+
+    // Height: integrate the downhill profile to the launcher, then shape the ramp under the throw.
     this.base = new Float32Array(n + 1);
-    for (let i = 1; i <= n; i += 1) {
-      this.phi[i] = this.phi[i - 1] + this.kappa[i - 1];
-      const mid = (this.phi[i] + this.phi[i - 1]) * 0.5;
-      this.px[i] = this.px[i - 1] + Math.sin(mid);
-      this.pz[i] = this.pz[i - 1] - Math.cos(mid);
+    const ls = Math.round(def.launchS);
+    for (let i = 1; i <= ls; i += 1) {
       const slope = (keyed(def.slope, i - 0.5) * Math.PI) / 180;
       this.base[i] = this.base[i - 1] - Math.tan(slope);
     }
+    const ha = this.base[ls];
+    const rise = Math.max(1, -ha);
+    const time = THREE.MathUtils.clamp(1.32 * Math.sqrt((2 * rise) / GRAVITY), 2, 3.8);
+    const span = n - ls + def.landS;
+    const vh = span / time;
+    const vy = (rise + 0.5 * GRAVITY * time * time) / time;
+    this.cannon = { launchS: ls, landS: def.landS, time, vh, vy, heading: this.phi[ls] };
+    for (let i = ls + 1; i <= n; i += 1) {
+      const tt = ((i - ls) / span) * time;
+      const arc = ha + vy * tt - 0.5 * GRAVITY * tt * tt;
+      const clear = 4 * smoothstep(0, 16, i - ls);
+      this.base[i] = Math.min(arc - clear, 0);
+    }
+    this.base[n] = this.base[0];
+
+    const field: number[] = [];
+    for (let i = 0; i < n; i += 6) field.push(this.px[i], this.pz[i], this.base[i]);
+    this.fieldPts = Float32Array.from(field);
+    const b = this.bounds;
+    b.minX = b.minZ = Infinity;
+    b.maxX = b.maxZ = -Infinity;
+    for (let i = 0; i <= n; i += 1) {
+      b.minX = Math.min(b.minX, this.px[i]);
+      b.maxX = Math.max(b.maxX, this.px[i]);
+      b.minZ = Math.min(b.minZ, this.pz[i]);
+      b.maxZ = Math.max(b.maxZ, this.pz[i]);
+    }
 
     def.build(this);
-    // Arch legs at the start and finish lines.
-    for (const s of [def.startS, def.finishS]) {
-      const half = this.halfWidth(s) + 0.9;
-      this.add('post', s, -half, 0.75, 0.4, 0, 6);
-      this.add('post', s, half, 0.75, 0.4, 0, 6);
-    }
+    // Arch legs at the start / finish line.
+    const half = this.halfWidth(def.startS) + 0.9;
+    this.add('post', def.startS, -half, 0.75, 0.4, 0, 6);
+    this.add('post', def.startS, half, 0.75, 0.4, 0, 6);
     // Obstacles are placed last so they sit on the finished ground.
     for (const fn of this.deferred) fn();
     this.deferred.length = 0;
     this.gates.sort((g0, g1) => g0.s0 - g1.s0);
 
-    const bucketCount = Math.ceil(this.length / 8) + 2;
+    const bucketCount = Math.ceil(this.length / 8);
     for (let i = 0; i < bucketCount; i += 1) this.buckets.push([]);
     for (const o of this.obstacles) {
-      const lo = Math.max(0, Math.floor((o.s - 12) / 8));
-      const hi = Math.min(bucketCount - 1, Math.floor((o.s + 12) / 8));
-      for (let i = lo; i <= hi; i += 1) this.buckets[i].push(o);
+      for (let k2 = -2; k2 <= 2; k2 += 1) {
+        const idx = (Math.floor(this.wrap(o.s) / 8) + k2 + bucketCount) % bucketCount;
+        if (!this.buckets[idx].includes(o)) this.buckets[idx].push(o);
+      }
     }
   }
 
   // ---------------------------------------------------------------- frame
 
+  /** s folded into [0, length). */
+  wrap(s: number): number {
+    const L = this.length;
+    return ((s % L) + L) % L;
+  }
+
+  /** Signed distance along the course from b to a, the short way round. */
+  rel(a: number, b: number): number {
+    const L = this.length;
+    let d = (a - b) % L;
+    if (d >= L / 2) d -= L;
+    if (d < -L / 2) d += L;
+    return d;
+  }
+
   private sample(arr: Float32Array, s: number): number {
-    const c = Math.min(this.n - 0.001, Math.max(0, s));
-    const i = Math.floor(c);
+    const c = this.wrap(s);
+    const i = Math.min(this.n - 1, Math.floor(c));
     const t = c - i;
     return arr[i] + (arr[i + 1] - arr[i]) * t;
   }
@@ -311,7 +412,7 @@ export class Track {
   }
 
   halfWidth(s: number): number {
-    return keyed(this.def.halfWidth, s);
+    return keyed(this.def.halfWidth, this.wrap(s));
   }
 
   /** Downhill slope (radians, positive = descending) of the base profile. */
@@ -319,15 +420,13 @@ export class Track {
     return -(this.sample(this.base, s + 1) - this.sample(this.base, s - 1)) / 2;
   }
 
+  centreHeight(s: number): number {
+    return this.sample(this.base, s);
+  }
+
   toWorld(s: number, d: number, out: THREE.Vector3): THREE.Vector3 {
     const phi = this.heading(s);
-    // Beyond the ends, extend straight.
-    const over = s > this.n ? s - this.n : s < 0 ? s : 0;
-    out.set(
-      this.sample(this.px, s) + Math.cos(phi) * d + Math.sin(phi) * over,
-      this.height(s, d),
-      this.sample(this.pz, s) + Math.sin(phi) * d - Math.cos(phi) * over,
-    );
+    out.set(this.sample(this.px, s) + Math.cos(phi) * d, this.height(s, d), this.sample(this.pz, s) + Math.sin(phi) * d);
     return out;
   }
 
@@ -336,24 +435,17 @@ export class Track {
    * segment index (pass -1 for a global search). Returns the new hint.
    */
   project(x: number, z: number, hint: number, out: { s: number; d: number }): number {
-    let lo = 0;
-    let hi = this.n - 1;
-    if (hint >= 0) {
-      lo = Math.max(0, hint - 6);
-      hi = Math.min(this.n - 1, hint + 6);
-    }
+    const n = this.n;
     let best = Infinity;
-    let bestI = lo;
+    let bestI = 0;
     let bestT = 0;
-    for (let i = lo; i <= hi; i += 1) {
+    const test = (i: number) => {
       const ax = this.px[i];
       const az = this.pz[i];
       const bx = this.px[i + 1] - ax;
       const bz = this.pz[i + 1] - az;
       let t = ((x - ax) * bx + (z - az) * bz) / (bx * bx + bz * bz);
-      // Let the end segments extend so racers past the last sample still project.
-      if (i > 0) t = Math.max(0, t);
-      if (i < this.n - 1) t = Math.min(1, t);
+      t = Math.max(0, Math.min(1, t));
       const cx = ax + bx * t - x;
       const cz = az + bz * t - z;
       const dist = cx * cx + cz * cz;
@@ -362,8 +454,15 @@ export class Track {
         bestI = i;
         bestT = t;
       }
+    };
+    if (hint >= 0) {
+      for (let k = -6; k <= 6; k += 1) test((hint + k + n) % n);
+    } else {
+      for (let i = 0; i < n; i += 5) test(i);
+      const c = bestI;
+      for (let k = -6; k <= 6; k += 1) test((c + k + n) % n);
     }
-    const s = bestI + bestT;
+    const s = this.wrap(bestI + bestT);
     const phi = this.heading(s);
     const cx = this.px[bestI] + (this.px[bestI + 1] - this.px[bestI]) * bestT;
     const cz = this.pz[bestI] + (this.pz[bestI + 1] - this.pz[bestI]) * bestT;
@@ -383,32 +482,67 @@ export class Track {
     return b;
   }
 
-  height(s: number, d: number, skipWater = false): number {
+  /** Smooth terrain between the parts of the circuit: inverse-distance blend of nearby centre heights, plus hills. */
+  field(x: number, z: number): number {
+    const f = this.fieldPts;
+    let sw = 0;
+    let sh = 0;
+    let near = Infinity;
+    for (let i = 0; i < f.length; i += 3) {
+      const dx = f[i] - x;
+      const dz = f[i + 1] - z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < near) near = d2;
+      const w = 1 / ((d2 + 900) * Math.sqrt(d2 + 900));
+      sw += w;
+      sh += w * f[i + 2];
+    }
+    const dist = Math.sqrt(near);
+    return sh / sw + (noise2(x * 0.018, z * 0.018) - 0.5) * 18 * smoothstep(40, 150, dist) + smoothstep(30, 200, dist) * 6;
+  }
+
+  private trackHeight(s: number, d: number): number {
     const hw = this.halfWidth(s);
     const ad = Math.abs(d);
     let h = this.sample(this.base, s);
-    if (s > this.n) h += (s - this.n) * 0.07;
-
     const lim = hw + 5;
     h += -keyed(this.def.bankGain, s) * this.curvature(s) * Math.min(lim, Math.max(-lim, d));
-
     const inner = Math.min(ad, hw);
     h += 0.008 * inner * inner;
     if (ad > hw) {
       const e = ad - hw;
       h += this.berm(s, d < 0 ? -1 : 1) * smoothstep(0, 5, e);
       if (e > 4) h += (noise2(s * 0.09, d * 0.09) - 0.5) * 1.8 * smoothstep(4, 9, e);
-      if (ad > TRACK_EDGE) {
-        const o = ad - TRACK_EDGE;
-        h -= o * 0.3 + o * o * 0.0016;
-        h += (noise2(s * 0.03 + 9, d * 0.03) - 0.5) * 14 * smoothstep(0, 30, o);
-      }
     }
     for (const f of this.features) {
-      if (s < f.s0 || s > f.s1 || (skipWater && f.water)) continue;
+      if (s < f.s0 || s > f.s1) continue;
       h += f.h(s, d);
     }
     return h;
+  }
+
+  height(s: number, d: number, skipWater = false): number {
+    s = this.wrap(s);
+    const ad = Math.abs(d);
+    let h: number;
+    if (skipWater) {
+      // Water sheet level: the ground without the basins dug into it.
+      let dug = 0;
+      for (const f of this.features) if (f.water && s >= f.s0 && s <= f.s1) dug += f.h(s, d);
+      h = this.trackHeight(s, d) - dug;
+    } else h = this.trackHeight(s, d);
+    if (ad <= BLEND0) return h;
+    const phi = this.heading(s);
+    const x = this.sample(this.px, s) + Math.cos(phi) * d;
+    const z = this.sample(this.pz, s) + Math.sin(phi) * d;
+    return h + (this.field(x, z) - h) * smoothstep(BLEND0, BLEND1, ad);
+  }
+
+  /** Ground height anywhere in the world (terrain mesh, far props). */
+  groundAt(x: number, z: number, scratch = { s: 0, d: 0 }): number {
+    this.project(x, z, -1, scratch);
+    if (Math.abs(scratch.d) < BLEND1) return this.height(scratch.s, scratch.d);
+    return this.field(x, z);
   }
 
   /** World-space ground normal. */
@@ -428,6 +562,7 @@ export class Track {
   // -------------------------------------------------------------- surface
 
   surface(s: number, d: number): Surface {
+    s = this.wrap(s);
     const hw = this.halfWidth(s);
     const ad = Math.abs(d);
     for (let i = this.patches.length - 1; i >= 0; i -= 1) {
@@ -440,12 +575,13 @@ export class Track {
       }
       return p.surface;
     }
-    if (ad > hw + 3.5) return 'rough';
+    if (ad > hw + 3.5) return this.def.theme.flora === 'sand' ? 'sand' : this.def.theme.flora === 'snow' ? 'snow' : 'rough';
     return this.def.baseSurface(s, ad);
   }
 
   /** The boost pad under (s, d), if any. */
   padAt(s: number, d: number): BoostPad | null {
+    s = this.wrap(s);
     for (const p of this.pads) {
       if (s >= p.s0 && s <= p.s1 && Math.abs(d - p.d) <= p.half) return p;
     }
@@ -453,11 +589,28 @@ export class Track {
   }
 
   obstaclesNear(s: number): Obstacle[] {
-    const i = Math.min(this.buckets.length - 1, Math.max(0, Math.floor(s / 8)));
+    const i = Math.floor(this.wrap(s) / 8) % this.buckets.length;
     return this.buckets[i];
   }
 
   // ------------------------------------------------- builder API (used by TrackDef.build)
+
+  itemRow(...s: number[]): void {
+    this.itemRows.push(...s);
+  }
+
+  pad(s: number, d: number, length = 8, half = 1.7): void {
+    this.pads.push({ s0: s, s1: s + length, d, half });
+  }
+
+  /** A run of pads in a row (a "pad chain"), optionally weaving side to side. */
+  padChain(s: number, count: number, gap: number, d: number, weave = 0): void {
+    for (let i = 0; i < count; i += 1) this.pad(s + i * gap, d + (i % 2 ? weave : -weave));
+  }
+
+  critter(kind: CritterKind, s: number, phase = 0, count = 12): void {
+    this.critters.push({ kind, s, phase, count });
+  }
 
   ramp(s0: number, s1: number, height: number, d0 = -99, d1 = 99): void {
     this.features.push({
@@ -514,18 +667,10 @@ export class Track {
     this.splits.push({ group, s0, s1, d, left, right });
   }
 
-  itemRow(...s: number[]): void {
-    this.itemRows.push(...s);
-  }
-
-  pad(s: number, d: number, length = 8, half = 1.7): void {
-    this.pads.push({ s0: s, s1: s + length, d, half });
-  }
-
   /** Wooden kicker across the course. */
-  jump(s0: number, s1: number, height: number): void {
+  jump(s0: number, s1: number, height: number, surface: Surface = 'wood'): void {
     this.ramp(s0, s1, height);
-    this.patches.push({ s0: s0 - 1, s1, d0: -14, d1: 14, surface: 'wood' });
+    this.patches.push({ s0: s0 - 1, s1, d0: -14, d1: 14, surface });
     this.jumps.push({ s0, s1, height });
   }
 
@@ -557,7 +702,7 @@ export class Track {
   }
 
   /** Narrow plank bridge over a stream: water both sides, low rails, an AI gate to funnel onto it. */
-  bridge(s0: number, s1: number): void {
+  bridge(s0: number, s1: number, surface: Surface = 'wood'): void {
     this.basin(s0 - 4, s1 + 4, -24, -4.4, 1.5);
     this.basin(s0 - 4, s1 + 4, 4.4, 24, 1.5);
     this.features.push({
@@ -565,7 +710,7 @@ export class Track {
       s1,
       h: (s, d) => (Math.abs(d) < 4.4 ? 0.7 * Math.sin(((s - s0) / (s1 - s0)) * Math.PI) : 0),
     });
-    this.patches.push({ s0: s0 - 5, s1: s1 + 4, d0: -4.4, d1: 4.4, surface: 'wood' });
+    this.patches.push({ s0: s0 - 5, s1: s1 + 4, d0: -4.4, d1: 4.4, surface });
     this.gates.push({ s0: s0 - 18, s1: s1 + 10, d0: -2.3, d1: 2.3 });
     this.bridges.push({ s0, s1 });
     this.deferred.push(() => {
@@ -606,7 +751,6 @@ export class Track {
       },
     });
     this.patches.push({ s0: s0 - 5, s1: s1 + 5, d0: lf.d - lf.half, d1: lf.d + lf.half, surface: 'leaves' });
-    // Dry leafy aprons leading on and off the bridge.
     this.patches.push({ s0: s0 - 38, s1: s0 + 2, d0: lo(9, 16), d1: hi(9, 16), surface: 'leaves' });
     this.patches.push({ s0: s1 - 4, s1: s1 + 32, d0: lo(9, 16), d1: hi(9, 16), surface: 'leaves' });
     this.bermCuts.push({ s0: s0 - 44, s1: s1 + 36, side });
@@ -625,13 +769,11 @@ import { TRACKS } from './tracks';
 
 export let track: Track = new Track(TRACKS[0]);
 export let START_S = track.def.startS;
-export let GRID_S = track.def.gridS;
-export let FINISH_S = track.def.finishS;
 export let SECTIONS: Section[] = track.def.sections;
 export let CHECKPOINTS: number[] = track.def.checkpoints;
 export let SPLITS: Split[] = track.splits;
-/** The course's signature jump. */
-export let KICKER: Jump = track.jumps[track.def.mainJump];
+/** The course's signature jump (may be undefined). */
+export let KICKER: Jump | undefined = track.jumps[track.def.mainJump];
 
 const built = new Map<string, Track>([[track.def.id, track]]);
 
@@ -644,8 +786,6 @@ export function loadTrack(id: string): Track {
   }
   track = next;
   START_S = def.startS;
-  GRID_S = def.gridS;
-  FINISH_S = def.finishS;
   SECTIONS = def.sections;
   CHECKPOINTS = def.checkpoints;
   SPLITS = next.splits;

@@ -1,7 +1,7 @@
 import type { RacerProfile } from '../ai/SnailAI';
 import type { ItemKind } from '../physics/RacerBody';
 import { ITEM_NAMES } from '../racing/Items';
-import { FINISH_S, SECTIONS } from '../world/Track';
+import { SECTIONS, track } from '../world/Track';
 
 /** Inline icons for the item slot. */
 export const ITEM_ICONS: Record<ItemKind, string> = {
@@ -48,8 +48,10 @@ export interface HudState {
   boosting: boolean;
   mode: string;
   distance: number;
-  /** Track position per racer, world units. */
+  /** Race progress per racer, 0 … 1 over all laps. */
   progress: number[];
+  lap: number;
+  laps: number;
   order: number[];
   sectionIndex: number;
   offTrack: boolean;
@@ -68,6 +70,8 @@ export class Hud {
   private readonly posNum = el('pos-num');
   private readonly posSuffix = el('pos-suffix');
   private readonly time = el('race-time');
+  private readonly lapNum = el('lap-num');
+  private readonly lapTotal = el('lap-total');
   private readonly standings = el('standings');
   private readonly section = el('section-name');
   private readonly dist = el('dist-value');
@@ -116,14 +120,16 @@ export class Hud {
   setTrack(): void {
     for (const t of this.ticks) t.remove();
     this.ticks.length = 0;
-    for (const sec of SECTIONS.slice(1)) {
-      if (sec.s0 >= FINISH_S) continue;
+    // One tick per lap boundary.
+    const laps = track.def.laps;
+    for (let k = 1; k < laps; k += 1) {
       const tick = document.createElement('i');
-      tick.className = 'progress-tick';
-      tick.style.left = `${(sec.s0 / FINISH_S) * 100}%`;
+      tick.className = 'progress-tick lap-tick';
+      tick.style.left = `${(k / laps) * 100}%`;
       this.track.appendChild(tick);
       this.ticks.push(tick);
     }
+    void SECTIONS;
   }
 
   /** Repaint the player's colour dots after a garage change. */
@@ -186,10 +192,15 @@ export class Hud {
     const dist = Math.round(s.distance);
     if (this.set('dist', dist)) this.dist.textContent = String(dist);
     if (this.set('section', s.sectionIndex)) this.section.textContent = SECTIONS[s.sectionIndex]?.name ?? '';
-    const pct = Math.round(Math.min(1, s.progress[0] / FINISH_S) * 1000) / 10;
+    if (this.set('lap', s.lap)) {
+      this.lapNum.textContent = String(s.lap);
+      this.lapNum.parentElement?.classList.toggle('final', s.lap === s.laps && s.laps > 1);
+    }
+    if (this.set('laps', s.laps)) this.lapTotal.textContent = `/${s.laps}`;
+    const pct = Math.round(Math.min(1, s.progress[0]) * 1000) / 10;
     if (this.set('pct', pct)) this.done.style.width = `${pct}%`;
     for (let i = 0; i < this.dots.length; i += 1) {
-      const p = Math.round(Math.min(1, Math.max(0, s.progress[i] / FINISH_S)) * 500) / 5;
+      const p = Math.round(Math.min(1, Math.max(0, s.progress[i])) * 500) / 5;
       if (this.set(`dot${i}`, p)) this.dots[i].style.left = `${p}%`;
     }
     const orderKey = s.order.join('');

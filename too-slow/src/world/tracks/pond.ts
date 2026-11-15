@@ -1,95 +1,27 @@
 import type { TrackDef } from '../Track';
 
-/** Technical dusk course: two lily-pad shortcuts, stepping stones and a leap over the pond. */
+/** Dusk by the water: two lily-pad shortcuts, the Frog Leap over the pond, a stepping-stone ribbon. */
 export const POND: TrackDef = {
   id: 'pond',
   name: 'Lily Pond',
-  blurb: 'Dusk by the water. Two lily shortcuts, stepping stones and the Frog Leap.',
-  layout: [
-    [140, 0], // 1 · Reed Bank                0 –  140
-    [130, 85], // 2 · Lily Bend             140 –  510
-    [40, 0],
-    [140, -100],
-    [60, 0],
-    [120, 70], // 3 · Stepping Stones       510 –  680
-    [50, 0],
-    [260, 0], // 4 · Frog Leap              680 –  940
-    [150, -75], // 5 · Firefly Run          940 – 1640
-    [30, 0],
-    [120, 90],
-    [40, 0],
-    [110, -60],
-    [250, 0],
-  ],
-  slope: [
-    [0, 0],
-    [20, 0],
-    [44, 7],
-    [140, 8.5],
-    [310, 8],
-    [450, 7.5],
-    [510, 5],
-    [600, 4.5],
-    [680, 3],
-    [715, 3],
-    [735, 22],
-    [745, 27],
-    [788, 27],
-    [802, 12],
-    [830, 12],
-    [838, 21],
-    [905, 19],
-    [950, 6],
-    [1300, 5.5],
-    [1420, 4],
-    [1500, 2.5],
-    [1560, 1],
-    [1600, 0],
-    [1640, -4],
-  ],
-  halfWidth: [
-    [0, 9],
-    [140, 10],
-    [510, 11],
-    [680, 9],
-    [830, 9.5],
-    [845, 13],
-    [930, 12],
-    [960, 9.5],
-    [1390, 9.5],
-    [1430, 10.5],
-    [1640, 10.5],
-  ],
-  bankGain: [
-    [0, 7],
-    [930, 7],
-    [955, 18],
-    [1390, 18],
-    [1420, 4],
-  ],
-  berm: [
-    [0, 1.0],
-    [120, 1.9],
-    [680, 2.0],
-    [830, 2.2],
-    [840, 2.8],
-    [935, 2.6],
-    [955, 3.2],
-    [1390, 3.2],
-    [1420, 2.0],
-    [1640, 2.0],
-  ],
-  startS: 22,
-  gridS: 14,
-  finishS: 1560,
+  blurb: 'Dusk and fireflies. Lily shortcuts, stepping stones and the Frog Leap.',
+  points: [[0, 0], [0, -50], [0, -90], [30, -135], [100, -150], [175, -125], [215, -60], [215, -25], [215, 10], [215, 45], [215, 80], [190, 135], [150, 175], [95, 215], [35, 225], [0, 180], [0, 120], [0, 60]],
+  laps: 3,
+  slope: [[0, 0], [44, 0], [58, 6], [200, 7.5], [380, 7], [400, 6], [412, 21], [444, 23], [450, 9], [470, 9], [500, 12], [522, 8], [600, 5], [680, 6], [800, 4], [887, 1]],
+  halfWidth: [[0, 9.5], [80, 10.5], [400, 10.5], [520, 10], [530, 11], [660, 11], [700, 10.5], [1002, 10.5]],
+  bankGain: [[0, 8], [70, 13], [390, 13], [500, 16], [850, 16], [870, 6], [1002, 6]],
+  berm: [[0, 1.4], [80, 2.2], [400, 2.2], [520, 2.8], [850, 2.8], [870, 2], [1002, 2]],
+  startS: 42,
+  launchS: 887,
+  landS: 18,
   sections: [
-    { name: 'Reed Bank', s0: 0, s1: 140 },
-    { name: 'Lily Bend', s0: 140, s1: 510 },
-    { name: 'Stepping Stones', s0: 510, s1: 680 },
-    { name: 'Frog Leap', s0: 680, s1: 940 },
-    { name: 'Firefly Run', s0: 940, s1: 1640 },
+    { name: 'Reed Bank', s0: 0, s1: 70 },
+    { name: 'Lily Bend', s0: 70, s1: 400 },
+    { name: 'Frog Leap', s0: 400, s1: 525 },
+    { name: 'Stepping Stones', s0: 525, s1: 670 },
+    { name: 'Firefly Run', s0: 670, s1: 1002 },
   ],
-  checkpoints: [140, 310, 510, 690, 945, 1120, 1280, 1420],
+  checkpoints: [90, 200, 330, 520, 640, 760, 860],
   theme: {
     skyTop: 0x3a3f9a,
     skyHorizon: 0xffb08a,
@@ -104,68 +36,57 @@ export const POND: TrackDef = {
     farA: 0x4a9a58,
     farB: 0x2f7a4a,
     grassTints: [0x6fc68a, 0x58b47a, 0x8fd6a0, 0x4aa46a, 0x7ac890],
+    flora: 'pond',
     fireflies: true,
   },
   landmarks: [
-    { kind: 'trunk', s: 60, d: -56 },
-    { kind: 'pot', s: 230, d: -46 },
-    { kind: 'trunk', s: 560, d: 54 },
-    { kind: 'trunk', s: 640, d: -52 },
-    { kind: 'can', s: 720, d: -54 },
-    { kind: 'hose', s: 700, d: 27, s1: 960 },
-    { kind: 'potTipped', s: 1030, d: 48 },
-    { kind: 'trunk', s: 1320, d: 54 },
-    { kind: 'rake', s: 1500, d: 36 },
+    { kind: 'lantern', s: 40, d: 18 },
+    { kind: 'trunk', s: 160, d: -70 },
+    { kind: 'pot', s: 330, d: -46 },
+    { kind: 'lantern', s: 470, d: -20 },
+    { kind: 'trunk', s: 600, d: 66 },
+    { kind: 'can', s: 720, d: -50 },
+    { kind: 'lantern', s: 860, d: 18 },
   ],
   mainJump: 0,
   baseSurface(s, ad) {
-    if (s < 140) return ad < 5.5 ? 'dirt' : 'grass';
-    if (s < 510) return 'grass';
-    if (s < 680) return ad < 3.2 ? 'stone' : 'mud';
-    if (s < 800) return 'stone';
-    if (s < 940) return 'grass';
-    if (s < 1395) return 'leaves';
-    return ad < 3.6 ? 'stone' : 'grass';
+    if (s < 70) return ad < 5.5 ? 'dirt' : 'grass';
+    if (s < 412) return 'grass';
+    if (s < 525) return 'stone';
+    if (s < 670) return ad < 3.2 ? 'stone' : 'mud';
+    return ad < 4 ? 'stone' : 'grass';
   },
   build(b) {
-    b.itemRow(160, 470, 694, 960, 1300);
-    // 1 · Reed Bank
-    b.add('mushroom', 98, 7, 1.0, 1.25, 2);
-    b.add('pebble', 124, -6.4, 0.9, 0.5, 1.8);
-    b.pad(110, -2);
+    b.itemRow(130, 395, 615, 850);
+    // Lily Bend: two lily-pad shortcuts on the inside of the long right-hander.
+    b.leafBridge(150, 220, 1);
+    b.leafBridge(290, 360, 1);
+    b.add('pebble', 120, -6.4, 0.9, 0.5, 1.8);
+    b.add('mushroom', 250, -7.4, 1.1, 1.25, 2);
+    b.pad(240, -3);
+    b.critter('grasshopper', 200, 0.2);
 
-    // 2 · Lily Bend: right-hander, then the first lily shortcut inside the big left-hander.
-    b.patch(180, 250, -9.5, -4, 'leaves', true);
-    b.add('pebble', 222, 5.5, 1.0, 0.5, 2);
-    b.add('mushroom', 286, -7.4, 1.1, 1.25, 2);
-    b.leafBridge(345, 425, -1);
-    b.add('pebble', 404, 5, 1.0, 0.5, 2);
-    b.pad(470, 2);
+    // Frog Leap: plunge, kicker, and the pond to clear on the far side.
+    b.jump(450, 470, 4.0);
+    b.basin(474, 506, -15, 15, 1.1);
+    b.pad(415, 0, 9, 2);
 
-    // 3 · Stepping Stones: a fast stone ribbon down the middle, mud either side, two root tips to thread.
-    b.root(556, -14, -2.6, 0.75, 4);
-    b.gate(548, 562, -0.6, 2.6);
-    b.root(604, 14, 2.6, 0.75, -4);
-    b.gate(596, 610, -2.6, 0.6);
-    b.gate(520, 676, -2.6, 2.6);
+    // Stepping Stones: a fast stone ribbon down the middle, mud either side, two root tips to thread.
+    b.root(560, -14, -2.6, 0.75, 4);
+    b.gate(552, 566, -0.6, 2.6);
+    b.root(608, 14, 2.6, 0.75, -4);
+    b.gate(600, 614, -2.6, 0.6);
+    b.gate(530, 668, -2.6, 2.6);
     b.pad(640, 0);
+    b.critter('ants', 590, 0.6, 10);
 
-    // 4 · Frog Leap: plunge, kicker, and a pond to clear on the far side.
-    b.jump(800, 830, 5.0);
-    b.basin(834, 870, -15, 15, 1.1);
-    b.add('mushroom', 912, 8, 1.1, 1.25, 2.2);
-
-    // 5 · Firefly Run: slick banked bends, the second lily shortcut, then a boost-pad straight.
-    b.add('pebble', 1000, -5.6, 1.0, 0.5, 2);
-    b.add('mushroom', 1070, 6, 1.0, 1.25, 2);
-    b.leafBridge(1142, 1222, 1);
-    b.add('pebble', 1196, -4.6, 1.0, 0.5, 2);
-    b.pad(1262, -2);
-    b.add('mushroom', 1330, 2, 1.0, 1.25, 2);
-    b.pad(1408, 0);
-    b.basin(1440, 1468, 1.4, 10, 0.45);
-    b.pad(1452, -4.6);
-    b.basin(1490, 1518, -10, -1.4, 0.45, 'mud');
-    b.pad(1504, 4.6);
+    // Firefly Run: banked right-hander, pads, a puddle chicane on the approach.
+    b.padChain(690, 3, 28, 3, 0);
+    b.add('mushroom', 720, -6.5, 1.0, 1.25, 2);
+    b.add('pebble', 780, 6.2, 1.0, 0.5, 2);
+    b.critter('pillbug', 770, 0.5);
+    b.basin(830, 852, 1.4, 10, 0.45);
+    b.pad(838, -4.5);
+    b.pad(862, 0);
   },
 };

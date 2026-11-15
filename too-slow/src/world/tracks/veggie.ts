@@ -1,101 +1,27 @@
 import type { TrackDef } from '../Track';
 
-/** Fast and flowing: tilled soil, muddy furrows, a boardwalk and plenty of boost pads. */
+/** Golden hour on the allotment: mud strips, a chicane, a boardwalk launch and pad-to-pad lines. */
 export const VEGGIE: TrackDef = {
   id: 'veggie',
   name: 'Veggie Patch',
-  blurb: 'Golden-hour sprint through muddy furrows. Hit the pads, dodge the mud.',
-  layout: [
-    [140, 0], // 1 · Seed Rows               0 –  140
-    [110, -70], // 2 · Muddy Furrows        140 –  480
-    [50, 0],
-    [120, 80],
-    [60, 0],
-    [130, -85], // 3 · The Boardwalk        480 –  750
-    [40, 0],
-    [100, 60],
-    [220, 0], // 4 · Pumpkin Plunge         750 –  970
-    [140, 75], // 5 · Harvest Dash          970 – 1520
-    [40, 0],
-    [110, -70],
-    [260, 0],
-  ],
-  slope: [
-    [0, 0],
-    [20, 0],
-    [44, 7],
-    [140, 8],
-    [250, 7],
-    [420, 8],
-    [480, 6],
-    [600, 5],
-    [612, 2],
-    [650, 3],
-    [700, 6],
-    [770, 4],
-    [790, 24],
-    [800, 28],
-    [838, 28],
-    [852, 12],
-    [880, 12],
-    [888, 22],
-    [950, 19],
-    [985, 6],
-    [1300, 5],
-    [1380, 3],
-    [1440, 1],
-    [1480, 0],
-    [1520, -4],
-  ],
-  halfWidth: [
-    [0, 9],
-    [140, 9.5],
-    [480, 10],
-    [594, 9],
-    [608, 4.2],
-    [652, 4.2],
-    [666, 9],
-    [880, 9.5],
-    [895, 13],
-    [960, 12],
-    [990, 9.5],
-    [1260, 9.5],
-    [1300, 10.5],
-    [1520, 10.5],
-  ],
-  bankGain: [
-    [0, 7],
-    [960, 7],
-    [980, 19],
-    [1260, 19],
-    [1290, 4],
-  ],
-  berm: [
-    [0, 1.0],
-    [120, 1.9],
-    [594, 1.9],
-    [606, 0.2],
-    [654, 0.2],
-    [668, 2.2],
-    [880, 2.2],
-    [890, 2.8],
-    [965, 2.6],
-    [980, 3.4],
-    [1270, 3.4],
-    [1300, 2.0],
-    [1520, 2.0],
-  ],
-  startS: 22,
-  gridS: 14,
-  finishS: 1440,
+  blurb: 'Muddy furrows, a scarecrow chicane and the Pumpkin Plunge. Ride the pads.',
+  points: [[0, 0], [0, -50], [0, -90], [-10, -140], [-60, -165], [-120, -160], [-165, -125], [-172, -75], [-140, -30], [-172, 15], [-172, 55], [-172, 95], [-172, 135], [-172, 175], [-140, 215], [-90, 228], [-45, 228], [-10, 205], [0, 160], [0, 100], [0, 40]],
+  laps: 3,
+  slope: [[0, 0], [44, 0], [58, 6], [200, 7], [400, 7], [450, 5], [500, 4], [540, 2], [550, 21], [566, 22], [570, 9], [588, 9], [602, 15], [640, 8], [760, 6], [860, 3], [926, 1]],
+  halfWidth: [[0, 9.5], [110, 10.5], [400, 10.5], [420, 9], [500, 9], [506, 4.2], [542, 4.2], [550, 9.5], [620, 10.5], [1041, 10.5]],
+  bankGain: [[0, 8], [100, 14], [400, 14], [420, 8], [620, 8], [640, 15], [860, 15], [880, 6], [1041, 6]],
+  berm: [[0, 1.4], [100, 2.4], [500, 2.4], [506, 0.2], [542, 0.2], [552, 2.2], [640, 3], [860, 3], [880, 2], [1041, 2]],
+  startS: 42,
+  launchS: 926,
+  landS: 18,
   sections: [
-    { name: 'Seed Rows', s0: 0, s1: 140 },
-    { name: 'Muddy Furrows', s0: 140, s1: 480 },
-    { name: 'The Boardwalk', s0: 480, s1: 750 },
-    { name: 'Pumpkin Plunge', s0: 750, s1: 970 },
-    { name: 'Harvest Dash', s0: 970, s1: 1520 },
+    { name: 'Seed Rows', s0: 0, s1: 110 },
+    { name: 'Muddy Furrows', s0: 110, s1: 410 },
+    { name: 'Scarecrow Chicane', s0: 410, s1: 500 },
+    { name: 'Pumpkin Plunge', s0: 500, s1: 640 },
+    { name: 'Harvest Dash', s0: 640, s1: 1041 },
   ],
-  checkpoints: [140, 300, 480, 668, 760, 975, 1150, 1290],
+  checkpoints: [100, 230, 370, 480, 610, 740, 880],
   theme: {
     skyTop: 0x4f8fe0,
     skyHorizon: 0xffe0b0,
@@ -110,71 +36,57 @@ export const VEGGIE: TrackDef = {
     farA: 0x86a83c,
     farB: 0x5f8a30,
     grassTints: [0xb6d65a, 0x9cc64a, 0xd0d86a, 0x86b446, 0xa8c850],
+    flora: 'veggie',
   },
   landmarks: [
-    { kind: 'rake', s: 90, d: -36 },
-    { kind: 'pot', s: 210, d: 44 },
-    { kind: 'potTipped', s: 380, d: -46 },
-    { kind: 'can', s: 560, d: 54 },
-    { kind: 'trowel', s: 770, d: 44 },
-    { kind: 'hose', s: 760, d: -27, s1: 1000 },
-    { kind: 'pot', s: 1060, d: -46 },
-    { kind: 'pot', s: 1210, d: 46 },
-    { kind: 'trowel', s: 1400, d: -40 },
+    { kind: 'pumpkin', s: 60, d: 40 },
+    { kind: 'rake', s: 160, d: 40 },
+    { kind: 'pot', s: 300, d: 46 },
+    { kind: 'can', s: 470, d: -48 },
+    { kind: 'pumpkin', s: 600, d: 44 },
+    { kind: 'trowel', s: 720, d: 44 },
+    { kind: 'pumpkin', s: 820, d: -40 },
+    { kind: 'potTipped', s: 900, d: -46 },
   ],
-  fence: { side: -1, s1: 360 },
-  mainJump: 1,
+  fence: { side: 1, s0: 130, s1: 380 },
+  mainJump: 0,
   baseSurface(s, ad) {
-    if (s < 480) return 'dirt';
-    if (s < 612) return 'wood';
-    if (s < 750) return 'stone';
-    if (s < 850) return 'dirt';
-    if (s < 970) return 'grass';
-    if (s < 1262) return 'stone';
+    if (s < 410) return 'dirt';
+    if (s < 506) return 'stone';
+    if (s < 640) return 'dirt';
     return ad < 4 ? 'stone' : 'dirt';
   },
   build(b) {
-    b.itemRow(150, 490, 690, 985, 1170);
-    // 1 · Seed Rows
-    b.add('pebble', 92, 6.5, 0.9, 0.5, 1.8);
-    b.add('mushroom', 120, -7, 1.0, 1.25, 2);
-    b.pad(112, 2);
+    b.itemRow(130, 470, 660, 900);
+    // Muddy Furrows: mud strips on alternating sides with pads on the clean line between them.
+    b.patch(140, 200, 1.5, 10, 'mud', true);
+    b.patch(205, 265, -10, -1.5, 'mud', true);
+    b.patch(270, 330, 1.5, 10, 'mud', true);
+    b.patch(335, 395, -10, -1.5, 'mud', true);
+    b.pad(160, -4.5);
+    b.pad(225, 4.5);
+    b.pad(290, -4.5);
+    b.pad(355, 4.5);
+    b.add('pebble', 250, -7.5, 1.0, 0.5, 2);
+    b.add('mushroom', 380, 7.8, 1.0, 1.25, 2);
+    b.critter('ants', 300, 0.4, 14);
 
-    // 2 · Muddy Furrows: long mud strips on alternating sides, a clean line (and pads) between them.
-    b.patch(160, 236, 2.5, 9.5, 'mud', true);
-    b.patch(238, 300, -9.5, -2.5, 'mud', true);
-    b.patch(306, 372, 1.5, 9.5, 'mud', true);
-    b.patch(376, 432, -9.5, -1.5, 'mud', true);
-    b.pad(196, -3.5);
-    b.pad(262, 3.5);
-    b.pad(334, -4);
-    b.jump(442, 456, 1.6);
-    b.add('pebble', 286, 6.8, 1.0, 0.5, 2);
-    b.add('mushroom', 404, 6.4, 1.0, 1.25, 2);
+    // Scarecrow Chicane: right-left flick on stone, posts at the apexes.
+    b.add('post', 432, 7.4, 0.7, 0.4, 2, 3);
+    b.add('post', 470, -7.4, 0.7, 0.4, 2, 3);
+    b.pad(486, 0);
 
-    // 3 · The Boardwalk: planks through the left-hander, a bridge over the irrigation ditch, stone after.
-    b.patch(500, 560, 3, 9.5, 'leaves', true); // loose straw on the outside
-    b.add('pebble', 536, -6.2, 1.0, 0.5, 2);
-    b.bridge(612, 648);
-    b.add('mushroom', 700, 6.8, 1.1, 1.25, 2);
-    b.pad(716, -2);
+    // Pumpkin Plunge: boardwalk over the ditch, a short plunge and the kicker.
+    b.bridge(508, 540);
+    b.jump(570, 588, 3.4);
+    b.critter('beetle', 680, 0.2);
 
-    // 4 · Pumpkin Plunge
-    b.jump(850, 880, 5.0);
-    b.basin(942, 968, -12, -3, 0.45, 'mud');
-
-    // 5 · Harvest Dash: banked stone bends, then a pad-to-pad straight with puddles to thread.
-    b.patch(1010, 1070, -9.5, -4, 'leaves', true);
-    b.patch(1170, 1230, 4, 9.5, 'leaves', true);
-    b.add('pebble', 1040, 5.6, 1.0, 0.5, 2);
-    b.add('mushroom', 1128, -2, 1.0, 1.25, 2);
-    b.add('pebble', 1200, -5.4, 1.0, 0.5, 2);
-    b.pad(1132, 4);
-    b.pad(1276, 0);
-    b.basin(1312, 1340, -10, -1.4, 0.45);
-    b.pad(1326, 4.6);
-    b.basin(1362, 1390, 1.4, 10, 0.45, 'mud');
-    b.pad(1376, -4.6);
-    b.add('pebble', 1418, 7, 1.0, 0.5, 2);
+    // Harvest Dash: pad chains through the banked bends and up the approach.
+    b.padChain(660, 3, 30, 3, 0);
+    b.padChain(760, 3, 30, -3, 0);
+    b.add('pebble', 700, -6.6, 1.0, 0.5, 2);
+    b.add('mushroom', 800, 6.4, 1.0, 1.25, 2);
+    b.critter('grasshopper', 840, 1.1);
+    b.padChain(880, 3, 16, 0, 4.5);
   },
 };
