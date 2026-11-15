@@ -74,14 +74,33 @@ export class SnailAI {
   private sliding = false;
   private rollCooldown = 0;
   private itemHold = 0;
+  /** Cornering-speed scale by difficulty. */
+  private pace = 1;
   private lastSpeed = 0;
   /** Debug: last target lateral offset. */
   targetD = 0;
 
-  constructor(readonly profile: RacerProfile) {}
+  constructor(readonly profile: RacerProfile) {
+    this.eff = profile;
+  }
 
-  reset(rng: () => number): void {
-    const p = this.profile;
+  /** The profile adjusted for the chosen difficulty. */
+  private eff: RacerProfile;
+
+  reset(rng: () => number, difficulty = 1): void {
+    const b = this.profile;
+    const easy = difficulty === 0;
+    const hard = difficulty === 2;
+    this.eff = {
+      ...b,
+      risk: easy ? b.risk * 0.55 : hard ? Math.min(1, b.risk + 0.15) : b.risk,
+      precision: easy ? b.precision - 0.14 : hard ? Math.min(0.99, b.precision + 0.04) : b.precision,
+      reaction: easy ? b.reaction + 0.8 : hard ? b.reaction * 0.6 : b.reaction,
+      slideAt: easy ? Math.min(0.95, b.slideAt + 0.25) : b.slideAt,
+      boostDelay: easy ? b.boostDelay + 2 : hard ? b.boostDelay * 0.5 : b.boostDelay,
+    };
+    this.pace = easy ? 0.86 : hard ? 1.06 : 1;
+    const p = this.eff;
     this.routes = {};
     for (const g of track.gates) {
       if (g.group && !(g.group in this.routes)) this.routes[g.group] = rng() < p.risk * (g.group === 'maze' ? 0.9 : 0.75) ? 'risky' : 'safe';
@@ -99,7 +118,7 @@ export class SnailAI {
 
   update(dt: number, me: RacerBody, all: RacerBody[], raceTime: number, items?: ItemSystem, critters?: CritterSystem): Intent {
     const it = this.intent;
-    const p = this.profile;
+    const p = this.eff;
     it.toggleRoll = false;
     it.boost = false;
     it.slide = false;
@@ -331,7 +350,7 @@ export class SnailAI {
     // Arriving too hot for the next bend: drag the shell (risk-takers brake later).
     if (me.mode === 'roll' && contact) {
       const kMax = Math.max(Math.abs(kAhead), Math.abs(track.curvature(me.s + look * 0.7)), Math.abs(track.curvature(me.s + look * 2.2)));
-      const safe = Math.sqrt((16 * SURFACES[me.surface].grip) / Math.max(kMax, 0.002)) * (0.95 + p.risk * 0.2);
+      const safe = Math.sqrt((16 * SURFACES[me.surface].grip) / Math.max(kMax, 0.002)) * (0.95 + p.risk * 0.2) * this.pace;
       if (speed > safe || (gateBrake > 0 && speed > 9)) it.throttle = -1;
     }
 

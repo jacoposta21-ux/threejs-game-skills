@@ -22,6 +22,9 @@ for (let n = 0; n < races; n += 1) {
   const race = new RaceManager();
   race.autopilot = true;
   race.items.enabled = !noItems;
+  const diffArg = process.argv.find((a) => a.startsWith('--diff='));
+  const modeArg = process.argv.find((a) => a.startsWith('--mode='));
+  race.configure((modeArg?.slice(7) ?? 'race') as never, Number(diffArg?.slice(7) ?? 1) as 0 | 1 | 2);
   race.reset(rng);
   race.startCountdown();
   const respawns = new Array(6).fill(0);

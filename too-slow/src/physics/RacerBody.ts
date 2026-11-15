@@ -52,7 +52,8 @@ export type RacerEventType =
   | 'spinout'
   | 'shieldBlock'
   | 'cannon'
-  | 'critter';
+  | 'critter'
+  | 'draft';
 
 export interface RacerEvent {
   type: RacerEventType;
@@ -178,6 +179,12 @@ export class RacerBody {
   cannon = 0;
   /** Brief immunity after a critter collision so one bug cannot hit twice. */
   critterCooldown = 0;
+  /** Tucked in behind another snail this step (set by the world). */
+  draft = false;
+  /** Seconds spent in a slipstream. */
+  draftTime = 0;
+  /** Parked out of the race (time trials, tutorial). */
+  inactive = false;
   readonly events: RacerEvent[] = [];
 
   constructor(readonly index: number) {}
@@ -387,7 +394,10 @@ export class RacerBody {
     }
     const boosting = this.boostTimer > 0;
     // S drags the shell's lip along the ground: the only brake a rolling snail has.
-    const resist = roll * TUNE.gravity + TUNE.airDrag * sp * sp * (boosting ? 0.45 : 1) + (braking ? TUNE.rollBrake : 0);
+    // Slipstream: half the air drag and the boost meter fills faster.
+    const drag = TUNE.airDrag * sp * sp * (boosting ? 0.45 : 1) * (this.draft ? 0.5 : 1);
+    if (this.draft) this.boost = Math.min(1, this.boost + 0.05 * dt);
+    const resist = roll * TUNE.gravity + drag + (braking ? TUNE.rollBrake : 0);
     // Steering is a lateral force: it rotates momentum, it never creates it.
     const lat = this.steer * Math.min(TUNE.rollTurnMax * sp, TUNE.rollLatAccel * grip);
     const right = tmpA.copy(vel).cross(n).normalize();
@@ -688,6 +698,25 @@ const delta = new THREE.Vector3();
 
 /** Fixed-step world: integrates every racer, then resolves obstacle and racer-racer contacts. */
 export function stepWorld(racers: RacerBody[], intents: Intent[], dt: number): void {
+  // Slipstream: rolling close behind another snail, on roughly the same line.
+  for (const a of racers) {
+    let draft = false;
+    if (!a.frozen && a.mode !== 'crawl' && a.speed > 12 && a.airTime < 0.1) {
+      for (const b of racers) {
+        if (b === a || b.frozen) continue;
+        const ahead = b.dist - a.dist;
+        if (ahead > 1.4 && ahead < 9 && Math.abs(b.d - a.d) < 1.8) {
+          draft = true;
+          break;
+        }
+      }
+    }
+    a.draft = draft;
+    const before = a.draftTime;
+    a.draftTime = draft ? a.draftTime + dt : 0;
+    if (before < 0.6 && a.draftTime >= 0.6) a.events.push({ type: 'draft', value: 0 });
+  }
+
   for (let i = 0; i < racers.length; i += 1) racers[i].step(dt, intents[i]);
 
   for (const r of racers) {
@@ -709,9 +738,11 @@ export function stepWorld(racers: RacerBody[], intents: Intent[], dt: number): v
       if (!b.frozen) b.pos.addScaledVector(delta, push);
       const rel = b.vel.dot(delta) - a.vel.dot(delta);
       if (rel < 0 && !a.frozen && !b.frozen) {
-        const j2 = -(1 + 0.55) * rel * 0.5;
-        a.vel.addScaledVector(delta, -j2);
-        b.vel.addScaledVector(delta, j2);
+        // Bouncy shells: side-by-side contact gets an extra shoulder shove.
+        const j2 = -(1 + 0.8) * rel * 0.5;
+        const side = Math.abs(delta.y) < 0.5 ? 1.4 : 0;
+        a.vel.addScaledVector(delta, -j2 - side);
+        b.vel.addScaledVector(delta, j2 + side);
         if (-rel > 1.2) {
           a.events.push({ type: 'bump', value: -rel });
           b.events.push({ type: 'bump', value: -rel });

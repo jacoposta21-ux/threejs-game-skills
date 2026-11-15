@@ -10,6 +10,9 @@ export const FIXED_DT = 1 / 120;
 export const RACER_COUNT = 6;
 export const COUNTDOWN_TIME = 3.6;
 
+export type RaceMode = 'race' | 'gp' | 'tt' | 'tutorial' | 'duo';
+export type Difficulty = 0 | 1 | 2;
+
 export interface RaceEvent {
   type: 'countdown' | 'go' | 'checkpoint' | 'overtake' | 'overtaken' | 'finish' | 'aiFinish' | 'lap';
   value: number;
@@ -30,7 +33,12 @@ export class RaceManager {
   readonly order: number[] = [];
   readonly rank: number[] = [];
   readonly events: RaceEvent[] = [];
-  readonly playerIntent: Intent = emptyIntent();
+  /** Intents from the human players (index 0 = player one, 1 = player two in split-screen). */
+  readonly playerIntents: Intent[] = [emptyIntent(), emptyIntent()];
+  /** Racer indices driven by humans. */
+  humans: number[] = [0];
+  mode: RaceMode = 'race';
+  difficulty: Difficulty = 1;
   /** When true the player's snail is driven by an AI (attract mode / bot playtests). */
   autopilot = false;
   private readonly autoAI = new SnailAI(PLAYER_PROFILE);
@@ -65,6 +73,22 @@ export class RaceManager {
     return this.racers[0];
   }
 
+  get playerIntent(): Intent {
+    return this.playerIntents[0];
+  }
+
+  /** Who races: time trials and the tutorial are solo, split-screen has two humans. */
+  configure(mode: RaceMode, difficulty: Difficulty): void {
+    this.mode = mode;
+    this.difficulty = difficulty;
+    this.humans = mode === 'duo' ? [0, 1] : [0];
+    this.items.enabled = this.items.enabled && mode !== 'tt';
+  }
+
+  isActive(i: number): boolean {
+    return i === 0 || (this.mode !== 'tt' && this.mode !== 'tutorial');
+  }
+
   reset(rng: () => number): void {
     this.rng = rng;
     // Player starts mid-grid; the rest are shuffled around them.
@@ -83,7 +107,14 @@ export class RaceManager {
       r.dist = -10 - row * 5;
       r.checkpointDist = r.dist;
       this.lapOf[i] = 1;
-      this.ais[i]?.reset(rng);
+      this.ais[i]?.reset(rng, this.difficulty);
+      r.inactive = !this.isActive(i);
+      if (r.inactive) {
+        // Parked far below the world: no collisions, no rank.
+        r.pos.set(0, -5000 - i * 10, 0);
+        r.prevPos.copy(r.pos);
+        r.dist = -1e6;
+      }
       this.order[i] = i;
       this.rank[i] = i;
       this.checkpointIndex[i] = 0;
@@ -121,7 +152,7 @@ export class RaceManager {
       }
       if (this.countdown <= 0.6) {
         this.phase = 'racing';
-        for (const r of this.racers) r.frozen = false;
+        for (const r of this.racers) r.frozen = r.inactive;
         this.events.push({ type: 'go', value: 0, racer: 0 });
       }
     }
@@ -130,19 +161,23 @@ export class RaceManager {
     const racing = this.phase === 'racing' || this.phase === 'finished';
     for (let i = 0; i < RACER_COUNT; i += 1) {
       const r = this.racers[i];
-      const ai = i === 0 ? (this.autopilot || r.finished ? this.autoAI : null) : this.ais[i];
+      if (r.inactive) continue;
+      const human = this.humans.indexOf(i);
+      const ai = human < 0 ? this.ais[i] : (human === 0 && this.autopilot) || r.finished ? (i === 0 ? this.autoAI : this.ais[i]) : null;
       if (ai) {
         const src = ai.update(dt, r, this.racers, this.time, this.items, this.critters);
         Object.assign(this.intents[i], src);
         if (r.finished) this.coast(this.intents[i], r);
       } else {
-        Object.assign(this.intents[i], this.playerIntent);
+        Object.assign(this.intents[i], this.playerIntents[human]);
       }
     }
     // Edge-triggered inputs are consumed by exactly one step.
-    this.playerIntent.toggleRoll = false;
-    this.playerIntent.boost = false;
-    this.playerIntent.useItem = false;
+    for (const pi of this.playerIntents) {
+      pi.toggleRoll = false;
+      pi.boost = false;
+      pi.useItem = false;
+    }
 
     if (racing && this.items.enabled) this.items.preStep(dt, this.racers, this.intents, this.rank, this.rng);
     stepWorld(this.racers, this.intents, dt);
@@ -185,7 +220,7 @@ export class RaceManager {
       this.checkpointIndex[i] += 1;
       r.checkpointS = CHECKPOINTS[k % per];
       r.checkpointDist = this.checkpointTarget(k);
-      if (i === 0) this.events.push({ type: 'checkpoint', value: this.checkpointIndex[i], racer: 0 });
+      if (this.humans.includes(i)) this.events.push({ type: 'checkpoint', value: this.checkpointIndex[i], racer: i });
     }
     // A lap only counts once every checkpoint of it has been passed: no infield cuts.
     const lap = Math.min(this.laps, Math.floor(Math.max(0, r.dist) / track.length) + 1);
@@ -194,8 +229,8 @@ export class RaceManager {
       if (i === 0) {
         this.lapTimes.push(this.time - this.lapStart);
         this.lapStart = this.time;
-        this.events.push({ type: 'lap', value: lap, racer: 0 });
       }
+      if (this.humans.includes(i)) this.events.push({ type: 'lap', value: lap, racer: i });
     }
     // The line must be physically crossed, on the course, after every checkpoint.
     if (r.dist >= this.totalDist && this.checkpointIndex[i] >= per * this.laps && Math.abs(r.d) < track.halfWidth(START_S) + 4) {
@@ -203,8 +238,9 @@ export class RaceManager {
       r.finishTime = this.time;
       this.finishedCount += 1;
       if (i === 0) this.lapTimes.push(this.time - this.lapStart);
-      this.events.push({ type: i === 0 ? 'finish' : 'aiFinish', value: this.finishedCount, racer: i });
-      if (i === 0) this.phase = 'finished';
+      const human = this.humans.includes(i);
+      this.events.push({ type: human ? 'finish' : 'aiFinish', value: this.finishedCount, racer: i });
+      if (this.humans.every((h) => this.racers[h].finished)) this.phase = 'finished';
     }
   }
 
@@ -214,20 +250,28 @@ export class RaceManager {
 
   private updateOrder(emit: boolean): void {
     const racers = this.racers;
-    const before = this.rank[0];
+    const before = this.humans.map((h) => this.rank[h]);
     this.order.sort((a, b) => {
       const ra = racers[a];
       const rb = racers[b];
+      if (ra.inactive !== rb.inactive) return ra.inactive ? 1 : -1;
       if (ra.finished && rb.finished) return ra.finishTime - rb.finishTime;
       if (ra.finished) return -1;
       if (rb.finished) return 1;
       return rb.dist - ra.dist;
     });
     for (let p = 0; p < RACER_COUNT; p += 1) this.rank[this.order[p]] = p;
-    if (emit && !racers[0].finished && this.time > 2) {
-      if (this.rank[0] < before) this.events.push({ type: 'overtake', value: this.rank[0] + 1, racer: 0 });
-      else if (this.rank[0] > before) this.events.push({ type: 'overtaken', value: this.rank[0] + 1, racer: 0 });
-    }
+    if (!emit || this.time <= 2) return;
+    this.humans.forEach((h, k) => {
+      if (racers[h].finished) return;
+      if (this.rank[h] < before[k]) this.events.push({ type: 'overtake', value: this.rank[h] + 1, racer: h });
+      else if (this.rank[h] > before[k]) this.events.push({ type: 'overtaken', value: this.rank[h] + 1, racer: h });
+    });
+  }
+
+  /** Number of snails actually racing. */
+  get field(): number {
+    return this.racers.filter((r) => !r.inactive).length;
   }
 
   /** Remaining distance to the line for the player. */
