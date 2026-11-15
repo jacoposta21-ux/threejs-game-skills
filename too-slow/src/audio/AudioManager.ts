@@ -10,6 +10,7 @@ export type Sfx =
   | 'slideStart'
   | 'hit'
   | 'boing'
+  | 'draft'
   | 'bump'
   | 'land'
   | 'hardLand'
@@ -56,6 +57,56 @@ const CHORDS = [
   [5, 9, 12], // F
 ];
 const MELODY = [16, -1, 14, 12, 14, -1, 16, 19, 21, -1, 19, 16, 14, 12, 14, -1, 16, -1, 19, 16, 14, -1, 12, 9, 12, -1, 14, 12, 9, 7, 9, -1];
+
+/** One tune per circuit: chords, a whistled line, instrument colours and feel. */
+interface MusicTheme {
+  chords: number[][];
+  melody: number[];
+  /** Semitones added to everything. */
+  key: number;
+  bass: OscillatorType;
+  strum: OscillatorType;
+  lead: OscillatorType;
+  /** Tempo multiplier on top of the game's race / menu tempo. */
+  pace: number;
+  shaker: number;
+  /** Lead an octave up, short and bell-like. */
+  bells?: boolean;
+}
+
+const THEMES: Record<string, MusicTheme> = {
+  backyard: { chords: CHORDS, melody: MELODY, key: 0, bass: 'triangle', strum: 'triangle', lead: 'sine', pace: 1, shaker: 0.05 },
+  // Barn-dance: banjo-ish square strum in G, hopping melody.
+  veggie: {
+    chords: [[7, 11, 14], [0, 4, 7], [2, 6, 9], [7, 11, 14]],
+    melody: [19, 19, 21, 19, 14, -1, 14, 16, 19, -1, 16, 14, 12, -1, 11, -1, 14, 14, 16, 14, 11, -1, 7, 9, 11, -1, 14, 11, 9, -1, 7, -1],
+    key: -5, bass: 'triangle', strum: 'square', lead: 'triangle', pace: 1.06, shaker: 0.04,
+  },
+  // Dusk by the pond: dreamy major-seventh pads, a lazy line.
+  pond: {
+    chords: [[0, 4, 7, 11], [5, 9, 12, 16], [9, 12, 16, 19], [7, 11, 14, 17]],
+    melody: [16, -1, -1, 19, 18, -1, 16, -1, 14, -1, -1, 12, 11, -1, 12, -1, 16, -1, -1, 19, 21, -1, 19, -1, 16, -1, 14, -1, 12, -1, -1, -1],
+    key: 2, bass: 'sine', strum: 'sine', lead: 'sine', pace: 0.9, shaker: 0.025,
+  },
+  // Sandpit: a Phrygian twang and a dry shaker.
+  sandbox: {
+    chords: [[4, 7, 11], [5, 9, 12], [4, 7, 11], [2, 5, 9]],
+    melody: [16, 17, 16, -1, 13, -1, 16, 17, 19, -1, 17, 16, 13, -1, 11, -1, 16, 17, 16, -1, 13, -1, 11, 13, 16, -1, 13, 11, 9, -1, 11, -1],
+    key: -2, bass: 'square', strum: 'triangle', lead: 'square', pace: 1.04, shaker: 0.07,
+  },
+  // Frosty morning: glockenspiel sparkle over soft chords.
+  frost: {
+    chords: [[2, 5, 9], [10, 14, 17], [0, 4, 7], [9, 12, 16]],
+    melody: [14, -1, 17, -1, 21, -1, 19, 17, 16, -1, 14, -1, 12, -1, -1, -1, 17, -1, 21, -1, 24, -1, 22, 21, 19, -1, 17, -1, 16, -1, -1, -1],
+    key: 0, bass: 'sine', strum: 'triangle', lead: 'sine', pace: 0.95, shaker: 0.02, bells: true,
+  },
+  // Midnight among glowing mushrooms: minor sevenths, music-box lead.
+  glow: {
+    chords: [[9, 12, 16, 19], [5, 9, 12, 16], [0, 4, 7, 11], [7, 11, 14, 17]],
+    melody: [21, -1, 19, 16, -1, 12, 16, -1, 19, -1, 21, 23, 24, -1, -1, -1, 21, -1, 19, 16, -1, 14, 12, -1, 11, -1, 12, 14, 16, -1, -1, -1],
+    key: -3, bass: 'sine', strum: 'sine', lead: 'triangle', pace: 0.92, shaker: 0.03, bells: true,
+  },
+};
 
 /**
  * All audio is synthesised with Web Audio at runtime: no samples to download,
@@ -199,6 +250,13 @@ export class AudioManager {
     this.rollLfoGain.gain.setTargetAtTime(0, t, 0.05);
   }
 
+  private theme: MusicTheme = THEMES.backyard;
+
+  /** Switch the tune for a circuit; the new tune picks up on the next bar. */
+  setMusicTheme(trackId: string): void {
+    this.theme = THEMES[trackId] ?? THEMES.backyard;
+  }
+
   setMusic(on: boolean, tempo: number): void {
     this.musicOn = on;
     this.tempo = tempo;
@@ -221,6 +279,32 @@ export class AudioManager {
     osc.connect(g).connect(dest);
     osc.start(t);
     osc.stop(t + dur + 0.02);
+  }
+
+  /** A pitch that wobbles like a spring settling. */
+  private wobble(freq: number, dur: number, vol: number, when = 0): void {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime + when;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq * 2.2, t + dur * 0.6);
+    const lfo = ctx.createOscillator();
+    lfo.frequency.setValueAtTime(14, t);
+    lfo.frequency.linearRampToValueAtTime(5, t + dur);
+    const depth = ctx.createGain();
+    depth.gain.setValueAtTime(freq * 0.35, t);
+    depth.gain.exponentialRampToValueAtTime(1, t + dur);
+    lfo.connect(depth).connect(osc.frequency);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g).connect(this.sfx);
+    osc.start(t);
+    lfo.start(t);
+    osc.stop(t + dur + 0.02);
+    lfo.stop(t + dur + 0.02);
   }
 
   private burst(dur: number, type: BiquadFilterType, freq: number, vol: number, to = freq, when = 0, q = 0.8): void {
@@ -299,6 +383,10 @@ export class AudioManager {
       case 'bump':
         this.tone(300, 0.12, 'triangle', 0.35 * v, 140);
         this.burst(0.06, 'bandpass', 1800, 0.2 * v);
+        break;
+      case 'draft':
+        this.burst(0.6, 'bandpass', 500, 0.22, 2400, 0, 1.4);
+        this.tone(520, 0.3, 'sine', 0.06, 880, 0.15);
         break;
       case 'boing':
         this.tone(190, 0.38, 'sine', 0.45, 520);
@@ -398,9 +486,12 @@ export class AudioManager {
         this.tone(300, 0.4, 'sine', 0.2, 900);
         break;
       case 'cannon':
-        this.tone(90, 0.6, 'sine', 0.6, 420);
-        this.tone(180, 0.55, 'triangle', 0.25, 900, 0.04);
-        this.burst(0.7, 'bandpass', 400, 0.35, 3000, 0, 0.8);
+        // A deep, rubbery BOING: sub thump, a wobbling spring and the whoosh of the throw.
+        this.tone(48, 0.5, 'sine', 0.75, 38);
+        this.tone(70, 0.9, 'sine', 0.6, 260, 0.03);
+        this.wobble(110, 0.9, 0.22, 0.05);
+        this.tone(140, 0.7, 'triangle', 0.18, 620, 0.08);
+        this.burst(0.8, 'bandpass', 300, 0.3, 2600, 0.1, 0.8);
         break;
       case 'finalLap':
         for (const [i, f] of [659, 784, 988, 1319].entries()) this.tone(f, 0.22, 'square', 0.12, f, i * 0.09);
@@ -417,7 +508,7 @@ export class AudioManager {
   private schedule(): void {
     const ctx = this.ctx;
     if (!ctx || !this.musicOn || ctx.state !== 'running') return;
-    const stepDur = 60 / this.tempo / 2;
+    const stepDur = 60 / (this.tempo * this.theme.pace) / 2;
     if (this.nextStepTime < ctx.currentTime - 0.5) this.nextStepTime = ctx.currentTime + 0.05;
     while (this.nextStepTime < ctx.currentTime + 0.25) {
       this.playStep(this.step, this.nextStepTime - ctx.currentTime, stepDur);
@@ -427,22 +518,30 @@ export class AudioManager {
   }
 
   private playStep(step: number, when: number, dur: number): void {
+    const th = this.theme;
     const bar = Math.floor(step / 8) % 4;
     const beat = step % 8;
-    const chord = CHORDS[bar];
+    const chord = th.chords[bar].map((s) => s + th.key);
+    const square = (type: OscillatorType) => (type === 'square' ? 0.45 : 1);
     // Bouncy bass on the root and fifth.
     if (beat === 0 || beat === 3 || beat === 6) {
-      this.tone(NOTE(chord[beat === 3 ? 2 : 0] - 24), dur * 1.6, 'triangle', 0.3, undefined, when, this.music, 0.01);
+      this.tone(NOTE(chord[beat === 3 ? 2 : 0] - 24), dur * 1.6, th.bass, 0.3 * square(th.bass), undefined, when, this.music, 0.01);
     }
-    // Ukulele-style off-beat strum.
+    // Off-beat strum.
     if (beat === 2 || beat === 5 || beat === 7) {
-      chord.forEach((semi, i) => this.tone(NOTE(semi), dur * 0.9, 'triangle', 0.075, undefined, when + i * 0.012, this.music));
+      chord.forEach((semi, i) => this.tone(NOTE(semi), dur * 0.9, th.strum, (0.075 * square(th.strum) * 3) / chord.length, undefined, when + i * 0.012, this.music));
     }
-    // Whistled melody, second half of the loop only so it breathes.
-    const m = MELODY[step % 32];
-    if (step >= 32 && m >= 0) this.tone(NOTE(m), dur * 1.5, 'sine', 0.11, undefined, when, this.music, 0.02);
+    // Melody, second half of the loop only so it breathes.
+    const raw = th.melody[step % 32];
+    if (step >= 32 && raw >= 0) {
+      const m = raw + th.key + (th.bells ? 12 : 0);
+      if (th.bells) {
+        this.tone(NOTE(m), dur * 2.2, 'sine', 0.08, undefined, when, this.music, 0.003);
+        this.tone(NOTE(m + 19), dur * 0.8, 'sine', 0.025, undefined, when, this.music, 0.003);
+      } else this.tone(NOTE(m), dur * 1.5, th.lead, 0.11 * square(th.lead), undefined, when, this.music, 0.02);
+    }
     // Shaker.
-    if (beat % 2 === 1) {
+    if (beat % 2 === 1 && th.shaker > 0) {
       const ctx = this.ctx!;
       const t = ctx.currentTime + when;
       const src = ctx.createBufferSource();
@@ -451,7 +550,7 @@ export class AudioManager {
       f.type = 'highpass';
       f.frequency.value = 6000;
       const g = ctx.createGain();
-      g.gain.setValueAtTime(0.05, t);
+      g.gain.setValueAtTime(th.shaker, t);
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
       src.connect(f).connect(g).connect(this.music);
       src.start(t, Math.random());

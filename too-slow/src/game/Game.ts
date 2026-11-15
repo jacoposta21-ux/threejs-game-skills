@@ -378,6 +378,7 @@ export class Game {
     this.env.setTheme(track.def.theme);
     this.weather.setKind(track.def.theme.weather);
     this.hud.setTrack();
+    this.audio.setMusicTheme(id);
     this.renderer.shadowMap.needsUpdate = true;
   }
 
@@ -756,6 +757,12 @@ export class Game {
               this.rig.addShake(0.15);
               this.hud.toast('DASH!', 'good');
             }
+            break;
+          case 'draft':
+            if (me) {
+              this.audio.play('draft');
+              this.hud.toast('SLIPSTREAM!', 'good', 'tucked in behind');
+            } else if (i === 1 && this.mode === 'duo') this.hud2.toast('SLIPSTREAM!');
             break;
           case 'driftCharge':
             if (me) this.audio.play('spark', e.value);
