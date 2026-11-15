@@ -423,6 +423,8 @@ export class Game {
       this.publishDiagnostics();
       return;
     }
+    this.input.poll(delta, this.paused || this.state !== 'racing');
+    this.input.setTouchVisible(this.state === 'racing' && !this.paused);
     if (this.paused) {
       this.publishDiagnostics();
       return;
@@ -451,19 +453,21 @@ export class Game {
   }
 
   private readInput(): void {
-    const it = this.race.playerIntent;
     const live = this.race.phase === 'racing';
-    it.steer = live ? this.input.steer : 0;
-    it.throttle = live ? this.input.throttle : 0;
-    it.slide = live && this.input.slide;
-    it.spin = live ? this.input.spin : 0;
-    const roll = this.input.takeRoll();
-    const boost = this.input.takeBoost();
-    const item = this.input.takeItem();
-    if (live) {
-      if (roll) it.toggleRoll = true;
-      if (boost) it.boost = true;
-      if (item) it.useItem = true;
+    for (let k = 0; k < this.race.humans.length; k += 1) {
+      const it = this.race.playerIntents[k];
+      it.steer = live ? this.input.steer(k) : 0;
+      it.throttle = live ? this.input.throttle(k) : 0;
+      it.slide = live && this.input.slide(k);
+      it.spin = live ? this.input.spin(k) : 0;
+      const roll = this.input.take(k, 'roll');
+      const boost = this.input.take(k, 'boost');
+      const item = this.input.take(k, 'item');
+      if (live) {
+        if (roll) it.toggleRoll = true;
+        if (boost) it.boost = true;
+        if (item) it.useItem = true;
+      }
     }
   }
 

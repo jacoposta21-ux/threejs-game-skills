@@ -1454,3 +1454,56 @@ kbd {
     animation: none;
   }
 }
+
+/* ---------- gamepad focus + touch controls ---------- */
+.pad-focus,
+.screen button:focus-visible,
+.screen input:focus-visible {
+  outline: 3px solid #ffd23f;
+  outline-offset: 3px;
+}
+#touch-controls {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  pointer-events: none;
+  z-index: 6;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#touch-controls.hidden { display: none; }
+#touch-controls button {
+  pointer-events: auto;
+  touch-action: none;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  background: rgba(30, 40, 20, 0.38);
+  color: #fff;
+  font: 700 15px/1 'Fredoka', sans-serif;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(3px);
+}
+#touch-controls button.on { background: rgba(255, 196, 40, 0.6); transform: scale(0.94); }
+#touch-controls .tc-left { display: flex; gap: 14px; }
+#touch-controls .tc-left button { font-size: 30px; }
+#touch-controls .tc-right {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  grid-template-areas: 'item boost brake' 'slide main main';
+  gap: 10px;
+  align-items: end;
+  justify-items: center;
+}
+#touch-controls .tc-small { width: 64px; height: 64px; font-size: 12px; }
+#touch-controls [data-t='item'] { grid-area: item; }
+#touch-controls [data-t='boost'] { grid-area: boost; }
+#touch-controls [data-t='brake'] { grid-area: brake; }
+#touch-controls [data-t='slide'] { grid-area: slide; }
+#touch-controls .tc-main { grid-area: main; width: 104px; height: 104px; font-size: 18px; background: rgba(255, 120, 40, 0.45); }
+body.touch-race #hud .bottom-cluster { transform: translateY(-110px); }
