@@ -25,6 +25,7 @@ for (let n = 0; n < races; n += 1) {
   const diffArg = process.argv.find((a) => a.startsWith('--diff='));
   const modeArg = process.argv.find((a) => a.startsWith('--mode='));
   race.configure((modeArg?.slice(7) ?? 'race') as never, Number(diffArg?.slice(7) ?? 1) as 0 | 1 | 2);
+  if (modeArg?.includes('tt')) race.items.enabled = false;
   race.reset(rng);
   race.startCountdown();
   const respawns = new Array(6).fill(0);

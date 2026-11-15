@@ -58,6 +58,10 @@ export interface HudState {
   item: ItemKind | null;
   rolling: boolean;
   itemsEnabled: boolean;
+  /** Snails in the race (time trials and the tutorial are solo). */
+  field: number;
+  /** Second human racer (split-screen), highlighted like the player. */
+  p2?: number;
 }
 
 const GAUGE_LEN = 227;
@@ -117,11 +121,11 @@ export class Hud {
   }
 
   /** Rebuild the section ticks for the current course. */
-  setTrack(): void {
+  setTrack(lapCount = track.def.laps): void {
     for (const t of this.ticks) t.remove();
     this.ticks.length = 0;
     // One tick per lap boundary.
-    const laps = track.def.laps;
+    const laps = lapCount;
     for (let k = 1; k < laps; k += 1) {
       const tick = document.createElement('i');
       tick.className = 'progress-tick lap-tick';
@@ -196,7 +200,17 @@ export class Hud {
       this.lapNum.textContent = String(s.lap);
       this.lapNum.parentElement?.classList.toggle('final', s.lap === s.laps && s.laps > 1);
     }
-    if (this.set('laps', s.laps)) this.lapTotal.textContent = `/${s.laps}`;
+    if (this.set('laps', s.laps)) {
+      this.lapTotal.textContent = `/${s.laps}`;
+      this.setTrack(s.laps);
+    }
+    if (this.set('field', s.field)) {
+      const total = this.posBadge.querySelector('.pos-total');
+      if (total) total.textContent = `/ ${s.field}`;
+      this.posBadge.classList.toggle('solo', s.field <= 1);
+      this.standings.classList.toggle('hidden', s.field <= 1);
+      this.dots.forEach((d, i) => d.classList.toggle('hidden', i >= 1 && s.field <= 1));
+    }
     const pct = Math.round(Math.min(1, s.progress[0]) * 1000) / 10;
     if (this.set('pct', pct)) this.done.style.width = `${pct}%`;
     for (let i = 0; i < this.dots.length; i += 1) {
@@ -207,7 +221,8 @@ export class Hud {
     if (this.set('order', orderKey)) {
       s.order.forEach((racer, place) => {
         const row = this.rows[place];
-        row.className = racer === 0 ? 'me' : '';
+        row.className = racer === 0 || racer === s.p2 ? 'me' : '';
+        row.hidden = place >= s.field;
         (row.children[0] as HTMLElement).textContent = String(place + 1);
         (row.children[1] as HTMLElement).style.background = hex(this.profiles[racer].shell);
         (row.children[2] as HTMLElement).textContent = this.profiles[racer].name;

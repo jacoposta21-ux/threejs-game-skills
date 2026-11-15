@@ -69,6 +69,18 @@
         <div id="toasts"></div>
         <div id="hint" class="hidden"></div>
         <div id="offtrack" class="hidden">Off the course! Returning to checkpoint…</div>
+        <div id="tutorial-panel" class="hidden" aria-live="polite"><b>TUTORIAL</b><ol id="tutorial-steps"></ol></div>
+        <div id="tt-panel" class="hidden"><span id="tt-medal"></span><span id="tt-ghost"></span></div>
+      </section>
+
+      <!-- Player two (split-screen) -->
+      <section id="hud2" class="hidden" aria-hidden="true">
+        <div class="h2-pos"><b id="h2-pos">1</b><sup id="h2-suffix">st</sup></div>
+        <div class="h2-chip">LAP <b id="h2-lap">1</b>/<span id="h2-laps">3</span></div>
+        <div class="h2-chip"><b id="h2-speed">0</b> km/h</div>
+        <div class="h2-chip h2-item" id="h2-item"></div>
+        <div class="h2-boost"><i id="h2-boost"></i></div>
+        <div class="h2-toast" id="h2-toast"></div>
       </section>
 
       <!-- Main menu -->
@@ -86,10 +98,28 @@
         <p class="best-line" id="menu-best"></p>
       </section>
 
+      <!-- Mode select -->
+      <section id="menu-modes" class="screen hidden">
+        <div class="panel panel-wide">
+          <h2>How do you race?</h2>
+          <div class="mode-list" id="mode-list">
+            <button class="mode-card btn-primary" data-mode="race" type="button"><span class="mode-icon">🏁</span><b>Quick Race</b><span>One track, five rivals, three laps.</span></button>
+            <button class="mode-card" data-mode="gp" type="button"><span class="mode-icon">🏆</span><b>Grand Prix</b><span>Every track in a row. Points decide the cup.</span><em class="mode-badge" id="gp-badge"></em></button>
+            <button class="mode-card" data-mode="tt" type="button"><span class="mode-icon">⏱️</span><b>Time Trial</b><span>Alone against your ghost. Bronze, silver, gold.</span><em class="mode-badge" id="tt-badge"></em></button>
+            <button class="mode-card" data-mode="duo" type="button"><span class="mode-icon">👥</span><b>2 Players</b><span>Split-screen on one PC. WASD vs arrows or gamepads.</span></button>
+            <button class="mode-card" data-mode="tutorial" type="button"><span class="mode-icon">🎓</span><b>Tutorial</b><span>A guided practice lap: crawl, roll, slide, items.</span><em class="mode-badge" id="tut-badge"></em></button>
+          </div>
+          <div class="row mode-diff"><span>Rival snails</span>
+            <div class="seg" id="set-difficulty"><button type="button" data-d="0">Easy</button><button type="button" data-d="1">Normal</button><button type="button" data-d="2">Hard</button></div>
+          </div>
+          <button class="btn" data-back type="button">BACK</button>
+        </div>
+      </section>
+
       <!-- Track select -->
       <section id="menu-tracks" class="screen hidden">
         <div class="panel panel-wide">
-          <h2>Choose a Track</h2>
+          <h2 id="tracks-title">Choose a Track</h2>
           <div class="track-list" id="track-list"></div>
           <button class="btn" data-back type="button">BACK</button>
         </div>
@@ -194,11 +224,26 @@
           </div>
           <div class="results-laps" id="results-laps"></div>
           <p class="results-unlock hidden" id="results-unlock"></p>
+          <p class="results-medal hidden" id="results-medal"></p>
+          <ol class="gp-table hidden" id="gp-table"></ol>
           <ol id="results-list"></ol>
           <div class="results-buttons">
             <button class="btn btn-primary" id="btn-again" type="button">RACE AGAIN</button>
             <button class="btn" id="btn-next" type="button">NEXT TRACK</button>
             <button class="btn" id="btn-results-menu" type="button">MAIN MENU</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Grand Prix podium -->
+      <section id="menu-podium" class="screen hidden">
+        <div class="panel panel-wide podium-panel">
+          <p class="results-kicker" id="podium-kicker">Garden Cup</p>
+          <h2 id="podium-title">Cup complete!</h2>
+          <div class="podium" id="podium"></div>
+          <ol class="gp-table" id="podium-table"></ol>
+          <div class="results-buttons">
+            <button class="btn btn-primary" id="btn-podium-menu" type="button">MAIN MENU</button>
           </div>
         </div>
       </section>

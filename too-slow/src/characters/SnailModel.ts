@@ -381,6 +381,28 @@ export class SnailModel {
     if (this.hat) this.head.add(this.hat);
   }
 
+  /** Turn this snail into a see-through time-trial ghost (materials are cloned, so shared ones are untouched). */
+  setGhost(): void {
+    this.root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.castShadow = false;
+      const mats = (Array.isArray(m.material) ? m.material : [m.material]).map((mat) => {
+        const c = mat.clone() as THREE.MeshStandardMaterial;
+        c.transparent = true;
+        c.opacity = 0.38;
+        c.depthWrite = false;
+        if (c.emissive) {
+          c.emissive.set(0x7fd8ff);
+          c.emissiveIntensity = 0.45;
+        }
+        return c;
+      });
+      m.material = Array.isArray(m.material) ? mats : mats[0];
+      m.renderOrder = 4;
+    });
+  }
+
   /** Kick the squash-and-stretch spring (landings, bumps). */
   impact(strength: number): void {
     this.squashVel -= Math.min(1.4, strength) * 5;

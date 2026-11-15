@@ -1,4 +1,6 @@
 import type { RacerProfile } from '../ai/SnailAI';
+import type { RaceMode } from '../racing/RaceManager';
+import { loadGhost, loadMedals, loadTrophies, MEDAL_NAMES, MEDAL_TIMES, tutorialDone, type Medal } from './Progress';
 import type { HatKind, ShellPattern, SnailLook } from '../characters/SnailModel';
 import { TRACKS } from '../world/tracks';
 import { formatTime, ordinal } from './Hud';
@@ -9,6 +11,8 @@ export interface Settings {
   quality: number;
   shake: boolean;
   items: boolean;
+  /** Rival skill: 0 easy, 1 normal, 2 hard. */
+  difficulty: number;
 }
 
 export interface PlayerLook extends SnailLook {
@@ -37,7 +41,7 @@ function write(key: string, value: unknown): void {
 }
 
 export function loadSettings(): Settings {
-  return read<Settings>(SETTINGS_KEY, { music: 0.6, sfx: 0.8, quality: 2, shake: true, items: true });
+  return read<Settings>(SETTINGS_KEY, { music: 0.6, sfx: 0.8, quality: 2, shake: true, items: true, difficulty: 1 });
 }
 
 const bestKey = (track: string) => `tooslow.best.${track}.v1`;
@@ -119,10 +123,12 @@ export function saveRaceCount(n: number): void {
   write(RACES_KEY, { n });
 }
 
-export type Screen = 'none' | 'main' | 'tracks' | 'garage' | 'how' | 'settings' | 'pause' | 'results';
+export type Screen = 'none' | 'main' | 'modes' | 'tracks' | 'garage' | 'how' | 'settings' | 'pause' | 'results' | 'podium';
 
 export interface MenuHandlers {
-  chooseTrack(id: string): void;
+  chooseTrack(id: string, mode: RaceMode): void;
+  startGp(): void;
+  startTutorial(): void;
   nextTrack(): void;
   lookChanged(look: PlayerLook): void;
   resume(): void;
@@ -150,6 +156,20 @@ export interface ResultsData {
   hasNext: boolean;
   lapTimes: number[];
   unlocked: string | null;
+  mode: RaceMode;
+  /** Time trial: medal earned this run. */
+  medal?: { medal: Medal; improved: boolean; nextTarget: number | null; ghostSaved: boolean };
+  /** Grand Prix standings after this race. */
+  gp?: { rows: { racer: number; points: number; gained: number }[]; race: number; of: number; last: boolean };
+  /** Split-screen: player two's place. */
+  p2Place?: number;
+}
+
+export interface PodiumData {
+  rows: { racer: number; points: number }[];
+  place: number;
+  difficulty: number;
+  improved: boolean;
 }
 
 function el<T extends HTMLElement>(id: string): T {
@@ -164,6 +184,8 @@ export class Menus {
   private back: Screen = 'main';
   private readonly screens: Record<Exclude<Screen, 'none'>, HTMLElement> = {
     main: el('menu-main'),
+    modes: el('menu-modes'),
+    podium: el('menu-podium'),
     tracks: el('menu-tracks'),
     garage: el('menu-garage'),
     how: el('menu-how'),
@@ -173,6 +195,7 @@ export class Menus {
   };
 
   readonly look: PlayerLook = loadLook();
+  mode: RaceMode = 'race';
 
   constructor(
     handlers: MenuHandlers,
@@ -185,9 +208,38 @@ export class Menus {
       });
     };
     on('btn-play', () => {
-      this.renderTracks();
-      this.show('tracks');
+      this.renderModes();
+      this.show('modes');
     });
+    on('btn-podium-menu', () => handlers.toMenu());
+    el('mode-list')
+      .querySelectorAll<HTMLElement>('.mode-card')
+      .forEach((card) => {
+        card.addEventListener('click', () => {
+          handlers.sound('click');
+          const mode = card.dataset.mode as RaceMode;
+          this.mode = mode;
+          if (mode === 'gp') handlers.startGp();
+          else if (mode === 'tutorial') handlers.startTutorial();
+          else {
+            this.renderTracks();
+            this.show('tracks');
+          }
+        });
+        card.addEventListener('pointerenter', () => handlers.sound('hover'));
+      });
+    const diff = el('set-difficulty');
+    const paintDiff = () => diff.querySelectorAll<HTMLElement>('button').forEach((b) => b.classList.toggle('on', Number(b.dataset.d) === this.settings.difficulty));
+    diff.querySelectorAll<HTMLElement>('button').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.settings.difficulty = Number(b.dataset.d);
+        paintDiff();
+        handlers.sound('click');
+        write(SETTINGS_KEY, this.settings);
+        handlers.settingsChanged(this.settings);
+      }),
+    );
+    paintDiff();
     on('btn-garage', () => this.show('garage'));
     on('btn-next', () => handlers.nextTrack());
     on('btn-how', () => this.open('how'));
@@ -201,7 +253,7 @@ export class Menus {
     document.querySelectorAll<HTMLElement>('[data-back]').forEach((b) =>
       b.addEventListener('click', () => {
         handlers.sound('click');
-        this.show(this.current === 'tracks' || this.current === 'garage' ? 'main' : this.back);
+        this.show(this.current === 'tracks' ? 'modes' : this.current === 'garage' || this.current === 'modes' ? 'main' : this.back);
       }),
     );
     this.buildTracks(handlers);
@@ -268,7 +320,7 @@ export class Menus {
       card.addEventListener('click', () => {
         if (card.classList.contains('locked')) return;
         handlers.sound('click');
-        handlers.chooseTrack(def.id);
+        handlers.chooseTrack(def.id, this.mode);
       });
       card.addEventListener('pointerenter', () => handlers.sound('hover'));
       list.appendChild(card);
@@ -285,8 +337,30 @@ export class Menus {
         card.setAttribute('aria-disabled', String(!open));
         const best = loadBest(id);
         const prev = TRACKS[TRACKS.findIndex((d) => d.id === id) - 1];
-        (card.querySelector('.track-best') as HTMLElement).textContent = !open && prev ? `Top 3 on ${prev.name}` : best ? `Best ${formatTime(best)}` : 'No time yet';
+        const meta = card.querySelector('.track-best') as HTMLElement;
+        if (this.mode === 'tt' && open) {
+          const medal = loadMedals()[id] ?? 0;
+          const ghost = loadGhost(id);
+          const gold = MEDAL_TIMES[id]?.[0];
+          meta.textContent = medal ? `${['', '🥉', '🥈', '🥇'][medal]} ${ghost ? formatTime(ghost.time) : MEDAL_NAMES[medal]}` : gold ? `Gold ${formatTime(gold)}` : 'No time yet';
+        } else {
+          meta.textContent = !open && prev ? `Top 3 on ${prev.name}` : best ? `Best ${formatTime(best)}` : 'No time yet';
+        }
       });
+    el('tracks-title').textContent = this.mode === 'tt' ? 'Time Trial' : this.mode === 'duo' ? '2 Players' : 'Choose a Track';
+  }
+
+  private renderModes(): void {
+    const medals = Object.values(loadMedals()).filter((m) => m === 3).length;
+    el('tt-badge').textContent = medals ? `🥇 ${medals}` : '';
+    const trophies = loadTrophies();
+    const best = Math.min(...Object.values(trophies), 99);
+    el('gp-badge').textContent = best <= 3 ? `🏆 ${best}${ordinal(best)}` : '';
+    el('tut-badge').textContent = tutorialDone() ? '' : 'START HERE';
+    // First time ever: the tutorial is the obvious choice.
+    el('mode-list')
+      .querySelectorAll<HTMLElement>('.mode-card')
+      .forEach((c) => c.classList.toggle('btn-primary', c.dataset.mode === (tutorialDone() ? 'race' : 'tutorial')));
   }
 
   private buildGarage(handlers: MenuHandlers): void {
@@ -369,7 +443,11 @@ export class Menus {
       this.show(this.back);
       return true;
     }
-    if (this.current === 'tracks' || this.current === 'garage') {
+    if (this.current === 'tracks') {
+      this.show('modes');
+      return true;
+    }
+    if (this.current === 'garage' || this.current === 'modes') {
       this.show('main');
       return true;
     }
@@ -390,11 +468,39 @@ export class Menus {
   }
 
   showResults(data: ResultsData): void {
-    el('results-place').textContent = `${data.place}${ordinal(data.place)}`;
+    el('results-place').textContent = data.mode === 'duo' && data.p2Place ? `${data.place}${ordinal(data.place)} · ${data.p2Place}${ordinal(data.p2Place)}` : `${data.place}${ordinal(data.place)}`;
     const kicker = el('results-kicker');
     kicker.textContent = data.newBest ? 'New personal best!' : data.place === 1 ? `You won ${data.trackName}!` : data.place <= 3 ? 'On the podium!' : 'Race complete';
     kicker.classList.toggle('best', data.newBest);
-    el('btn-next').classList.toggle('hidden', !data.hasNext);
+    const gp = data.gp;
+    el('btn-next').classList.toggle('hidden', gp ? false : !data.hasNext || data.mode === 'tutorial');
+    el('btn-next').textContent = gp ? (gp.last ? 'SEE THE PODIUM' : 'NEXT RACE') : 'NEXT TRACK';
+    el('btn-again').classList.toggle('hidden', !!gp);
+    el('btn-again').textContent = data.mode === 'tt' ? 'TRY AGAIN' : data.mode === 'tutorial' ? 'PRACTICE AGAIN' : 'RACE AGAIN';
+    el('btn-again').classList.toggle('btn-primary', !gp);
+    el('btn-next').classList.toggle('btn-primary', !!gp);
+    if (data.mode === 'tt') {
+      kicker.textContent = data.newBest ? 'New personal best!' : 'Time trial complete';
+    } else if (data.mode === 'tutorial') {
+      kicker.textContent = 'Tutorial complete — you are ready to race!';
+    } else if (data.mode === 'duo' && data.p2Place) {
+      kicker.textContent = data.place < data.p2Place ? 'Player 1 wins the duel!' : 'Player 2 wins the duel!';
+    } else if (gp) {
+      kicker.textContent = `Grand Prix · race ${gp.race} of ${gp.of}`;
+    }
+    const medal = el('results-medal');
+    medal.classList.toggle('hidden', !data.medal);
+    if (data.medal) {
+      const m = data.medal;
+      medal.className = `results-medal m${m.medal}`;
+      medal.textContent =
+        (m.medal ? `${['', '🥉', '🥈', '🥇'][m.medal]} ${MEDAL_NAMES[m.medal]} medal${m.improved ? '!' : ''}` : 'No medal yet') +
+        (m.nextTarget ? ` · next: ${formatTime(m.nextTarget)}` : '') +
+        (m.ghostSaved ? ' · ghost saved' : '');
+    }
+    const table = el('gp-table');
+    table.classList.toggle('hidden', !gp);
+    if (gp) this.fillGpTable(table, gp.rows);
     const laps = el('results-laps');
     laps.replaceChildren();
     const bestLap = Math.min(...data.lapTimes);
@@ -416,7 +522,7 @@ export class Menus {
     data.rows.forEach((row, i) => {
       const p = this.profiles[row.racer];
       const li = document.createElement('li');
-      if (row.racer === 0) li.className = 'me';
+      if (row.racer === 0 || (data.mode === 'duo' && row.racer === 1)) li.className = 'me';
       const place = document.createElement('b');
       place.textContent = `${i + 1}${ordinal(i + 1)}`;
       const dot = document.createElement('i');
@@ -429,5 +535,55 @@ export class Menus {
       list.appendChild(li);
     });
     this.show('results');
+  }
+
+  private fillGpTable(table: HTMLElement, rows: { racer: number; points: number; gained?: number }[]): void {
+    table.replaceChildren();
+    rows.forEach((row, i) => {
+      const p = this.profiles[row.racer];
+      const li = document.createElement('li');
+      if (row.racer === 0) li.className = 'me';
+      const place = document.createElement('b');
+      place.textContent = `${i + 1}${ordinal(i + 1)}`;
+      const name = document.createElement('span');
+      const dot = document.createElement('i');
+      dot.style.background = `#${p.shell.toString(16).padStart(6, '0')}`;
+      name.append(dot, p.name);
+      const gained = document.createElement('em');
+      gained.textContent = row.gained ? `+${row.gained}` : '';
+      const pts = document.createElement('b');
+      pts.textContent = `${row.points} pts`;
+      li.append(place, name, gained, pts);
+      table.appendChild(li);
+    });
+  }
+
+  showPodium(data: PodiumData): void {
+    const diff = ['Easy', 'Normal', 'Hard'][data.difficulty] ?? 'Normal';
+    el('podium-kicker').textContent = `Garden Cup · ${diff}`;
+    el('podium-title').textContent = data.place === 1 ? 'You won the cup!' : data.place <= 3 ? `${data.place}${ordinal(data.place)} in the cup!` : 'Cup complete';
+    const podium = el('podium');
+    podium.replaceChildren();
+    // Display order: 2nd, 1st, 3rd.
+    for (const k of [1, 0, 2]) {
+      const row = data.rows[k];
+      if (!row) continue;
+      const p = this.profiles[row.racer];
+      const step = document.createElement('div');
+      step.className = `step p${k + 1}${row.racer === 0 ? ' me' : ''}`;
+      const snail = document.createElement('span');
+      snail.className = 'snail';
+      snail.style.background = `#${p.shell.toString(16).padStart(6, '0')}`;
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = `${p.name} · ${row.points}`;
+      const block = document.createElement('span');
+      block.className = 'block';
+      block.textContent = String(k + 1);
+      step.append(snail, name, block);
+      podium.appendChild(step);
+    }
+    this.fillGpTable(el('podium-table'), data.rows);
+    this.show('podium');
   }
 }

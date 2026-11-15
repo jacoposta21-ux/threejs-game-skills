@@ -51,6 +51,8 @@ export class RaceManager {
   readonly items = new ItemSystem();
   readonly critters = new CritterSystem();
   laps = 3;
+  /** Fixed lap count for special modes (0 = the track's own). */
+  lapsOverride = 0;
   /** Player's lap times (seconds), filled as laps complete. */
   readonly lapTimes: number[] = [];
   private lapStart = 0;
@@ -82,7 +84,7 @@ export class RaceManager {
     this.mode = mode;
     this.difficulty = difficulty;
     this.humans = mode === 'duo' ? [0, 1] : [0];
-    this.items.enabled = this.items.enabled && mode !== 'tt';
+    this.lapsOverride = mode === 'tutorial' ? 1 : 0;
   }
 
   isActive(i: number): boolean {
@@ -128,7 +130,7 @@ export class RaceManager {
     this.events.length = 0;
     this.items.reset();
     this.critters.reset();
-    this.laps = track.def.laps;
+    this.laps = this.lapsOverride || track.def.laps;
     this.lapTimes.length = 0;
     this.lapStart = 0;
     this.updateOrder(false);

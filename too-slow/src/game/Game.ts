@@ -9,7 +9,11 @@ import { Loop } from '../core/Loop';
 import { createRenderer, resizeRenderer } from '../core/Renderer';
 import { Particles, SpeedLines, Trail } from '../fx/Effects';
 import { TUNE, type RacerBody } from '../physics/RacerBody';
-import { FIXED_DT, RACER_COUNT, RaceManager } from '../racing/RaceManager';
+import { FIXED_DT, RACER_COUNT, RaceManager, type Difficulty, type RaceMode } from '../racing/RaceManager';
+import { addFame, addStats, GP_POINTS, loadGhost, medalFor, MEDAL_TIMES, saveGhost, saveMedal, saveTrophy, setTutorialDone } from '../ui/Progress';
+import { Hud2 } from '../ui/Hud2';
+import { GhostRunner } from './GhostRunner';
+import { Tutorial } from './Tutorial';
 import { formatTime, Hud, ordinal } from '../ui/Hud';
 import { loadBest, loadRaceCount, loadUnlocked, Menus, saveBest, saveRaceCount, unlockAfter, type PlayerLook, type Settings } from '../ui/Menus';
 import { TRACKS } from '../world/tracks';
@@ -92,6 +96,20 @@ export class Game {
     () => this.render(),
   );
   private readonly fadeEl = document.getElementById('fade');
+  private readonly appEl = document.getElementById('app');
+  /** Player two's view in split-screen. */
+  private readonly camera2 = new THREE.PerspectiveCamera(58, 1, 0.15, 800);
+  private readonly rig2 = new FollowCamera(this.camera2);
+  private readonly hud2 = new Hud2();
+  private readonly ghost: GhostRunner;
+  private readonly tutorial = new Tutorial();
+  private mode: RaceMode = 'race';
+  private gp: { tracks: string[]; index: number; points: number[] } | null = null;
+  private p2Tag: THREE.Texture | null = null;
+  private rivalNames: string[] = [];
+  private readonly ttPanel = document.getElementById('tt-panel');
+  private readonly ttMedal = document.getElementById('tt-medal');
+  private readonly ttGhost = document.getElementById('tt-ghost');
 
   private state: GameState = 'menu';
   private paused = false;
@@ -149,8 +167,30 @@ export class Game {
     this.hud = new Hud(this.race.profiles);
     this.menus = new Menus(
       {
-        chooseTrack: (id) => this.startRace(id),
+        chooseTrack: (id, mode) => {
+          this.mode = mode;
+          this.gp = null;
+          this.startRace(id);
+        },
+        startGp: () => {
+          this.mode = 'gp';
+          this.gp = { tracks: TRACKS.map((d) => d.id), index: 0, points: new Array(RACER_COUNT).fill(0) };
+          this.startRace(this.gp.tracks[0]);
+        },
+        startTutorial: () => {
+          this.mode = 'tutorial';
+          this.gp = null;
+          this.startRace('backyard');
+        },
         nextTrack: () => {
+          if (this.gp) {
+            if (this.gp.index >= this.gp.tracks.length - 1) this.showPodium();
+            else {
+              this.gp.index += 1;
+              this.startRace(this.gp.tracks[this.gp.index]);
+            }
+            return;
+          }
           const open = loadUnlocked();
           const i = TRACKS.findIndex((d) => d.id === track.def.id);
           for (let k = 1; k <= TRACKS.length; k += 1) {
@@ -202,6 +242,8 @@ export class Game {
       }
       this.views.push({ model, up: new THREE.Vector3(0, 1, 0), pos: new THREE.Vector3(), slime, boost, tag, sinceHit: 9, dustTimer: 0, crawlPhase: 0 });
     }
+    this.rivalNames = this.race.profiles.map((p) => p.name);
+    this.ghost = new GhostRunner(this.scene);
     this.scene.add(this.particles.points);
     this.speedLines = new SpeedLines(this.fxRng);
     this.scene.add(this.speedLines.mesh);
@@ -325,7 +367,7 @@ export class Game {
   }
 
   private applySettings(s: Settings): void {
-    this.race.items.enabled = s.items;
+    this.race.items.enabled = s.items && this.mode !== 'tt';
     this.audio.setVolumes(s.music, s.sfx);
     this.rig.shakeEnabled = s.shake;
     this.maxDpr = this.dprOverride || (s.quality >= 2 ? 2 : s.quality === 1 ? 1.5 : 1);
@@ -374,6 +416,14 @@ export class Game {
       this.state = 'menu';
       this.paused = false;
       this.race.autopilot = false;
+      this.gp = null;
+      this.mode = 'race';
+      this.setDuo(false);
+      this.race.configure('race', this.menus.settings.difficulty as Difficulty);
+      this.tutorial.stop();
+      this.ghost.stop();
+      this.ttPanel?.classList.add('hidden');
+      for (const v of this.views) v.model.root.visible = true;
       this.race.reset(this.rng);
       this.resetRaceVisuals();
       this.hud.show(false);
@@ -401,16 +451,63 @@ export class Game {
     this.paused = false;
     this.seed += 1;
     this.rng = createSeededRandom(this.seed);
+    const mode = this.mode;
+    this.race.configure(mode, this.menus.settings.difficulty as Difficulty);
+    this.race.items.enabled = this.menus.settings.items && mode !== 'tt';
+    this.setDuo(mode === 'duo');
     this.race.reset(this.rng);
+    if (mode === 'tt') this.ghost.start(loadGhost(track.def.id), this.race.profiles[0]);
+    else this.ghost.stop();
+    if (mode === 'tutorial') this.tutorial.start(this.input.lastDevice);
+    else this.tutorial.stop();
+    this.ttPanel?.classList.toggle('hidden', mode !== 'tt');
     this.resetRaceVisuals();
     this.hud.reset();
     this.hud.show(true);
     this.menus.show('none');
     this.input.clear();
     this.rig.snap(this.race.player.pos, this.race.player.heading);
+    if (mode === 'duo') this.rig2.snap(this.race.racers[1].pos, this.race.racers[1].heading);
+    for (let i = 0; i < RACER_COUNT; i += 1) this.views[i].model.root.visible = !this.race.racers[i].inactive;
     this.race.startCountdown();
     this.audio.setMusic(true, 128);
     this.canvas.focus();
+  }
+
+  /** Split-screen on/off: player two takes over racer 1 with its own camera and HUD. */
+  private setDuo(on: boolean): void {
+    this.input.duo = on;
+    this.appEl?.classList.toggle('duo', on);
+    this.hud2.show(on && this.state === 'racing');
+    const p2 = this.race.profiles[1];
+    p2.name = on ? 'Player 2' : this.rivalNames[1];
+    const tag = this.views[1]?.tag;
+    if (tag) {
+      if (on && !this.p2Tag) this.p2Tag = createNameTag('Player 2', p2.shell);
+      const mat = tag.material as THREE.SpriteMaterial;
+      if (on) {
+        if (!mat.userData.rival) mat.userData.rival = mat.map;
+        mat.map = this.p2Tag;
+      } else if (mat.userData.rival) mat.map = mat.userData.rival as THREE.Texture;
+      mat.needsUpdate = true;
+    }
+    this.hud.refreshColors();
+    if (!on) {
+      this.camera.aspect = this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight);
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  private showPodium(): void {
+    const gp = this.gp;
+    if (!gp) return;
+    const rows = gp.points.map((points, racer) => ({ racer, points })).sort((a, b) => b.points - a.points || a.racer - b.racer);
+    const place = rows.findIndex((r) => r.racer === 0) + 1;
+    const improved = saveTrophy(this.menus.settings.difficulty, place);
+    if (place === 1) addStats({ cups: 1 });
+    this.audio.play(place <= 3 ? 'finish' : 'checkpoint');
+    this.menus.showPodium({ rows, place, difficulty: this.menus.settings.difficulty, improved });
+    this.gp = null;
   }
 
   // ----------------------------------------------------------- update
@@ -442,6 +539,7 @@ export class Game {
       }
       if (steps === MAX_STEPS_PER_FRAME) this.accumulator = 0;
       this.alpha = this.accumulator / FIXED_DT;
+      this.updateModes(delta);
       this.handleEvents();
       this.updateRaceUi(delta);
     } else {
@@ -450,6 +548,44 @@ export class Game {
 
     this.syncVisuals(delta);
     this.publishDiagnostics();
+  }
+
+  /** Per-frame work for the special modes: ghost, time-trial panel, tutorial checklist. */
+  private updateModes(delta: number): void {
+    const race = this.race;
+    const p = race.player;
+    if (this.mode === 'tt') {
+      if (race.phase === 'racing' && !p.finished) this.ghost.record(race.time, p);
+      this.ghost.update(race.phase === 'racing' ? race.time : 0, delta);
+      const gold = MEDAL_TIMES[track.def.id];
+      if (this.ttMedal && gold) {
+        const t = race.time;
+        const target = t <= gold[0] ? `🥇 ${formatTime(gold[0])}` : t <= gold[1] ? `🥈 ${formatTime(gold[1])}` : t <= gold[2] ? `🥉 ${formatTime(gold[2])}` : 'No medal pace';
+        if (this.ttMedal.textContent !== target) this.ttMedal.textContent = target;
+      }
+      const gt = this.ghost.ghostTime;
+      if (this.ttGhost) {
+        const txt = gt ? `👻 ${formatTime(gt)}` : '';
+        if (this.ttGhost.textContent !== txt) this.ttGhost.textContent = txt;
+      }
+    }
+    if (this.mode === 'tutorial' && race.phase === 'racing') {
+      const it = race.playerIntent;
+      const done = this.tutorial.update(delta, p, this.input.throttle(0), this.input.steer(0), this.input.lastDevice);
+      void it;
+      if (done) {
+        this.audio.play('checkpoint');
+        this.hud.toast('NICE!', 'good');
+        if (this.tutorial.complete) {
+          setTutorialDone();
+          this.hud.toast('ALL MOVES LEARNED!', 'great', 'now finish the lap');
+        }
+      }
+    }
+    if (this.mode === 'duo') {
+      const r = race.racers[1];
+      this.hud2.update(delta, r, race.rank[1] + 1, race.lap(1), race.laps, r.speed * KMH);
+    }
   }
 
   private readInput(): void {
@@ -488,6 +624,10 @@ export class Game {
       if (r.events.length === 0) continue;
       const view = this.views[i];
       const me = i === 0;
+      if (i === 1 && this.mode === 'duo') {
+        if (r.events.some((e) => e.type === 'hardLand' || e.type === 'hit' || e.type === 'spinout' || e.type === 'cannon')) this.rig2.addShake(0.4);
+        if (r.events.some((e) => e.type === 'respawn')) this.rig2.snap(r.pos, r.heading);
+      }
       const foot = this.tmp.copy(r.pos).addScaledVector(r.normal, -R * 0.9);
       for (const e of r.events) {
         switch (e.type) {
@@ -671,6 +811,12 @@ export class Game {
     this.race.critters.events.length = 0;
 
     for (const e of this.race.events) {
+      if (e.racer === 1 && this.mode === 'duo' && e.type !== 'countdown' && e.type !== 'go') {
+        if (e.type === 'lap') this.hud2.toast(e.value === this.race.laps ? 'FINAL LAP!' : `LAP ${e.value}`);
+        else if (e.type === 'finish') this.hud2.toast(`FINISH! ${e.value}${ordinal(e.value)}`);
+        else if (e.type === 'overtake') this.hud2.toast('OVERTAKE!');
+        continue;
+      }
       switch (e.type) {
         case 'countdown':
           this.hud.countdown(String(e.value));
@@ -701,7 +847,7 @@ export class Game {
           this.audio.play('overtaken');
           break;
         case 'aiFinish':
-          if (!this.race.player.finished) this.hud.toast(`${this.race.profiles[e.racer].name} finished`, 'info', `${e.value}${ordinal(e.value)}`);
+          if (!this.race.player.finished && this.mode !== 'duo') this.hud.toast(`${this.race.profiles[e.racer].name} finished`, 'info', `${e.value}${ordinal(e.value)}`);
           break;
         case 'finish':
           this.audio.play('finish');
@@ -752,6 +898,8 @@ export class Game {
       item: p.item,
       rolling: p.itemRoulette > 0,
       itemsEnabled: race.items.enabled,
+      field: race.field,
+      p2: this.mode === 'duo' ? 1 : undefined,
     });
     if (p.itemRoulette > 0 && this.frame % 4 === 0) this.audio.play('roulette');
 
@@ -786,7 +934,7 @@ export class Game {
     let hint: string | null = null;
     if (this.seen.wrongWay > 1.2) hint = '<b>Wrong way!</b> Turn around — or press <kbd>R</kbd> for the last checkpoint';
     else if (this.seen.stallTime > 0.8) hint = 'Out of momentum! <kbd>SPACE</kbd> to pop out and crawl';
-    else if (!novice) hint = null;
+    else if (!novice || this.mode === 'tutorial') hint = null;
     else if (!this.seen.roll && p.mode === 'crawl' && slope > 0.045) hint = 'Downhill! Press <kbd>SPACE</kbd> to tuck into your shell and <b>ROLL</b>';
     else if (!this.seen.roll && this.race.time < 6) hint = 'Hold <kbd>W</kbd> to crawl to the edge of the hill';
     else if (this.seen.roll && this.seen.steerTime > 0.5 && this.seen.steerTime < 5) hint = '<kbd>A</kbd> <kbd>D</kbd> steer · speed comes from the slope, not from <kbd>W</kbd>';
@@ -802,27 +950,68 @@ export class Game {
     this.resultsShown = true;
     const race = this.race;
     const p = race.player;
-    const previous = loadBest(track.def.id);
-    const newBest = previous === null || p.finishTime < previous;
-    if (newBest) saveBest(track.def.id, p.finishTime);
-    const unlocked = race.rank[0] <= 2 ? unlockAfter(track.def.id) : null;
+    const mode = this.mode;
+    const id = track.def.id;
+    const place = race.rank[0] + 1;
+    const ranked = mode === 'race' || mode === 'gp';
+    // Personal bests and unlocks come from real races against the rivals.
+    const previous = loadBest(id);
+    const newBestRace = ranked && (previous === null || p.finishTime < previous);
+    if (newBestRace) saveBest(id, p.finishTime);
+    const unlocked = ranked && race.rank[0] <= 2 ? unlockAfter(id) : null;
     if (unlocked) this.audio.play('trick');
     this.raceCount += 1;
     saveRaceCount(this.raceCount);
+    addStats({ races: 1, wins: ranked && place === 1 ? 1 : 0, podiums: ranked && place <= 3 ? 1 : 0, tricks: p.tricks, distance: Math.round(Math.max(0, p.dist)) });
+    if (mode !== 'tutorial') addFame(id, { name: this.menus.look.name, time: p.finishTime, date: new Date().toISOString().slice(0, 10), mode });
+
+    let best = newBestRace ? p.finishTime : previous;
+    let newBest = newBestRace;
+    let medal: { medal: 0 | 1 | 2 | 3; improved: boolean; nextTarget: number | null; ghostSaved: boolean } | undefined;
+    if (mode === 'tt') {
+      const ghostBest = this.ghost.ghostTime;
+      const m = medalFor(id, p.finishTime);
+      const improved = saveMedal(id, m);
+      const ghostSaved = ghostBest === null || p.finishTime < ghostBest;
+      if (ghostSaved) saveGhost(this.ghost.result(id, p.finishTime, this.menus.look.name, this.menus.look.shell));
+      const targets = MEDAL_TIMES[id];
+      medal = { medal: m, improved, ghostSaved, nextTarget: m < 3 && targets ? targets[2 - m] : null };
+      best = ghostSaved ? p.finishTime : ghostBest;
+      newBest = ghostSaved && ghostBest !== null;
+    }
+    let gp: { rows: { racer: number; points: number; gained: number }[]; race: number; of: number; last: boolean } | undefined;
+    if (mode === 'gp' && this.gp) {
+      const gained = new Array(RACER_COUNT).fill(0);
+      race.order.forEach((racer, k) => {
+        gained[racer] = GP_POINTS[k] ?? 0;
+        this.gp!.points[racer] += gained[racer];
+      });
+      const rows = this.gp.points.map((points, racer) => ({ racer, points, gained: gained[racer] })).sort((a, b) => b.points - a.points || a.racer - b.racer);
+      gp = { rows, race: this.gp.index + 1, of: this.gp.tracks.length, last: this.gp.index >= this.gp.tracks.length - 1 };
+    }
+    if (mode === 'tutorial') setTutorialDone();
+
     this.hud.show(false);
+    this.hud2.show(false);
+    this.tutorial.stop();
+    this.ttPanel?.classList.add('hidden');
     this.menus.showResults({
-      place: race.rank[0] + 1,
+      place,
       time: p.finishTime,
-      best: newBest ? p.finishTime : previous,
+      best,
       newBest,
       topSpeedKmh: p.maxSpeed * KMH,
       tricks: p.tricks,
       trickScore: p.trickScore,
-      rows: race.order.map((i) => ({ racer: i, time: race.racers[i].finished ? race.racers[i].finishTime : null })),
+      rows: race.order.filter((i) => !race.racers[i].inactive).map((i) => ({ racer: i, time: race.racers[i].finished ? race.racers[i].finishTime : null })),
       trackName: track.def.name,
-      hasNext: TRACKS.some((d) => d.id !== track.def.id && loadUnlocked().has(d.id)),
+      hasNext: TRACKS.some((d) => d.id !== id && loadUnlocked().has(d.id)),
       lapTimes: [...race.lapTimes],
       unlocked,
+      mode,
+      medal,
+      gp,
+      p2Place: mode === 'duo' ? race.rank[1] + 1 : undefined,
     });
     this.state = 'results';
     this.audio.setMusic(true, 100);
@@ -910,12 +1099,18 @@ export class Game {
       this.rig.orbit(this.reducedMotion ? 0 : delta, this.tmp2, 3.6, 1.2, 0.22, Math.PI - p.heading - this.menuAngle, 0.3);
     } else if (race.phase === 'grid' || race.phase === 'countdown') {
       this.rig.update(delta, target, p, false);
-    } else if (race.phase === 'finished') {
+    } else if (race.phase === 'finished' || p.finished) {
       this.rig.orbit(delta, target, 6.5, 2.2, 0.5);
     } else {
       this.rig.update(delta, target, p, p.boostTimer > 0);
     }
-    const racing = this.state === 'racing' && race.phase === 'racing';
+    if (this.mode === 'duo' && this.state !== 'menu') {
+      const r2 = race.racers[1];
+      const t2 = this.views[1].pos;
+      if (r2.finished) this.rig2.orbit(delta, t2, 6.5, 2.2, 0.5);
+      else this.rig2.update(delta, t2, r2, r2.boostTimer > 0);
+    }
+    const racing = this.state === 'racing' && race.phase === 'racing' && this.mode !== 'duo';
     this.speedLines.update(delta, this.camera, racing ? this.rig.speedFactor : 0, racing && p.boostTimer > 0);
 
     // Wind motes streaming past at speed (cheap sense of velocity).
@@ -993,7 +1188,31 @@ export class Game {
   }
 
   private render(): void {
-    this.renderer.render(this.scene, this.camera);
+    if (this.mode !== 'duo' || this.state === 'menu') {
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+    // Split-screen: player one on top, player two below.
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    const half = Math.floor(h / 2);
+    const aspect = w / Math.max(1, half);
+    for (const cam of [this.camera, this.camera2]) {
+      if (Math.abs(cam.aspect - aspect) > 1e-3) {
+        cam.aspect = aspect;
+        cam.updateProjectionMatrix();
+      }
+    }
+    const r = this.renderer;
+    r.setScissorTest(true);
+    r.setViewport(0, h - half, w, half);
+    r.setScissor(0, h - half, w, half);
+    r.render(this.scene, this.camera);
+    r.setViewport(0, 0, w, h - half);
+    r.setScissor(0, 0, w, h - half);
+    r.render(this.scene, this.camera2);
+    r.setScissorTest(false);
+    r.setViewport(0, 0, w, h);
   }
 
   // ---------------------------------------------------- hooks & diagnostics
@@ -1018,6 +1237,8 @@ export class Game {
         v.boost.clear();
       }
       this.rig.snap(p.pos, p.speed > 2 ? Math.atan2(p.vel.x, -p.vel.z) : p.heading);
+      const p2 = this.race.racers[1];
+      if (this.mode === 'duo') this.rig2.snap(p2.pos, p2.speed > 2 ? Math.atan2(p2.vel.x, -p2.vel.z) : p2.heading);
       // A second of real stepping + visual updates so camera, trails and particles are representative.
       for (let i = 0; i < 70; i += 1) {
         this.race.step();
@@ -1086,6 +1307,53 @@ export class Game {
         for (let i = 0; i < 30; i += 1) this.syncVisuals(1 / 60);
         this.render();
       },
+      modes: () => {
+        this.toMenu(true);
+        (document.getElementById('btn-play') as HTMLButtonElement).click();
+        this.render();
+      },
+      tutorial: () => {
+        this.mode = 'tutorial';
+        raceTo(150);
+        this.render();
+      },
+      'tt-play': () => {
+        // Record a full autopilot run first so a ghost exists, then race against it.
+        this.mode = 'tt';
+        this.setTrack('backyard');
+        this.beginRace();
+        this.race.autopilot = true;
+        let last = -1;
+        simulateUntil(() => {
+          if (this.race.time !== last && this.race.phase === 'racing') this.ghost.record(this.race.time, this.race.player);
+          last = this.race.time;
+          return this.race.player.finished;
+        }, 400);
+        saveGhost(this.ghost.result('backyard', this.race.player.finishTime + 0.8, 'ghost', 0x7fd8ff));
+        this.seed += 7;
+        raceTo(236);
+        this.updateModes(1 / 60);
+        this.syncVisuals(1 / 60);
+        this.render();
+      },
+      'duo-play': () => {
+        this.mode = 'duo';
+        this.setTrack('backyard');
+        this.beginRace();
+        this.race.autopilot = true;
+        // Let the rival AI drive player two for the capture.
+        this.race.humans = [0];
+        simulateUntil(() => this.race.player.dist >= 236, 200);
+        this.race.humans = [0, 1];
+        settle();
+        this.render();
+      },
+      podium: () => {
+        this.toMenu(true);
+        this.gp = { tracks: TRACKS.map((d) => d.id), index: 4, points: [44, 38, 31, 22, 12, 9] };
+        this.showPodium();
+        this.render();
+      },
       paused: () => {
         raceTo(236);
         this.setPaused(true);
@@ -1110,6 +1378,8 @@ export class Game {
         if (!fn) throw new Error(`Unknown test state: ${name}`);
         this.pausedForScreenshot = false;
         this.paused = false;
+        this.mode = 'race';
+        this.gp = null;
         fn();
         this.publishDiagnostics();
         return { state: name };
