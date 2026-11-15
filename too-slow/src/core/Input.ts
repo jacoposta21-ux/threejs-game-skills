@@ -375,6 +375,7 @@ export class Input {
   setTouchVisible(on: boolean): void {
     this.touchVisible = on;
     this.touchRoot?.classList.toggle('hidden', !(on && this.touchActive));
+    document.body.classList.toggle('touch-ui', on && this.touchActive);
   }
 
   dispose(): void {

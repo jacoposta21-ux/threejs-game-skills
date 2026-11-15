@@ -215,7 +215,7 @@ export function buildTerrain(quality = 2): TerrainResult {
 function buildGround(quality: number, ribbonMat: THREE.MeshStandardMaterial, detail: THREE.Texture): THREE.Mesh {
   const b = track.bounds;
   const pad = 300;
-  const step = quality >= 2 ? 6 : quality === 1 ? 8 : 11;
+  const step = quality >= 2 ? 6 : quality === 1 ? 8 : quality === 0 ? 11 : 14;
   const x0 = b.minX - pad;
   const z0 = b.minZ - pad;
   const nx = Math.ceil((b.maxX - b.minX + pad * 2) / step);

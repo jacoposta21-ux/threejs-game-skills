@@ -307,10 +307,11 @@ export function buildBackyard(quality: number): BackyardResult {
   const miniDaisies: Placement[] = [];
   // --- giant grass along both verges
   const blades: Placement[] = [];
-  const grassStep = quality > 1 ? 0.62 : quality > 0 ? 0.95 : 2.4;
+  // Quality -1 is the phone tier: sparse grass, fewer props.
+  const grassStep = quality > 1 ? 0.62 : quality > 0 ? 0.95 : quality === 0 ? 2.4 : 3.6;
   const greens = track.def.theme.grassTints;
   const flora = track.def.theme.flora;
-  const bladesPerSide = flora === 'sand' ? 1 : flora === 'snow' ? 2 : 4;
+  const bladesPerSide = (flora === 'sand' ? 1 : flora === 'snow' ? 2 : 4) * (quality < 0 ? 0.5 : 1);
   const proj = { s: 0, d: 0 };
   /** True when a spot at (s, d) would sit on, or too close to, another part of the circuit. */
   const crowded = (s: number, d: number, radius: number): boolean => {
@@ -341,7 +342,7 @@ export function buildBackyard(quality: number): BackyardResult {
   // Short tufts and clover-sized daisies sprinkled on the grass racing surface (visual only).
   const tufts: Placement[] = [];
   const minis: Placement[] = [];
-  const tuftCount = quality > 0 ? 5200 : 1800;
+  const tuftCount = quality > 0 ? 5200 : quality === 0 ? 1800 : 700;
   for (let i = 0; i < tuftCount; i += 1) {
     const s = rng() * track.length;
     const d = (rng() * 2 - 1) * (track.halfWidth(s) + 4);

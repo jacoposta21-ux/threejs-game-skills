@@ -234,7 +234,7 @@ export class Game {
     );
     // URL overrides for low-spec machines and automated tests: ?q=0..2 (graphics), ?dpr=0.5..2 (render scale).
     const params = new URLSearchParams(window.location.search);
-    if (params.has('q')) this.menus.settings.quality = THREE.MathUtils.clamp(Number(params.get('q')) | 0, 0, 2);
+    if (params.has('q')) this.menus.settings.quality = THREE.MathUtils.clamp(Number(params.get('q')) | 0, -1, 2);
     if (params.has('dpr')) this.dprOverride = THREE.MathUtils.clamp(Number(params.get('dpr')) || 1, 0.25, 2);
     this.terrain = buildTerrain(this.menus.settings.quality);
     this.scene.add(this.terrain.group);
@@ -417,9 +417,9 @@ export class Game {
     this.audio.setVolumes(s.music, s.sfx);
     this.rig.shakeEnabled = s.shake;
     const auto = s.autoQuality ? this.autoLevel : 0;
-    this.maxDpr = this.dprOverride || Math.min(s.quality >= 2 ? 2 : s.quality === 1 ? 1.5 : 1, [9, 1.25, 1, 0.75][auto]);
-    this.env.setShadowQuality(Math.min(s.quality, [2, 2, 1, 0][auto]));
-    this.env.setViewDistance(Math.min(s.quality >= 2 ? 800 : s.quality === 1 ? 520 : 280, [800, 800, 520, 320][auto]), this.camera);
+    this.maxDpr = this.dprOverride || Math.min(s.quality >= 2 ? 2 : s.quality === 1 ? 1.5 : s.quality === 0 ? 1 : 0.85, [9, 1.25, 1, 0.75][auto]);
+    this.env.setShadowQuality(Math.max(0, Math.min(s.quality, [2, 2, 1, 0][auto])));
+    this.env.setViewDistance(Math.min(s.quality >= 2 ? 800 : s.quality === 1 ? 520 : s.quality === 0 ? 280 : 220, [800, 800, 520, 320][auto]), this.camera);
     this.camera2.far = this.camera.far;
     this.camera2.updateProjectionMatrix();
     this.renderer.shadowMap.needsUpdate = true;

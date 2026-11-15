@@ -45,7 +45,9 @@ function write(key: string, value: unknown): void {
 }
 
 export function loadSettings(): Settings {
-  return read<Settings>(SETTINGS_KEY, { music: 0.6, sfx: 0.8, quality: 2, shake: true, items: true, difficulty: 1, autoQuality: true });
+  // Phones and tablets start on the light tier; desktops on High.
+  const touchOnly = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches && !window.matchMedia('(pointer: fine)').matches;
+  return read<Settings>(SETTINGS_KEY, { music: 0.6, sfx: 0.8, quality: touchOnly ? -1 : 2, shake: true, items: true, difficulty: 1, autoQuality: true });
 }
 
 const bestKey = (track: string) => `tooslow.best.${track}.v1`;

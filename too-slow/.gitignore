@@ -10,3 +10,4 @@ scripts/_*.mjs
 .promo.mjs
 promo/frames/
 .single.mjs
+.phone.mjs
