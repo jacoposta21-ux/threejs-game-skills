@@ -24,8 +24,8 @@ export interface SnailPose {
   shield: boolean;
 }
 
-export type ShellPattern = 'stripes' | 'spots' | 'swirl' | 'solid';
-export type HatKind = 'none' | 'crown' | 'cap' | 'flower' | 'propeller' | 'party';
+export type ShellPattern = 'stripes' | 'spots' | 'swirl' | 'solid' | 'gold' | 'galaxy';
+export type HatKind = 'none' | 'crown' | 'cap' | 'flower' | 'propeller' | 'party' | 'chef' | 'viking' | 'wizard' | 'halo';
 
 /** Everything the garage can change. */
 export interface SnailLook {
@@ -123,6 +123,14 @@ function buildBody(skin: THREE.Color): THREE.BufferGeometry {
 
 /** Spiral shell: a tube swept along a logarithmic spiral in the YZ plane, so it rolls like a wheel about X. */
 function buildShell(light: THREE.Color, dark: THREE.Color, pattern: ShellPattern): THREE.BufferGeometry {
+  if (pattern === 'gold') {
+    light = new THREE.Color(0xffd84a);
+    dark = new THREE.Color(0xb47a12);
+  }
+  const navy = new THREE.Color(0x1a1446);
+  const nebulaA = new THREE.Color(0x8a3cff);
+  const nebulaB = new THREE.Color(0x2fd0ff);
+  const star = new THREE.Color(0xffffff);
   const turns = 2.75;
   const thetaMax = turns * Math.PI * 2;
   const growth = Math.log(2.15) / (Math.PI * 2);
@@ -153,7 +161,17 @@ function buildShell(light: THREE.Color, dark: THREE.Color, pattern: ShellPattern
       positions.push(side * rho * wide, cy + ey * out * rho, cz + ez * out * rho);
       // Pattern, then a cream ridge on the crest and darker seams.
       let k: number;
-      if (pattern === 'stripes') k = THREE.MathUtils.smoothstep(0.5 + 0.5 * Math.sin(th * 5.5 + Math.abs(side) * 1.4), 0.25, 0.6);
+      if (pattern === 'galaxy') {
+        // Deep space with drifting nebula bands and pin-prick stars.
+        const neb = 0.5 + 0.5 * Math.sin(a * 2 + th * 2.2);
+        col.copy(navy).lerp(neb > 0.5 ? nebulaA : nebulaB, THREE.MathUtils.smoothstep(Math.abs(neb - 0.5) * 2, 0.3, 1) * 0.75);
+        const h = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453;
+        if (h - Math.floor(h) > 0.93) col.lerp(star, 0.85);
+        colors.push(col.r, col.g, col.b);
+        continue;
+      }
+      if (pattern === 'gold') k = THREE.MathUtils.smoothstep(0.5 + 0.5 * Math.sin(th * 5.5 + Math.abs(side) * 1.4), 0.2, 0.7);
+      else if (pattern === 'stripes') k = THREE.MathUtils.smoothstep(0.5 + 0.5 * Math.sin(th * 5.5 + Math.abs(side) * 1.4), 0.25, 0.6);
       else if (pattern === 'swirl') k = THREE.MathUtils.smoothstep(0.5 + 0.5 * Math.sin(a * 2 + th * 3), 0.35, 0.6);
       else if (pattern === 'spots') {
         const spot = Math.sin(th * 7.3 + 0.7) * Math.sin(a * 3 + th * 1.9);
@@ -240,6 +258,7 @@ export class SnailModel {
   private lastSpeed = 0;
   private time = 0;
   private stretch = 0;
+  private galaxy = false;
 
   constructor(profile: RacerProfile, seedPhase: number) {
     const skin = new THREE.Color(profile.skin);
@@ -349,6 +368,16 @@ export class SnailModel {
     this.root.add(this.tilt, this.bubble);
     this.root.name = `snail-${profile.name}`;
     this.setHat(profile.hat ?? 'none', new THREE.Color(profile.shell));
+    this.tuneShell(profile.pattern ?? 'stripes');
+  }
+
+  /** Gold shells are metallic, galaxy shells glow faintly. */
+  private tuneShell(pattern: ShellPattern): void {
+    const m = this.shellMat;
+    m.metalness = pattern === 'gold' ? 0.65 : 0;
+    m.roughness = pattern === 'gold' ? 0.22 : 0.32;
+    this.galaxy = pattern === 'galaxy';
+    if (this.galaxy) m.emissive.set(0x6a3cff);
   }
 
   /** Repaint and re-hat the snail (garage). */
@@ -363,6 +392,7 @@ export class SnailModel {
     this.lipMat.color.set(look.shellDark).lerp(new THREE.Color(0xfff1cf), 0.25);
     this.shellMat.emissive.set(look.shell);
     this.setHat(look.hat, new THREE.Color(look.shell));
+    this.tuneShell(look.pattern);
   }
 
   private setHat(kind: HatKind, accent: THREE.Color): void {
@@ -468,7 +498,7 @@ export class SnailModel {
     this.shellPivot.rotation.x = lerp(-0.28 + wobble, 0, r);
     this.shellPivot.scale.setScalar(lerp(1.14, 1.12, r));
     this.shellSpin.rotation.x = r > 0.05 ? pose.rollAngle : 0;
-    this.shellMat.emissiveIntensity = lerp(this.shellMat.emissiveIntensity, pose.boosting ? 0.55 : 0, Math.min(1, dt * 6));
+    this.shellMat.emissiveIntensity = lerp(this.shellMat.emissiveIntensity, pose.boosting ? 0.55 : this.galaxy ? 0.18 : 0, Math.min(1, dt * 6));
 
     // --- head, eye stalks and face
     const accel = (pose.speed - this.lastSpeed) / Math.max(dt, 1e-3);
@@ -569,6 +599,34 @@ function buildHat(kind: HatKind, accent: THREE.Color): THREE.Group | null {
     prop.name = 'propeller';
     prop.position.y = 0.145;
     g.add(prop);
+  } else if (kind === 'chef') {
+    add(new THREE.CylinderGeometry(0.085, 0.09, 0.09, 16), 0xffffff, 0, 0.045, 0);
+    for (let i = 0; i < 5; i += 1) {
+      const a = (i / 5) * Math.PI * 2;
+      add(new THREE.SphereGeometry(0.062, 12, 8), 0xffffff, Math.sin(a) * 0.055, 0.125, Math.cos(a) * 0.055);
+    }
+    add(new THREE.SphereGeometry(0.07, 12, 8), 0xffffff, 0, 0.15, 0);
+  } else if (kind === 'viking') {
+    shiny = true;
+    add(new THREE.SphereGeometry(0.11, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0x9aa3ad);
+    add(new THREE.TorusGeometry(0.108, 0.014, 6, 20).rotateX(Math.PI / 2), 0xc9a24a, 0, 0.005, 0);
+    for (const s of [-1, 1]) {
+      const horn = new THREE.ConeGeometry(0.026, 0.13, 10).rotateZ(-s * 1.05);
+      add(horn, 0xfff1cf, s * 0.13, 0.07, 0);
+    }
+  } else if (kind === 'wizard') {
+    add(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 22), 0x3a3ab8, 0, 0.004, 0);
+    add(new THREE.ConeGeometry(0.085, 0.26, 18).rotateZ(0.12), 0x3a3ab8, -0.012, 0.135, 0);
+    for (let i = 0; i < 4; i += 1) add(new THREE.OctahedronGeometry(0.018), 0xffe04a, Math.sin(i * 1.9) * 0.06, 0.05 + i * 0.045, 0.06 - i * 0.012);
+  } else if (kind === 'halo') {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.11, 0.018, 10, 28).rotateX(Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0xffe27a, emissive: 0xffc928, emissiveIntensity: 0.9, roughness: 0.3 }),
+    );
+    ring.position.y = 0.2;
+    ring.name = 'halo';
+    g.add(ring);
+    return g;
   } else if (kind === 'party') {
     const cone = new THREE.ConeGeometry(0.075, 0.2, 16, 6).translate(0, 0.1, 0);
     parts.push({ geo: cone, color: accent });

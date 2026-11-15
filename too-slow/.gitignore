@@ -6,3 +6,4 @@ artifacts/
 .DS_Store
 
 scripts/_*.mjs
+.shots.mjs

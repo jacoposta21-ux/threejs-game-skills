@@ -1652,3 +1652,20 @@ body.touch-race #hud .bottom-cluster { transform: translateY(-110px); }
 #hud2 .h2-boost i { display: block; height: 100%; width: 0; background: var(--sun); }
 #hud2 .h2-toast { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); font: 400 34px var(--title); color: var(--sun); -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; opacity: 0; transition: opacity 0.3s; }
 #hud2 .h2-toast.on { opacity: 1; }
+.seg button.locked { opacity: 0.55; cursor: help; }
+.garage-note { margin: 0; min-height: 1.3em; font: 600 14px var(--body); color: #8a4a12; }
+.garage-stats { margin: 0; font: 500 13px var(--body); opacity: 0.75; }
+#perf {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #b8ff8a;
+  font: 600 12px/1.2 ui-monospace, monospace;
+  pointer-events: none;
+  white-space: nowrap;
+}

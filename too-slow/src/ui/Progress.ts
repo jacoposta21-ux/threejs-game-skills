@@ -162,3 +162,52 @@ export function addFame(track: string, entry: FameEntry): number {
   write(fameKey(track), list.slice(0, 5));
   return rank <= 5 ? rank : 0;
 }
+
+// ------------------------------------------------------------ cosmetics
+
+export interface Cosmetic {
+  id: string;
+  kind: 'hat' | 'pattern' | 'trail';
+  value: string;
+  label: string;
+  /** How to earn it (shown on the locked button). */
+  how: string;
+  earned(): boolean;
+}
+
+const golds = () => Object.values(loadMedals()).filter((m) => m === 3).length;
+
+export const TRAILS: Record<string, number> = {
+  lime: 0xa6f060,
+  sky: 0x6fd0ff,
+  pink: 0xff8fd0,
+  gold: 0xffd23a,
+  rainbow: 0xff5a4a,
+};
+
+export const COSMETICS: Cosmetic[] = [
+  { id: 'hat-chef', kind: 'hat', value: 'chef', label: 'Chef', how: 'Finish the tutorial', earned: () => tutorialDone() },
+  { id: 'hat-viking', kind: 'hat', value: 'viking', label: 'Viking', how: 'Win 3 races', earned: () => loadStats().wins >= 3 },
+  { id: 'hat-wizard', kind: 'hat', value: 'wizard', label: 'Wizard', how: 'Land 30 tricks', earned: () => loadStats().tricks >= 30 },
+  { id: 'hat-halo', kind: 'hat', value: 'halo', label: 'Halo', how: 'Win the Grand Prix', earned: () => Object.values(loadTrophies()).includes(1) },
+  { id: 'pat-gold', kind: 'pattern', value: 'gold', label: 'Gold', how: 'Earn 3 gold medals in Time Trial', earned: () => golds() >= 3 },
+  { id: 'pat-galaxy', kind: 'pattern', value: 'galaxy', label: 'Galaxy', how: 'Win the Grand Prix on Hard', earned: () => loadTrophies()['2'] === 1 },
+  { id: 'trail-sky', kind: 'trail', value: 'sky', label: 'Sky', how: 'Finish 5 races', earned: () => loadStats().races >= 5 },
+  { id: 'trail-pink', kind: 'trail', value: 'pink', label: 'Bubblegum', how: 'Finish on the podium 10 times', earned: () => loadStats().podiums >= 10 },
+  { id: 'trail-gold', kind: 'trail', value: 'gold', label: 'Gold', how: 'Earn a gold medal in Time Trial', earned: () => golds() >= 1 },
+  { id: 'trail-rainbow', kind: 'trail', value: 'rainbow', label: 'Rainbow', how: 'Gold medal on every track', earned: () => golds() >= Object.keys(MEDAL_TIMES).length },
+];
+
+export function earnedCosmetics(): Set<string> {
+  const set = new Set<string>();
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('unlock') === 'all') {
+    for (const c of COSMETICS) set.add(c.id);
+    return set;
+  }
+  for (const c of COSMETICS) if (c.earned()) set.add(c.id);
+  return set;
+}
+
+export function cosmeticFor(kind: Cosmetic['kind'], value: string): Cosmetic | undefined {
+  return COSMETICS.find((c) => c.kind === kind && c.value === value);
+}

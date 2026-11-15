@@ -134,6 +134,9 @@
           <div class="garage-group"><span>Pattern</span><div class="seg seg-wrap" id="garage-pattern"></div></div>
           <div class="garage-group"><span>Body</span><div class="swatches" id="garage-skin"></div></div>
           <div class="garage-group"><span>Hat</span><div class="seg seg-wrap" id="garage-hat"></div></div>
+          <div class="garage-group"><span>Slime trail</span><div class="seg seg-wrap" id="garage-trail"></div></div>
+          <p class="garage-note" id="garage-note"></p>
+          <p class="garage-stats" id="garage-stats"></p>
           <div class="garage-buttons">
             <button class="btn" id="btn-random-look" type="button">RANDOM</button>
             <button class="btn btn-primary" data-back type="button">DONE</button>
@@ -196,6 +199,8 @@
           </div>
           <label class="row"><span>Camera shake</span><input id="set-shake" type="checkbox" checked /></label>
           <label class="row"><span>Items</span><input id="set-items" type="checkbox" checked /></label>
+          <label class="row"><span>Auto graphics</span><input id="set-auto" type="checkbox" checked /></label>
+          <p class="small">F3 shows frame rate · auto graphics eases the load if the game stutters</p>
           <button class="btn btn-primary" data-back type="button">DONE</button>
         </div>
       </section>
@@ -248,6 +253,7 @@
         </div>
       </section>
 
+      <div id="perf" class="hidden" aria-hidden="true"></div>
       <div id="fade" aria-hidden="true"></div>
       <div id="loading"><span class="loading-snail"></span>Waking up the snails…</div>
     </main>

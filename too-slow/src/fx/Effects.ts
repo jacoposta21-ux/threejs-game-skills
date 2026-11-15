@@ -137,7 +137,7 @@ export class Trail {
   private readonly side = new THREE.Vector3();
 
   constructor(
-    private readonly color: THREE.Color,
+    readonly color: THREE.Color,
     private readonly width: number,
     private readonly lifetime: number,
     additive: boolean,

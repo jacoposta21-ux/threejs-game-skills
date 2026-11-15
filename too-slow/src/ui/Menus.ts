@@ -1,6 +1,6 @@
 import type { RacerProfile } from '../ai/SnailAI';
 import type { RaceMode } from '../racing/RaceManager';
-import { loadGhost, loadMedals, loadTrophies, MEDAL_NAMES, MEDAL_TIMES, tutorialDone, type Medal } from './Progress';
+import { cosmeticFor, earnedCosmetics, loadGhost, loadMedals, loadStats, loadTrophies, MEDAL_NAMES, MEDAL_TIMES, TRAILS, tutorialDone, type Medal } from './Progress';
 import type { HatKind, ShellPattern, SnailLook } from '../characters/SnailModel';
 import { TRACKS } from '../world/tracks';
 import { formatTime, ordinal } from './Hud';
@@ -13,10 +13,14 @@ export interface Settings {
   items: boolean;
   /** Rival skill: 0 easy, 1 normal, 2 hard. */
   difficulty: number;
+  /** Lower resolution and shadows automatically when the frame rate drops. */
+  autoQuality: boolean;
 }
 
 export interface PlayerLook extends SnailLook {
   name: string;
+  /** Slime trail colour id (see TRAILS). */
+  trail: string;
 }
 
 const SETTINGS_KEY = 'tooslow.settings.v1';
@@ -41,7 +45,7 @@ function write(key: string, value: unknown): void {
 }
 
 export function loadSettings(): Settings {
-  return read<Settings>(SETTINGS_KEY, { music: 0.6, sfx: 0.8, quality: 2, shake: true, items: true, difficulty: 1 });
+  return read<Settings>(SETTINGS_KEY, { music: 0.6, sfx: 0.8, quality: 2, shake: true, items: true, difficulty: 1, autoQuality: true });
 }
 
 const bestKey = (track: string) => `tooslow.best.${track}.v1`;
@@ -62,6 +66,15 @@ const PATTERNS: [ShellPattern, string][] = [
   ['spots', 'Spots'],
   ['swirl', 'Swirl'],
   ['solid', 'Solid'],
+  ['gold', 'Gold'],
+  ['galaxy', 'Galaxy'],
+];
+const TRAIL_CHOICES: [string, string][] = [
+  ['lime', 'Lime'],
+  ['sky', 'Sky'],
+  ['pink', 'Bubblegum'],
+  ['gold', 'Gold'],
+  ['rainbow', 'Rainbow'],
 ];
 const HATS: [HatKind, string][] = [
   ['none', 'None'],
@@ -70,6 +83,10 @@ const HATS: [HatKind, string][] = [
   ['flower', 'Flower'],
   ['propeller', 'Propeller'],
   ['party', 'Party'],
+  ['chef', 'Chef'],
+  ['viking', 'Viking'],
+  ['wizard', 'Wizard'],
+  ['halo', 'Halo'],
 ];
 
 /** A darker shade of a shell colour for the pattern. */
@@ -82,7 +99,8 @@ export function shellDarkOf(color: number): number {
 }
 
 export function loadLook(): PlayerLook {
-  const look = read<PlayerLook>(LOOK_KEY, { name: 'You', shell: 0xff7a2f, shellDark: 0xb8431a, skin: 0xf2c45a, pattern: 'stripes', hat: 'none' });
+  const look = read<PlayerLook>(LOOK_KEY, { name: 'You', shell: 0xff7a2f, shellDark: 0xb8431a, skin: 0xf2c45a, pattern: 'stripes', hat: 'none', trail: 'lime' });
+  if (!(look.trail in TRAILS)) look.trail = 'lime';
   look.name = (look.name || 'You').slice(0, 12);
   look.shellDark = shellDarkOf(look.shell);
   return look;
@@ -156,6 +174,8 @@ export interface ResultsData {
   hasNext: boolean;
   lapTimes: number[];
   unlocked: string | null;
+  /** Cosmetics earned by this race. */
+  cosmetics: string[];
   mode: RaceMode;
   /** Time trial: medal earned this run. */
   medal?: { medal: Medal; improved: boolean; nextTarget: number | null; ghostSaved: boolean };
@@ -170,6 +190,7 @@ export interface PodiumData {
   place: number;
   difficulty: number;
   improved: boolean;
+  cosmetics: string[];
 }
 
 function el<T extends HTMLElement>(id: string): T {
@@ -196,6 +217,7 @@ export class Menus {
 
   readonly look: PlayerLook = loadLook();
   mode: RaceMode = 'race';
+  private paintGarage: () => void = () => {};
 
   constructor(
     handlers: MenuHandlers,
@@ -240,7 +262,10 @@ export class Menus {
       }),
     );
     paintDiff();
-    on('btn-garage', () => this.show('garage'));
+    on('btn-garage', () => {
+      this.paintGarage();
+      this.show('garage');
+    });
     on('btn-next', () => handlers.nextTrack());
     on('btn-how', () => this.open('how'));
     on('btn-settings', () => this.open('settings'));
@@ -298,6 +323,12 @@ export class Menus {
     items.checked = this.settings.items;
     items.addEventListener('change', () => {
       this.settings.items = items.checked;
+      commit();
+    });
+    const auto = el<HTMLInputElement>('set-auto');
+    auto.checked = this.settings.autoQuality;
+    auto.addEventListener('change', () => {
+      this.settings.autoQuality = auto.checked;
       commit();
     });
   }
@@ -388,14 +419,26 @@ export class Menus {
         box.appendChild(b);
       }
     };
-    const choices = <T extends string>(id: string, opts: [T, string][], key: 'pattern' | 'hat') => {
+    const note = el('garage-note');
+    const choices = <T extends string>(id: string, opts: [T, string][], key: 'pattern' | 'hat' | 'trail') => {
       const box = el(id);
       for (const [value, label] of opts) {
         const b = document.createElement('button');
         b.type = 'button';
         b.dataset.v = value;
+        b.dataset.label = label;
         b.textContent = label;
+        const unlock = cosmeticFor(key, value);
+        const explain = () => {
+          note.textContent = b.classList.contains('locked') && unlock ? `🔒 ${label}: ${unlock.how}` : '';
+        };
+        b.addEventListener('pointerenter', explain);
+        b.addEventListener('focus', explain);
         b.addEventListener('click', () => {
+          if (b.classList.contains('locked')) {
+            explain();
+            return;
+          }
           (look[key] as string) = value;
           handlers.sound('click');
           commit();
@@ -407,6 +450,7 @@ export class Menus {
     swatches('garage-skin', SKIN_COLORS, 'skin');
     choices('garage-pattern', PATTERNS, 'pattern');
     choices('garage-hat', HATS, 'hat');
+    choices('garage-trail', TRAIL_CHOICES, 'trail');
     const name = el<HTMLInputElement>('garage-name');
     name.value = look.name;
     name.addEventListener('input', () => {
@@ -418,8 +462,13 @@ export class Menus {
       const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
       look.shell = pick(SHELL_COLORS);
       look.skin = pick(SKIN_COLORS);
-      look.pattern = pick(PATTERNS)[0];
-      look.hat = pick(HATS)[0];
+      const earned = earnedCosmetics();
+      const open = <T extends string>(kind: 'hat' | 'pattern' | 'trail', list: [T, string][]) => list.filter(([v]) => {
+        const c = cosmeticFor(kind, v);
+        return !c || earned.has(c.id);
+      });
+      look.pattern = pick(open('pattern', PATTERNS))[0];
+      look.hat = pick(open('hat', HATS))[0];
       handlers.sound('click');
       commit();
     });
@@ -428,8 +477,35 @@ export class Menus {
       el('garage-skin').querySelectorAll<HTMLElement>('.swatch').forEach((b) => b.classList.toggle('on', Number(b.dataset.c) === look.skin));
       el('garage-pattern').querySelectorAll<HTMLElement>('button').forEach((b) => b.classList.toggle('on', b.dataset.v === look.pattern));
       el('garage-hat').querySelectorAll<HTMLElement>('button').forEach((b) => b.classList.toggle('on', b.dataset.v === look.hat));
+      el('garage-trail').querySelectorAll<HTMLElement>('button').forEach((b) => b.classList.toggle('on', b.dataset.v === look.trail));
     };
-    paint();
+    this.paintGarage = () => {
+      const earned = earnedCosmetics();
+      for (const [id, kind] of [['garage-pattern', 'pattern'], ['garage-hat', 'hat'], ['garage-trail', 'trail']] as const) {
+        el(id)
+          .querySelectorAll<HTMLButtonElement>('button')
+          .forEach((b) => {
+            const c = cosmeticFor(kind, b.dataset.v ?? '');
+            const locked = !!c && !earned.has(c.id);
+            b.classList.toggle('locked', locked);
+            b.textContent = locked ? `🔒 ${b.dataset.label}` : (b.dataset.label ?? '');
+            b.title = locked && c ? c.how : '';
+          });
+      }
+      // A cosmetic chosen earlier but no longer earned (e.g. cleared storage) falls back to the default.
+      const check = (kind: 'hat' | 'pattern' | 'trail', fallback: string) => {
+        const c = cosmeticFor(kind, look[kind] as string);
+        if (c && !earned.has(c.id)) (look[kind] as string) = fallback;
+      };
+      check('hat', 'none');
+      check('pattern', 'stripes');
+      check('trail', 'lime');
+      const s = loadStats();
+      el('garage-stats').textContent = `Races ${s.races} · Wins ${s.wins} · Podiums ${s.podiums} · Tricks ${s.tricks} · ${(s.distance / 1000).toFixed(1)} km rolled`;
+      note.textContent = '';
+      paint();
+    };
+    this.paintGarage();
   }
 
   private open(screen: Screen): void {
@@ -511,8 +587,9 @@ export class Menus {
       laps.appendChild(span);
     });
     const unlock = el('results-unlock');
-    unlock.classList.toggle('hidden', !data.unlocked);
-    unlock.textContent = data.unlocked ? `New track unlocked: ${data.unlocked}!` : '';
+    const news = [data.unlocked ? `New track: ${data.unlocked}!` : '', ...data.cosmetics.map((c) => `Unlocked: ${c}!`)].filter(Boolean);
+    unlock.classList.toggle('hidden', news.length === 0);
+    unlock.textContent = news.join('  ·  ');
     el('results-time').textContent = formatTime(data.time);
     el('results-best').textContent = data.best ? formatTime(data.best) : '–';
     el('results-speed').textContent = `${Math.round(data.topSpeedKmh)} km/h`;
@@ -560,7 +637,7 @@ export class Menus {
 
   showPodium(data: PodiumData): void {
     const diff = ['Easy', 'Normal', 'Hard'][data.difficulty] ?? 'Normal';
-    el('podium-kicker').textContent = `Garden Cup · ${diff}`;
+    el('podium-kicker').textContent = `Garden Cup · ${diff}` + (data.cosmetics.length ? ` · Unlocked: ${data.cosmetics.join(', ')}!` : '');
     el('podium-title').textContent = data.place === 1 ? 'You won the cup!' : data.place <= 3 ? `${data.place}${ordinal(data.place)} in the cup!` : 'Cup complete';
     const podium = el('podium');
     podium.replaceChildren();

@@ -10,7 +10,7 @@ import { createRenderer, resizeRenderer } from '../core/Renderer';
 import { Particles, SpeedLines, Trail } from '../fx/Effects';
 import { TUNE, type RacerBody } from '../physics/RacerBody';
 import { FIXED_DT, RACER_COUNT, RaceManager, type Difficulty, type RaceMode } from '../racing/RaceManager';
-import { addFame, addStats, GP_POINTS, loadGhost, medalFor, MEDAL_TIMES, saveGhost, saveMedal, saveTrophy, setTutorialDone } from '../ui/Progress';
+import { addFame, addStats, COSMETICS, earnedCosmetics, GP_POINTS, TRAILS, loadGhost, medalFor, MEDAL_TIMES, saveGhost, saveMedal, saveTrophy, setTutorialDone } from '../ui/Progress';
 import { Hud2 } from '../ui/Hud2';
 import { GhostRunner } from './GhostRunner';
 import { Tutorial } from './Tutorial';
@@ -127,6 +127,12 @@ export class Game {
   private muted = false;
   private maxDpr = 2;
   private dprOverride = 0;
+  /** Automatic graphics easing: 0 = as set, 3 = lowest. */
+  private autoLevel = 0;
+  private lowFpsTime = 0;
+  private perfTimer = 0;
+  private frameMs = 16;
+  private readonly perfEl = document.getElementById('perf');
   private finishTimer = 0;
   private resultsShown = false;
   private boostWasReady = false;
@@ -258,6 +264,7 @@ export class Game {
         this.audio.setMuted(this.muted);
       },
       gesture: () => this.onGesture(),
+      debug: () => this.perfEl?.classList.toggle('hidden'),
     });
     window.addEventListener('blur', this.onBlur);
     document.addEventListener('visibilitychange', this.onBlur);
@@ -332,6 +339,7 @@ export class Game {
     p.pattern = look.pattern;
     p.hat = look.hat;
     p.name = look.name;
+    if (this.views[0]) this.views[0].slime.color.set(TRAILS[look.trail] ?? TRAILS.lime);
     if (rebuild && this.views[0]) {
       this.views[0].model.setLook(look);
       this.hud.refreshColors();
@@ -370,9 +378,12 @@ export class Game {
     this.race.items.enabled = s.items && this.mode !== 'tt';
     this.audio.setVolumes(s.music, s.sfx);
     this.rig.shakeEnabled = s.shake;
-    this.maxDpr = this.dprOverride || (s.quality >= 2 ? 2 : s.quality === 1 ? 1.5 : 1);
-    this.env.setShadowQuality(s.quality);
-    this.env.setViewDistance(s.quality >= 2 ? 800 : s.quality === 1 ? 520 : 280, this.camera);
+    const auto = s.autoQuality ? this.autoLevel : 0;
+    this.maxDpr = this.dprOverride || Math.min(s.quality >= 2 ? 2 : s.quality === 1 ? 1.5 : 1, [9, 1.25, 1, 0.75][auto]);
+    this.env.setShadowQuality(Math.min(s.quality, [2, 2, 1, 0][auto]));
+    this.env.setViewDistance(Math.min(s.quality >= 2 ? 800 : s.quality === 1 ? 520 : 280, [800, 800, 520, 320][auto]), this.camera);
+    this.camera2.far = this.camera.far;
+    this.camera2.updateProjectionMatrix();
     this.renderer.shadowMap.needsUpdate = true;
   }
 
@@ -498,15 +509,37 @@ export class Game {
     }
   }
 
+  /** F3 overlay, and easing the graphics when a real machine cannot keep up. */
+  private watchPerformance(delta: number): void {
+    this.perfTimer -= delta;
+    if (this.perfEl && !this.perfEl.classList.contains('hidden') && this.perfTimer <= 0) {
+      this.perfTimer = 0.25;
+      const info = this.renderer.info.render;
+      this.perfEl.textContent = `${Math.round(this.fps)} fps · ${this.frameMs.toFixed(1)} ms · ${info.calls} calls · ${(info.triangles / 1000).toFixed(0)}k tris · Q${this.menus.settings.quality} · DPR ${Math.min(window.devicePixelRatio || 1, this.maxDpr).toFixed(2)}${this.autoLevel ? ` · auto −${this.autoLevel}` : ''}`;
+    }
+    const racing = this.state === 'racing' && !this.paused && this.race.phase === 'racing';
+    if (!racing || !this.menus.settings.autoQuality || this.dprOverride || this.autoLevel >= 3) return;
+    if (this.fps < 38 && delta < 0.5) this.lowFpsTime += delta;
+    else this.lowFpsTime = Math.max(0, this.lowFpsTime - delta * 0.5);
+    if (this.lowFpsTime > 4) {
+      this.lowFpsTime = 0;
+      this.autoLevel += 1;
+      this.applySettings(this.menus.settings);
+      this.hud.toast('GRAPHICS EASED', 'info', 'for a smoother race');
+    }
+  }
+
   private showPodium(): void {
     const gp = this.gp;
     if (!gp) return;
     const rows = gp.points.map((points, racer) => ({ racer, points })).sort((a, b) => b.points - a.points || a.racer - b.racer);
     const place = rows.findIndex((r) => r.racer === 0) + 1;
+    const earnedBefore = earnedCosmetics();
     const improved = saveTrophy(this.menus.settings.difficulty, place);
     if (place === 1) addStats({ cups: 1 });
+    const cosmetics = this.newCosmetics(earnedBefore);
     this.audio.play(place <= 3 ? 'finish' : 'checkpoint');
-    this.menus.showPodium({ rows, place, difficulty: this.menus.settings.difficulty, improved });
+    this.menus.showPodium({ rows, place, difficulty: this.menus.settings.difficulty, improved, cosmetics });
     this.gp = null;
   }
 
@@ -515,6 +548,8 @@ export class Game {
   private update(delta: number, _elapsed: number): void {
     this.frame += 1;
     this.fps += (1 / Math.max(delta, 1e-3) - this.fps) * 0.05;
+    this.frameMs += (delta * 1000 - this.frameMs) * 0.1;
+    this.watchPerformance(delta);
     if (resizeRenderer(this.renderer, this.camera, this.maxDpr)) this.particles.setViewportHeight(this.canvas.clientHeight);
     if (this.pausedForScreenshot) {
       this.publishDiagnostics();
@@ -946,8 +981,15 @@ export class Game {
     this.hud.hint(hint);
   }
 
+  /** Names of cosmetics earned since `before`. */
+  private newCosmetics(before: Set<string>): string[] {
+    const now = earnedCosmetics();
+    return COSMETICS.filter((c) => now.has(c.id) && !before.has(c.id)).map((c) => `${c.label} ${c.kind === 'pattern' ? 'shell' : c.kind === 'trail' ? 'trail' : 'hat'}`);
+  }
+
   private showResults(): void {
     this.resultsShown = true;
+    const earnedBefore = earnedCosmetics();
     const race = this.race;
     const p = race.player;
     const mode = this.mode;
@@ -1008,6 +1050,7 @@ export class Game {
       hasNext: TRACKS.some((d) => d.id !== id && loadUnlocked().has(d.id)),
       lapTimes: [...race.lapTimes],
       unlocked,
+      cosmetics: this.newCosmetics(earnedBefore),
       mode,
       medal,
       gp,
@@ -1090,6 +1133,8 @@ export class Game {
         }
       }
     }
+
+    if (this.menus.look.trail === 'rainbow') this.views[0].slime.color.setHSL((this.time * 0.35) % 1, 0.85, 0.62);
 
     // Camera.
     const p = race.player;
@@ -1352,6 +1397,23 @@ export class Game {
         this.toMenu(true);
         this.gp = { tracks: TRACKS.map((d) => d.id), index: 4, points: [44, 38, 31, 22, 12, 9] };
         this.showPodium();
+        this.render();
+      },
+      'garage-wizard': () => {
+        this.setTrack('backyard');
+        this.toMenu(true);
+        const look = { ...this.menus.look, hat: 'wizard' as const, pattern: 'galaxy' as const, trail: 'rainbow' };
+        this.applyLook(look);
+        this.menus.show('garage');
+        for (let i = 0; i < 30; i += 1) this.syncVisuals(1 / 60);
+        this.render();
+      },
+      'garage-viking': () => {
+        this.setTrack('backyard');
+        this.toMenu(true);
+        this.applyLook({ ...this.menus.look, hat: 'viking', pattern: 'gold' });
+        this.menus.show('garage');
+        for (let i = 0; i < 30; i += 1) this.syncVisuals(1 / 60);
         this.render();
       },
       paused: () => {
