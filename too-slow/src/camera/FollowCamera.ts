@@ -85,7 +85,7 @@ export class FollowCamera {
     this.height = damp(this.height, 2.35 - k * 0.65, 3, dt);
     this.fov = damp(this.fov, 58 + k * 20 + (boosting ? 7 : 0), boosting ? 6 : 3, dt);
     // Vertical follow is softer in the air so jumps read as height, not as a glued camera.
-    this.focusY = damp(this.focusY, target.y, racer.grounded ? 12 : 5, dt);
+    this.focusY = racer.cannon > 0 ? target.y : damp(this.focusY, target.y, racer.grounded ? 12 : 5, dt);
     // Let the snail rise away from the camera a little on take-off, but never lose it below the frame on the way down.
     if (this.focusY < target.y - 3) this.focusY = target.y - 3;
     if (this.focusY > target.y + 1.1) this.focusY = target.y + 1.1;
@@ -98,7 +98,9 @@ export class FollowCamera {
     const aheadY = track.height(proj.s, proj.d) + 0.6;
     // In flight the view tips further down: the landing zone is in sight and the snail sits mid-screen.
     const drop = racer.flightTime > 0.15 ? 5.5 : 2.5;
-    this.lookY = damp(this.lookY, Math.min(look.y, Math.max(look.y - drop, aheadY)), 6, dt);
+    // In the Boing Mushroom throw, keep the snail itself in the middle of the frame.
+    const lookTarget = racer.cannon > 0 ? target.y + 0.4 : Math.min(look.y, Math.max(look.y - drop, aheadY));
+    this.lookY = racer.cannon > 0 ? lookTarget : damp(this.lookY, lookTarget, 6, dt);
     look.y = this.lookY;
 
     // Terrain avoidance: keep clearance above whatever ground is under the camera.
@@ -109,7 +111,8 @@ export class FollowCamera {
     const cam = this.camera;
     cam.position.x = damp(cam.position.x, desired.x, 14, dt);
     cam.position.z = damp(cam.position.z, desired.z, 14, dt);
-    cam.position.y = damp(cam.position.y, desired.y, 10, dt);
+    // In the throw the snail climbs ~70 m/s: track it rigidly so it never slips out of frame.
+    cam.position.y = racer.cannon > 0 ? desired.y : damp(cam.position.y, desired.y, 10, dt);
     if (cam.position.y < ground) cam.position.y = ground;
     cam.lookAt(look);
 

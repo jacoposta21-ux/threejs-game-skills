@@ -4,18 +4,19 @@
 
 A 3D downhill snail racing game for desktop browsers, built with Three.js, TypeScript and Vite.
 You are a snail. You cannot accelerate. Gravity can. Crawl to the edge, tuck into your shell, and
-let the hill do the rest — six snails, three point-to-point courses, kart-style item boxes, boost
-pads and drift mini-turbos, and a garage to dress up your snail.
+let the hill do the rest — six snails, five unlockable three-lap circuits, a giant Boing Mushroom
+that throws you back to the top every lap, kart-style items, boost pads, drift mini-turbos, insects
+on the course, and a garage to dress up your snail.
 
 ![Menu](docs/screens/menu.jpg)
 
-| Leaf Slide | Root Maze |
+| The Backyard | Veggie Patch |
 | --- | --- |
-| ![Leaf Slide](docs/screens/active-play.jpg) | ![Root Maze](docs/screens/root-maze.jpg) |
-| **The Big Drop** | **Final Sprint** |
-| ![The Big Drop](docs/screens/big-drop.jpg) | ![Final Sprint](docs/screens/final-sprint.jpg) |
-| **Veggie Patch** | **Lily Pond** |
-| ![Veggie Patch](docs/screens/veggie.jpg) | ![Lily Pond](docs/screens/pond.jpg) |
+| ![The Backyard](docs/screens/big-drop.jpg) | ![Veggie Patch](docs/screens/veggie.jpg) |
+| **Lily Pond** | **Sandbox Canyon** |
+| ![Lily Pond](docs/screens/pond.jpg) | ![Sandbox Canyon](docs/screens/sandbox.jpg) |
+| **Frosty Morning** | **Boing Mushroom throw** |
+| ![Frosty Morning](docs/screens/frost.jpg) | ![Boing Mushroom](docs/screens/cannon.jpg) |
 | **Track select** | **Customize** |
 | ![Track select](docs/screens/tracks.jpg) | ![Customize](docs/screens/garage.jpg) |
 
@@ -88,26 +89,34 @@ Arrow keys mirror `WASD`.
 - **Customize**: name, shell colour, shell pattern, body colour and hat; saved in the browser.
 - Leave the course for 2.5 s (or press `R`) and you return to the last checkpoint.
 
+### Laps and the Boing Mushroom
+
+Every race is three laps of a closed circuit. A lap starts on a flat plateau, runs downhill through
+the course, and ends at the bottom on a giant red mushroom cap that bounces everyone 70–100 m back
+up onto the plateau — three and a half seconds of flight in which `Q` / `E` spins score tricks
+(land straight or lose speed). The finish line is on the plateau, just after the landing. A lap
+only counts once every checkpoint of it has been passed, so cutting across the infield gains nothing.
+
 ### Tracks
 
-| Track | Length | Character |
-| --- | --- | --- |
-| The Backyard | 1,840 m | wet-leaf bends, a leaf-bridge shortcut, the root maze and the Big Drop |
-| Veggie Patch | 1,418 m | golden hour; muddy furrows with pad-to-pad lines, a boardwalk bridge, Pumpkin Plunge |
-| Lily Pond | 1,538 m | dusk with fireflies; two lily-pad shortcuts, a stepping-stone ribbon, the Frog Leap over the pond |
+Finish in the top three to unlock the next track. Personal bests are kept per track.
 
-Personal bests are kept per track.
+| # | Track | Look | What makes it different |
+| --- | --- | --- | --- |
+| 1 | The Backyard | sunny garden | long wet-leaf sweeper with a leaf-bridge shortcut, the Big Drop kicker, a root maze, a banked hairpin |
+| 2 | Veggie Patch | golden hour | mud strips on alternate sides with pads on the clean line, a scarecrow chicane, boardwalk bridge, Pumpkin Plunge |
+| 3 | Lily Pond | dusk, fireflies | two lily-pad shortcuts, the Frog Leap over the pond, a stone ribbon between mud flats |
+| 4 | Sandbox Canyon | hot sandpit, dust | a packed-sand groove that wanders across loose sand (which eats speed), a cactus zigzag, the Spade Ramp |
+| 5 | Frosty Morning | snowy dawn, snowfall | a fast, slippery ice line down the middle, grippy slow snow either side, icicles and a glare-ice pond |
 
-### The Backyard course
+### Insects
 
-1. **Starting Hill** — flat grid, then the dirt path tips downhill.
-2. **Leaf Slide** — long fast bends on wet leaves, a plank hop, and a leaf-bridge shortcut over the
-   stream on the inside of the left-hander.
-3. **Root Maze** — thread the root tips, then choose: wide grass lane (safe, longer) or the narrow
-   stone lane inside the divider root (shorter, needs precise steering). A short climb punishes lost
-   momentum; a rope bridge ends the section.
-4. **The Big Drop** — a 30° plunge into a kicker and a ski-jump landing.
-5. **Final Sprint** — three banked stone curves and a straight with a puddle chicane.
+- On the course: ant columns marching across (bump one and you stumble), woodlice rolling side to
+  side, rhino beetles wandering about and grasshoppers hopping across. Beetles, woodlice and
+  grasshoppers knock you into a spin; a Shell Shield blocks one. The AI reads where they will be and
+  steers round them.
+- Around the course: bees, dragonflies (most over the pond), ladybugs, butterflies and, at the pond,
+  fireflies.
 
 ## Project layout
 
@@ -116,7 +125,7 @@ src/
   main.ts                 boot, font loading
   game/Game.ts            state machine, fixed-step loop, events → VFX / audio / HUD, test hooks
   world/Track.ts          course engine: height, surface, obstacles, AI gates, pads, item rows as functions of (s, d)
-  world/tracks/           the three course definitions (layout, profile, theme, features)
+  world/tracks/           the five circuit definitions (shape, profile, theme, features)
   world/Terrain.ts        ribbon terrain mesh + water, generated from Track
   world/Backyard.ts       procedural prop kit (grass, flowers, mushrooms, roots, bridge, tools …)
   world/Environment.ts    sky, lights, shadows, fog, view distance
@@ -124,6 +133,10 @@ src/
   physics/RacerBody.ts    crawl / roll / slide / air physics, collisions (shared by player and AI)
   racing/RaceManager.ts   grid, countdown, checkpoints, placement, finish (DOM-free)
   racing/Items.ts         item boxes, roulette, bananas, acorns, hits (DOM-free, seeded)
+  racing/Critters.ts      insect hazards, moving as a pure function of race time
+  characters/Insects.ts   procedural insect models
+  fx/CritterView.ts       insect hazards and ambient bugs on screen
+  fx/Weather.ts           snowfall and drifting dust
   ai/SnailAI.ts           racing-line AI + the six racer profiles
   characters/SnailModel.ts procedural snail and its animation
   camera/FollowCamera.ts  speed-adaptive chase camera
@@ -140,7 +153,9 @@ tests/                    Playwright smoke test and keyboard-only full-race bot
 A custom arcade model rather than a general rigid-body engine: each racer is a sphere on an analytic
 height field, stepped at a fixed 120 Hz with render interpolation. The course is defined as
 functions, so ground contact is exact (no tunnelling at 200 "km/h", no ghost collisions on mesh
-edges) and the same data drives physics, rendering, AI and race rules. Rapier was considered; for a
+edges) and the same data drives physics, rendering, AI and race rules. Each circuit is a closed
+centripetal Catmull-Rom spline; between the parts of the loop the terrain is an inverse-distance
+blend of the centre-line heights, so the course sits in a believable hillside. Rapier was considered; for a
 ball-on-terrain racer whose feel depends on hand-tuned friction, grip and steering, the analytic
 model gave tighter control and a far smaller download.
 
@@ -160,7 +175,7 @@ Headless tuning run (prints section splits and every racer's result):
 npm run sim -- 1 10
 ```
 
-Add `--track=veggie` or `--track=pond` for the other courses, and `--no-items` for a clean race.
+Add `--track=veggie`, `--track=pond`, `--track=sandbox` or `--track=frost` for the other circuits, and `--no-items` for a clean race.
 
 Real-input smoke test and full-race bot (set `PLAYWRIGHT_CHROMIUM_PATH` to reuse an installed
 Chromium):
@@ -173,7 +188,7 @@ The full-race bot takes about ten minutes on a machine without a GPU. What was r
 this revision is recorded in [docs/VERIFICATION.md](docs/VERIFICATION.md); the design brief, core
 loop and level plan are in [docs/DESIGN.md](docs/DESIGN.md).
 
-URL overrides for low-spec machines: `?q=0` (graphics 0–2) and `?dpr=0.5` (render scale).
+URL overrides: `?q=0` (graphics 0–2), `?dpr=0.5` (render scale) and `?unlock=all` (open every track for testing).
 
 ## Publishing notes (CrazyGames)
 

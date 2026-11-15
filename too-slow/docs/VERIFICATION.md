@@ -1,5 +1,23 @@
 # Verification record
 
+## Update: three-lap circuits, five unlockable tracks, insects
+
+- Headless simulation with items on, 3 races per circuit (6 snails, 3 laps): no DNF on any of the
+  five circuits after fixes. Race times about 115–175 s (Backyard ~140, Veggie ~140, Pond ~135,
+  Sandbox ~157, Frosty ~140); laps 2 and 3 run about 35–45 s each. A further 3 Frosty Morning races
+  (seeds 10–12): no DNF, 2 checkpoint resets in total.
+- Fixed during this pass: snails wedging against root ends in the Backyard maze (wider gaps), racers
+  stalling where banking unwinds on loose sand (lower banking, AI reads the real gradient under it),
+  the AI choosing glare ice and sliding off (ice penalised for cautious drivers), a respawn loop on
+  the Frosty plateau, a too-tight hairpin before the Backyard launcher (re-shaped), and the camera
+  losing the snail during the Boing Mushroom throw (rigid vertical tracking).
+- Browser smoke test (`tests/visual.spec.ts`) passed.
+- Keyboard-only bot (`tests/bot-playtest.spec.ts`) passed: one full Backyard lap on real key
+  events, through the Boing Mushroom, lap counter at 2, no softlocks, no console errors; pause →
+  restart reset the race.
+- Screenshots of all five circuits, the track select and the throw are in `docs/screens/`.
+
+
 ## Update: three tracks, items, boost pads, drift mini-turbo, garage
 
 - Headless simulation, 12 seeded six-snail races per track with items on: no DNF on any course.

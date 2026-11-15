@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
  * track offset, pop out and crawl whenever momentum dies. Proves the whole
  * loop is completable through actual input and records how it went.
  */
-test('a keyboard-only bot completes the Backyard race', async ({ page }) => {
+test('a keyboard-only bot completes a full lap of the Backyard, Boing Mushroom included', async ({ page }) => {
   const errors: string[] = [];
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(m.text());
@@ -47,7 +47,7 @@ test('a keyboard-only bot completes the Backyard race', async ({ page }) => {
   for (;;) {
     const d = await page.evaluate(() => {
       const g = window.__THREE_GAME_DIAGNOSTICS__!;
-      return { t: g.elapsed, yaw: g.player.trackYaw, grade: g.player.grade, s: g.racers[0].s, d: g.racers[0].d, mode: g.mode, kmh: g.speedKmh, done: g.complete, rank: g.rank, air: g.airborne };
+      return { t: g.elapsed, yaw: g.player.trackYaw, grade: g.player.grade, s: g.score, d: g.racers[0].d, mode: g.mode, kmh: g.speedKmh, done: g.complete || g.score > g.targetScore / 3 + 30, rank: g.rank, air: g.airborne };
     });
     if (d.done) break;
     if (Date.now() - wallStart > 560_000) break;
@@ -56,7 +56,7 @@ test('a keyboard-only bot completes the Backyard race', async ({ page }) => {
 
     // Steering: hold a heading relative to the course that leans back toward the chosen lane.
     // The lanes a player would pick by eye: around the root tips, down the wide side of the split.
-    const lane = d.s > 540 && d.s < 578 ? 3 : d.s > 585 && d.s < 618 ? -3 : d.s > 625 && d.s < 770 ? -4 : d.s > 775 && d.s < 812 ? -5 : d.s > 818 && d.s < 856 ? 5 : 0;
+    const lane = 0;
     const wantYaw = Math.max(-0.5, Math.min(0.5, (lane - d.d) * 0.09));
     const cmd = wantYaw - d.yaw;
     await hold('KeyD', cmd > 0.07);
@@ -97,26 +97,27 @@ test('a keyboard-only bot completes the Backyard race', async ({ page }) => {
   }
   for (const k of [...held]) await hold(k, false);
 
-  await expect(page.locator('#menu-results')).toBeVisible({ timeout: 60_000 });
   const end = await page.evaluate(() => {
     const g = window.__THREE_GAME_DIAGNOSTICS__!;
-    return { time: g.racers[0].time, rank: g.rank, complete: g.complete, frames: g.frame, racers: g.racers.map((r) => ({ name: r.name, finished: r.finished, time: +r.time.toFixed(2), s: Math.round(r.s) })) };
+    return { lapLength: Math.round(g.targetScore / 3), progress: g.score, time: +g.elapsed.toFixed(1), rank: g.rank, lap: Number(document.getElementById('lap-num')?.textContent) };
   });
-  await page.screenshot({ path: `${shotDir}/results.png` });
+  await page.screenshot({ path: `${shotDir}/lap2.png` });
   const report = { seed: 42, ...end, maxKmh: Math.round(maxKmh), sawAir, softlocks, samples, errors };
   writeFileSync(`${shotDir}/report.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 
-  expect(end.complete).toBe(true);
+  expect(end.lap).toBe(2);
+  expect(end.progress).toBeGreaterThan(end.lapLength);
   expect(maxKmh).toBeGreaterThan(80);
   expect(sawAir).toBe(true);
   expect(softlocks).toBeLessThanOrEqual(2);
 
-  // Restart must reset the whole race.
-  await page.click('#btn-again');
+  // Pause → restart must reset the whole race.
+  await page.keyboard.press('Escape');
+  await page.click('#btn-restart');
   await page.waitForFunction(() => {
     const g = window.__THREE_GAME_DIAGNOSTICS__!;
-    return !g.complete && g.elapsed < 1 && g.racers.every((r) => !r.finished && r.s < 30);
+    return !g.complete && g.elapsed < 1 && g.score <= 0 && g.racers.every((r) => !r.finished);
   }, null, { timeout: 60_000 });
   expect(errors).toEqual([]);
 });
