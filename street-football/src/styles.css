@@ -1082,10 +1082,63 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  align-content: center;
+  /* Top-aligned by default so a screen taller than the viewport scrolls from its top (plain centring would cut it off). */
+  align-content: start;
   gap: 18px;
   padding: calc(20px + var(--safe-t)) calc(20px + var(--safe-r)) calc(20px + var(--safe-b)) calc(20px + var(--safe-l));
   overflow-y: auto;
+}
+
+@supports (align-content: safe center) {
+  .screen {
+    align-content: safe center;
+  }
+}
+
+/* Short screens (phones held sideways): everything tightens up so menus fit or scroll cleanly. */
+@media (max-height: 480px) {
+  .screen {
+    gap: 10px;
+    padding-top: calc(10px + var(--safe-t));
+    padding-bottom: calc(10px + var(--safe-b));
+  }
+  .logo .rua,
+  .logo .ten {
+    font-size: 64px;
+  }
+  .logo small {
+    font-size: 15px;
+  }
+  .menu-list {
+    gap: 6px;
+  }
+  .menu-btn {
+    min-height: 38px;
+    padding: 4px 22px;
+    font-size: 20px;
+  }
+  .panel h2 {
+    font-size: 30px;
+  }
+  .mode-card,
+  .court-card {
+    min-height: 0;
+    padding: 8px 10px;
+  }
+  .mode-card b,
+  .court-card b {
+    font-size: 19px;
+  }
+  .mode-card span,
+  .court-card span {
+    font-size: 13px;
+  }
+  .team-card {
+    padding: 6px 8px;
+  }
+  .pl {
+    padding: 3px 8px;
+  }
 }
 
 #loading {
@@ -1840,14 +1893,17 @@ input[type='checkbox'] {
   }
   #stamina {
     bottom: auto;
-    top: calc(132px + var(--safe-t));
+    top: calc(142px + var(--safe-t));
+  }
+  #hud.lobby #stamina {
+    top: calc(98px + var(--safe-t));
   }
   #stamina .bar {
     width: 100px;
   }
   #gb {
     bottom: auto;
-    top: calc(152px + var(--safe-t));
+    top: calc(164px + var(--safe-t));
   }
   #gb .bar {
     width: 100px;

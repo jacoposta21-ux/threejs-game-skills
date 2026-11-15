@@ -1,5 +1,14 @@
 # Verification evidence
 
+## v1.8.1 — bug sweep
+
+| Check | Result |
+| --- | --- |
+| `soak.mjs` (8 full matches: Quick ×2, First to 5, Style Challenge, 1 v 1, 3-round Tournament; all five courts; easy / normal / hard; replays on in half) | No page or console errors. Every match reached full time and showed its results screen, and every run returned to free play with the menu open. The only invariant hit was a one-sample false positive of the check itself at kick-off. |
+| `monkey.mjs` (2 × 90 random clicks / keys / fast-forwards) | 0 state problems |
+| `touchcheck`, `movescheck`, `modescheck`, `keepercheck` | No regressions: possession 100% and 0 missed touches; all ten moves resolve; modes end correctly; keeper saves at the glove (max 0.33 m) or body |
+| Phone layouts (390×844 and 800×360, touch emulation) | Two bugs found and fixed (menus cut off in landscape, HUD overlap in portrait); re-captured after the fix |
+
 ## v1.8.0 — goalkeeper
 
 `node tools/qa/keepercheck.mjs` (36 shots from varied positions, powers and aims, through the real controller):

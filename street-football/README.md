@@ -1,4 +1,4 @@
-# RUA 10 — Street Football (v1.8.0 — release candidate)
+# RUA 10 — Street Football (v1.8.1 — release candidate)
 
 A 3D arcade street-football game for the browser: Three.js rendering, Rapier physics, a loose physically simulated ball, skeletal animation, and a Brazilian street court. It is built for CrazyGames-style distribution: one static bundle that loads fast.
 
@@ -17,7 +17,7 @@ Production build, local preview and the CrazyGames upload:
 ```bash
 npm run build      # outputs dist/ (relative paths, deploy anywhere)
 npm run preview    # http://127.0.0.1:4188
-npm run package    # build + checks + release/rua10-crazygames-v1.8.0.zip
+npm run package    # build + checks + release/rua10-crazygames-v1.8.1.zip
 ```
 
 Single self-contained HTML (double-click to play from disk, works offline; about 7.6 MB, physics WASM and models inlined):
@@ -97,6 +97,16 @@ Control follows the ball automatically: when a teammate wins it or receives your
   - On top: a stinger wipe in and out, a white flash on each cut, the scorer's name and number, and a "press any key to skip" hint.
   - Film look: grade, grain and a heavier vignette.
   - The ball trail now draws on the shot.
+
+## v1.8.1 — bug sweep before release
+
+**Fixed:**
+- **Menus cut off on phones held sideways.** A screen taller than the viewport was centred, so its top (logo, titles, first buttons) was pushed off-screen and could not be scrolled to. Screens now start from the top and scroll, and tighten up on short viewports.
+- **Overlapping HUD in portrait.** The style score, sprint bar and Gamebreaker bar were drawn on top of each other in a match; they are now stacked.
+
+**Checked and clean** (new tools):
+- `node tools/qa/soak.mjs`: eight full AI-driven matches across every mode, court and difficulty, with and without replays, including a three-round tournament. No page errors, no NaN positions, nobody outside the cage, no stalled ball, and no stuck phase, keeper, trick or pose.
+- `node tools/qa/monkey.mjs [steps] [seed]`: random real clicks and keys through menus, matches, pause and quit. After every action it checks that the visible screen, the HUD and the game state agree. Two 90-step runs had no problems.
 
 ## v1.8 — goalkeeper rebuilt, multiplayer announced
 
