@@ -13,6 +13,8 @@ import { createBannerTexture, createBarkTexture, createCheckerTexture, createChe
 export interface BackyardResult {
   group: THREE.Group;
   update(time: number, dt: number): void;
+  /** A racer hit the Boing Mushroom: squash the cap and let it wobble back. */
+  boing(strength: number): void;
 }
 
 const CHUNK = 140;
@@ -367,6 +369,9 @@ export function buildBackyard(quality: number): BackyardResult {
   const leafColors = [0xe8862a, 0xd1541f, 0xf2b530, 0xb8431e, 0xe0a030, 0x9c6a2a];
 
   const special: Record<string, Placement[]> = { cabbage: [], cattail: [], cactus: [], rosette: [], pine: [], mound: [], pumpkin: [] };
+  // Glow Grove: luminous mushroom caps (unlit, so they read at night and feed the bloom pass).
+  const glowCaps: Placement[] = [];
+  const glowColors = [0x5ff0ff, 0xff6ff0, 0x9cff6a, 0x7a8cff, 0xffd66a];
   const pick = <T,>(a: T[]) => a[Math.floor(rng() * a.length)];
   for (let s = 0; s < track.length; s += 5) {
     const hw = track.halfWidth(s);
@@ -391,6 +396,11 @@ export function buildBackyard(quality: number): BackyardResult {
             stems.push(item);
             cups.push({ ...item, color: new THREE.Color(pick([0x6f7cff, 0x9a6cf0, 0x5aa0ff, 0xff8fd0])) });
           }
+        } else if (flora === 'glow') {
+          const big = { ...item, scale: 1.6 + rng() * 2.6, tilt: (rng() - 0.5) * 0.15 };
+          mStems.push(big);
+          glowCaps.push({ ...big, color: new THREE.Color(pick(glowColors)) });
+          if (rng() < 0.5) special.cattail.push({ ...item, d: item.d + side * 3, scale: 4 + rng() * 3, color: white });
         } else if (flora === 'sand') {
           if (rng() < 0.55) special.cactus.push({ ...item, scale: 1.6 + rng() * 2.2, tilt: 0, color: new THREE.Color().setHSL(0.3 + rng() * 0.05, 0.45, 0.36 + rng() * 0.1) });
           else special.rosette.push({ ...item, scale: 1 + rng() * 1.3, tilt: 0, color: new THREE.Color().setHSL(0.36 + rng() * 0.1, 0.35, 0.5 + rng() * 0.1) });
@@ -402,7 +412,8 @@ export function buildBackyard(quality: number): BackyardResult {
         const scale = 0.8 + rng() * 1.6;
         const item = { s: ss, d: side * (hw + 4.5 + rng() * 6), scale, yaw: rng() * 6.28, tilt: (rng() - 0.5) * 0.12, color: white };
         mStems.push(item);
-        caps.push({ ...item, color: new THREE.Color(flora === 'snow' ? pick([0xf4f8ff, 0xe8f0ff]) : pick(capColors)) });
+        if (flora === 'glow') glowCaps.push({ ...item, color: new THREE.Color(pick(glowColors)) });
+        else caps.push({ ...item, color: new THREE.Color(flora === 'snow' ? pick([0xf4f8ff, 0xe8f0ff]) : pick(capColors)) });
       } else if (roll < (flora === 'sand' ? 0.7 : 0.62)) {
         pebbles.push({
           s: ss,
@@ -421,7 +432,8 @@ export function buildBackyard(quality: number): BackyardResult {
     if (o.kind === 'mushroom') {
       const item = { s: o.s, d: o.d, scale: o.r * 0.82, yaw: rng() * 6.28, color: white };
       mStems.push(item);
-      caps.push({ ...item, color: new THREE.Color(0xe5382e) });
+      if (flora === 'glow') glowCaps.push({ ...item, color: new THREE.Color(0xff6a4a) });
+      else caps.push({ ...item, color: new THREE.Color(0xe5382e) });
     } else if (o.kind === 'pebble') {
       pebbles.push({ s: o.s, d: o.d, scale: o.r * 1.12, yaw: rng() * 6.28, color: new THREE.Color(0xaeb2b8), lift: o.r * 0.35 });
     }
@@ -449,6 +461,7 @@ export function buildBackyard(quality: number): BackyardResult {
   instanced(group, cupHeadGeometry(), mats.veg, cups);
   instanced(group, mushroomStemGeometry(), mats.prop, mStems, { cast: true });
   instanced(group, mushroomCapGeometry(), mats.cap, caps, { cast: true });
+  if (glowCaps.length) instanced(group, mushroomCapGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), glowCaps);
   instanced(group, pebbleGeometry(), mats.stone, pebbles, { cast: true, receive: true });
   instanced(group, leafGeometry(), mats.veg, leaves, { align: true });
   if (special.cabbage.length) instanced(group, cabbageGeometry(), mats.veg, special.cabbage, { cast: true });
@@ -773,7 +786,9 @@ export function buildBackyard(quality: number): BackyardResult {
     group.add(line);
   };
   arch(START_S, track.halfWidth(START_S) + 0.9, 'FINISH', '#ffd23a', '#1f2430', true, 0xffc21a);
-  buildBoingMushroom(group);
+  const boingRoot = buildBoingMushroom(group);
+  let squash = 0;
+  let squashVel = 0;
 
   // --- checkpoint flags (toothpick pennants)
   const cpColors = [0x4fb8ff, 0xff8fd0, 0x7ad65a, 0xffa23a];
@@ -1019,8 +1034,20 @@ export function buildBackyard(quality: number): BackyardResult {
 
   return {
     group,
-    update(time: number) {
+    boing(strength: number) {
+      squashVel += 6 + strength * 6;
+    },
+    update(time: number, dt = 1 / 60) {
       windUniform.value = time;
+      if (squash !== 0 || squashVel !== 0) {
+        // Damped spring: a deep squash, a rebound above rest, a few wobbles.
+        const h = Math.min(dt, 1 / 30);
+        squashVel += (-140 * squash - 9 * squashVel) * h;
+        squash += squashVel * h;
+        if (Math.abs(squash) < 1e-3 && Math.abs(squashVel) < 1e-2) squash = squashVel = 0;
+        const s = Math.max(-0.35, Math.min(0.45, squash));
+        boingRoot.scale.set(1 + s * 0.45, 1 - s, 1 + s * 0.3);
+      }
       chevrons.offset.y = -time * 1.6;
       for (const l of lanterns) {
         const glow = l.getObjectByName('glow') as THREE.Mesh | undefined;
@@ -1241,7 +1268,7 @@ function lanternGroup(): THREE.Group {
 }
 
 /** The Boing Mushroom: a huge springy cap set into the bottom of the lap that throws snails home. */
-function buildBoingMushroom(group: THREE.Group): void {
+function buildBoingMushroom(group: THREE.Group): THREE.Group {
   const c = track.cannon;
   const hw = track.halfWidth(c.launchS);
   const base = track.toWorld(c.launchS, 0, new THREE.Vector3());
@@ -1285,4 +1312,5 @@ function buildBoingMushroom(group: THREE.Group): void {
     }
   }
   group.add(root);
+  return root;
 }

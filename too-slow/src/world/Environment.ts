@@ -153,7 +153,8 @@ export function buildEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRender
       hemi.intensity = theme.hemiIntensity;
       sun.color.set(theme.sunColor);
       sun.intensity = theme.sunIntensity;
-      cloudMat.color.set(theme.fireflies ? 0xffd6e8 : 0xffffff);
+      cloudMat.color.set(theme.bloom ? 0x4a5288 : theme.fireflies ? 0xffd6e8 : 0xffffff);
+      cloudMat.opacity = theme.bloom ? 0.55 : 0.9;
       bakeEnvironment();
     },
     setShadowQuality(level) {

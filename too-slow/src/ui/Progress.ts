@@ -34,7 +34,7 @@ export const MEDAL_TIMES: Record<string, [number, number, number]> = {
   pond: [112, 125, 145],
   sandbox: [152, 168, 190],
   frost: [126, 140, 160],
-  glow: [124, 138, 158],
+  glow: [113, 126, 146],
 };
 
 export function medalFor(track: string, time: number): Medal {

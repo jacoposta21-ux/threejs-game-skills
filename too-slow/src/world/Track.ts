@@ -173,7 +173,7 @@ export interface Landmark {
   s1?: number;
 }
 
-export type Flora = 'garden' | 'veggie' | 'pond' | 'sand' | 'snow';
+export type Flora = 'garden' | 'veggie' | 'pond' | 'sand' | 'snow' | 'glow';
 
 export interface Theme {
   skyTop: number;
@@ -194,6 +194,8 @@ export interface Theme {
   fireflies?: boolean;
   /** Falling snow / drifting sand motes. */
   weather?: 'snow' | 'dust';
+  /** Night track: bright emissive props get a bloom pass. */
+  bloom?: boolean;
 }
 
 export interface Section {

@@ -6,10 +6,11 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
  * +Z forward and +Y up, roughly to scale with a 1.1-unit snail.
  */
 
-type Part = [THREE.BufferGeometry, number];
+/** Geometry, colour and (for legs) the tripod-gait group 1 or 2. */
+type Part = [THREE.BufferGeometry, number, number?];
 
 function colored(parts: Part[]): THREE.BufferGeometry {
-  const geos = parts.map(([geo, color]) => {
+  const geos = parts.map(([geo, color, leg]) => {
     const g = geo.index ? geo.toNonIndexed() : geo;
     for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal') g.deleteAttribute(name);
     const c = new THREE.Color(color);
@@ -17,9 +18,42 @@ function colored(parts: Part[]): THREE.BufferGeometry {
     const col = new Float32Array(n * 3);
     for (let i = 0; i < n; i += 1) col.set([c.r, c.g, c.b], i * 3);
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.setAttribute('aLeg', new THREE.BufferAttribute(new Float32Array(n).fill(leg ?? 0), 1));
     return g;
   });
   return mergeGeometries(geos)!;
+}
+
+/**
+ * Walking legs in the vertex shader: legs marked with a tripod group swing forward and back
+ * and lift on the return stroke, the further from the body the more. Phase is offset per insect
+ * from its world position, so a column of ants does not march in lockstep.
+ */
+export function walkingMaterial(base: THREE.MeshStandardMaterial, amp: number, freq: number): { material: THREE.MeshStandardMaterial; time: { value: number } } {
+  const material = base.clone();
+  const time = { value: 0 };
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uLegTime = time;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aLeg;\nuniform float uLegTime;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        if (aLeg > 0.5) {
+          #ifdef USE_INSTANCING
+            float seed = instanceMatrix[3].x * 1.3 + instanceMatrix[3].z * 0.7;
+          #else
+            float seed = modelMatrix[3].x * 1.3 + modelMatrix[3].z * 0.7;
+          #endif
+          float ph = uLegTime * ${freq.toFixed(2)} + seed + (aLeg > 1.5 ? 3.14159 : 0.0);
+          float k = clamp(1.0 - position.y * 2.2, 0.0, 1.0);
+          transformed.z += sin(ph) * ${amp.toFixed(3)} * k;
+          transformed.y += max(0.0, cos(ph)) * ${(amp * 0.6).toFixed(3)} * k;
+        }`,
+      );
+  };
+  material.customProgramCacheKey = () => `walk-${amp}-${freq}`;
+  return { material, time };
 }
 
 function sphere(r: number, sx: number, sy: number, sz: number, x: number, y: number, z: number, seg = 12): THREE.BufferGeometry {
@@ -45,8 +79,9 @@ function legs(parts: Part[], color: number, z0: number, spread: number, y: numbe
     for (const s of [-1, 1]) {
       const knee = V(s * spread, y + 0.12, z + (i - 1) * 0.08);
       const foot = V(s * spread * 1.6, 0, z + (i - 1) * 0.16);
-      parts.push([limb(V(s * 0.06, y, z), knee, r), color]);
-      parts.push([limb(knee, foot, r * 0.8), color]);
+      const group = ((i + (s > 0 ? 1 : 0)) % 2) + 1;
+      parts.push([limb(V(s * 0.06, y, z), knee, r), color, group]);
+      parts.push([limb(knee, foot, r * 0.8), color, group]);
     }
   }
 }
@@ -103,6 +138,7 @@ export function beeGeometry(): THREE.BufferGeometry {
   }
   g.deleteAttribute('uv');
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setAttribute('aLeg', new THREE.BufferAttribute(new Float32Array(pos.count), 1));
   const rest = colored([
     [sphere(0.15, 1, 1, 1, 0, 0.02, 0.4), 0x1d1a14],
     [new THREE.ConeGeometry(0.05, 0.16, 6).rotateX(-Math.PI / 2).translate(0, 0, -0.5), 0x1d1a14],

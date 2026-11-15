@@ -24,6 +24,10 @@ import { buildTerrain, type TerrainResult } from '../world/Terrain';
 import { createNameTag } from '../world/Textures';
 import { KICKER, SECTIONS, loadTrack, track } from '../world/Track';
 import { CritterView } from '../fx/CritterView';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { Weather } from '../fx/Weather';
 
 type GameState = 'menu' | 'racing' | 'results';
@@ -104,6 +108,9 @@ export class Game {
   private readonly ghost: GhostRunner;
   private readonly tutorial = new Tutorial();
   private mode: RaceMode = 'race';
+  /** Bloom for night tracks, built on first use. */
+  private composer: EffectComposer | null = null;
+  private composerSize = '';
   private gp: { tracks: string[]; index: number; points: number[] } | null = null;
   private p2Tag: THREE.Texture | null = null;
   private rivalNames: string[] = [];
@@ -784,6 +791,7 @@ export class Game {
             break;
           case 'cannon':
             this.sfxFor(i, 'cannon');
+            this.backyard.boing(Math.min(1, r.speed / 40));
             view.model.impact(1.2);
             this.particles.burst(foot, 26, COLORS.confetti[i % 5], 8, 0.3, 0.8, 6, 1.5, this.fxRng);
             if (me) {
@@ -1181,7 +1189,7 @@ export class Game {
 
     this.particles.update(delta);
     this.itemView.update(race.items, this.reducedMotion ? 0 : this.time);
-    this.critterView.update(race.critters, this.reducedMotion ? 0 : this.time);
+    this.critterView.update(race.critters, this.reducedMotion ? 0 : this.time, race.racers);
     this.weather.update(this.reducedMotion ? 0 : delta, this.time, this.camera);
     const ambient = this.reducedMotion ? 0 : this.time;
     this.backyard.update(ambient, animDt);
@@ -1234,7 +1242,8 @@ export class Game {
 
   private render(): void {
     if (this.mode !== 'duo' || this.state === 'menu') {
-      this.renderer.render(this.scene, this.camera);
+      if (track.def.theme.bloom && this.menus.settings.quality >= 1 && this.autoLevel < 3) this.renderBloom();
+      else this.renderer.render(this.scene, this.camera);
       return;
     }
     // Split-screen: player one on top, player two below.
@@ -1258,6 +1267,26 @@ export class Game {
     r.render(this.scene, this.camera2);
     r.setScissorTest(false);
     r.setViewport(0, 0, w, h);
+  }
+
+  private renderBloom(): void {
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    const dpr = this.renderer.getPixelRatio();
+    if (!this.composer) {
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      // High threshold: only the unlit glowing caps, lanterns, fireflies and pads bloom.
+      this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.7, 0.5, 0.92));
+      this.composer.addPass(new OutputPass());
+    }
+    const key = `${w}x${h}@${dpr}`;
+    if (key !== this.composerSize) {
+      this.composerSize = key;
+      this.composer.setPixelRatio(dpr);
+      this.composer.setSize(w, h);
+    }
+    this.composer.render();
   }
 
   // ---------------------------------------------------- hooks & diagnostics
@@ -1340,6 +1369,9 @@ export class Game {
       'sandbox-zigzag': () => raceTo(520, undefined, 'sandbox'),
       'frost-play': () => raceTo(240, undefined, 'frost'),
       'frost-pond': () => raceTo(560, undefined, 'frost'),
+      'glow-play': () => raceTo(230, undefined, 'glow'),
+      'glow-hollow': () => raceTo(430, undefined, 'glow'),
+      'glow-jump': kicker('glow'),
       tracks: () => {
         this.toMenu(true);
         (document.getElementById('btn-play') as HTMLButtonElement).click();

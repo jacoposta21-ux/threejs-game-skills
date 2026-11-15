@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { antGeometry, beeGeometry, beetleGeometry, dragonflyGeometry, grasshopperGeometry, ladybugGeometry, pillbugGeometry, wingGeometry } from '../characters/Insects';
+import { walkingMaterial, antGeometry, beeGeometry, beetleGeometry, dragonflyGeometry, grasshopperGeometry, ladybugGeometry, pillbugGeometry, wingGeometry } from '../characters/Insects';
 import type { CritterSystem } from '../racing/Critters';
 import { createSeededRandom } from '../utils/random';
 import { track } from '../world/Track';
@@ -11,6 +11,9 @@ import { track } from '../world/Track';
 
 const bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4 });
 const shinyMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.2 });
+// Shader-driven walking legs: quick little steps for ants, slow heavy ones for beetles.
+const antWalk = walkingMaterial(bodyMat, 0.05, 24);
+const beetleWalk = walkingMaterial(shinyMat, 0.13, 8);
 const wingMat = new THREE.MeshBasicMaterial({ color: 0xe8f6ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
 
 interface Flyer {
@@ -69,7 +72,7 @@ export class CritterView {
     this.clear();
     const antCount = critters.bodies.filter((b) => b.kind === 'ants').length;
     if (antCount) {
-      this.ants = new THREE.InstancedMesh(this.antGeo, bodyMat, antCount);
+      this.ants = new THREE.InstancedMesh(this.antGeo, antWalk.material, antCount);
       this.ants.castShadow = true;
       this.ants.frustumCulled = false;
       this.group.add(this.ants);
@@ -77,7 +80,7 @@ export class CritterView {
     for (const b of critters.bodies) {
       if (b.kind === 'ants') continue;
       const geo = b.kind === 'pillbug' ? this.pillGeo : b.kind === 'beetle' ? this.beetleGeo : this.hopperGeo;
-      const m = new THREE.Mesh(geo, b.kind === 'grasshopper' ? bodyMat : shinyMat);
+      const m = new THREE.Mesh(geo, b.kind === 'grasshopper' ? bodyMat : b.kind === 'beetle' ? beetleWalk.material : shinyMat);
       m.castShadow = true;
       if (b.kind === 'pillbug') m.scale.setScalar(b.r);
       if (b.kind === 'beetle') m.scale.setScalar(1.25);
@@ -91,7 +94,7 @@ export class CritterView {
     if (flora === 'snow') return;
     const rng = createSeededRandom(4242);
     const v = new THREE.Vector3();
-    const bees = flora === 'sand' ? 3 : 12;
+    const bees = flora === 'sand' ? 3 : flora === 'glow' ? 0 : 12;
     const dragons = flora === 'pond' ? 9 : flora === 'sand' ? 0 : 4;
     for (let i = 0; i < bees + dragons; i += 1) {
       const kind = i < bees ? 'bee' : 'dragonfly';
@@ -121,8 +124,11 @@ export class CritterView {
     this.group.add(this.ladybugs);
   }
 
-  update(critters: CritterSystem, time: number): void {
+  /** `racers`: snail positions, so ants near a passing snail scatter out of its way. */
+  update(critters: CritterSystem, time: number, racers: readonly { pos: THREE.Vector3 }[] = []): void {
     const d = this.dummy;
+    antWalk.time.value = time;
+    beetleWalk.time.value = time;
     let ai = 0;
     let bi = 0;
     for (const b of critters.bodies) {
@@ -130,7 +136,29 @@ export class CritterView {
         if (!this.ants) continue;
         d.position.copy(b.pos);
         d.position.y += Math.abs(Math.sin(b.anim)) * 0.05 - 0.1;
-        d.rotation.set(0, -b.yaw + Math.sin(b.anim * 0.5) * 0.15 + Math.PI, 0);
+        let yaw = -b.yaw + Math.sin(b.anim * 0.5) * 0.15 + Math.PI;
+        // Panic: shy away from the nearest snail and turn to flee.
+        let best = 9;
+        let fx = 0;
+        let fz = 0;
+        for (const r of racers) {
+          const dx = b.pos.x - r.pos.x;
+          const dz = b.pos.z - r.pos.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist < best && Math.abs(b.pos.y - r.pos.y) < 3) {
+            best = dist;
+            fx = dx / Math.max(dist, 1e-3);
+            fz = dz / Math.max(dist, 1e-3);
+          }
+        }
+        if (best < 3.2) {
+          const push = (1 - best / 3.2) * 0.7;
+          d.position.x += fx * push;
+          d.position.z += fz * push;
+          d.position.y += Math.abs(Math.sin(time * 40 + ai)) * 0.06;
+          yaw = Math.atan2(fx, fz) + Math.sin(time * 25 + ai) * 0.4;
+        }
+        d.rotation.set(0, yaw, 0);
         d.scale.setScalar(1.25);
         d.updateMatrix();
         this.ants.setMatrixAt(ai, d.matrix);

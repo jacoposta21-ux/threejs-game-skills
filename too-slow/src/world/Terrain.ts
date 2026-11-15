@@ -194,7 +194,7 @@ export function buildTerrain(quality = 2): TerrainResult {
   const ripple = createRippleTexture();
   const water = new THREE.Mesh(
     waterGeo,
-    new THREE.MeshStandardMaterial({ map: ripple, transparent: true, opacity: 0.82, roughness: 0.12, metalness: 0.1, depthWrite: false }),
+    new THREE.MeshStandardMaterial({ map: ripple, color: track.def.theme.bloom ? 0x4a5aa0 : 0xffffff, envMapIntensity: track.def.theme.bloom ? 0.35 : 1, transparent: true, opacity: 0.82, roughness: 0.12, metalness: 0.1, depthWrite: false }),
   );
   water.name = 'water';
   water.renderOrder = 1;
