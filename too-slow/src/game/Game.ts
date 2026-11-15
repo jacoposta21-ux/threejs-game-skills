@@ -5,6 +5,7 @@ import { SnailModel, type SnailPose } from '../characters/SnailModel';
 import { ItemView } from '../fx/ItemView';
 import { ITEM_NAMES } from '../racing/Items';
 import { Input } from '../core/Input';
+import { Platform } from '../core/Platform';
 import { Loop } from '../core/Loop';
 import { createRenderer, resizeRenderer } from '../core/Renderer';
 import { Particles, SpeedLines, Trail } from '../fx/Effects';
@@ -108,6 +109,10 @@ export class Game {
   private readonly ghost: GhostRunner;
   private readonly tutorial = new Tutorial();
   private mode: RaceMode = 'race';
+  private readonly platform = new Platform();
+  /** A rewarded ad was watched: the next race starts with a Turbo Mushroom. */
+  private rewardStart = false;
+  private adPlaying = false;
   /** Bloom for night tracks, built on first use. */
   private composer: EffectComposer | null = null;
   private composerSize = '';
@@ -275,6 +280,29 @@ export class Game {
     });
     window.addEventListener('blur', this.onBlur);
     document.addEventListener('visibilitychange', this.onBlur);
+    this.platform.loadingStart();
+    this.platform.setHooks({
+      adStart: () => {
+        this.adPlaying = true;
+        this.audio.setMuted(true);
+        this.input.clear();
+      },
+      adEnd: () => {
+        this.adPlaying = false;
+        this.audio.setMuted(this.muted);
+      },
+    });
+    const reward = document.getElementById('btn-reward') as HTMLButtonElement | null;
+    reward?.addEventListener('click', () => {
+      reward.disabled = true;
+      reward.textContent = 'Loading ad…';
+      void this.platform.rewarded().then((ok) => {
+        this.rewardStart = ok;
+        reward.textContent = ok ? '🍄 Turbo Mushroom ready for the next race!' : 'No ad right now — try again later';
+        reward.disabled = ok;
+        if (!ok) window.setTimeout(() => (reward.disabled = false), 1500);
+      });
+    });
 
     this.applySettings(this.menus.settings);
     this.views[0].model.setLook(this.menus.look);
@@ -291,6 +319,7 @@ export class Game {
 
   start(): void {
     this.loop.start();
+    void this.platform.ready.then(() => this.platform.loadingStop());
   }
 
   dispose(): void {
@@ -459,6 +488,12 @@ export class Game {
 
   private startRace(trackId: string): void {
     this.onGesture();
+    // Between races (never mid-race) the platform may show an interstitial.
+    if (this.state === 'results') {
+      this.state = 'menu';
+      void this.platform.midgame().then(() => this.startRace(trackId));
+      return;
+    }
     this.fade(() => {
       this.setTrack(trackId);
       this.beginRace();
@@ -475,6 +510,11 @@ export class Game {
     this.race.items.enabled = this.menus.settings.items && mode !== 'tt';
     this.setDuo(mode === 'duo');
     this.race.reset(this.rng);
+    if (this.rewardStart && mode !== 'tt') {
+      this.race.player.item = 'mushroom';
+      this.race.player.itemRoulette = 0;
+      this.rewardStart = false;
+    }
     if (mode === 'tt') this.ghost.start(loadGhost(track.def.id), this.race.profiles[0]);
     else this.ghost.stop();
     if (mode === 'tutorial') this.tutorial.start(this.input.lastDevice);
@@ -563,6 +603,13 @@ export class Game {
       this.publishDiagnostics();
       return;
     }
+    if (this.adPlaying) {
+      this.publishDiagnostics();
+      return;
+    }
+    const playing = this.state === 'racing' && !this.paused && this.race.phase !== 'finished';
+    if (playing) this.platform.gameplayStart();
+    else this.platform.gameplayStop();
     this.input.poll(delta, this.paused || this.state !== 'racing');
     this.input.setTouchVisible(this.state === 'racing' && !this.paused);
     if (this.paused) {
@@ -1020,7 +1067,8 @@ export class Game {
     this.raceCount += 1;
     saveRaceCount(this.raceCount);
     addStats({ races: 1, wins: ranked && place === 1 ? 1 : 0, podiums: ranked && place <= 3 ? 1 : 0, tricks: p.tricks, distance: Math.round(Math.max(0, p.dist)) });
-    if (mode !== 'tutorial') addFame(id, { name: this.menus.look.name, time: p.finishTime, date: new Date().toISOString().slice(0, 10), mode });
+    const fameRank = mode !== 'tutorial' ? addFame(id, { name: this.menus.look.name, time: p.finishTime, date: new Date().toISOString().slice(0, 10), mode }) : 0;
+    if ((ranked && place === 1) || newBestRace) this.platform.happytime();
 
     let best = newBestRace ? p.finishTime : previous;
     let newBest = newBestRace;
@@ -1070,6 +1118,8 @@ export class Game {
       medal,
       gp,
       p2Place: mode === 'duo' ? race.rank[1] + 1 : undefined,
+      fameRank,
+      rewardAvailable: this.platform.adsAvailable && !this.rewardStart,
     });
     this.state = 'results';
     this.audio.setMusic(true, 100);
@@ -1430,6 +1480,11 @@ export class Game {
         simulateUntil(() => this.race.player.dist >= 236, 200);
         this.race.humans = [0, 1];
         settle();
+        this.render();
+      },
+      fame: () => {
+        this.toMenu(true);
+        (document.getElementById('btn-fame') as HTMLButtonElement).click();
         this.render();
       },
       podium: () => {

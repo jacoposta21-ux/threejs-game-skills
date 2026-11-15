@@ -92,6 +92,7 @@
         <nav class="menu-buttons">
           <button class="btn btn-primary" id="btn-play" type="button">PLAY</button>
           <button class="btn" id="btn-garage" type="button">CUSTOMIZE</button>
+          <button class="btn" id="btn-fame" type="button">HALL OF FAME</button>
           <button class="btn" id="btn-how" type="button">HOW TO PLAY</button>
           <button class="btn" id="btn-settings" type="button">SETTINGS</button>
         </nav>
@@ -237,6 +238,18 @@
             <button class="btn" id="btn-next" type="button">NEXT TRACK</button>
             <button class="btn" id="btn-results-menu" type="button">MAIN MENU</button>
           </div>
+          <button class="btn btn-reward hidden" id="btn-reward" type="button">🍄 TURBO START — watch an ad</button>
+        </div>
+      </section>
+
+      <!-- Hall of Fame -->
+      <section id="menu-fame" class="screen hidden">
+        <div class="panel panel-wide">
+          <h2>Hall of Fame</h2>
+          <div class="seg seg-wrap fame-tabs" id="fame-tabs"></div>
+          <ol class="gp-table fame-list" id="fame-list"></ol>
+          <p class="small" id="fame-note">Your five fastest finishes per track, kept on this device.</p>
+          <button class="btn btn-primary" data-back type="button">BACK</button>
         </div>
       </section>
 

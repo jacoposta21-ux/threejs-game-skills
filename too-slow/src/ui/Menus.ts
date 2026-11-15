@@ -1,6 +1,6 @@
 import type { RacerProfile } from '../ai/SnailAI';
 import type { RaceMode } from '../racing/RaceManager';
-import { cosmeticFor, earnedCosmetics, loadGhost, loadMedals, loadStats, loadTrophies, MEDAL_NAMES, MEDAL_TIMES, TRAILS, tutorialDone, type Medal } from './Progress';
+import { cosmeticFor, earnedCosmetics, loadFame, loadGhost, loadMedals, loadStats, loadTrophies, MEDAL_NAMES, MEDAL_TIMES, TRAILS, tutorialDone, type Medal } from './Progress';
 import type { HatKind, ShellPattern, SnailLook } from '../characters/SnailModel';
 import { TRACKS } from '../world/tracks';
 import { formatTime, ordinal } from './Hud';
@@ -141,7 +141,7 @@ export function saveRaceCount(n: number): void {
   write(RACES_KEY, { n });
 }
 
-export type Screen = 'none' | 'main' | 'modes' | 'tracks' | 'garage' | 'how' | 'settings' | 'pause' | 'results' | 'podium';
+export type Screen = 'none' | 'main' | 'fame' | 'modes' | 'tracks' | 'garage' | 'how' | 'settings' | 'pause' | 'results' | 'podium';
 
 export interface MenuHandlers {
   chooseTrack(id: string, mode: RaceMode): void;
@@ -183,6 +183,10 @@ export interface ResultsData {
   gp?: { rows: { racer: number; points: number; gained: number }[]; race: number; of: number; last: boolean };
   /** Split-screen: player two's place. */
   p2Place?: number;
+  /** Rank in the local Hall of Fame (0 = not in the top five). */
+  fameRank: number;
+  /** A rewarded ad can be offered (platform ads available). */
+  rewardAvailable: boolean;
 }
 
 export interface PodiumData {
@@ -206,6 +210,7 @@ export class Menus {
   private readonly screens: Record<Exclude<Screen, 'none'>, HTMLElement> = {
     main: el('menu-main'),
     modes: el('menu-modes'),
+    fame: el('menu-fame'),
     podium: el('menu-podium'),
     tracks: el('menu-tracks'),
     garage: el('menu-garage'),
@@ -234,6 +239,10 @@ export class Menus {
       this.show('modes');
     });
     on('btn-podium-menu', () => handlers.toMenu());
+    on('btn-fame', () => {
+      this.renderFame(TRACKS[0].id);
+      this.show('fame');
+    });
     el('mode-list')
       .querySelectorAll<HTMLElement>('.mode-card')
       .forEach((card) => {
@@ -278,7 +287,7 @@ export class Menus {
     document.querySelectorAll<HTMLElement>('[data-back]').forEach((b) =>
       b.addEventListener('click', () => {
         handlers.sound('click');
-        this.show(this.current === 'tracks' ? 'modes' : this.current === 'garage' || this.current === 'modes' ? 'main' : this.back);
+        this.show(this.current === 'tracks' ? 'modes' : this.current === 'garage' || this.current === 'modes' || this.current === 'fame' ? 'main' : this.back);
       }),
     );
     this.buildTracks(handlers);
@@ -379,6 +388,43 @@ export class Menus {
         }
       });
     el('tracks-title').textContent = this.mode === 'tt' ? 'Time Trial' : this.mode === 'duo' ? '2 Players' : 'Choose a Track';
+  }
+
+  private renderFame(trackId: string): void {
+    const tabs = el('fame-tabs');
+    if (!tabs.childElementCount) {
+      for (const d of TRACKS) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.v = d.id;
+        b.textContent = d.name;
+        b.addEventListener('click', () => this.renderFame(d.id));
+        tabs.appendChild(b);
+      }
+    }
+    tabs.querySelectorAll<HTMLElement>('button').forEach((b) => b.classList.toggle('on', b.dataset.v === trackId));
+    const list = el('fame-list');
+    list.replaceChildren();
+    const rows = loadFame(trackId);
+    const modeNames: Record<string, string> = { race: 'Race', gp: 'Grand Prix', tt: 'Time Trial', duo: '2 Players' };
+    rows.forEach((r, i) => {
+      const li = document.createElement('li');
+      const place = document.createElement('b');
+      place.textContent = `${i + 1}${ordinal(i + 1)}`;
+      const name = document.createElement('span');
+      name.textContent = r.name;
+      const meta = document.createElement('em');
+      meta.textContent = `${modeNames[r.mode] ?? r.mode} · ${r.date}`;
+      const time = document.createElement('b');
+      time.textContent = formatTime(r.time);
+      li.append(place, name, meta, time);
+      list.appendChild(li);
+    });
+    if (!rows.length) {
+      const li = document.createElement('li');
+      li.textContent = 'No finishes yet — go set a time!';
+      list.appendChild(li);
+    }
   }
 
   private renderModes(): void {
@@ -523,7 +569,7 @@ export class Menus {
       this.show('modes');
       return true;
     }
-    if (this.current === 'garage' || this.current === 'modes') {
+    if (this.current === 'garage' || this.current === 'modes' || this.current === 'fame') {
       this.show('main');
       return true;
     }
@@ -587,7 +633,11 @@ export class Menus {
       laps.appendChild(span);
     });
     const unlock = el('results-unlock');
-    const news = [data.unlocked ? `New track: ${data.unlocked}!` : '', ...data.cosmetics.map((c) => `Unlocked: ${c}!`)].filter(Boolean);
+    const news = [data.unlocked ? `New track: ${data.unlocked}!` : '', ...data.cosmetics.map((c) => `Unlocked: ${c}!`), data.fameRank ? `Hall of Fame #${data.fameRank}` : ''].filter(Boolean);
+    const reward = el<HTMLButtonElement>('btn-reward');
+    reward.classList.toggle('hidden', !data.rewardAvailable || !!data.gp);
+    reward.disabled = false;
+    reward.textContent = '🍄 TURBO START — watch an ad';
     unlock.classList.toggle('hidden', news.length === 0);
     unlock.textContent = news.join('  ·  ');
     el('results-time').textContent = formatTime(data.time);
