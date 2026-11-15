@@ -124,8 +124,8 @@ function buildBody(skin: THREE.Color): THREE.BufferGeometry {
 /** Spiral shell: a tube swept along a logarithmic spiral in the YZ plane, so it rolls like a wheel about X. */
 function buildShell(light: THREE.Color, dark: THREE.Color, pattern: ShellPattern): THREE.BufferGeometry {
   if (pattern === 'gold') {
-    light = new THREE.Color(0xffd84a);
-    dark = new THREE.Color(0xb47a12);
+    light = new THREE.Color(0xffc21e);
+    dark = new THREE.Color(0xb86e06);
   }
   const navy = new THREE.Color(0x1a1446);
   const nebulaA = new THREE.Color(0x8a3cff);
@@ -165,8 +165,20 @@ function buildShell(light: THREE.Color, dark: THREE.Color, pattern: ShellPattern
         // Deep space with drifting nebula bands and pin-prick stars.
         const neb = 0.5 + 0.5 * Math.sin(a * 2 + th * 2.2);
         col.copy(navy).lerp(neb > 0.5 ? nebulaA : nebulaB, THREE.MathUtils.smoothstep(Math.abs(neb - 0.5) * 2, 0.3, 1) * 0.75);
-        const h = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453;
-        if (h - Math.floor(h) > 0.93) col.lerp(star, 0.85);
+        // Stars as round dots on a coarse grid in (whorl, around): each covers several vertices,
+        // so they read as points instead of streaks along the thin spiral triangles.
+        const gu = th * 1.9;
+        const gv = (a / (Math.PI * 2)) * 4.5;
+        const cu = Math.floor(gu);
+        const cv = Math.floor(gv);
+        const h = Math.sin(cu * 12.9898 + cv * 78.233) * 43758.5453;
+        const hf = h - Math.floor(h);
+        if (hf > 0.55) {
+          const ou = gu - cu - 0.5 - (hf - 0.75) * 0.6;
+          const ov = gv - cv - 0.5;
+          const r = Math.hypot(ou, ov);
+          col.lerp(star, THREE.MathUtils.smoothstep(0.32 - r, 0, 0.12) * 0.95);
+        }
         colors.push(col.r, col.g, col.b);
         continue;
       }
@@ -259,6 +271,7 @@ export class SnailModel {
   private time = 0;
   private stretch = 0;
   private galaxy = false;
+  private gold = false;
 
   constructor(profile: RacerProfile, seedPhase: number) {
     const skin = new THREE.Color(profile.skin);
@@ -374,10 +387,14 @@ export class SnailModel {
   /** Gold shells are metallic, galaxy shells glow faintly. */
   private tuneShell(pattern: ShellPattern): void {
     const m = this.shellMat;
-    m.metalness = pattern === 'gold' ? 0.65 : 0;
-    m.roughness = pattern === 'gold' ? 0.22 : 0.32;
+    // Gold: only half metallic so it keeps its warm colour instead of mirroring the green garden.
+    m.metalness = pattern === 'gold' ? 0.35 : 0;
+    m.roughness = pattern === 'gold' ? 0.2 : 0.32;
+    m.clearcoat = pattern === 'gold' ? 1 : 0.7;
     this.galaxy = pattern === 'galaxy';
     if (this.galaxy) m.emissive.set(0x6a3cff);
+    this.gold = pattern === 'gold';
+    if (this.gold) m.emissive.set(0xffb020);
   }
 
   /** Repaint and re-hat the snail (garage). */
@@ -498,7 +515,7 @@ export class SnailModel {
     this.shellPivot.rotation.x = lerp(-0.28 + wobble, 0, r);
     this.shellPivot.scale.setScalar(lerp(1.14, 1.12, r));
     this.shellSpin.rotation.x = r > 0.05 ? pose.rollAngle : 0;
-    this.shellMat.emissiveIntensity = lerp(this.shellMat.emissiveIntensity, pose.boosting ? 0.55 : this.galaxy ? 0.18 : 0, Math.min(1, dt * 6));
+    this.shellMat.emissiveIntensity = lerp(this.shellMat.emissiveIntensity, pose.boosting ? 0.55 : this.galaxy ? 0.18 : this.gold ? 0.06 : 0, Math.min(1, dt * 6));
 
     // --- head, eye stalks and face
     const accel = (pose.speed - this.lastSpeed) / Math.max(dt, 1e-3);
