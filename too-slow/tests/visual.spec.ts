@@ -38,6 +38,7 @@ test('boots to the menu, renders a varied canvas, and the snail answers real key
 
   // PLAY → countdown → GO, then W crawls the snail forward.
   await page.click('#btn-play');
+  await page.click('.mode-card[data-mode="race"]');
   await page.click('.track-card[data-track="backyard"]');
   await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.state === 'racing', null, { timeout: 120_000 });
   await expect(page.locator('#hud')).toBeVisible();

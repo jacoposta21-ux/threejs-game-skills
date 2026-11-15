@@ -1319,12 +1319,26 @@ export class Game {
     r.setScissorTest(true);
     r.setViewport(0, h - half, w, half);
     r.setScissor(0, h - half, w, half);
+    this.fitTags(this.camera, 0);
     r.render(this.scene, this.camera);
     r.setViewport(0, 0, w, h - half);
     r.setScissor(0, 0, w, h - half);
+    this.fitTags(this.camera2, 1);
     r.render(this.scene, this.camera2);
     r.setScissorTest(false);
     r.setViewport(0, 0, w, h);
+  }
+
+  /** Show and size the rivals' name tags for one camera (split-screen renders twice); `self` gets none. */
+  private fitTags(cam: THREE.Camera, self: number): void {
+    for (let i = 0; i < RACER_COUNT; i += 1) {
+      const view = this.views[i];
+      if (!view.tag) continue;
+      const dist = view.pos.distanceTo(cam.position);
+      view.tag.visible = i !== self && dist < 70 && dist > 4.5 && this.state !== 'menu' && !this.race.racers[i].inactive;
+      const k = THREE.MathUtils.clamp(dist / 22, 0.42, 2.6);
+      view.tag.scale.set(2.6 * k, 0.65 * k, 1);
+    }
   }
 
   private renderBloom(): void {
@@ -1377,6 +1391,7 @@ export class Game {
         this.race.step();
         this.handleEvents();
         this.updateRaceUi(1 / 60);
+        if (this.mode === 'duo') this.updateModes(1 / 60);
         this.syncVisuals(1 / 60);
       }
       this.render();

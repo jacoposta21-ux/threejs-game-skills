@@ -1,5 +1,33 @@
 # Verification record
 
+## Update: modes, controls, unlocks, Glow Grove, platform
+
+Everything in this pass was checked as follows (no GPU here: SwiftShader, 2–15 fps headless).
+
+- **Physics / AI (headless sim):** all six circuits finish with six snails and items on (seed 9:
+  6/6 finishers on every track; at most one checkpoint reset per race). Glow Grove: 5 seeded races,
+  no DNF after widening the berm and banking after the Moon Jump (one reset in five races).
+  Difficulty: easy and hard rivals finish the Lily Pond race; a basin that trapped a slow rival at
+  s≈848 was made shallower. Solo time-trial runs set the medal targets (gold = a clean autopilot run).
+- **Real-input browser tests:**
+  - `tests/visual.spec.ts` passed (menu → PLAY → Quick Race → track → `W`, `SPACE`, `F`, pause).
+  - `tests/modes.spec.ts` passed: Tutorial (checklist visible, 1 lap, holding `W` ticks the first
+    step), Time Trial (solo field `/ 1`, standings hidden, medal panel), 2 Players (split-screen
+    class and second HUD; `ArrowUp` moves racer 2 only, `W` moves racer 1), touch (tap through the
+    menus on a touch context, automatic crawl, the on-screen SHELL button tucks the snail in).
+  - `tests/bot-playtest.spec.ts` passed (4.2 min): a keyboard-only bot entered through PLAY →
+    Quick Race, completed a full Backyard lap through the Boing Mushroom (lap counter 2, top speed
+    305 km/h, airborne, 0 softlocks, no console errors) and pause → restart reset the race.
+- **Screens captured** (`docs/screens/`): mode select, Glow Grove, split-screen, Time Trial ghost,
+  Grand Prix podium; garage with locked cosmetics; new hats / patterns previewed with
+  `?unlock=all`.
+- **Fixed during this pass:** the bee model failed to merge after the leg-gait attribute was added
+  (crashed boot), the tutorial panel covered the item slot, player two's HUD did not update in
+  captures, name tags were sized for player one's camera in player two's view.
+- **Not verifiable here:** gamepad input (no device; the code follows the standard mapping),
+  CrazyGames SDK calls and ads (the SDK only loads on their domain), real frame rates on desktop
+  GPUs (the auto-graphics step-down was not triggered by a real slow machine).
+
 ## Update: three-lap circuits, five unlockable tracks, insects
 
 - Headless simulation with items on, 3 races per circuit (6 snails, 3 laps): no DNF on any of the

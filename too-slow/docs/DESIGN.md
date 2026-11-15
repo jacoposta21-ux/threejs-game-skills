@@ -75,3 +75,19 @@ between roughly 80 and 115 s.
   hidden speed rubber-banding; everything is a visible item. A setting turns items off.
 - **Garage**: name, shell colour, pattern, body colour, hat. Rivals got patterns and hats too so
   every snail reads at a glance.
+
+## Update: modes, replayability and reach
+
+- **Modes** answer "why play again": Grand Prix (points across every unlocked track, podium,
+  trophy per difficulty), Time Trial (ghost of the personal best, medal targets set from a clean
+  autopilot run), Tutorial (a 1-lap checklist that teaches by doing), 2 Players split-screen.
+- **Difficulty** changes only how the AI drives (risk, precision, reaction, corner pace) — never
+  its physics, so placings stay honest.
+- **Slipstream** gives pack racing a reason: tucked in behind, air drag halves and the boost
+  charges; shoulder bumps are bouncier side-on.
+- **Cosmetic unlocks** reward each mode (tutorial → chef hat, gold medals → gold shell / trails,
+  Grand Prix wins → halo / galaxy shell) and the garage says how to earn each.
+- **Glow Grove** (night) is the visual contrast track: unlit glowing caps and a bloom pass that only
+  catches emissive things; it also has its own music theme, as does every track.
+- **Reach**: gamepad (with menu cursor), touch buttons, F3 performance overlay with automatic
+  graphics easing, and a CrazyGames SDK wrapper that loads only on their domain.

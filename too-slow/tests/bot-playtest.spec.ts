@@ -18,6 +18,7 @@ test('a keyboard-only bot completes a full lap of the Backyard, Boing Mushroom i
   await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 5, null, { timeout: 60_000 });
   await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.seed(42));
   await page.click('#btn-play');
+  await page.click('.mode-card[data-mode="race"]');
   await page.click('.track-card[data-track="backyard"]');
   await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.state === 'racing', null, { timeout: 120_000 });
 
