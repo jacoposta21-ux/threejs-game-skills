@@ -1,0 +1,185 @@
+{
+  "url": "http://127.0.0.1:4188/",
+  "mode": "desktop",
+  "state": "miracle-water",
+  "requestedState": "miracle-water",
+  "appliedState": "miracle-water",
+  "runId": "phase3-pass-1",
+  "seed": 42,
+  "screenshotPath": "artifacts/phase3-pass-1/desktop-miracle-water.png",
+  "gpu": {
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "vendor": "Google Inc. (Google)",
+    "softwareRendered": true
+  },
+  "result": {
+    "ok": true,
+    "reason": "nonblank",
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "drawingBuffer": {
+      "width": 1280,
+      "height": 720
+    },
+    "alphaPixels": 4096,
+    "variance": 255,
+    "colorBuckets": 165,
+    "metrics": {
+      "colorBuckets": 225,
+      "colorEntropyBits": 5.29,
+      "edgeDensity": 0.156,
+      "luminance": {
+        "mean": 124.6,
+        "p5": 41,
+        "p95": 225.8,
+        "contrast": 184.8
+      },
+      "dominantColorShare": 0.211,
+      "nonBackgroundShare": 0.789
+    },
+    "renderBudget": {
+      "tier": "desktop",
+      "note": "starting-point budget; adjust per game and document overrides",
+      "rows": [
+        {
+          "metric": "calls",
+          "actual": 73,
+          "limit": 300,
+          "ok": true
+        },
+        {
+          "metric": "triangles",
+          "actual": 254520,
+          "limit": 750000,
+          "ok": true
+        },
+        {
+          "metric": "geometries",
+          "actual": 224,
+          "limit": 300,
+          "ok": true
+        },
+        {
+          "metric": "textures",
+          "actual": 12,
+          "limit": 60,
+          "ok": true
+        }
+      ],
+      "withinBudget": true
+    },
+    "diagnostics": {
+      "frame": 5,
+      "screen": "playing",
+      "quality": "high",
+      "fps": 9.99999985098839,
+      "player": {
+        "position": {
+          "x": 133,
+          "y": 0.05888267287955384,
+          "z": -15.999988555908203
+        },
+        "speed": 0,
+        "grounded": true,
+        "yaw": 1.9
+      },
+      "camera": {
+        "yaw": 4.641592653589793,
+        "distance": 7
+      },
+      "discovered": [],
+      "clock": 0.1021666666666668,
+      "night": 0,
+      "flags": {},
+      "faith": 0,
+      "chaos": 1.7999999999999998,
+      "dialogue": null,
+      "talkTarget": null,
+      "npcs": {
+        "count": 28,
+        "near": 0,
+        "visible": 11,
+        "hidden": 0,
+        "states": {
+          "travel": 16,
+          "look": 3,
+          "act": 7,
+          "none": 2
+        },
+        "nav": {
+          "nodes": 272,
+          "edges": 574,
+          "casts": 779,
+          "unreachable": 1
+        },
+        "homesReachable": true,
+        "animals": 16
+      },
+      "miracles": {
+        "cooldowns": {
+          "miracle.walk-on-water": 4.37
+        },
+        "water": 23.4,
+        "lifting": null,
+        "wine": []
+      },
+      "unlocked": [
+        "miracle.divine-push",
+        "miracle.multiplication",
+        "miracle.water-to-wine",
+        "miracle.walk-on-water",
+        "miracle.healing-touch",
+        "miracle.holy-levitation"
+      ],
+      "selected": 3,
+      "effects": {
+        "particles": 40,
+        "rings": 1
+      },
+      "water": {
+        "depth": 4.5,
+        "onWater": true
+      },
+      "props": {
+        "total": 79,
+        "awake": 14,
+        "broken": 0,
+        "shards": 0,
+        "copies": 0
+      },
+      "stats": {
+        "distance": 0.00014546809683330667,
+        "jumps": 0,
+        "playTime": 0,
+        "propsDisturbed": 9,
+        "conversations": 0,
+        "miracles": 1
+      },
+      "physics": {
+        "bodies": 321,
+        "colliders": 904,
+        "activeBodies": 33
+      },
+      "renderer": {
+        "calls": 73,
+        "triangles": 254520,
+        "geometries": 224,
+        "textures": 12
+      },
+      "canvas": {
+        "clientWidth": 1280,
+        "clientHeight": 720,
+        "width": 1280,
+        "height": 720
+      }
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "consoleErrorCount": 0,
+  "pageErrorCount": 0
+}

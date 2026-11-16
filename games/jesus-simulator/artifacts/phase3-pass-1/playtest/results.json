@@ -1,0 +1,159 @@
+{
+  "url": "http://127.0.0.1:4188/",
+  "results": [
+    {
+      "name": "walk forward moves player",
+      "ok": true,
+      "detail": "moved=14.50m grounded=true"
+    },
+    {
+      "name": "landmark discovery triggers",
+      "ok": true,
+      "detail": "[\"landmark.workshop\"]"
+    },
+    {
+      "name": "wall blocks movement",
+      "ok": true,
+      "detail": "player local z=5.40 (wall at 5)"
+    },
+    {
+      "name": "climb stairs to rooftop",
+      "ok": true,
+      "detail": "landing y=8.79 roof y=8.79 local x=0.11"
+    },
+    {
+      "name": "rooftop lookout discovered",
+      "ok": true,
+      "detail": "[\"landmark.workshop\",\"landmark.lookout\"]"
+    },
+    {
+      "name": "jump leaves ground and lands",
+      "ok": true,
+      "detail": "airborne y=9.73 landed y=3.00 jumps=1"
+    },
+    {
+      "name": "interaction prompt + dialog",
+      "ok": true,
+      "detail": "Cool, clear water. Strangely, you feel it could become somet"
+    },
+    {
+      "name": "sprint faster than walk",
+      "ok": true,
+      "detail": "walk=4.60 sprint=8.20"
+    },
+    {
+      "name": "TAB map opens and closes",
+      "ok": true
+    },
+    {
+      "name": "ESC opens pause menu",
+      "ok": true
+    },
+    {
+      "name": "save & continue restores progress",
+      "ok": true,
+      "detail": "landmarks 3 -> 3"
+    },
+    {
+      "name": "corrupt save -> fresh start, no crash",
+      "ok": true,
+      "detail": "label=PLAY"
+    },
+    {
+      "name": "NPCs spawn and follow routines",
+      "ok": true,
+      "detail": "count=28 moved>2m=20 states={\"greet\":1,\"travel\":14,\"act\":9,\"none\":2,\"chat\":2} nav={\"nodes\":272,\"edges\":574,\"casts\":796,\"unreachable\":1}"
+    },
+    {
+      "name": "talk to NPC (E, choose 1, Esc)",
+      "ok": true,
+      "detail": "prompt=\"Talk to Eli\" options=3 \"Business has been terrible lately.\" -> \"Rome taxes the flour, the oven and the s\""
+    },
+    {
+      "name": "NPC collision blocks the player",
+      "ok": true,
+      "detail": "contacts=248 min centre gap=0.70 reaction=greet"
+    },
+    {
+      "name": "sprinting into a villager knocks them over (+Chaos)",
+      "ok": true,
+      "detail": "reaction=stumble chaos 2.4 -> 3.4"
+    },
+    {
+      "name": "pottery breaks on hard impact",
+      "ok": true,
+      "detail": "broken=1 shards=6 chaos=5.4"
+    },
+    {
+      "name": "fruit pile scatters when walked into",
+      "ok": true,
+      "detail": "propsDisturbed 14 -> 17"
+    },
+    {
+      "name": "lost-sheep errand (Amos)",
+      "ok": true,
+      "detail": "following=true joined=true faith=5"
+    },
+    {
+      "name": "villagers go home at night, return at dawn",
+      "ok": true,
+      "detail": "{\"atNight\":27,\"morning\":0,\"total\":28}"
+    },
+    {
+      "name": "dialogue flags + people met persist",
+      "ok": true,
+      "detail": "{\"met\":2,\"sheep\":true,\"stray\":true}"
+    },
+    {
+      "name": "locked miracles cannot be cast",
+      "ok": true,
+      "detail": "unlocked=[]"
+    },
+    {
+      "name": "landmark reveals a miracle (workshop -> Divine Push)",
+      "ok": true,
+      "detail": "unlocked=[\"miracle.divine-push\"] banner=\"\n          GOOD DEED\n          The Lost Sheep\n          Amos\""
+    },
+    {
+      "name": "Divine Push shoves villagers (cooldown blocks spam)",
+      "ok": true,
+      "detail": "npc moved 1.84 m, casts=1"
+    },
+    {
+      "name": "Multiplication: Q copies bread, holding repeats, capped at 80",
+      "ok": true,
+      "detail": "label=\"Multiplication · Multiply: bread\" after1=2 afterHold=22 afterSpam=80"
+    },
+    {
+      "name": "Water to Wine turns the well to wine (+Faith)",
+      "ok": true,
+      "detail": "wine=[\"water.well\"] faith 0 -> 4"
+    },
+    {
+      "name": "Healing Touch cures an injured villager (+Faith)",
+      "ok": true,
+      "detail": "healed=true faith 4 -> 9"
+    },
+    {
+      "name": "Holy Levitation lifts while Q is held, sets down on release",
+      "ok": true,
+      "detail": "held y=3.70 released y=1.28"
+    },
+    {
+      "name": "Walk on Water: wading stops at depth, the miracle lets you walk out, expiry sinks you to the dock",
+      "ok": true,
+      "detail": "wade depth=1.33 on water=true y=0.04 after expiry x=106.0"
+    },
+    {
+      "name": "revealed miracles persist",
+      "ok": true,
+      "detail": "[\"miracle.divine-push\",\"miracle.multiplication\",\"miracle.water-to-wine\",\"miracle.healing-touch\",\"miracle.holy-levitation\",\"miracle.walk-on-water\"]"
+    },
+    {
+      "name": "no console/page errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": []
+}

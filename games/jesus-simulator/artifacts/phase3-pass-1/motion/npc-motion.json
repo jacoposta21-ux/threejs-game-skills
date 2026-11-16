@@ -1,0 +1,114 @@
+[
+  {
+    "file": "npc-00.png",
+    "t": "0.4",
+    "states": {
+      "travel": 15,
+      "act": 11,
+      "cheer": 2
+    }
+  },
+  {
+    "file": "npc-01.png",
+    "t": "0.8",
+    "states": {
+      "travel": 15,
+      "act": 11,
+      "cheer": 2
+    }
+  },
+  {
+    "file": "npc-02.png",
+    "t": "1.2",
+    "states": {
+      "travel": 15,
+      "act": 11,
+      "cheer": 2
+    }
+  },
+  {
+    "file": "npc-03.png",
+    "t": "1.6",
+    "states": {
+      "travel": 15,
+      "act": 11,
+      "cheer": 2
+    }
+  },
+  {
+    "file": "npc-04.png",
+    "t": "2.0",
+    "states": {
+      "travel": 14,
+      "act": 12,
+      "cheer": 2
+    }
+  },
+  {
+    "file": "npc-05.png",
+    "t": "2.4",
+    "states": {
+      "travel": 14,
+      "act": 12,
+      "cheer": 2
+    }
+  },
+  {
+    "file": "npc-06.png",
+    "t": "2.8",
+    "states": {
+      "travel": 12,
+      "act": 13,
+      "cheer": 2,
+      "greet": 1
+    }
+  },
+  {
+    "file": "npc-07.png",
+    "t": "3.2",
+    "states": {
+      "travel": 12,
+      "act": 13,
+      "cheer": 2,
+      "greet": 1
+    }
+  },
+  {
+    "file": "npc-08.png",
+    "t": "3.6",
+    "states": {
+      "travel": 13,
+      "act": 12,
+      "cheer": 2,
+      "greet": 1
+    }
+  },
+  {
+    "file": "npc-09.png",
+    "t": "4.0",
+    "states": {
+      "travel": 13,
+      "act": 12,
+      "cheer": 2,
+      "greet": 1
+    }
+  },
+  {
+    "file": "npc-10.png",
+    "t": "4.4",
+    "states": {
+      "travel": 14,
+      "act": 12,
+      "none": 2
+    }
+  },
+  {
+    "file": "npc-11.png",
+    "t": "4.8",
+    "states": {
+      "travel": 14,
+      "act": 12,
+      "none": 2
+    }
+  }
+]

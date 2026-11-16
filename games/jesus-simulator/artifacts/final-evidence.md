@@ -1,4 +1,4 @@
-# Evidence — Phase 2 (living world)
+# Evidence — Phase 3 (miracles)
 
 Screenshots and videos are kept out of git (the repo ignores `artifacts/`). This report, the manifest, the JSON reports and the motion sheets are committed. Regenerate the rest with:
 - `npm run verify:visual`
@@ -6,62 +6,61 @@ Screenshots and videos are kept out of git (the repo ignores `artifacts/`). This
 - `npm run test:motion`
 - `npm run test:npc-motion`
 
-All runs used the production build (`npm run build` + `vite preview` on :4188) in headless Chromium. **Rendering was software (SwiftShader):** pixel, budget and gameplay checks are valid, but FPS numbers are not. Simulation-heavy checks fast-forward the fixed 60 Hz step in-page (`session.simulate`), because the software GPU renders too slowly for minutes of real time. All player actions still use real key input.
+All runs used the production build (`npm run build` + `vite preview` on :4188) in headless Chromium with **software rendering (SwiftShader)**. In this container session SwiftShader renders at about 2 FPS. I verified this by comparing against the committed Phase 2 build on the same machine: both ran at 1.75 FPS, and without rendering the game runs at 36–39 FPS (about 25 ms of JavaScript per frame). FPS numbers here are therefore not meaningful; pixel, budget and gameplay checks are. Simulation-heavy checks fast-forward the fixed 60 Hz step in-page, but every player action uses real key input: number keys to select, **Q** to cast and hold.
 
-Phase 1 evidence (run `phase1-pass-4`, plus playtest/motion `phase1-pass-3`) remains in git history.
+Phase 1 and 2 evidence remains in git history.
 
-## Canvas inspector — run `phase2-pass-3`
-Manifest: [evidence.json](evidence.json). `check_evidence.py --manifest` → **passed, 11 artifacts confirmed.**
+## Canvas inspector — run `phase3-pass-1`
+Manifest: [evidence.json](evidence.json). `check_evidence.py --manifest` → **passed, 15 artifacts confirmed.**
 
 | Viewport / state | Result | Budget |
 | --- | --- | --- |
-| desktop / menu (village simulating behind it) | PASS | ok |
-| desktop / active-play | PASS | ok |
-| desktop / plaza-life (after 40 s simulated) | PASS | ok — 203 calls, 403k tris, 255 geometries |
-| desktop / market-life | PASS | ok |
-| desktop / npc-dialogue (Eli the baker) | PASS | ok |
-| desktop / night (all villagers indoors) | PASS | ok |
-| desktop / pause | PASS | ok |
-| mobile / plaza-life | PASS | over: calls 174 > 150, triangles 392k > 300k, geometries 234 > 200 |
+| desktop / menu, active-play, plaza-life, npc-dialogue, pause | PASS | ok |
+| desktop / miracle-push | PASS | ok |
+| desktop / miracle-multiply | PASS | ok |
+| desktop / miracle-wine | PASS | ok |
+| desktop / miracle-water | PASS | ok |
+| desktop / miracle-heal | PASS | ok |
+| desktop / miracle-levitate | PASS | ok |
+| mobile / miracle-multiply | PASS | over: triangles 402k > 300k, geometries 238 > 200 (mobile is not a target) |
 
-Mobile is not a target for this release; the overage is recorded, not hidden.
+## Real-input playtest — run `phase3-pass-1`
+[results.json](phase3-pass-1/playtest/results.json) — **31/31 PASS**: 12 Phase 1 regressions, 10 Phase 2 checks, and 9 Phase 3 checks:
 
-## Real-input playtest — run `phase2-pass-3`
-[results.json](phase2-pass-3/playtest/results.json) — **22/22 PASS** (12 Phase 1 regressions + 10 Phase 2 checks):
-
-- **Routines:** 27 NPCs; 19 moved more than 2 m over 20 simulated seconds. Nav graph: 272 nodes, 576 edges, 0 unreachable anchors.
-- **Conversation:** "Talk to Eli" prompt → **E** opens the conversation (3 options) → **1** advances to a new node → **W** does nothing during the conversation → **Esc** closes it.
-- **NPC collision:** the player is blocked by an NPC (263 contact events; capsule centres never closer than 0.70 m).
-- **Knock-over:** sprinting into a villager makes them stumble and fall; Chaos goes 1.6 → 2.6.
-- **Pottery:** a pot dropped from 4 m shatters (6 shards, Chaos +2, the merchant reacts).
-- **Fruit:** walking into a fruit pile scatters it (props disturbed 12 → 18).
-- **Lost sheep:** Amos gives the errand (E, 1), the stray follows the player, rejoins the flock, and the reward is Faith +5.
-- **Night:** at night 27/27 villagers are indoors; at dawn 0 are hidden.
-- **Persistence:** people met, dialogue flags and the returned sheep survive Save & Quit → Continue.
+- **Locked miracles:** pressing 2 then Q before any reveal does nothing and shows a "not yet revealed" toast.
+- **Reveal:** reaching the workshop reveals Divine Push (banner, slot auto-selected).
+- **Divine Push:** Q shoves a villager 1.84 m; an immediate second Q is refused by the cooldown (exactly 1 cast).
+- **Multiplication:** Q on Eli's bread gives 2 copies; holding Q gives 22; 70 forced casts stay **capped at 80**.
+- **Water to Wine:** the well turns to wine and Faith goes 0 → 4.
+- **Healing Touch:** Benjamin's chronic knee is cured and Faith goes 4 → 9.
+- **Holy Levitation:** holding Q lifts a villager to y = 3.70; releasing sets them down at y = 1.28 (ground ≈ 1.2).
+- **Walk on Water:**
+  - Wading stops at 1.33 m depth.
+  - After casting, Jesus walks out onto the lake (`onWater` = true, y = 0.04).
+  - When the miracle expires over deep water, Jesus sinks and is placed on the dock (x = 106).
+- **Persistence:** all 6 revealed miracles survive Save & Quit → Continue.
 - **Errors:** no console or page errors.
 
-Stability: the playtest also passed 22/22 on two earlier consecutive runs of the build before the final camera and awning changes.
-
 ## Motion
-- **Player locomotion:** [motion-sheet.png](phase2-pass-3/motion/motion-sheet.png) — idle → walk → sprint → jump → land.
-- **NPC life:** [npc-motion-sheet.png](phase2-pass-3/motion/npc-motion-sheet.png) — a fixed camera over the square, 12 frames, 0.4 s of simulation apart.
-  - **Visible:** walk cycles, the kids running up cheering then going back to tag ("Tag! You're it!" / "No fair!"), two pairs of passers-by chatting, and greetings.
+- **Player locomotion:** [motion-sheet.png](phase3-pass-1/motion/motion-sheet.png).
+- **NPC life:** [npc-motion-sheet.png](phase3-pass-1/motion/npc-motion-sheet.png) — a regression check that kids greet Jesus, play tag and villagers chat.
 
-## Defects found and fixed in this pass
-- **Lanes through the workshop:** two village lanes started inside the carpentry workshop, putting nav nodes inside its walls (Mary and Joseph stuck). The lanes were moved.
-- **Nodes inside the well:** road nodes sat inside the well collider (an unstuck teleport landed a villager inside the well). Nodes are now rejected with a penetration test.
-- **Overlapping spawns:** villagers sharing a home spawned in the same spot and locked each other's capsules. Spawns are now offset, with a direct overlap nudge.
-- **Restless fruit:** fruit pyramids never slept (balls creep on balls; 22 bodies awake forever). Slow props are now put to sleep, leaving 0–1 awake at rest.
-- **Camera pushed by NPCs:** NPC capsules pushed the camera into villagers' heads. The camera now collides only with fixed architecture.
-- **Hidden merchant faces:** stall valances hung at merchant head height. The awnings were raised; the over-the-shoulder conversation camera now frames the NPC's face above the panel.
-- **Shoppers scattering fruit:** fruit piles sat in the shoppers' path and were permanently scattered. They were moved beside the stalls.
+## Defects found by the tests and fixed in this pass
+- **Audio exception:** the Web Audio envelope threw on zero-gain sounds (distance attenuation to 0). Because it was inside an event handler, a distant pot shattering could throw mid-frame. Envelopes are now floored and silent sounds skipped.
+- **Wading leak:** wading only slowed you in deep water, so you could creep ever deeper. Deeper motion is now cancelled past 1.3 m, with a drift back to shore past 1.5 m.
+- **Submerged cast:** casting Walk on Water while submerged left Jesus on the lake bed under the walkable surface. Casting now lifts him onto the water.
+- **Dawn crash:** a stale NPC `travel` phase at dawn caused a re-path to a null step (crash). Phases are reset on block change and null steps guarded.
+- **Bad anchors:** the well-water and trough-water spots were registered as NPC destinations inside colliders. Only standing spots become anchors.
+- **Unreachable home:** one villager's home door was unreachable. Homes are now reassigned to reachable doors.
+- **Wine targeting:** the fallback measured to a target's centre, not its edge, so you couldn't target the well from its rim.
 
-## Physics and AI budget
-- **NPCs:** 27 kinematic capsules. Those within 42 m move with Rapier's KinematicCharacterController (one shared controller); the rest follow paths directly. Animation runs at full rate within 48 m and every third frame beyond; shadows within 30 m; hidden beyond 125 m.
-- **Props:** 70 dynamic bodies plus a pool of 48 shards; bodies sleep until touched. Animals are 16 kinematic agents with no physics bodies.
-- **Navigation:** about 800 shape casts at build time; paths are computed with A* on demand.
+## Budgets
+- **Effects:** 900 particles (one draw call) plus 14 rings.
+- **Bodies:** 80 multiplied copies per kind are pre-created and disabled until used; shards stay at 48.
+- **Pre-created colliders:** the lake surface collider is created once and toggled with `setEnabled`.
+- **Totals and cost:** about 321 bodies and 904 colliders in total; the desktop gameplay view uses about 207 draw calls and about 420k triangles (within the desktop budget).
 
 ## Not verified
-- Real-GPU frame rate with 27 NPCs.
-- Audio in a headed browser (the procedural voices run without errors headless).
-- Long sessions beyond a few simulated in-game hours.
+- Real-GPU frame rate.
+- Audio in a headed browser.
+- Long play sessions with heavy miracle use beyond the tested caps.

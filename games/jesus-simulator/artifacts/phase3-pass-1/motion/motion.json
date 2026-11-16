@@ -1,0 +1,93 @@
+[
+  {
+    "file": "frame-00.png",
+    "label": "idle",
+    "speed": "0.0",
+    "y": "1.17",
+    "grounded": true
+  },
+  {
+    "file": "frame-01.png",
+    "label": "walk",
+    "speed": "4.6",
+    "y": "1.19",
+    "grounded": true
+  },
+  {
+    "file": "frame-02.png",
+    "label": "walk",
+    "speed": "4.6",
+    "y": "1.23",
+    "grounded": true
+  },
+  {
+    "file": "frame-03.png",
+    "label": "walk",
+    "speed": "4.6",
+    "y": "1.25",
+    "grounded": true
+  },
+  {
+    "file": "frame-04.png",
+    "label": "walk",
+    "speed": "4.6",
+    "y": "1.28",
+    "grounded": true
+  },
+  {
+    "file": "frame-05.png",
+    "label": "sprint",
+    "speed": "8.2",
+    "y": "1.39",
+    "grounded": true
+  },
+  {
+    "file": "frame-06.png",
+    "label": "sprint",
+    "speed": "8.2",
+    "y": "1.41",
+    "grounded": true
+  },
+  {
+    "file": "frame-07.png",
+    "label": "sprint",
+    "speed": "8.2",
+    "y": "1.43",
+    "grounded": true
+  },
+  {
+    "file": "frame-08.png",
+    "label": "jump rise",
+    "speed": "8.2",
+    "y": "2.64",
+    "grounded": false
+  },
+  {
+    "file": "frame-09.png",
+    "label": "jump apex",
+    "speed": "8.2",
+    "y": "1.42",
+    "grounded": true
+  },
+  {
+    "file": "frame-10.png",
+    "label": "falling",
+    "speed": "8.2",
+    "y": "1.37",
+    "grounded": true
+  },
+  {
+    "file": "frame-11.png",
+    "label": "landing",
+    "speed": "0.0",
+    "y": "1.35",
+    "grounded": true
+  },
+  {
+    "file": "frame-12.png",
+    "label": "idle again",
+    "speed": "0.0",
+    "y": "1.35",
+    "grounded": true
+  }
+]
