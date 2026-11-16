@@ -234,13 +234,14 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
     grabbed = (await diag()).romans.grab;
     meterShown = meterShown || (await page.getAttribute('#grab-meter', 'hidden')) === null;
   }
+  const toppled0 = (await diag()).stats.soldiersToppled || 0;
   // push at once (a screenshot here costs enough frames for the meter to fill up)
   await castQ();
   await page.screenshot({ path: `${out}/roman-grab.png` });
   await waitFrames(10);
   d = await diag();
-  check('seized: a Divine Push breaks free', grabbed >= 0.3 && meterShown && d.screen === 'playing' && d.romans.grab < grabbed && d.romans.ragdolls >= 1,
-    `grab peaked ${grabbed.toFixed(2)}, after push ${d.romans.grab}, ragdolls=${d.romans.ragdolls}, meter=${meterShown}`);
+  check('seized: a Divine Push breaks free', grabbed >= 0.3 && meterShown && d.screen === 'playing' && d.romans.grab < grabbed && (d.stats.soldiersToppled || 0) > toppled0,
+    `grab peaked ${grabbed.toFixed(2)}, after push ${d.romans.grab}, toppled ${toppled0}->${d.stats.soldiersToppled}, meter=${meterShown}`);
 
   // 11. Water to Wine distracts pursuing legionaries
   await calm();
