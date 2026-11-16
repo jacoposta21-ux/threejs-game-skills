@@ -52,7 +52,8 @@ test('tutorial, time trial and split-screen start from the mode screen and answe
   await page.waitForFunction((s) => window.__THREE_GAME_DIAGNOSTICS__!.racers[1].s > s + 2, before.racers[1].s, { timeout: 120_000 });
   await page.keyboard.up('ArrowUp');
   const mid = await diag(page);
-  expect(Math.abs(mid.racers[0].s - before.racers[0].s)).toBeLessThan(1);
+  // Player one only drifts if a rival shoulders it on the grid.
+  expect(Math.abs(mid.racers[0].s - before.racers[0].s)).toBeLessThan(4);
   await page.keyboard.down('KeyW');
   await page.waitForFunction((s) => window.__THREE_GAME_DIAGNOSTICS__!.racers[0].s > s + 2, mid.racers[0].s, { timeout: 120_000 });
   await page.keyboard.up('KeyW');

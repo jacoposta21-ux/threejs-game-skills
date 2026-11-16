@@ -4,11 +4,11 @@
 
 A 3D downhill snail racing game for desktop browsers, built with Three.js, TypeScript and Vite.
 You are a snail. You cannot accelerate. Gravity can. Crawl to the edge, tuck into your shell, and
-let the hill do the rest — six snails, six unlockable three-lap circuits, a giant Boing Mushroom
+let the hill do the rest — six snails, seven unlockable three-lap circuits, a giant Boing Mushroom
 that throws you back to the top every lap, kart-style items, boost pads, drift mini-turbos,
 slipstreams, insects on the course and a garage full of unlockable hats, shells and slime trails.
-Play a quick race, a five-track Grand Prix, a Time Trial against your own ghost, a guided tutorial
-lap, or split-screen with a friend on one PC — keyboard, gamepad or touch.
+Play a quick race, a Grand Prix, a Time Trial against your own ghost, the daily challenge, a guided
+tutorial lap, or split-screen with a friend on one PC — keyboard, gamepad or touch, in six languages.
 
 ![Menu](docs/screens/menu.jpg)
 
@@ -25,6 +25,10 @@ lap, or split-screen with a friend on one PC — keyboard, gamepad or touch.
 | ![Split-screen](docs/screens/duo.jpg) | ![Time Trial](docs/screens/tt.jpg) |
 | **Grand Prix podium** | **Customize** |
 | ![Podium](docs/screens/podium.jpg) | ![Customize](docs/screens/garage.jpg) |
+| **The Greenhouse** | **Rain mid-race** |
+| ![Greenhouse](docs/screens/greenhouse.jpg) | ![Rain](docs/screens/rain.jpg) |
+| **New items** | **Achievements** |
+| ![Items](docs/screens/items.jpg) | ![Achievements](docs/screens/achievements.jpg) |
 
 ## Run it
 
@@ -101,6 +105,10 @@ gets one.
   - Acorn — rolls along the course at the snail ahead of you and knocks it into a spin.
   - Super Slime — five seconds of slide that costs no slime.
   - Shell Shield — a bubble that blocks the next banana or acorn.
+  - Giant Snail — six seconds huge, heavy and immune; touch a rival and you flatten it.
+  - Spider Web — dropped behind; whoever rolls into it is caught and slowed.
+  - Ladybug — flies along the course after the leader and knocks it spinning.
+  - Honey Drop — a sticky puddle behind you for fourteen seconds.
 
   Leaders mostly get bananas and shields, the back of the pack mostly mushrooms and acorns. The AI
   snails use the same boxes, items and rules. Items can be switched off in Settings.
@@ -123,18 +131,31 @@ only counts once every checkpoint of it has been passed, so cutting across the i
 - **Time Trial** — alone, no items, against a see-through ghost of your personal best. Bronze,
   silver and gold target times per track.
 - **2 Players** — split-screen against each other and four rivals.
+- **Daily Challenge** — the same track, twist (rain, gale, only bananas, only Giant Snails, only
+  Ladybugs, or Hard rivals) and race seed for everyone each day; top three clears it, streaks count.
 - **Tutorial** — a guided practice lap with a checklist that ticks itself off: crawl, shell, steer,
   slide, item, boost, spin. Recommended on the first run.
 - **Rival snails**: Easy / Normal / Hard changes how bravely and precisely the AI drives — the AI
   never gets extra speed.
 - **Slipstream**: roll close behind another snail to halve your air drag and charge boost faster.
+- **Weather**: garden tracks can cloud over mid-race — rain makes every surface slicker; open tracks
+  get gusty wind that pushes you in the air (an arrow on screen shows where it blows).
+- **Rivals have personalities**: they chatter when they pass you, get passed or hit you, and each race
+  one of them is your **nemesis** (whoever beat you last): it drives harder and aims its items at you.
 
 ### Unlocks
 
 Finishing in the top three unlocks the next track. Hats (Chef, Viking, Wizard, Halo), shells (Gold,
 Galaxy) and slime trails (Sky, Bubblegum, Gold, Rainbow) are earned by finishing the tutorial,
 winning races, landing tricks, Time Trial medals and Grand Prix wins — the garage shows how to earn
-each one. A local **Hall of Fame** keeps your five fastest finishes per track.
+each one. A local **Hall of Fame** keeps your five fastest finishes per track, and 33
+**achievements** have their own screen.
+
+### Languages
+
+English, Italiano, Español, Français, Deutsch and Português — picked from the browser, changeable in
+Settings (`?lang=it` etc. to force one). Hints and the tutorial name the controls of the device you
+are using (keyboard, gamepad or touch).
 
 ### Tracks
 
@@ -148,6 +169,7 @@ Finish in the top three to unlock the next track. Personal bests are kept per tr
 | 4 | Sandbox Canyon | hot sandpit, dust | a packed-sand groove that wanders across loose sand (which eats speed), a cactus zigzag, the Spade Ramp |
 | 5 | Frosty Morning | snowy dawn, snowfall | a fast, slippery ice line down the middle, grippy slow snow either side, icicles and a glare-ice pond |
 | 6 | Glow Grove | midnight, glowing mushrooms, bloom | a long left-hander through glowshrooms, S-bends on a stone ribbon, the Moon Jump over a moon-pool, Glow-worm Gully |
+| 7 | The Greenhouse | warm mist under glass walls | a long fern-terrace U-turn, a seed-tray slalom, sprinkler puddles, the Watering Can Leap |
 
 ### Insects
 
@@ -166,7 +188,7 @@ src/
   main.ts                 boot, font loading
   game/Game.ts            state machine, fixed-step loop, events → VFX / audio / HUD, test hooks
   world/Track.ts          course engine: height, surface, obstacles, AI gates, pads, item rows as functions of (s, d)
-  world/tracks/           the six circuit definitions (shape, profile, theme, features)
+  world/tracks/           the seven circuit definitions (shape, profile, theme, features)
   world/Terrain.ts        ribbon terrain mesh + water, generated from Track
   world/Backyard.ts       procedural prop kit (grass, flowers, mushrooms, roots, bridge, tools …)
   world/Environment.ts    sky, lights, shadows, fog, view distance
@@ -191,6 +213,9 @@ src/
   game/Tutorial.ts        the guided practice-lap checklist
   core/Input.ts           keyboard (1–2 players), gamepads, touch buttons, gamepad menu cursor
   core/Platform.ts        CrazyGames SDK wrapper (gameplay events, midgame / rewarded ads)
+  i18n/                   language switching; strings.ts is generated by scripts/i18n/build.py
+  ui/Achievements.ts      achievements and the daily challenge
+  racing/Personality*.ts  rival chatter in six languages, the nemesis
 scripts/sim.ts            headless race simulation (track + physics + AI, no rendering)
 tests/                    Playwright smoke test and keyboard-only full-race bot
 ```
@@ -222,8 +247,8 @@ Headless tuning run (prints section splits and every racer's result):
 npm run sim -- 1 10
 ```
 
-Add `--track=veggie`, `--track=pond`, `--track=sandbox`, `--track=frost` or `--track=glow` for the
-other circuits, `--no-items` for a clean race, `--diff=0|2` for easy / hard rivals and `--mode=tt`
+Add `--track=veggie`, `--track=pond`, `--track=sandbox`, `--track=frost` or `--track=glow` or `--track=greenhouse` for the
+other circuits, `--weather=rain|wind|clear`, `--no-items` for a clean race, `--diff=0|2` for easy / hard rivals and `--mode=tt`
 for a solo time-trial run.
 
 Real-input smoke test and full-race bot (set `PLAYWRIGHT_CHROMIUM_PATH` to reuse an installed
@@ -237,12 +262,13 @@ The full-race bot takes about ten minutes on a machine without a GPU. What was r
 this revision is recorded in [docs/VERIFICATION.md](docs/VERIFICATION.md); the design brief, core
 loop and level plan are in [docs/DESIGN.md](docs/DESIGN.md).
 
-URL overrides: `?q=0` (graphics 0–2), `?dpr=0.5` (render scale), `?unlock=all` (open every track
+URL overrides: `?q=-1` … `?q=2` (graphics, -1 = Mobile), `?dpr=0.5` (render scale), `?unlock=all` (open every track
 and cosmetic for testing) and `?crazygames=1` / `?crazygames=0` (force the platform SDK on / off).
 
 **Performance:** `F3` shows fps, frame time, draw calls and triangles. With *Auto graphics* on
 (Settings, default) the game lowers render scale, shadows and view distance in steps if a race
-runs below ~38 fps for a few seconds.
+runs below ~38 fps for a few seconds. Phones and tablets start on the **Mobile** graphics tier (sparser grass,
+no shadows, lower resolution) with the touch HUD laid out between the buttons.
 
 ## Publishing notes (CrazyGames)
 

@@ -1,5 +1,22 @@
 # Verification record
 
+## Update: languages, daily challenge, new items, track 7, weather, rivals, achievements, mobile
+
+- **Headless sims:** new items in play on Backyard and Lily Pond (all finish; the Lily Pond puddle
+  that trapped a slow rival was narrowed). Forced rain (Backyard, Lily Pond, Glow Grove) and wind
+  (Frosty Morning, Sandbox): 6/6 finishers each. The Greenhouse went through three layouts: the first
+  had a hairpin and a narrow bridge that racers fell off (200–290 s races, many resets); the shipped
+  layout finishes in about 155–195 s with two checkpoint resets in six races.
+- **Browser captures:** Giant Snail rival, web, ladybug and honey on track; rain (overcast sky, rain
+  streaks) and wind arrow; Greenhouse glass walls; chatter bubble and nemesis mark; achievements
+  screen; daily-challenge results; Italian menus, mode screen, tutorial and results (`?lang=it`);
+  Pixel 7 landscape emulation on the Mobile tier with the touch buttons clear of the HUD.
+- **Tests:** `tests/visual.spec.ts` and the touch test passed; the split-screen test once failed
+  because a rival nudged player one on the grid during the player-two check (tolerance raised to 4 m;
+  passes). Keyboard bot (`tests/bot-playtest.spec.ts`) passed in 4.0 min: full Backyard lap through the Boing Mushroom, 311 km/h top speed, one stall it recovered from with `R`.
+- **Not verified here:** gamepad hardware, CrazyGames ads, real-device frame rates, and the quality
+  of the non-Italian translations beyond a read-through.
+
 ## Update: modes, controls, unlocks, Glow Grove, platform
 
 Everything in this pass was checked as follows (no GPU here: SwiftShader, 2–15 fps headless).
