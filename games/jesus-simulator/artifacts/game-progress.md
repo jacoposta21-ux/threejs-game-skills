@@ -1,7 +1,7 @@
 # Jesus Simulator — progress log
 
 ## Intent and constraints
-- Complete Jesus Simulator for CrazyGames, built incrementally phase by phase. Phases 1–4 are done; the current pass is Phase 4 (Roman system).
+- Complete Jesus Simulator for CrazyGames, built incrementally phase by phase. Phases 1–5 are done; the current pass is Phase 5 (world expansion, rides, wildlife).
 - JavaScript ES modules (the user asked for JS, overriding the pack's TS default), Three.js, Rapier 3D, Vite, Web Audio, LocalStorage.
 - Single-player only; MULTIPLAYER is a visibly disabled "COMING SOON" button with no networking.
 - Tone: playful and absurd, never deliberately offensive. Roblox-inspired but original art; procedural geometry is acceptable for Phase 1.
@@ -92,8 +92,33 @@ Player **explores** to **discover the 7 landmarks of Nazareth**; the minimap and
   - Procedural cornu horn, armour clank, pursuit drums by star level, an arrest sting and an escape chord.
 - **Tests:** phase 1–3 checks run with the garrison off duty (`romans.setActive(false)`); `tests/phase4-checks.mjs` adds 14 real-input checks; `tests/roman-motion.mjs` produces a chase and ragdoll contact sheet.
 
-## Next actions (Phase 5 — world expansion and vehicles)
-- **Map:** open the countryside (west), the full lake, the Roman outpost region (north, beyond the checkpoint) and the desert (south). Grow PLAY_RADIUS or switch to region gates, and extend the NavGraph and the minimap extent.
-- **Vehicles:** donkey, horse, cart and chariot through a `VehicleManager` with `vehicle:enter` / `vehicle:exit` (F is already bound). Stealing a Roman chariot should be a Roman Attention crime (add it to `CRIMES`).
-- **Animals:** goats, camels, fish and birds; extend `Animals.js`.
-- **Performance:** keep an eye on draw calls (soldiers 7 each) and the shadow budget as the map grows.
+## Phase 5 — World expansion and rides (completed)
+- **Open map:** the whole 408 m square (`PLAY_HALF` 204, square boundary with `boundaryNormal`). Terrain pads flatten each new site, with dunes south of z 118, a 9 m Goat Hill and a lake island. The whole lake gets a walk-on-water collider; the oasis pond counts as water (wading and water depth).
+- **Chapter II "Explore Galilee":** 8 new places, two per region (`chapter: 2` in `LANDMARKS`, plus `CHAPTER_ONE` / `CHAPTER_TWO`). `WorldState` counts per chapter and emits `mission:complete` for `mission.explore-galilee`. The objective card switches chapters and shows the compass direction of the nearest place.
+- **Sites** (`src/world/Regions.js`), batched into 4 regional meshes for culling and the geometry budget:
+  - Countryside: the farmstead (walls, farmhouse, stable shed, threshing floor, vineyard, goat pen, instanced wheat fields) and Goat Hill.
+  - Lake: the Fishers' Hamlet (huts, jetty, boats, nets) and the Lonely Isle.
+  - North: Castra Galilaea (stone fort, restricted) and the Little Circus.
+  - South: the Palm Oasis (pond = a water-to-wine target), the Caravan Camp, and a desert arch and mesas.
+- **Rides** (`src/vehicles/`): a `VehicleManager` with 10 rides — 2 donkeys, a farm horse, 2 legion horses, 2 carts, 2 chariots and a camel. Each is a kinematic cuboid moved by its own Rapier KCC with arcade gaits, steering, a hop, water refusal, the map edge, slope tilt, a gait animation, and return-home when abandoned.
+  - **Events:** `vehicle:enter`, `vehicle:exit`, `vehicle:hit`, `vehicle:step`, `vehicle:refuse`, `circuit:start`, `circuit:lap` and `circuit:abort`.
+  - **Rider:** the Jesus model has straddle, sit and stand riding poses.
+  - **Camera:** a mount pull-back and auto-follow.
+  - **Circus laps:** quadrant visits plus crossing the start line; the best lap is saved.
+- **Crimes:** `trample` (0.7), `horsetheft` (1.3, at least 1★) and `chariot` (2.2, at least 2★) are added to `CRIMES`. A legionary seeing you on Roman property is a crime once per ride. Being grabbed while mounted drags you off; riding into a soldier ragdolls him (assault).
+- **Wildlife:** goats (pen and hill), camels (resting and a 3-camel caravan loop), plus `Wildlife.js`: 25 flock birds and 8 town-square pigeons in one InstancedMesh with shader flapping, and leaping fish (one InstancedMesh, `fish:jump`).
+- **UI and save:**
+  - Minimap and world map over all of Galilee (EXTENT 212, region names, ride triangles), an F ride prompt and a riding panel.
+  - Missions tab split by chapter; ride stats in Statistics.
+  - `SAVE_EXTENT` raised to 240; new stats `rides`, `ridden`, `chariotsStolen`, `laps` and `bestLap`.
+- **Performance:**
+  - The Jesus model's static parts are merged per pivot and material (39 → 24 geometries).
+  - Mount geometries are cached and shared.
+  - Rides are hidden beyond 140 m and drop shadows beyond 45 m.
+- **Tests:** `tests/phase5-checks.mjs` (14 checks; real F/W/Shift/D/Q input plus the test autopilot for the lap) and `tests/ride-motion.mjs` (contact sheet). The Phase 4 garrison count is now 12.
+
+## Next actions (Phase 6 — missions, Faith/Chaos, followers, full save)
+- **Missions:** a mission framework (objectives, triggers, rewards, a journal), with villager missions — the wedding wine, the fishermen's troubles and the Roman problem. The new regions give each one a stage: the hamlet, the farm, the fort and the camp.
+- **Followers:** recruited by healing and good deeds; they follow on foot and later ride along.
+- **Faith/Chaos consequences**, miracle upgrades and the full save (missions, followers, ride positions if needed).
+- **Region NPCs:** a farmer, fishermen and traders (`NPCManager` homes beyond Nazareth; the nav graph already covers the new roads).

@@ -1,6 +1,6 @@
 import './styles.css';
 import { GameSession } from './game/GameSession.js';
-import { terrainHeight } from './world/layout.js';
+import { terrainHeight, waterDepth } from './world/layout.js';
 
 function fail(message) {
   const loading = document.getElementById('loading');
@@ -35,4 +35,4 @@ if (!window.__THREE_GAME_TEST_HOOKS__) {
 }
 
 // Exposed for future platform SDK wiring (e.g. CrazyGames gameplayStart/Stop) — no SDK is loaded here.
-window.__JESUS_SIM__ = { session, terrainHeight };
+window.__JESUS_SIM__ = { session, terrainHeight, waterDepth };

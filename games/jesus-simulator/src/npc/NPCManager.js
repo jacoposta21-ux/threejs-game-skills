@@ -211,6 +211,23 @@ export class NPCManager {
         this.say(npc, this.pickLine(BARKS.bumped), 1.8, 'angry');
       }
     });
+    // ridden into by a donkey / horse / cart / chariot
+    this.bus.on('vehicle:hit', ({ handle, speed, dirX, dirZ }) => {
+      const npc = this.byHandle.get(handle);
+      if (!npc || npc.hidden || npc.ragdoll || npc.bumpCd > 0) return;
+      npc.bumpCd = 1.5;
+      if (speed > 3.2) {
+        const res = this.push(npc, dirX, dirZ, Math.min(1, (speed - 2) / 8));
+        if (res !== 'none') {
+          this.say(npc, this.pickLine(['My foot! My FOOT!', 'Who taught you to ride?!', 'Hooligan on a donkey!', 'Slow down, Yeshua!']), 2.2, 'angry');
+          this.bus.emit('npc:knocked', { entityId: npc.id, by: 'player.local' });
+          this.bus.emit('npc:trampled', { entityId: npc.id, x: npc.pos.x, z: npc.pos.z });
+        }
+      } else {
+        this.setOverride(npc, 'bumped', 1.1);
+        this.say(npc, this.pickLine(['Watch the animal!', 'Easy there!', 'Mind the hooves!']), 1.8, 'surprised');
+      }
+    });
     const react = (x, z, radius, fn) => {
       for (const npc of this.npcs) {
         if (npc.hidden || npc.ragdoll || npc.override?.type === 'talk-player' || npc.override?.type === 'stumble') continue;

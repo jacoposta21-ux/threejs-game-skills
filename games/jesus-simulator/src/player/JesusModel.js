@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { roundedBox } from '../world/geometry.js';
 import { clamp, damp } from '../core/rng.js';
 
@@ -50,6 +51,45 @@ function faceTexture() {
 }
 
 const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...extra });
+
+/**
+ * For every node, merge its childless mesh children that use the same
+ * material into one mesh (transforms baked). `keep` meshes stay separate
+ * because the animator moves them.
+ */
+function mergeStatic(root, keep) {
+  const nodes = [];
+  root.traverse((o) => nodes.push(o));
+  for (const node of nodes) {
+    const groups = new Map();
+    for (const c of node.children) {
+      if (!c.isMesh || c.children.length || keep.has(c)) continue;
+      if (!groups.has(c.material)) groups.set(c.material, []);
+      groups.get(c.material).push(c);
+    }
+    for (const [material, list] of groups) {
+      if (list.length < 2) continue;
+      const geos = list.map((c) => {
+        c.updateMatrix();
+        let g = c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone();
+        for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+        g.applyMatrix4(c.matrix);
+        return g;
+      });
+      const merged = mergeGeometries(geos, false);
+      if (!merged) continue;
+      for (const c of list) {
+        node.remove(c);
+        c.geometry.dispose();
+      }
+      for (const g of geos) g.dispose();
+      const m = new THREE.Mesh(merged, material);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      node.add(m);
+    }
+  }
+}
 
 function part(geometry, material, x = 0, y = 0, z = 0) {
   const m = new THREE.Mesh(geometry, material);
@@ -169,6 +209,9 @@ export class JesusModel {
     this.halo.position.set(0, 0.86, -0.08);
     this.head.add(this.halo);
 
+    // merge static parts that share a pivot and a material (fewer geometries and draw calls)
+    mergeStatic(this.group, new Set([this.sashTail, this.hairBack, this.halo, face]));
+
     this.phase = 0;
     this.time = 0;
     this.squash = 0;
@@ -184,8 +227,8 @@ export class JesusModel {
     this.time += dt;
     const k = damp(12, dt);
     const speedN = clamp(s.speed / 7.5, 0, 1);
-    this.moveBlend += ((s.speed > 0.2 && s.grounded ? 1 : 0) - this.moveBlend) * k;
-    this.airBlend += ((s.grounded ? 0 : 1) - this.airBlend) * damp(10, dt);
+    this.moveBlend += ((s.speed > 0.2 && s.grounded && !s.ride ? 1 : 0) - this.moveBlend) * k;
+    this.airBlend += ((s.grounded || s.ride ? 0 : 1) - this.airBlend) * damp(10, dt);
     this.phase += dt * (3.2 + s.speed * 1.55);
 
     const amp = (0.45 + speedN * 0.55) * this.moveBlend;
@@ -219,9 +262,32 @@ export class JesusModel {
     else if (pose === 'touch') { armR = -1.45; armL = -0.3; leanAdd = 0.12; }
     else if (pose === 'levitate') { armL = -2.0 + Math.sin(this.time * 3) * 0.08; armR = -2.0 - Math.sin(this.time * 3) * 0.08; armSpread = 0.2; }
     else if (pose === 'water') { armSpread = Math.max(armSpread, 0.55); }
+    // riding: straddle a saddle, sit on a cart bench, or stand in a chariot holding the reins
+    let legSpread = 0;
+    this.rideBlend = (this.rideBlend || 0) + ((s.ride ? 1 : 0) - (this.rideBlend || 0)) * damp(10, dt);
+    if (s.ride) {
+      const jig = Math.sin(this.time * (4 + s.speed * 1.3)) * Math.min(1, s.speed / 6);
+      if (s.ride === 'stand') {
+        legL = -0.12;
+        legR = 0.12;
+        leanAdd += 0.12 + Math.min(0.25, s.speed * 0.015);
+      } else {
+        legL = s.ride === 'sit' ? -1.45 : -1.15;
+        legR = legL;
+        legSpread = s.ride === 'sit' ? 0.12 : 0.42;
+        leanAdd += Math.min(0.3, s.speed * 0.02) + jig * 0.03;
+      }
+      if (!pose) {
+        armL = -0.85 + jig * 0.12;
+        armR = -0.85 - jig * 0.12;
+        armSpread = 0.02;
+      }
+    }
 
     this.legs[0].rotation.x = legL;
     this.legs[1].rotation.x = legR;
+    this.legs[0].rotation.z = -legSpread;
+    this.legs[1].rotation.z = legSpread;
     this.arms[0].rotation.x += (armL - this.arms[0].rotation.x) * k;
     this.arms[1].rotation.x += (armR - this.arms[1].rotation.x) * k;
     this.arms[0].rotation.z += (-armSpread - this.arms[0].rotation.z) * k;
@@ -229,6 +295,7 @@ export class JesusModel {
 
     const bob = Math.abs(Math.cos(this.phase)) * 0.07 * amp;
     const targetLean = speedN * 0.22 * this.moveBlend + air * -0.05 + leanAdd;
+    this.skirt.scale.set(1, 1 - this.rideBlend * 0.45, 1 + this.rideBlend * 0.35);
     this.lean += (targetLean - this.lean) * k;
     this.body.position.y = bob + (1 - this.moveBlend) * breath * 0.008 * (1 - air);
     this.torso.rotation.x = this.lean;

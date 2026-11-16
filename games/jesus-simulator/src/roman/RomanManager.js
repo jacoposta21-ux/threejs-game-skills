@@ -61,6 +61,14 @@ export class RomanManager {
     reg('roman:gateInside', posts.gateInside);
     reg('roman:yard', { x: 12.5, z: -103.5 });
     reg('roman:yard2', { x: 17, z: -109.5 });
+    // the fort (Phase 5): gate first, then the yard
+    if (posts.outGateOutside) {
+      reg('roman:outGateOutside', posts.outGateOutside);
+      reg('roman:outGateInside', posts.outGateInside);
+      reg('roman:outYard1', { x: 30, z: -178 });
+      reg('roman:outYard2', { x: 38, z: -174 });
+      reg('roman:outYard3', { x: 40, z: -184 });
+    }
     for (const [name, p] of Object.entries(posts)) if (p.yaw !== undefined && !p.elevated) reg(`roman:post:${name}`, p);
     this.routes = {};
     for (const [key, r] of Object.entries(ROUTES)) {
@@ -127,6 +135,17 @@ export class RomanManager {
       if (!this.attention.wanted) this.faceTo(s, this.player.x, this.player.z);
     });
     bus.on('miracle:cast', (e) => this.onMiracle(e));
+    // riding into people
+    bus.on('vehicle:hit', ({ handle, speed, dirX, dirZ }) => {
+      const s = this.byHandle.get(handle);
+      if (!s || s.hidden || DOWN_MODES.has(s.mode)) return;
+      if (speed > 3.5) this.push(s, dirX, dirZ, clamp((speed - 2) / 9, 0.35, 1));
+      else {
+        this.say(s, this.pick(['Watch the animal!', 'Oi! Steer that thing!', 'Mind the hooves, citizen.']), 1.8, 'angry');
+        this.crime('bump', { victim: s });
+      }
+    });
+    bus.on('npc:trampled', ({ x, z }) => this.crime('trample', { x, z, loud: true }));
   }
 
   onMiracle(e) {
@@ -427,6 +446,15 @@ export class RomanManager {
         }
       }
     }
+    // riding a Roman horse or chariot where a legionary can see it
+    const mount = ctx.mount;
+    if (mount?.roman) {
+      if (this.theftFor !== mount.id && seers.length) {
+        this.theftFor = mount.id;
+        this.crime(mount.kind === 'chariot' ? 'chariot' : 'horsetheft', { victim: seers[0] });
+        if (seers[0].bubble === null || seers[0].bubble.t < 0.5) this.say(seers[0], this.pick(['THAT IS LEGION PROPERTY!', 'Stop! Thief! Chariot thief!', 'Bring back that horse!']), 2.4, 'angry');
+      }
+    } else this.theftFor = null;
     if (this.attention.tick(dt, seers.length > 0) === 'lost') this.onLost();
     this.syncState();
 

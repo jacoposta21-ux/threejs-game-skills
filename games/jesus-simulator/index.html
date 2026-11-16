@@ -62,6 +62,13 @@
           <span id="follower-count">0</span>
         </div>
         <div class="hud-prompt" id="prompt" hidden><kbd>E</kbd><span id="prompt-text"></span></div>
+        <div class="hud-prompt ride-prompt" id="ride-prompt" hidden><kbd>F</kbd><span id="ride-prompt-text"></span></div>
+        <div class="ride-hud" id="ride-hud" hidden>
+          <div class="ride-head"><span class="ride-name" id="ride-name"></span><span class="ride-tag" id="ride-tag"></span></div>
+          <div class="ride-gait"><span id="ride-gait">Standing</span><div class="ride-bar"><i id="ride-fill"></i></div></div>
+          <div class="ride-lap" id="ride-lap" hidden><span>LAP</span><b id="ride-lap-time">0.0</b><em id="ride-lap-best"></em></div>
+          <div class="ride-keys"><kbd>W</kbd><kbd>S</kbd> pace · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> gallop · <kbd>F</kbd> get off</div>
+        </div>
         <div class="bubbles" id="bubbles"></div>
         <div class="conversation" id="conversation" hidden>
           <div class="conv-head"><span class="conv-name" id="conv-name"></span><span class="conv-role" id="conv-role"></span></div>
@@ -103,7 +110,7 @@
 
       <section id="worldmap" class="screen overlay" hidden>
         <div class="map-card">
-          <header><h2>Map of the Nazareth Valley</h2><span class="hint"><kbd>TAB</kbd> close</span></header>
+          <header><h2>Map of Galilee</h2><span class="hint"><kbd>TAB</kbd> close</span></header>
           <canvas id="worldmap-canvas" width="900" height="900"></canvas>
         </div>
       </section>

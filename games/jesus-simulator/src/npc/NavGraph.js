@@ -1,4 +1,4 @@
-import { ROADS, PLAY_RADIUS, terrainHeight } from '../world/layout.js';
+import { ROADS, PLAY_HALF, terrainHeight, waterDepth } from '../world/layout.js';
 
 /**
  * Waypoint graph for NPC navigation. Nodes come from the road network, the
@@ -73,7 +73,7 @@ export class NavGraph {
         for (let s = i === 0 ? 0 : 1; s <= steps; s += 1) {
           const x = ax + ((bx - ax) * s) / steps;
           const z = az + ((bz - az) * s) / steps;
-          if (Math.hypot(x, z) > PLAY_RADIUS - 4 || this.blocked(x, z)) { prev = null; continue; }
+          if (Math.max(Math.abs(x), Math.abs(z)) > PLAY_HALF - 4 || waterDepth(x, z) > 0.3 || this.blocked(x, z)) { prev = null; continue; }
           const n = this.addNode(x, z);
           if (prev && this.clear(prev, n)) this.link(prev, n);
           prev = n;

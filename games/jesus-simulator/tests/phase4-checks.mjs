@@ -63,7 +63,7 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
   const after = await setup(() => window.__JESUS_SIM__.session.romans.soldiers.filter((s) => !s.hidden).map((s) => [s.id, s.pos.x, s.pos.z, s.mode]));
   const walked = after.filter((a, i) => Math.hypot(a[1] - start[i][1], a[2] - start[i][2]) > 4).map((a) => a[0]);
   let d = await diag();
-  check('Roman garrison patrols and guards', d.romans.active === 8 && walked.length >= 4 && after.every((a) => a[3] === 'duty') && d.npcs.nav.unreachable === 0,
+  check('Roman garrison patrols and guards', d.romans.active === 12 && walked.length >= 4 && after.every((a) => a[3] === 'duty') && d.npcs.nav.unreachable === 0,
     `active=${d.romans.active} walking=${walked.join(',')} nav=${JSON.stringify(d.npcs.nav)}`);
 
   // 2. talk to a legionary with E; answer with 2; Esc leaves

@@ -1,7 +1,7 @@
-import { WORLD_HALF, PLAY_RADIUS, LANDMARKS, REGIONS, CHECKPOINT } from '../world/layout.js';
+import { WORLD_HALF, PLAY_HALF, LANDMARKS, REGIONS, CHECKPOINT, OUTPOST } from '../world/layout.js';
 
-const EXTENT = 175; // metres from origin covered by the map image (valley + lake shore)
-const BASE = 1024;
+const EXTENT = 212; // metres from origin covered by the map image (all of Galilee)
+const BASE = 1280;
 const PX_PER_M = BASE / (EXTENT * 2);
 const toBase = (v) => (v + EXTENT) * PX_PER_M;
 
@@ -25,7 +25,8 @@ export function buildMapBase(splatCanvas, footprints) {
     g.rotate(-f.ry);
     const w = f.w * PX_PER_M;
     const d = f.d * PX_PER_M;
-    g.fillStyle = f.kind === 'synagogue' ? '#fff6e2' : f.kind === 'workshop' ? '#d9a86a' : f.kind === 'roman' ? 'rgba(176, 70, 48, 0.32)' : f.kind === 'roman-tower' ? '#a3241c' : '#f3e6c8';
+    g.fillStyle = f.kind === 'synagogue' ? '#fff6e2' : f.kind === 'workshop' ? '#d9a86a' : f.kind === 'roman' ? 'rgba(176, 70, 48, 0.32)' : f.kind === 'roman-tower' ? '#a3241c'
+      : f.kind === 'tent' ? '#c4567a' : f.kind === 'farmyard' ? 'rgba(170, 130, 70, 0.25)' : f.kind === 'circus' ? 'rgba(160, 110, 60, 0.2)' : f.kind === 'water' ? '#4f9fb5' : '#f3e6c8';
     g.strokeStyle = 'rgba(90, 60, 30, 0.85)';
     g.lineWidth = 2;
     if (f.round) {
@@ -39,14 +40,20 @@ export function buildMapBase(splatCanvas, footprints) {
     }
     g.restore();
   }
-  // valley boundary
+  // edge of the playable land
   g.strokeStyle = 'rgba(140, 60, 30, 0.55)';
   g.setLineDash([10, 8]);
   g.lineWidth = 3;
-  g.beginPath();
-  g.arc(toBase(0), toBase(0), PLAY_RADIUS * PX_PER_M, 0, Math.PI * 2);
-  g.stroke();
+  g.strokeRect(toBase(-PLAY_HALF), toBase(-PLAY_HALF), PLAY_HALF * 2 * PX_PER_M, PLAY_HALF * 2 * PX_PER_M);
   g.setLineDash([]);
+  // region names, lightly lettered into the parchment
+  g.font = 'italic 700 30px Palatino Linotype, Georgia, serif';
+  g.textAlign = 'center';
+  g.fillStyle = 'rgba(74, 44, 22, 0.42)';
+  for (const r of REGIONS) {
+    if (r.id === 'nazareth') continue;
+    g.fillText(r.name.toUpperCase(), toBase(r.x), toBase(r.z));
+  }
   return c;
 }
 
@@ -128,6 +135,19 @@ export class Minimap {
       const x = dx * c - dz * s;
       const y = dx * s + dz * c;
       if (Math.hypot(x, y) > half - 6) continue;
+      if (n.kind === 'vehicle') {
+        g.fillStyle = n.color;
+        g.strokeStyle = '#fff';
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.moveTo(half + x, half + y - 4.5);
+        g.lineTo(half + x + 4, half + y + 3.5);
+        g.lineTo(half + x - 4, half + y + 3.5);
+        g.closePath();
+        g.fill();
+        g.stroke();
+        continue;
+      }
       if (n.soldier) {
         // view cone (shows where a legionary is looking), red dot that pulses when hunting
         const a = n.yaw - cameraYaw;
@@ -189,7 +209,7 @@ export function drawWorldMap(canvas, base, pos, playerYaw, discovered, nextId) {
   g.font = '700 15px Palatino Linotype, Georgia, serif';
   g.textAlign = 'center';
   for (const r of REGIONS) {
-    if (r.open) continue;
+    if (r.open) continue; // every region is open since Phase 5 (kept for future chapters)
     const ang = Math.atan2(r.z, r.x);
     const x = size / 2 + Math.cos(ang) * size * 0.43;
     const y = size / 2 + Math.sin(ang) * size * 0.43;
@@ -203,10 +223,10 @@ export function drawWorldMap(canvas, base, pos, playerYaw, discovered, nextId) {
     g.fillText(label, x, y + 5);
   }
 
-  {
-    // the Roman checkpoint (a point of interest, not a landmark)
-    const x = toMap(CHECKPOINT.x);
-    const y = toMap(CHECKPOINT.z);
+  for (const poi of [{ ...CHECKPOINT, label: 'Roman Checkpoint' }, { x: OUTPOST.x, z: OUTPOST.z + 22, label: 'Roman Fort' }]) {
+    // Roman points of interest (not landmarks)
+    const x = toMap(poi.x);
+    const y = toMap(poi.z);
     g.fillStyle = '#a3241c';
     g.strokeStyle = '#fff3d6';
     g.lineWidth = 2.5;
@@ -215,7 +235,7 @@ export function drawWorldMap(canvas, base, pos, playerYaw, discovered, nextId) {
     g.fill();
     g.stroke();
     g.font = '700 14px Trebuchet MS, sans-serif';
-    const label = 'Roman Checkpoint';
+    const label = poi.label;
     const w = g.measureText(label).width + 14;
     g.fillStyle = 'rgba(120, 28, 20, 0.85)';
     g.beginPath();

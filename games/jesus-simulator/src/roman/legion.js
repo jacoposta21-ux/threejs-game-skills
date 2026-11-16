@@ -47,6 +47,11 @@ export const GARRISON = [
     id: 'roman.gaius', name: 'Centurion Gaius Grumpus', role: 'Centurion', post: 'centurion', centurion: true, voice: 0.62, dialogue: 'centurion',
     look: { headwear: { type: 'galea', color: '#c9ced1', trim: '#d9a441', crest: '#d8b04a', transverse: true }, armor: { ...ARMOR, color: '#c2c8cb', shade: '#aab1b5', medals: true }, cape: '#8f1f18', shield: null, scale: 1.08, beard: '#3b2414' },
   },
+  // Castra Galilaea (Phase 5): the fort on the north road
+  { id: 'roman.cassius', name: 'Legionary Cassius', role: 'Fort gate guard', post: 'outGateN', voice: 0.75 },
+  { id: 'roman.drusus', name: 'Legionary Drusus', role: 'Fort gate guard', post: 'outGateS', voice: 0.71 },
+  { id: 'roman.felix', name: 'Legionary Felix', role: 'Stable guard', post: 'outStable', voice: 0.79 },
+  { id: 'roman.varro', name: 'Legionary Varro', role: 'Fort lookout', post: 'outTower', lookout: true, voice: 0.8 },
 ];
 
 /** Reinforcements held in reserve at the checkpoint (3+ stars). */

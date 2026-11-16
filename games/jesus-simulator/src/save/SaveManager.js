@@ -1,6 +1,6 @@
 import { LANDMARKS } from '../world/layout.js';
 
-const SAVE_EXTENT = 200;
+const SAVE_EXTENT = 240; // the play area is +-204 m since Phase 5
 
 const SAVE_KEY = 'jesus-simulator.save.v1';
 const SETTINGS_KEY = 'jesus-simulator.settings.v1';
@@ -153,6 +153,11 @@ export function validateSave(raw) {
       escapes: num(stats.escapes, 0, 1e9, 0),
       soldiersToppled: num(stats.soldiersToppled, 0, 1e9, 0),
       maxStars: num(stats.maxStars, 0, 5, 0),
+      rides: num(stats.rides, 0, 1e9, 0),
+      ridden: num(stats.ridden, 0, 1e9, 0),
+      chariotsStolen: num(stats.chariotsStolen, 0, 1e9, 0),
+      laps: num(stats.laps, 0, 1e9, 0),
+      bestLap: num(stats.bestLap, 0, 1e5, 0),
     },
     flags: validFlags(raw.flags),
     met: Array.isArray(raw.met) ? raw.met.filter((id) => typeof id === 'string' && (id.startsWith('npc.') || id.startsWith('roman.'))).slice(0, 200) : [],

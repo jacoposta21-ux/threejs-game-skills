@@ -248,6 +248,65 @@ export class AudioManager {
     lfo.stop(t + 0.7);
   }
 
+  /** A bleating voice: base pitch, wobble rate and depth, length. */
+  voice({ freq, to, wobble = 20, depth = 16, length = 0.55, gain = 0.05, filter = 900, type = 'sawtooth' }) {
+    if (!this.ctx || !(gain > 0.0005)) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const o = c.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.linearRampToValueAtTime(to ?? freq * 0.9, t + length);
+    const lfo = c.createOscillator();
+    const lg = c.createGain();
+    lfo.frequency.value = wobble;
+    lg.gain.value = depth;
+    lfo.connect(lg).connect(o.frequency);
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = filter;
+    f.Q.value = 1.6;
+    const g = c.createGain();
+    this.env(g, t, 0.05, gain, length);
+    o.connect(f).connect(g).connect(this.sfx);
+    o.start(t);
+    lfo.start(t);
+    o.stop(t + length + 0.15);
+    lfo.stop(t + length + 0.15);
+  }
+
+  bleat(gain = 1) {
+    this.voice({ freq: 420, to: 360, wobble: 28, depth: 30, length: 0.45, gain: 0.045 * gain, filter: 1200 });
+  }
+
+  /** Bray (donkey: hee-haw), whinny (horse), grumble (camel). */
+  mountCall(kind, gain = 1) {
+    if (!this.ctx) return;
+    if (kind === 'donkey' || kind === 'cart') {
+      this.voice({ freq: 520, to: 700, wobble: 9, depth: 40, length: 0.35, gain: 0.06 * gain, filter: 1100 });
+      setTimeout(() => this.voice({ freq: 260, to: 200, wobble: 7, depth: 30, length: 0.45, gain: 0.06 * gain, filter: 700 }), 380);
+    } else if (kind === 'horse' || kind === 'chariot') {
+      this.voice({ freq: 880, to: 560, wobble: 18, depth: 70, length: 0.8, gain: 0.045 * gain, filter: 1600, type: 'square' });
+      this.noiseBurst({ freq: 400, q: 0.8, gain: 0.08 * gain, decay: 0.3, rate: 0.6 });
+    } else if (kind === 'camel') {
+      this.voice({ freq: 110, to: 85, wobble: 13, depth: 22, length: 0.9, gain: 0.07 * gain, filter: 420 });
+    }
+  }
+
+  /** Hoof clop (or a wheel rattle) per stride. */
+  hoof(kind, gallop = false, wheels = false) {
+    const base = kind === 'camel' ? 320 : kind === 'donkey' || kind === 'cart' ? 900 : 700;
+    const n = gallop ? 3 : 2;
+    for (let i = 0; i < n; i += 1) {
+      setTimeout(() => this.noiseBurst({ freq: base * (0.85 + Math.random() * 0.3), q: 3, gain: (kind === 'camel' ? 0.12 : 0.2) * (gallop ? 1.15 : 1), decay: 0.05, rate: 0.7 + Math.random() * 0.3 }), i * (gallop ? 55 : 110));
+    }
+    if (wheels) this.noiseBurst({ freq: 180, q: 0.7, gain: 0.12, decay: 0.25, rate: 0.5, type: 'lowpass' });
+  }
+
+  flutter(gain = 1) {
+    for (let i = 0; i < 6; i += 1) setTimeout(() => this.noiseBurst({ freq: 1800 + Math.random() * 600, q: 1.2, gain: 0.05 * gain, decay: 0.04, rate: 1.4 }), i * 45);
+  }
+
   // ---------------------------------------------------------------- miracles
   push() {
     if (!this.ctx) return;

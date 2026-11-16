@@ -2,7 +2,7 @@
 
 A humorous, Roblox-inspired, GTA-style open-world sandbox set in first-century Galilee. Built with Three.js, Rapier 3D and Vite as plain JavaScript ES modules. **This release is single-player only.**
 
-> Status: **Phases 1–4 are complete**: playable foundation, living world, miracles and the Roman system. Later phases (world expansion and vehicles, missions, polish) are not implemented yet. See [Roadmap](#roadmap).
+> Status: **Phases 1–5 are complete**: playable foundation, living world, miracles, the Roman system, and the open world of Galilee with rideable animals and vehicles. Later phases (missions and followers, polish and the CrazyGames SDK) are not implemented yet. See [Roadmap](#roadmap).
 
 ## Run it
 
@@ -21,7 +21,7 @@ npm run preview    # http://127.0.0.1:4188
 Checks (need the preview server running):
 
 ```bash
-npm run test:play      # real-input playtest: Phases 1-4 (movement, saves, NPCs, miracles, Romans: patrols, sight, wanted level, ragdolls, escape, arrest)
+npm run test:play      # real-input playtest: Phases 1-5 (movement, saves, NPCs, miracles, Romans, riding, regions, wildlife)
 npm run test:motion    # locomotion video + contact sheet
 npm run test:npc-motion    # villager life contact sheet
 npm run test:roman-motion  # legionaries chasing + a Divine Push ragdoll, contact sheet
@@ -45,9 +45,48 @@ If Playwright can't find a browser, point it at an installed Chromium with `CHRO
 | 1–6 | Select a miracle |
 | Left mouse **or Q** | Cast the selected miracle (hold to keep lifting with Levitation; hold to keep multiplying) |
 | E (near a legionary, when not wanted) | Talk to the Romans |
-| F | Enter/exit vehicle (none yet) |
+| F | Get on / get off a ride (donkey, horse, camel, cart, chariot) |
+| W / S · A / D (riding) | Pace (trot, back up) · steer |
+| Shift · Space (riding) | Gallop · hop (animals) |
 | Tab | Map |
 | Esc | Pause menu |
+
+## What Phase 5 adds — Galilee and things to ride
+
+The whole 408 × 408 m map is now open (a square boundary at ±204 m). Four regions surround the Nazareth valley, each with two places to discover — **Chapter II: Explore Galilee** (8 places; the objective card switches to it once Chapter I is done, and shows the compass direction of the nearest one).
+
+- **Countryside (west):**
+  - **Bar-Tolmai Farmstead:** a walled farmyard with a farmhouse, a stable shed, a threshing floor and roller, haystacks, a well, a goat pen and terraced vineyards. Two wheat fields of instanced stalks lie along the road.
+  - **Goat Hill:** a 9 m hill with a summit cairn, a round herder's hut and boulders. Goats roam it and scatter, bleating, when you run at them.
+- **Sea of Galilee (east):** the whole lake is open.
+  - **Fishers' Hamlet:** on the north shore, with four huts, a 21 m jetty, moored and beached boats, drying nets, fish baskets and a campfire.
+  - **The Lonely Isle:** in the middle of the lake, with a palm, a fig tree and an inscribed stone. It's only reachable by walking on water.
+  - Fish leap out of the lake near you.
+- **Roman outpost (north):**
+  - **Castra Galilaea:** a stone fort with crenellated walls, six towers, a gate with SPQR banners, barracks, a column-fronted HQ with the eagle standard, a granary, a training yard and a stable. The interior is a restricted military area, like the checkpoint camp.
+  - **The Little Circus:** a dusty chariot track with a spina, gilded turning posts, an obelisk, a fence and wooden stands.
+  - Four more legionaries are posted at the fort: two gate guards, a stable guard and a tower lookout (12 on duty in total).
+- **Desert (south):** sand dunes replace the hills, with dry shrubs, lone palms, a sandstone arch and mesas on the skyline.
+  - **Palm Oasis:** a pond ringed by palms and reeds. You can wade in it, and **Water to Wine works on it**.
+  - **Caravan Camp:** striped tents, carpets, trade goods and a campfire, with camels resting. Three more camels walk a caravan loop between the camp and the oasis.
+- **Rides (F):** ten rides in total, all simulated with Rapier's character controller (an arcade model with a cuboid collider).
+  - **The rides:** Joseph's donkey right by the start; the farm donkey, a donkey cart and an old mare at the farm; a fish cart at the hamlet; two legion horses and two **Roman chariots** at the fort; and a camel at the caravan camp.
+  - **Controls:** W trots, Shift gallops, S brakes and backs up, A/D steer (animals can turn on the spot, wheels need speed), and Space hops on animals.
+  - **Feel:** legs swing in walk, trot and gallop gaits, wheels spin, and rides tilt to follow slopes. The camera pulls back and swings in behind you. The rider sits astride a saddle, on a cart bench, or stands in the chariot.
+  - **Limits:** rides refuse deep water and stop at the edge of the map. A ride left far from home goes back on its own after a while, when nobody's looking.
+- **Riding into trouble:**
+  - **Trampling:** galloping into a villager knocks them down or sends them flying as a ragdoll; if a soldier sees it, that's *Trampling a citizen*. Ride into a legionary and he goes flying (assault).
+  - **Theft:** a legion horse that a soldier sees you on is *Stealing a legion horse* (at least 1★). A Roman chariot is *Stealing a Roman chariot* (at least 2★).
+  - **Pulled off:** a legionary who gets a grip on you drags you off your ride.
+  - **Escaping:** a galloping horse is the fastest way to break line of sight.
+- **The Little Circus lap:** ride once around the spina and back through the white line on any animal. The lap timer shows in the riding panel, and the best lap is saved. Your first lap and each new record earn Faith.
+- **Wildlife:** 8 goats, 6 camels (resting and in a caravan), flocks of doves, gulls, farm birds and desert kites circling, pigeons on the town square that burst into the air when you approach, and fish leaping in the lake. Birds and fish are two instanced meshes, with wing flapping done in the vertex shader.
+- **Map and HUD:**
+  - The minimap and the world map cover all of Galilee, with region names lettered on the parchment and rides shown as triangles (red for Roman property).
+  - **Region labels:** Bar-Tolmai Farm, Goat Hill, Fishers' Hamlet, Castra Galilaea, The Little Circus, Palm Oasis, Caravan Camp, The Desert, and others.
+  - A riding panel shows the name, gait bar, lap timer and keys, and an F prompt appears next to the E prompt.
+- **Audio:** procedural donkey brays, horse whinnies, camel grumbles, goat bleats, hoof clops for each gait, wheel rumble and pigeon wing flutters.
+- **Saving:** rides taken, distance ridden, chariots "borrowed", circus laps and best lap are saved and shown in Statistics. Chapter II progress shows in the Missions tab. You always load in on foot, with every ride back at home.
 
 ## What Phase 4 adds — the Roman system
 
@@ -183,9 +222,12 @@ src/
   miracles/               MiracleManager
   vfx/                    Effects (pooled particles + rings)
   world/RomanCheckpoint.js the north-road camp
+  world/Regions.js        Phase 5 sites: farm, goat hill, hamlet, isle, fort, circus, oasis, caravan camp, desert rocks
+  vehicles/               VehicleManager (riding physics, mount/dismount, collisions, circus laps), mounts (procedural donkey/horse/camel/cart/chariot models)
+  npc/Wildlife.js         instanced birds (shader flapping) and leaping fish
   audio/AudioManager.js   procedural Web Audio
   save/SaveManager.js     LocalStorage + validation
-tests/                    playtest.mjs + phase2/3/4 checks, motion.mjs, npc-motion.mjs, roman-motion.mjs (Playwright, real input)
+tests/                    playtest.mjs + phase2/3/4/5 checks, motion.mjs, npc-motion.mjs, roman-motion.mjs, ride-motion.mjs (Playwright, real input)
 scripts/                  inspect-threejs-canvas.mjs (canvas/pixel/budget inspector)
 artifacts/                evidence manifest, captures, playtest results, final-evidence.md
 ```
@@ -200,11 +242,13 @@ artifacts/                evidence manifest, captures, playtest results, final-e
 
 ## Known limitations
 
-- **Content not built yet:** no vehicles, followers or the full mission framework. Their HUD slots and menu entries say plainly that they're not yet revealed or coming in a later chapter, and nothing fakes them. The lost-sheep errand is a single scripted good deed, not the Phase 6 mission system.
+- **Content not built yet:** no followers or full mission framework. Their HUD slots and menu entries say plainly that they're coming in a later chapter, and nothing fakes them. The lost-sheep errand is a single scripted good deed, not the Phase 6 mission framework.
+- **Arcade riding:** rides are a kinematic box moved by Rapier's character controller, not wheel or leg physics. They can't swim, there are no boats to sail, and the cart carries nobody but you. Romans have no cavalry; they chase on foot. The circus has no rival racers.
+- **The new regions are quieter:** no villagers live outside Nazareth yet (the farmer, fishermen and traders are implied by their homes, signs and animals). Their stories arrive with the Phase 6 missions.
 - **Ragdolls only for big hits:** legionaries always ragdoll under Divine Push and villagers do on close, strong hits (up to 8 ragdolls at once). Being bumped or sprinted into still plays the animated stumble. Ragdoll limbs don't collide with each other.
 - **Simple stealth:** there is no crouching or hiding spot; you lose the Romans by breaking line of sight and waiting. The wanted level is not saved, so reloading clears it.
 - **Night is brief:** about 84 seconds. Villagers vanish indoors rather than performing evening activities inside houses.
-- **Partial map:** only the Nazareth valley (radius 135 m) and the near strip of the lake are playable. The outpost, desert, countryside and the far lake are scenery beyond a soft boundary.
+- **Edge of the map:** a square boundary at ±204 m; the ridges beyond are scenery.
 - **No miracle upgrades yet:** upgrades and follower recruitment from healing are planned for Phase 6. Healed villagers are already recorded in the save.
 - **Large Rapier bundle:** about 1.7 MB gzipped, because the `-compat` build inlines its WASM. Switching to the non-compat package with a separate `.wasm` file would cut this.
 - **Performance unmeasured on a real GPU:** all automated captures ran on a software renderer, so FPS numbers from them aren't meaningful. Desktop render budgets pass; the mobile triangle budget is exceeded (≈340k vs 300k), and mobile is not a target for this release.
@@ -216,8 +260,8 @@ artifacts/                evidence manifest, captures, playtest results, final-e
 2. ~~Phase 2 — Living world~~ ✅
 3. ~~Phase 3 — Miracles~~ ✅
 4. ~~Phase 4 — Roman system~~ ✅
-5. **Phase 5 — World expansion** *(next)*: countryside, lake, outpost, desert, vehicles (donkey, horse, cart, chariot), animals.
-6. Phase 6 — Missions, Faith/Chaos, followers, full save.
+5. ~~Phase 5 — World expansion~~ ✅ countryside, lake, outpost, desert, rides (donkey, horse, camel, cart, chariot), animals.
+6. **Phase 6 — Missions, Faith/Chaos, followers, full save** *(next)*.
 7. Phase 7 — Polish, audio, optimisation, CrazyGames SDK integration.
 
 All models, textures and sounds are original and generated procedurally at runtime. No third-party or Roblox assets are used.

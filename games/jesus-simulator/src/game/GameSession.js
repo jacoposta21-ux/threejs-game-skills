@@ -6,7 +6,10 @@ import { createRenderer, resizeRenderer, QUALITY_PRESETS } from '../core/Rendere
 import { createRng, damp } from '../core/rng.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { World } from '../world/World.js';
-import { SPAWN, MARKET, LANDMARKS, CHECKPOINT, terrainHeight, lakeDistance, inRestrictedZone } from '../world/layout.js';
+import {
+  SPAWN, MARKET, LANDMARKS, CHECKPOINT, CHAPTER_ONE, CHAPTER_TWO, FARM, GOAT_HILL, HAMLET, ISLE, OUTPOST, CIRCUIT, OASIS, CAMP,
+  terrainHeight, lakeDistance, restrictedZoneAt, regionAt,
+} from '../world/layout.js';
 import { PlayerState } from './PlayerState.js';
 import { WorldState } from './WorldState.js';
 import { MIRACLES } from './miracles.js';
@@ -25,6 +28,7 @@ import { Effects } from '../vfx/Effects.js';
 import { MIRACLE_REVEALS } from './miracles.js';
 import { RagdollSystem } from '../physics/Ragdoll.js';
 import { RomanManager } from '../roman/RomanManager.js';
+import { VehicleManager } from '../vehicles/VehicleManager.js';
 
 const AUTOSAVE_SECONDS = 30;
 
@@ -87,6 +91,9 @@ export class GameSession {
     await new Promise((r) => setTimeout(r, 0));
     this.romans = new RomanManager({ scene: this.scene, physics: this.physics, bus: this.bus, rng: this.rng, npcs: this.npcs, anchors: this.world.anchors, ragdolls: this.ragdolls });
     this.romans.build();
+    this.vehicles = new VehicleManager({ scene: this.scene, physics: this.physics, bus: this.bus, rng: this.rng, sites: this.world.sites });
+    this.vehicles.build();
+    this.npcs.animals.buildWild(this.world.sites);
     ui.setLoading(0.94, 'Dressing Jesus in his finest tunic…');
 
     this.createLights();
@@ -213,16 +220,67 @@ export class GameSession {
       this.audio.land(airTime);
       this.model.land(airTime * 10);
     });
-    bus.on('player:boundary', () => this.ui.toast('The road beyond the valley opens in a coming chapter.', 'boundary', 6));
+    bus.on('player:boundary', () => this.ui.toast('This is the edge of Galilee. Beyond lie lands for another day.', 'boundary', 6));
     bus.on('player:respawn', () => this.ui.toast('Back on solid ground.'));
-    bus.on('landmark:discover', ({ name, blurb, count, total }) => {
+    bus.on('landmark:discover', ({ name, blurb, count, total, chapter }) => {
       this.audio.discovery();
-      this.ui.banner(`LANDMARK DISCOVERED · ${count}/${total}`, name, blurb);
+      this.ui.banner(chapter === 2 ? `PLACE DISCOVERED · GALILEE ${count}/${total}` : `LANDMARK DISCOVERED · ${count}/${total}`, name, blurb);
+      if (chapter === 2) this.addFaith(2);
       this.saveGame();
     });
-    bus.on('mission:complete', () => {
-      this.ui.banner('CHAPTER I COMPLETE', 'Nazareth Explored', 'You know every corner of home. The wider road to Galilee opens in the next chapter.');
+    bus.on('mission:complete', ({ missionId }) => {
+      if (missionId === 'mission.explore-galilee') {
+        this.addFaith(10);
+        this.ui.banner('CHAPTER II COMPLETE', 'Galilee Explored', 'Farm, lake, fort and desert: you have walked (and ridden) all of it. Faith +10');
+      } else {
+        this.ui.banner('CHAPTER I COMPLETE', 'Nazareth Explored', 'You know every corner of home. Now the roads of Galilee are yours — borrow a donkey and go.');
+      }
       this.saveGame();
+    });
+
+    // ---- riding
+    bus.on('vehicle:enter', ({ kind, roman, vehicleId }) => {
+      const v = this.vehicles.byId.get(vehicleId);
+      this.audio.mountCall(kind);
+      if (!this.flags['hint.ride']) {
+        this.flags['hint.ride'] = true;
+        this.ui.toast('W/S set the pace, A/D steer, Shift to gallop, F to get off.', 'hint-ride', 30);
+      }
+      if (roman) this.ui.toast(kind === 'chariot' ? 'You are borrowing a Roman chariot. Rome calls it stealing.' : 'That is a legion horse. Rome will want it back.', `steal-${vehicleId}`, 8);
+      else if (v) this.ui.toast(`You climb onto ${this.vehicles.displayName(v)}.`, 'mounted', 2);
+    });
+    bus.on('vehicle:exit', ({ reason }) => {
+      if (reason === 'pulled') this.ui.toast('A legionary drags you off your ride!', 'pulled', 3);
+      this.audio.thud(0.5);
+    });
+    bus.on('vehicle:step', ({ kind, gallop, wheels }) => this.audio.hoof(kind, gallop, wheels));
+    bus.on('vehicle:jump', () => this.audio.jump());
+    bus.on('vehicle:land', () => this.audio.land(0.6));
+    bus.on('vehicle:refuse', ({ kind }) => {
+      this.audio.mountCall(kind === 'cart' ? 'donkey' : kind === 'chariot' ? 'horse' : kind);
+      this.ui.toast(this.miracles.isUnlocked('miracle.walk-on-water') ? 'Your ride refuses to go into deep water. (You could walk on it, though.)' : 'Your ride refuses to go into deep water.', 'refuse', 5);
+    });
+    bus.on('vehicle:hit', ({ speed }) => { if (speed > 3) this.audio.thud(Math.min(1.6, speed / 6)); });
+    bus.on('circuit:start', () => this.ui.toast('Lap started! Go once around the spina and back through the white line.', 'lap-start', 10));
+    bus.on('circuit:abort', () => this.ui.toast('You left the track. Lap cancelled.', 'lap-abort', 3));
+    bus.on('circuit:lap', ({ time, record, laps }) => {
+      this.audio.discovery();
+      this.ui.banner(record ? 'NEW CIRCUS RECORD' : 'LAP COMPLETE', `${time.toFixed(2)} s`, record ? 'The crowd (two bored legionaries) goes wild.' : `Lap ${laps}. The record stands at ${this.playerState.stats.bestLap.toFixed(2)} s.`);
+      if (laps === 1 || record) this.addFaith(record && laps > 1 ? 3 : 5);
+      this.saveGame();
+    });
+    bus.on('vehicle:returned', ({ kind }) => {
+      if (this.screen === 'playing' && kind === 'donkey') this.ui.toast('Somewhere, a donkey trots home on its own.', 'returned', 30);
+    });
+    bus.on('animal:flee', ({ kind, x, z }) => {
+      const g = this.audioGain(x, z);
+      if (kind === 'goat') this.audio.bleat(g);
+      else if (kind === 'bird') this.audio.flutter(g);
+      else if (kind === 'camel') this.audio.mountCall('camel', g);
+    });
+    bus.on('fish:jump', ({ x, z }) => {
+      this.effects.ring({ x, y: 0.05, z, color: '#e6f6ff', from: 0.2, to: 1.6, life: 0.8, opacity: 0.6 });
+      this.audio.splash(this.audioGain(x, z) * 0.35);
     });
     bus.on('prop:disturbed', ({ type }) => {
       if (this.screen !== 'playing') return;
@@ -392,8 +450,11 @@ export class GameSession {
     this.audio.startAmbience();
     const { data, corrupted } = newGame ? { data: null, corrupted: false } : this.saves.loadGame();
     if (newGame) this.saves.deleteGame();
+    if (this.vehicles.ridden) this.vehicles.dismount(this.player, this.playerState, { force: true, reason: 'reset' });
     this.playerState.reset();
     this.world.resetAllProps();
+    this.vehicles.reset();
+    this.player.collider.setEnabled(true);
     if (data) {
       this.worldState.reset(data.discovered);
       Object.assign(this.playerState.stats, data.stats);
@@ -433,6 +494,7 @@ export class GameSession {
     if (corrupted) this.ui.toast('Your previous save could not be read, so a fresh journey begins.', 'corrupt', 8);
     if (!data) this.ui.banner('CHAPTER I', 'Nazareth', 'Explore your home village. Discover all eight landmarks — and the gifts hidden among them.');
     else this.ui.toast('Welcome back to Galilee.');
+    this.ui.setRideHud(null);
     this.bus.emit('session:start', { entityId: this.playerState.id, newGame: !data });
   }
 
@@ -521,7 +583,7 @@ export class GameSession {
       player: { x: p.position.x, y: p.position.y, z: p.position.z, yaw: p.yaw },
       discovered: [...this.worldState.discovered],
       unlockedMiracles: p.unlockedMiracles,
-      missions: { 'mission.discover-nazareth': { complete: this.worldState.explorationComplete } },
+      missions: { 'mission.discover-nazareth': { complete: this.worldState.explorationComplete }, 'mission.explore-galilee': { complete: !!this.worldState.galileeComplete } },
       faith: p.faith,
       chaos: p.chaos,
       stats: p.stats,
@@ -541,8 +603,9 @@ export class GameSession {
       const intent = this.intent;
       intent.jump = this.pending.jump;
       this.pending.jump = false;
-      this.player.fixedUpdate(dt, intent, this.cam.yaw);
+      if (!this.vehicles.ridden) this.player.fixedUpdate(dt, intent, this.cam.yaw);
     }
+    this.vehicles.fixedUpdate(dt, this.screen === 'playing' && this.vehicles.ridden ? this.intent : null, this.player, this.playerState);
     if (this.screen !== 'menu' || this.npcsInMenu) {
       this.npcs.fixedUpdate(dt, {
         playerPos: this.playerState.position, playerSpeed: this.playerState.speed, clock: this.clock,
@@ -556,9 +619,11 @@ export class GameSession {
       this.romans.fixedUpdate(dt, {
         playerPos: st.position, playerVel: st.velocity, playerOnWater: !!st.onWater || st.waterDepth > 0.6,
         night: (this.night || 0) > 0.5, cameraDir: this.camDir, cameraPos: this.camera.position,
-        playing: this.screen === 'playing', chaos: st.chaos,
+        playing: this.screen === 'playing', chaos: st.chaos, mount: st.mount || null,
       });
       this.player.speedScale = this.screen === 'playing' ? 1 - 0.45 * Math.min(1, this.romans.grab * 2) : 1;
+      // a legionary with a grip on you pulls you off your ride
+      if (this.vehicles.ridden && this.romans.grab > 0.15 && this.screen === 'playing') this.vehicles.dismount(this.player, st, { force: true, reason: 'pulled' });
     }
     if (this.screen === 'playing') this.miracles.fixedUpdate(dt, { castHeld: (this.testCastHeld || !!this.intent?.castHeld) && !this.dialogue.active });
     this.ragdolls.fixedUpdate(dt);
@@ -601,11 +666,8 @@ export class GameSession {
         this.placeMenuCamera(this.menuTime);
       }
     }
-    const renderPos = this.player.interpolate(alpha);
-    this.model.group.position.copy(renderPos);
-    this.model.group.rotation.y = this.playerState.yaw;
-    const st = this.playerState;
-    this.model.update(animDt, { speed: st.speed, sprint: st.sprinting, grounded: st.grounded, vy: st.velocity.y, aiming: st.aiming && this.screen === 'playing' });
+    this.vehicles.update(animDt, alpha, this.camera.position);
+    const renderPos = this.syncModel(animDt, alpha);
 
     this.world.update(animDt, this.reducedMotion ? 0 : elapsed, this.camera.position, this.camera.far);
     this.dialogue.tick(dt);
@@ -622,11 +684,37 @@ export class GameSession {
       this.ui.updateBubbles(this.allBubbles(), this.camera, canvas.clientWidth, canvas.clientHeight);
     } else this.ui.updateBubbles([], this.camera, 1, 1);
     this.audio.setPursuit(this.screen === 'playing' ? this.romans.attention.stars : 0);
-    const p = st.position;
+    const p = this.playerState.position;
     const marketD = Math.hypot(p.x - 0, p.z + 27);
     this.audio.update(dt, { marketProximity: Math.max(0, 1 - marketD / 32), playing: this.screen === 'playing', night: this.night });
     this.monitorPerformance(dt);
     this.publishDiagnostics();
+  }
+
+  /** Place and animate the Jesus model: on foot, or seated on the current ride. */
+  syncModel(animDt, alpha) {
+    const renderPos = this.player.interpolate(alpha);
+    const st = this.playerState;
+    const ride = this.vehicles.ridden;
+    if (ride) {
+      // sit the rider on the (slope-following) saddle
+      const pose = this.vehicles.riderPose(ride);
+      const g = this.model.group;
+      g.position.set(pose.x, pose.y, pose.z);
+      g.rotation.set(pose.pitch, pose.yaw, pose.roll, 'YXZ');
+      g.translateX(pose.seat.x);
+      g.translateZ(pose.seat.z);
+      g.translateY(pose.seat.y - (pose.standing ? 0 : 0.93));
+      renderPos.copy(g.position);
+    } else {
+      this.model.group.position.copy(renderPos);
+      this.model.group.rotation.set(0, this.playerState.yaw, 0);
+    }
+    this.model.update(animDt, {
+      speed: st.speed, sprint: st.sprinting, grounded: st.grounded || !!ride, vy: st.velocity.y, aiming: st.aiming && this.screen === 'playing',
+      ride: ride ? (ride.model.standing ? 'stand' : ride.kind === 'cart' ? 'sit' : 'straddle') : null,
+    });
+    return renderPos;
   }
 
   updatePlaying(dt, alpha, intent) {
@@ -634,21 +722,37 @@ export class GameSession {
     st.stats.playTime += dt;
     st.aiming = intent.aim;
     intent.sprinting = st.sprinting;
-    const renderPos = this.player.interpolate(alpha);
+    const ride = this.vehicles.ridden;
+    const renderPos = ride ? this.model.group.position : this.player.interpolate(alpha);
     this.cam.dialogueTarget = this.dialogue.active ? this.dialogue.npc.render : null;
-    this.cam.update(dt, intent, renderPos, this.settings, this.physics, this.player.collider);
+    this.cam.mount = ride ? { yaw: ride.renderYaw, speed: ride.speed, extra: ride.k.cam, lift: ride.model.standing ? 0.4 : 0.15 } : null;
+    this.cam.update(dt, intent, renderPos, this.settings, this.physics, ride ? ride.collider : this.player.collider);
     this.ui.setLockHint(!this.input.pointerLocked && !this.hideDebugUi);
 
     // discovery + interaction
     this.worldState.checkDiscovery(st.id, st.position);
-    let talk = this.dialogue.active ? this.dialogue.npc : this.npcs.findTalkTarget(st.position, st.yaw);
+    let talk = this.dialogue.active ? this.dialogue.npc : ride ? null : this.npcs.findTalkTarget(st.position, st.yaw);
     if (!this.dialogue.active) {
-      const soldier = this.romans.findTalkTarget(st.position, st.yaw);
+      const soldier = ride ? null : this.romans.findTalkTarget(st.position, st.yaw);
       if (soldier && (!talk || Math.hypot(soldier.pos.x - st.position.x, soldier.pos.z - st.position.z) < Math.hypot(talk.pos.x - st.position.x, talk.pos.z - st.position.z))) talk = soldier;
     }
     this.talkTarget = talk;
     this.romans.talkTarget = talk?.soldier ? talk : null;
-    const it = talk ? null : this.worldState.nearestInteractable(st.position);
+    const it = talk || ride ? null : this.worldState.nearestInteractable(st.position);
+    // riding: F to get on (nearest mount) or off
+    const mountTarget = ride || this.dialogue.active || this.arrest ? null : this.vehicles.findMountTarget(st.position);
+    this.ui.setRidePrompt(this.dialogue.active ? null : ride ? null : mountTarget ? this.vehicles.promptFor(mountTarget) : null);
+    if (intent.vehicle && !this.dialogue.active) {
+      if (ride) {
+        if (!this.vehicles.dismount(this.player, st)) this.ui.toast('No room to get off here.', 'no-room', 2);
+      } else if (mountTarget) {
+        if (this.miracles.water) this.miracles.endWaterWalk('mounted');
+        if (this.miracles.lift) this.miracles.releaseLift();
+        this.ui.hideDialog();
+        this.vehicles.mount(mountTarget, this.player, st);
+      } else this.ui.toast('Nothing to ride here. Donkeys wait by the workshop, the farm and the camp.', 'no-vehicle', 4);
+    }
+    this.updateRideHud();
     this.ui.setPrompt(this.dialogue.active ? null : talk ? `Talk to ${talk.name}` : it ? it.label : null);
     if (intent.interact && !this.dialogue.active && talk) {
       this.ui.hideDialog();
@@ -676,7 +780,10 @@ export class GameSession {
       } else this.audio.uiClick();
     }
     const selected = MIRACLES[st.selectedMiracle];
-    if (intent.cast && !this.dialogue.active) {
+    if (intent.cast && !this.dialogue.active && this.vehicles.ridden && selected.id === 'miracle.walk-on-water') {
+      this.audio.uiDenied();
+      this.ui.toast('Get off your ride first — it refuses to walk on water.', 'ride-water', 3);
+    } else if (intent.cast && !this.dialogue.active) {
       const res = this.miracles.tryCast(selected.id);
       if (res.ok) {
         if (res.faith) this.addFaith(res.faith);
@@ -700,29 +807,12 @@ export class GameSession {
       label: this.miracles.describe(selected.id, target),
     });
     this.ui.setAiming(intent.aim || targeting);
-    if (intent.vehicle) this.ui.toast('Nothing to ride here yet — the donkeys are still on their way.', 'no-vehicle', 4);
     if (intent.map) this.openMap();
 
     // objective HUD
-    const total = LANDMARKS.length;
-    const found = this.worldState.discovered.size;
-    const pips = `<div class="obj-pips">${LANDMARKS.map((l) => `<i class="${this.worldState.discovered.has(l.id) ? 'on' : ''}"></i>`).join('')}</div>`;
-    if (this.worldState.explorationComplete) {
-      this.ui.setObjective('CHAPTER I COMPLETE', 'Nazareth Explored', `All ${total} landmarks found. The road to the rest of Galilee opens in the next chapter.${pips}`);
-    } else {
-      const next = this.worldState.nextLandmark(st.position);
-      const dist = Math.round(next.distance / 5) * 5;
-      this.ui.setObjective('CURRENT MISSION', 'Discover Nazareth', `${found}/${total} landmarks · nearest unknown pin <b>${dist} m</b> away${pips}`);
-    }
+    this.updateObjective();
 
-    const d = Math.hypot(st.position.x, st.position.z);
-    let region = d < 64 ? 'Nazareth' : 'Nazareth Valley';
-    if (lakeDistance(st.position.x, st.position.z) < 1.15) region = 'Sea of Galilee';
-    else if (Math.hypot(st.position.x - 64, st.position.z - 46) < 22) region = 'Olive Grove';
-    else if (Math.hypot(st.position.x + 80, st.position.z + 62) < 24) region = 'Watchtower Ridge';
-    else if (inRestrictedZone(st.position.x, st.position.z)) region = 'Roman Camp (restricted)';
-    else if (Math.hypot(st.position.x - CHECKPOINT.x, st.position.z - CHECKPOINT.z) < 36) region = 'Roman Checkpoint';
-    this.ui.setRegion(region);
+    this.ui.setRegion(this.regionName(st.position.x, st.position.z));
     this.ui.setClock(clockLabel(this.clock), this.dayCycle.nightWeight(this.clock) > 0.5);
     this.ui.setFollowers(st.followers.length);
     const att = this.romans.attention;
@@ -730,8 +820,8 @@ export class GameSession {
 
     this.minimapTimer -= dt;
     if (this.minimapTimer <= 0) {
-      const next = this.worldState.nextLandmark(st.position);
-      this.minimap.draw(renderPos, st.yaw, this.cam.yaw, this.worldState.discovered, next?.landmark.id, this.time, [...this.npcs.minimapDots(), ...this.romans.minimapDots((this.night || 0) > 0.5)]);
+      const next = this.worldState.nextLandmark(st.position, this.worldState.explorationComplete ? 2 : 1) || this.worldState.nextLandmark(st.position);
+      this.minimap.draw(renderPos, st.yaw, this.cam.yaw, this.worldState.discovered, next?.landmark.id, this.time, [...this.npcs.minimapDots(), ...this.romans.minimapDots((this.night || 0) > 0.5), ...this.vehicles.minimapDots()]);
       this.minimapTimer = 1 / 30;
     }
 
@@ -740,6 +830,70 @@ export class GameSession {
       this.saveGame();
       this.autosaveTimer = AUTOSAVE_SECONDS;
     }
+  }
+
+  regionName(x, z) {
+    const near = (c, r) => Math.hypot(x - c.x, z - c.z) < r;
+    const zone = restrictedZoneAt(x, z);
+    if (zone === 'checkpoint') return 'Roman Camp (restricted)';
+    if (zone === 'outpost') return 'Castra Galilaea (restricted)';
+    if (near(ISLE, ISLE.r + 4)) return 'The Lonely Isle';
+    if (near(HAMLET, 30)) return "Fishers' Hamlet";
+    if (lakeDistance(x, z) < 1.15) return 'Sea of Galilee';
+    if (near(CIRCUIT, 34)) return 'The Little Circus';
+    if (near(OUTPOST, 40)) return 'Roman Outpost';
+    if (near(CHECKPOINT, 36)) return 'Roman Checkpoint';
+    if (near(OASIS, 26)) return 'Palm Oasis';
+    if (near(CAMP, 28)) return 'Caravan Camp';
+    if (near(FARM, 40)) return 'Bar-Tolmai Farm';
+    if (near(GOAT_HILL, 30)) return 'Goat Hill';
+    if (near({ x: 64, z: 46 }, 22)) return 'Olive Grove';
+    if (near({ x: -80, z: -62 }, 24)) return 'Watchtower Ridge';
+    const r = regionAt(x, z);
+    if (r === 'desert') return 'The Desert';
+    if (r === 'countryside') return 'Galilean Countryside';
+    if (r === 'outpost') return 'The North Road';
+    return Math.hypot(x, z) < 64 ? 'Nazareth' : 'Nazareth Valley';
+  }
+
+  updateObjective() {
+    const ws = this.worldState;
+    const st = this.playerState;
+    const pipsFor = (list) => `<div class="obj-pips">${list.map((l) => `<i class="${ws.discovered.has(l.id) ? 'on' : ''}"></i>`).join('')}</div>`;
+    const n1 = ws.chapterCount(1);
+    const n2 = ws.chapterCount(2);
+    if (!ws.explorationComplete) {
+      const next = ws.nextLandmark(st.position, 1);
+      const dist = Math.round(next.distance / 5) * 5;
+      const extra = n2 ? ` · Galilee ${n2}/${CHAPTER_TWO.length}` : '';
+      this.ui.setObjective('CURRENT MISSION', 'Discover Nazareth', `${n1}/${CHAPTER_ONE.length} landmarks · nearest unknown pin <b>${dist} m</b> away${extra}${pipsFor(CHAPTER_ONE)}`);
+    } else if (!ws.galileeComplete) {
+      const next = ws.nextLandmark(st.position, 2);
+      const dist = Math.round(next.distance / 10) * 10;
+      this.ui.setObjective('CHAPTER II', 'Explore Galilee', `${n2}/${CHAPTER_TWO.length} places · nearest: <b>${dist} m</b> ${this.compass(next.landmark)}${pipsFor(CHAPTER_TWO)}`);
+    } else {
+      const best = st.stats.bestLap ? ` · best lap ${st.stats.bestLap.toFixed(2)} s` : '';
+      this.ui.setObjective('CHAPTER II COMPLETE', 'Galilee Explored', `All ${LANDMARKS.length} places found${best}. More stories come with the next chapter.${pipsFor(CHAPTER_TWO)}`);
+    }
+  }
+
+  compass(l) {
+    const p = this.playerState.position;
+    const a = Math.atan2(l.x - p.x, -(l.z - p.z)); // 0 = north
+    const dirs = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+    return dirs[(Math.round(a / (Math.PI / 4)) + 8) % 8];
+  }
+
+  updateRideHud() {
+    const v = this.vehicles.ridden;
+    if (!v) {
+      this.ui.setRideHud(null);
+      return;
+    }
+    const sp = v.speed;
+    const gait = sp < -0.2 ? 'Backing up' : sp < 0.3 ? 'Standing' : sp < v.k.trot * 0.55 ? 'Walk' : sp <= v.k.trot + 0.6 ? (v.k.wheels ? 'Rolling' : 'Trot') : 'Gallop';
+    const lap = this.vehicles.lap.active ? { time: this.vehicles.lapTime, best: this.playerState.stats.bestLap || 0 } : null;
+    this.ui.setRideHud({ name: v.name, kindLabel: v.k.label, stolen: v.roman, gait, fill: Math.min(1, Math.abs(sp) / v.k.gallop), lap });
   }
 
   allBubbles() {
@@ -754,6 +908,9 @@ export class GameSession {
     if (this.dialogue.active) this.dialogue.close();
     if (this.miracles.water) this.miracles.endWaterWalk('arrested');
     if (this.miracles.lift) this.miracles.releaseLift();
+    if (this.vehicles.ridden) this.vehicles.dismount(this.player, this.playerState, { force: true, reason: 'arrested' });
+    this.ui.setRideHud(null);
+    this.ui.setRidePrompt(null);
     this.screen = 'arrested';
     this.input.releaseAll();
     const st = this.playerState;
@@ -1083,6 +1240,69 @@ export class GameSession {
         this.romans.attention.heat = 2.4;
         this.startArrest({ stars: 2, peak: 2 });
       },
+      // ---- Phase 5: the open world and riding
+      'ride-donkey': () => {
+        states['active-play']();
+        this.romans.setActive(false);
+        this.mountForTest('vehicle.donkey.joseph');
+        this.driveForTest([[-8, 3], [-2, 6]], 1.6, false);
+        const v = this.vehicles.ridden;
+        this.cam.snap(this.model.group.position, v.yaw + Math.PI - 0.35);
+        this.cam.pitch = 0.2;
+        this.cam.targetDistance = 5;
+        this.cam.currentDistance = 7;
+        this.romans.setActive(true);
+      },
+      'ride-chariot': () => {
+        states['active-play']();
+        this.romans.setActive(false);
+        this.mountForTest('vehicle.chariot.1');
+        const v = this.vehicles.ridden;
+        this.vehicles.place(v, CIRCUIT.x + 14, CIRCUIT.z + 9.6, -Math.PI / 2);
+        this.driveForTest([[CIRCUIT.x - 2, CIRCUIT.z + 9.8], [CIRCUIT.x - 14, CIRCUIT.z + 9.5]], 1.8, true);
+        this.cam.snap(this.model.group.position, v.yaw + Math.PI + 0.45);
+        this.cam.pitch = 0.18;
+        this.cam.targetDistance = 5;
+        this.cam.currentDistance = 8;
+        this.romans.setActive(true);
+      },
+      'region-farm': () => {
+        states['active-play']();
+        this.player.teleport(FARM.x + 6, 0, FARM.z - 22, 0.2);
+        this.simulate(0.5);
+        this.cam.snap(this.playerState.position, Math.PI + 0.25);
+        this.cam.pitch = 0.32;
+        this.cam.targetDistance = 9;
+        this.cam.currentDistance = 9;
+      },
+      'region-lake': () => {
+        states['active-play']();
+        this.player.teleport(HAMLET.jettyX - 0.4, 1.1, -82, Math.PI);
+        this.simulate(2.5);
+        this.cam.snap(this.playerState.position, -0.65);
+        this.cam.pitch = 0.18;
+        this.cam.targetDistance = 7;
+        this.cam.currentDistance = 7;
+      },
+      'region-outpost': () => {
+        states['active-play']();
+        this.player.teleport(4, 0, -170, -Math.PI / 2 + 0.3);
+        this.simulate(0.5);
+        this.cam.snap(this.playerState.position, Math.PI / 2 + 0.55);
+        this.cam.pitch = 0.3;
+        this.cam.targetDistance = 9;
+        this.cam.currentDistance = 9;
+      },
+      'region-desert': () => {
+        states['active-play']();
+        this.clock = 0.3;
+        this.player.teleport(OASIS.x - 14, 0, OASIS.z - 12, 0.9);
+        this.simulate(1);
+        this.cam.snap(this.playerState.position, Math.PI + 0.6);
+        this.cam.pitch = 0.22;
+        this.cam.targetDistance = 8;
+        this.cam.currentDistance = 8;
+      },
       night: () => {
         states['active-play']();
         this.clock = 0.885;
@@ -1116,13 +1336,13 @@ export class GameSession {
         if (this.screen === 'playing') this.intent = this.input.read();
         for (let i = 0; i < 20; i += 1) this.fixedUpdate(1 / 60);
         if (this.screen === 'playing') {
-          const pos = this.player.interpolate(1);
-          for (let i = 0; i < 30; i += 1) this.cam.update(1 / 60, { lookX: 0, lookY: 0, zoom: 0, aim: false }, pos, this.settings, this.physics, this.player.collider);
-          this.model.group.position.copy(pos);
-          this.model.group.rotation.y = this.playerState.yaw;
-          // let the animation rig settle into the grounded idle pose
-          const st = this.playerState;
-          for (let i = 0; i < 60; i += 1) this.model.update(1 / 60, { speed: 0, sprint: false, grounded: st.grounded, vy: 0, aiming: false });
+          for (let i = 0; i < 20; i += 1) this.vehicles.update(1 / 60, 1, this.camera.position);
+          const pos = this.syncModel(0, 1).clone();
+          const ride = this.vehicles.ridden;
+          this.cam.mount = ride ? { yaw: ride.renderYaw, speed: ride.speed, extra: ride.k.cam, lift: ride.model.standing ? 0.4 : 0.15 } : null;
+          if (!this.keepTestCamera) for (let i = 0; i < 30; i += 1) this.cam.update(1 / 60, { lookX: 0, lookY: 0, zoom: 0, aim: false }, pos, this.settings, this.physics, ride ? ride.collider : this.player.collider);
+          // let the animation rig settle into its pose (idle, or riding)
+          for (let i = 0; i < 60; i += 1) this.syncModel(1 / 60, 1);
           this.updatePlaying(0, 1, this.input.read());
         }
         for (let i = 0; i < 30; i += 1) {
@@ -1159,6 +1379,39 @@ export class GameSession {
     };
   }
 
+  mountForTest(id) {
+    const v = this.vehicles.byId.get(id);
+    if (this.vehicles.ridden) this.vehicles.dismount(this.player, this.playerState, { force: true });
+    this.player.teleport(v.pos.x + Math.cos(v.yaw) * 1.6, v.pos.y, v.pos.z - Math.sin(v.yaw) * 1.6, v.yaw);
+    this.vehicles.mount(v, this.player, this.playerState);
+    return v.id;
+  }
+
+  /**
+   * Test autopilot: steer the current ride through waypoints with synthetic
+   * W/A/D(/Shift) intents for `seconds` of simulated time.
+   */
+  driveForTest(points, seconds, sprint = false) {
+    const v = this.vehicles.ridden;
+    if (!v) return null;
+    let i = 0;
+    const steps = Math.round(seconds * 60);
+    for (let k = 0; k < steps; k += 1) {
+      const [tx, tz] = points[Math.min(i, points.length - 1)];
+      if (Math.hypot(tx - v.pos.x, tz - v.pos.z) < 4 && i < points.length - 1) i += 1;
+      const want = Math.atan2(tx - v.pos.x, tz - v.pos.z);
+      let d = want - v.yaw;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      this.intent = { moveX: Math.max(-1, Math.min(1, -d * 3)), moveY: 1, sprint, jump: false, lookX: 0, lookY: 0, zoom: 0 };
+      this.fixedUpdate(1 / 60);
+    }
+    this.intent = this.input.read();
+    for (let k = 0; k < 10; k += 1) this.vehicles.update(1 / 60, 1, this.camera.position);
+    this.syncModel(1 / 60, 1);
+    return { x: v.pos.x, z: v.pos.z, speed: v.speed, lap: { ...this.vehicles.lap, quads: this.vehicles.lap.quads.size } };
+  }
+
   unlockAllForTest() {
     for (const m of MIRACLES) this.miracles.unlock(m.id, false);
   }
@@ -1193,6 +1446,7 @@ export class GameSession {
     const ctx = { cameraPos: this.camera.position, playerPos: this.playerState.position, night: (this.night || 0) > 0.5 };
     this.npcs.update(1 / 60, 1, ctx);
     this.romans.update(1 / 60, 1, ctx);
+    this.vehicles.update(1 / 60, 1, this.camera.position);
     this.ragdolls.sync();
   }
 
@@ -1222,6 +1476,15 @@ export class GameSession {
       npcs: this.npcs?.stats(),
       miracles: this.miracles?.stats(),
       romans: this.romans?.stats(),
+      vehicles: this.vehicles?.stats(),
+      wildlife: this.npcs?.animals?.wildlife ? {
+        ...this.npcs.animals.wildlife.stats(),
+        goats: this.npcs.animals.list.filter((a) => a.kind === 'goat').map((a) => [Math.round(a.x * 10) / 10, Math.round(a.z * 10) / 10, a.flee > 0]),
+        camels: this.npcs.animals.list.filter((a) => a.kind === 'camel').map((a) => [Math.round(a.x * 10) / 10, Math.round(a.z * 10) / 10, !!a.resting]),
+      } : null,
+      mode: this.playerState?.mode,
+      region: this.playerState ? this.regionName(this.playerState.position.x, this.playerState.position.z) : null,
+      chapters: this.worldState ? { one: this.worldState.chapterCount(1), two: this.worldState.chapterCount(2), complete1: this.worldState.explorationComplete, complete2: !!this.worldState.galileeComplete } : null,
       ragdolls: this.ragdolls?.stats(),
       unlocked: this.playerState?.unlockedMiracles,
       selected: this.playerState?.selectedMiracle,

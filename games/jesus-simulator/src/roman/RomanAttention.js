@@ -18,6 +18,9 @@ export const CRIMES = {
   witchcraft: { heat: 0.3, label: 'Suspicious sorcery' },
   bread: { heat: 0.25, label: 'Unlicensed bread distribution' },
   trespass: { heat: 1.0, label: 'Trespassing on military ground' },
+  trample: { heat: 0.7, label: 'Trampling a citizen' },
+  horsetheft: { heat: 1.3, label: 'Stealing a legion horse' },
+  chariot: { heat: 2.2, label: 'Stealing a Roman chariot' },
 };
 
 export const MAX_HEAT = 5.99;
@@ -54,7 +57,8 @@ export class RomanAttention {
     const before = this.stars;
     // crimes against soldiers always mean at least one star
     let heat = this.heat + crime.heat * count;
-    if (type === 'assault' || type === 'levitate' || type === 'trespass') heat = Math.max(heat, 1);
+    if (type === 'assault' || type === 'levitate' || type === 'trespass' || type === 'horsetheft') heat = Math.max(heat, 1);
+    if (type === 'chariot') heat = Math.max(heat, 2);
     this.heat = Math.min(MAX_HEAT, heat);
     this.lastCrime = crime.label;
     this.unseen = 0;

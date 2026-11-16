@@ -3,3 +3,4 @@ dist
 test-results
 *.webm
 artifacts/**/motion/frame-*.png
+tests/tmp/

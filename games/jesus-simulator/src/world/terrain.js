@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createRng, smoothstep, lerp } from '../core/rng.js';
-import { WORLD_HALF, LAKE, ROADS, PLAZA, MARKET, terrainHeight } from './layout.js';
+import { WORLD_HALF, LAKE, ROADS, PLAZA, MARKET, DESERT_Z, FARM, OUTPOST, CIRCUIT, HAMLET, CAMP, OASIS, ISLE, terrainHeight } from './layout.js';
 import { detailTexture } from './textures.js';
 
 const SPLAT = 1024;
@@ -27,6 +27,9 @@ export function paintSplat() {
   const rock = [160, 140, 112];
   const beach = [228, 208, 160];
   const wet = [120, 120, 96];
+  const desertA = [232, 204, 150];
+  const desertB = [220, 186, 128];
+  const meadow = [128, 150, 74];
   const c = [0, 0, 0];
   const c2 = [0, 0, 0];
   for (let py = 0; py < SPLAT; py += 1) {
@@ -39,7 +42,14 @@ export function paintSplat() {
       mixColor(c, grass, lush, smoothstep(-0.4, 0.8, n));
       mixColor(c2, sand, dust, smoothstep(-0.5, 0.6, n));
       mixColor(c, c2, c, smoothstep(48, 92, d));
-      if (h > 9) mixColor(c, c, rock, smoothstep(9, 16, h) * 0.8);
+      // greener countryside in the west, sand dunes in the south
+      if (x < -95) mixColor(c, c, meadow, smoothstep(-95, -135, x) * 0.55 * (1 - smoothstep(DESERT_Z - 20, DESERT_Z, z)));
+      const des = smoothstep(DESERT_Z - 18, DESERT_Z + 22, z);
+      if (des > 0) {
+        mixColor(c2, desertA, desertB, smoothstep(-0.6, 0.7, Math.sin(x * 0.08 + z * 0.03) + n * 0.4));
+        mixColor(c, c, c2, des);
+      }
+      if (h > 9 && des < 0.5) mixColor(c, c, rock, smoothstep(9, 16, h) * 0.8);
       const ld = Math.hypot((x - LAKE.x) / LAKE.rx, (z - LAKE.z) / LAKE.rz);
       if (ld < 1.25) mixColor(c, c, beach, 1 - smoothstep(1.0, 1.22, ld));
       if (h < 0.3) mixColor(c, c, wet, smoothstep(0.3, -1.5, h));
@@ -77,6 +87,8 @@ export function paintSplat() {
     ctx.stroke();
     ctx.setLineDash([]);
   }
+
+  paintRegions(ctx);
 
   // town square paving: concentric flagstone rings
   const cx = toPx(PLAZA.x);
@@ -119,6 +131,39 @@ export function paintSplat() {
     ctx.stroke();
   }
   return canvas;
+}
+
+/** Phase 5 ground: farmyard, fields, the circus track, fort yard, hamlet beach, camp, oasis grass. */
+function paintRegions(ctx) {
+  const rect = (r, fill) => {
+    ctx.fillStyle = fill;
+    ctx.fillRect(toPx(r.x0), toPx(r.z0), mToPx(r.x1 - r.x0), mToPx(r.z1 - r.z0));
+  };
+  const ellipse = (x, z, rx, rz, fill) => {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.ellipse(toPx(x), toPx(z), mToPx(rx), mToPx(rz), 0, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  // wheat fields (stubble under the tufts) and the farmyard
+  rect({ x0: -178, x1: -132, z0: -24, z1: -5 }, 'rgb(196,170,98)');
+  rect({ x0: -126, x1: -104, z0: 12, z1: 34 }, 'rgb(196,170,98)');
+  rect({ x0: FARM.x - 18, x1: FARM.x + 18, z0: FARM.z - 15, z1: FARM.z + 15 }, 'rgba(204,180,132,0.9)');
+  rect({ x0: FARM.x - 15, x1: FARM.x + 15, z0: FARM.z + 20, z1: FARM.z + 38 }, 'rgba(150,128,82,0.55)');
+  // the fort yard
+  const o = OUTPOST.compound;
+  rect({ x0: o.x0, x1: o.x1, z0: o.z0, z1: o.z1 }, 'rgb(206,190,156)');
+  // circus track: dirt oval with the spina island and a white start line
+  ellipse(CIRCUIT.x, CIRCUIT.z, CIRCUIT.rx + 1.5, CIRCUIT.rz + 1.5, 'rgb(196,160,110)');
+  ellipse(CIRCUIT.x, CIRCUIT.z, CIRCUIT.innerRx, CIRCUIT.innerRz, 'rgb(170,160,100)');
+  ctx.fillStyle = 'rgb(246,242,230)';
+  ctx.fillRect(toPx(CIRCUIT.x) - mToPx(0.3), toPx(CIRCUIT.z + CIRCUIT.innerRz), mToPx(0.6), mToPx(CIRCUIT.rz - CIRCUIT.innerRz + 1.5));
+  // hamlet beach, camp sand, oasis grass, isle sand
+  ellipse(HAMLET.x, HAMLET.z + 6, 22, 14, 'rgba(226,204,160,0.85)');
+  ellipse(CAMP.x, CAMP.z, 17, 13, 'rgba(214,184,132,0.8)');
+  ellipse(OASIS.x, OASIS.z, 15, 15, 'rgba(118,146,68,0.75)');
+  ellipse(OASIS.x, OASIS.z, 9.5, 9.5, 'rgba(150,140,90,0.8)');
+  ellipse(ISLE.x, ISLE.z, 10, 10, 'rgba(232,212,166,0.9)');
 }
 
 export function drawGroundDecal(canvas, fn) {

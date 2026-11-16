@@ -31,6 +31,18 @@ export class ThirdPersonCamera {
     const sens = 0.0022 * settings.sensitivity;
     this.yaw -= intent.lookX * sens;
     this.pitch += intent.lookY * sens * (settings.invertY ? -1 : 1);
+    // riding: pull back and, once the mouse rests, swing in behind the mount
+    const mount = this.mount;
+    this.mountBlend = (this.mountBlend || 0) + ((mount ? 1 : 0) - (this.mountBlend || 0)) * damp(3, dt);
+    if (Math.abs(intent.lookX) + Math.abs(intent.lookY) > 0.5) this.lookIdle = 0;
+    else this.lookIdle = (this.lookIdle || 0) + dt;
+    if (mount && Math.abs(mount.speed) > 1.2 && this.lookIdle > 0.9) {
+      let dy = mount.yaw + Math.PI - this.yaw;
+      while (dy > Math.PI) dy -= Math.PI * 2;
+      while (dy < -Math.PI) dy += Math.PI * 2;
+      this.yaw += dy * damp(1.6 + Math.min(2, Math.abs(mount.speed) * 0.12), dt);
+      this.pitch += (0.26 - this.pitch) * damp(1.2, dt);
+    }
     // conversation: over-the-shoulder shot of the NPC's face (blended over the orbit camera)
     const talk = this.dialogueTarget;
     this.talkBlend = (this.talkBlend || 0) + ((talk ? 1 : 0) - (this.talkBlend || 0)) * damp(4, dt);
@@ -51,10 +63,10 @@ export class ThirdPersonCamera {
 
     // focus point follows the player smoothly (a bit higher when far)
     const focusTarget = this.tmp.copy(target);
-    focusTarget.y += lerp(1.55, 1.7, a);
+    focusTarget.y += lerp(1.55, 1.7, a) + (this.mountBlend || 0) * (mount ? mount.lift : 0.4);
     this.focus.lerp(focusTarget, damp(14, dt));
 
-    const desired = lerp(this.targetDistance, 2.4, a);
+    const desired = lerp(this.targetDistance + (this.mountBlend || 0) * (mount ? mount.extra : 2), 2.4, a);
     const cp = Math.cos(this.pitch);
     this.dir.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
     // shoulder offset (right of the view) while aiming
@@ -109,7 +121,8 @@ export class ThirdPersonCamera {
     }
     this.camera.lookAt(lx, ly, lz);
 
-    const fov = lerp(this.baseFov, 50, a) + (intent.sprinting ? 4 : 0);
+    const gallop = mount ? Math.min(1, Math.max(0, (Math.abs(mount.speed) - 7) / 8)) : 0;
+    const fov = lerp(this.baseFov, 50, a) + (intent.sprinting ? 4 : 0) + gallop * 7;
     if (Math.abs(this.camera.fov - fov) > 0.05) {
       this.camera.fov = lerp(this.camera.fov, fov, damp(6, dt));
       this.camera.updateProjectionMatrix();

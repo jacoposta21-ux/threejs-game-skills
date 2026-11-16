@@ -1,6 +1,6 @@
 import { MIRACLES } from '../game/miracles.js';
 import { MIRACLE_ICONS, LOCK_ICON } from './icons.js';
-import { LANDMARKS } from '../world/layout.js';
+import { LANDMARKS, CHAPTER_ONE, CHAPTER_TWO } from '../world/layout.js';
 import { drawWorldMap } from './Minimap.js';
 
 const $ = (id) => document.getElementById(id);
@@ -229,6 +229,42 @@ export class UI {
     if ($('region-label').textContent !== name) $('region-label').textContent = name;
   }
 
+  /** Second prompt for the F key (ride / get off). */
+  setRidePrompt(text) {
+    const el = $('ride-prompt');
+    if (!text || !$('conversation').hidden) {
+      el.hidden = true;
+      return;
+    }
+    if ($('ride-prompt-text').textContent !== text) $('ride-prompt-text').textContent = text;
+    el.hidden = false;
+  }
+
+  /** Riding panel: name, gait bar, lap timer. null hides it. */
+  setRideHud(info) {
+    const el = $('ride-hud');
+    if (!info) {
+      if (!el.hidden) el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    if ($('ride-name').textContent !== info.name) $('ride-name').textContent = info.name;
+    const tag = $('ride-tag');
+    const tagText = info.stolen ? 'STOLEN' : info.kindLabel.toUpperCase();
+    if (tag.textContent !== tagText) tag.textContent = tagText;
+    tag.classList.toggle('stolen', !!info.stolen);
+    if ($('ride-gait').textContent !== info.gait) $('ride-gait').textContent = info.gait;
+    const fill = $('ride-fill');
+    fill.style.setProperty('--p', info.fill.toFixed(3));
+    fill.classList.toggle('gallop', info.gait === 'Gallop');
+    const lap = $('ride-lap');
+    lap.hidden = !info.lap;
+    if (info.lap) {
+      $('ride-lap-time').textContent = info.lap.time.toFixed(1);
+      $('ride-lap-best').textContent = info.lap.best ? `best ${info.lap.best.toFixed(2)} s` : '';
+    }
+  }
+
   setPrompt(text) {
     const el = $('prompt');
     if (!text || !$('dialog').hidden || !$('conversation').hidden) {
@@ -427,20 +463,24 @@ export class UI {
       body.innerHTML = '<h3>Map</h3><canvas id="pause-map" width="720" height="720"></canvas>';
       drawWorldMap($('pause-map'), ctx.mapBase, ctx.position, ctx.yaw, ctx.discovered, ctx.nextId);
     } else if (tab === 'missions') {
-      const done = ctx.discovered.size;
-      const items = LANDMARKS.map((l) => {
+      const chapter = (list) => list.map((l) => {
         const found = ctx.discovered.has(l.id);
         return `<div class="list-item ${found ? 'done' : ''}">
           <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg></div>
           <div><h4>${found ? l.name : 'Undiscovered landmark'}</h4><p>${found ? l.blurb : 'Follow the white pins on your minimap.'}</p></div>
           <span class="tag ${found ? '' : 'muted'}">${found ? 'FOUND' : 'HIDDEN'}</span></div>`;
       }).join('');
-      body.innerHTML = `<h3>Missions</h3>
-        <div class="list"><div class="list-item ${done === LANDMARKS.length ? 'done' : ''}">
+      const head = (title, sub, list) => {
+        const n = list.filter((l) => ctx.discovered.has(l.id)).length;
+        return `<div class="list-item ${n === list.length ? 'done' : ''}">
           <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 4h12l-2 4 2 4H6v8H4z"/></svg></div>
-          <div><h4>Chapter I — Discover Nazareth</h4><p>Visit every landmark of your home village.</p></div>
-          <span class="tag">${done}/${LANDMARKS.length}</span></div>${items}</div>
-        <p class="note">Villager missions (the wedding wine, the fisherman's troubles, the Roman problem) arrive as Galilee opens up in upcoming chapters.</p>`;
+          <div><h4>${title}</h4><p>${sub}</p></div><span class="tag">${n}/${list.length}</span></div>`;
+      };
+      const s = ctx.stats;
+      body.innerHTML = `<h3>Missions</h3>
+        <div class="list">${head('Chapter I — Discover Nazareth', 'Visit every landmark of your home village.', CHAPTER_ONE)}${chapter(CHAPTER_ONE)}</div>
+        <div class="list" style="margin-top:14px">${head('Chapter II — Explore Galilee', 'The countryside, the lake, the Roman fort and the desert. Borrow a donkey.', CHAPTER_TWO)}${chapter(CHAPTER_TWO)}</div>
+        <p class="note">Circus best lap: <b>${s.bestLap ? `${s.bestLap.toFixed(2)} s` : '—'}</b>. Villager missions (the wedding wine, the fisherman's troubles, the Roman problem) arrive in the next chapter.</p>`;
     } else if (tab === 'miracles') {
       body.innerHTML = `<h3>Miracles</h3><div class="list">${MIRACLES.map((m) => {
         const ok = ctx.unlocked.includes(m.id);
@@ -455,7 +495,11 @@ export class UI {
         <div class="stat-grid">
           <div class="stat"><span>FAITH</span><strong>${Math.round(ctx.faith)}</strong><div class="meter faith"><i style="width:${pct(ctx.faith)}%"></i></div></div>
           <div class="stat"><span>CHAOS</span><strong>${Math.round(ctx.chaos)}</strong><div class="meter chaos"><i style="width:${pct(ctx.chaos)}%"></i></div></div>
-          <div class="stat"><span>LANDMARKS</span><strong>${ctx.discovered.size} / ${LANDMARKS.length}</strong></div>
+          <div class="stat"><span>PLACES FOUND</span><strong>${ctx.discovered.size} / ${LANDMARKS.length}</strong></div>
+          <div class="stat"><span>DISTANCE RIDDEN</span><strong>${((s.ridden || 0) / 1000).toFixed(2)} km</strong></div>
+          <div class="stat"><span>RIDES TAKEN</span><strong>${s.rides || 0}</strong></div>
+          <div class="stat"><span>CHARIOTS "BORROWED"</span><strong>${s.chariotsStolen || 0}</strong></div>
+          <div class="stat"><span>CIRCUS LAPS</span><strong>${s.laps || 0}${s.bestLap ? ` · best ${s.bestLap.toFixed(1)} s` : ''}</strong></div>
           <div class="stat"><span>DISTANCE WALKED</span><strong>${(s.distance / 1000).toFixed(2)} km</strong></div>
           <div class="stat"><span>JUMPS</span><strong>${s.jumps}</strong></div>
           <div class="stat"><span>PROPS KNOCKED OVER</span><strong>${s.propsDisturbed}</strong></div>

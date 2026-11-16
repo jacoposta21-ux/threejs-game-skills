@@ -15,6 +15,7 @@ export class PlayerState {
     this.sprinting = false;
     this.aiming = false;
     this.mode = 'on-foot';
+    this.mount = null; // { id, kind, roman, name } while riding
     this.selectedMiracle = 0;
     this.unlockedMiracles = [];
     this.faith = 0;
@@ -33,6 +34,8 @@ export class PlayerState {
     this.chaos = 0;
     this.followers = [];
     this.romanAttention = 0;
+    this.mode = 'on-foot';
+    this.mount = null;
     this.stats = { distance: 0, jumps: 0, playTime: 0, propsDisturbed: 0, conversations: 0 };
   }
 }
