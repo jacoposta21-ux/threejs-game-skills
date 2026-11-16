@@ -32,7 +32,7 @@ const frame = (args) => page.evaluate(({ dt, to, sprint, cam }) => {
   s.syncModel(1 / 60, 1);
   const v = s.vehicles.ridden;
   const target = cam.fixed ? cam.look : v ? [v.pos.x, v.pos.y + 1.2, v.pos.z] : cam.look;
-  const [ox, oy, oz] = cam.offset;
+  const [ox, oy, oz] = cam.offset || [0, 0, 0];
   if (cam.fixed) s.camera.position.set(...cam.pos);
   else s.camera.position.set(target[0] + ox, target[1] + oy, target[2] + oz);
   s.camera.lookAt(target[0], target[1], target[2]);
