@@ -15,6 +15,7 @@ import { addFame, addStats, COSMETICS, earnedCosmetics, GP_POINTS, TRAILS, loadG
 import { Hud2 } from '../ui/Hud2';
 import { GhostRunner } from './GhostRunner';
 import { Tutorial } from './Tutorial';
+import { bumpExtra, checkAchievements, loadDaily, MODIFIER_ITEM, saveDaily, todaysChallenge, type RaceSummary } from '../ui/Achievements';
 import { line, loadNemesis, saveNemesis, type Moment } from '../racing/Personality';
 import { formatTime, Hud, ordinal } from '../ui/Hud';
 import { loadBest, loadRaceCount, loadUnlocked, Menus, saveBest, saveRaceCount, unlockAfter, type PlayerLook, type Settings } from '../ui/Menus';
@@ -126,6 +127,8 @@ export class Game {
   private chatterTimer = 0;
   private lastChatter = -99;
   private readonly prevRank: number[] = [];
+  /** Per-race tallies for achievements. */
+  private tally = { itemsUsed: 0, spinouts: 0, critterHits: 0, bestTrick: 0, perfects: 0, drafts: 0, superTurbos: 0, giantSquashes: 0, ladybugLeader: false, bananaHits: 0, worstRankLate: 0 };
   private readonly windArrow = document.getElementById('wind-arrow');
   private readonly camDir = new THREE.Vector3();
   private readonly ttMedal = document.getElementById('tt-medal');
@@ -203,6 +206,11 @@ export class Game {
           const open = loadUnlocked();
           this.gp = { tracks: TRACKS.filter((d) => open.has(d.id)).map((d) => d.id), index: 0, points: new Array(RACER_COUNT).fill(0) };
           this.startRace(this.gp.tracks[0]);
+        },
+        startDaily: () => {
+          this.mode = 'daily';
+          this.gp = null;
+          this.startRace(todaysChallenge().track);
         },
         startTutorial: () => {
           this.mode = 'tutorial';
@@ -447,6 +455,7 @@ export class Game {
   }
 
   private resetRaceVisuals(): void {
+    this.tally = { itemsUsed: 0, spinouts: 0, critterHits: 0, bestTrick: 0, perfects: 0, drafts: 0, superTurbos: 0, giantSquashes: 0, ladybugLeader: false, bananaHits: 0, worstRankLate: 0 };
     this.particles.clear();
     for (const v of this.views) {
       v.slime.clear();
@@ -513,16 +522,20 @@ export class Game {
     this.state = 'racing';
     this.paused = false;
     this.seed += 1;
-    this.rng = createSeededRandom(this.seed);
     const mode = this.mode;
-    this.race.configure(mode, this.menus.settings.difficulty as Difficulty);
+    // The daily challenge is the same race for everyone that day: fixed seed, fixed twist.
+    const daily = mode === 'daily' ? todaysChallenge() : null;
+    this.rng = createSeededRandom(daily ? daily.seed : this.seed);
+    this.race.configure(mode, (daily?.modifier === 'hard' ? 2 : this.menus.settings.difficulty) as Difficulty);
+    this.race.forceWeather = daily?.modifier === 'rain' ? 'rain' : daily?.modifier === 'wind' ? 'wind' : null;
+    this.race.items.onlyKind = daily ? (MODIFIER_ITEM[daily.modifier] ?? null) : null;
     // A nemesis: whoever beat you last time, or a random rival on the first race.
     this.race.nemesis = mode === 'tt' || mode === 'tutorial' ? -1 : loadNemesis() || 1 + Math.floor(this.rng() * 5);
     if (mode === 'duo' && this.race.nemesis === 1) this.race.nemesis = 2;
     this.chatterEl?.classList.add('hidden');
     this.chatterTimer = 0;
     this.lastChatter = -99;
-    this.race.items.enabled = this.menus.settings.items && mode !== 'tt';
+    this.race.items.enabled = (this.menus.settings.items || !!this.race.items.onlyKind) && mode !== 'tt';
     this.setDuo(mode === 'duo');
     this.race.reset(this.rng);
     if (this.rewardStart && mode !== 'tt') {
@@ -736,6 +749,17 @@ export class Game {
       }
       const foot = this.tmp.copy(r.pos).addScaledVector(r.normal, -R * 0.9);
       for (const e of r.events) {
+        if (me) {
+          const t = this.tally;
+          if (e.type === 'perfect') t.perfects += 1;
+          else if (e.type === 'trick') t.bestTrick = Math.max(t.bestTrick, e.value);
+          else if (e.type === 'draft') t.drafts += 1;
+          else if (e.type === 'miniturbo' && e.value === 2) t.superTurbos += 1;
+          else if (e.type === 'spinout') {
+            t.spinouts += 1;
+            if (e.value === 3 || e.value === 4) t.critterHits += 1;
+          }
+        } else if (e.type === 'spinout' && e.value === 6 && this.race.player.giant > 0) this.tally.giantSquashes += 1;
         switch (e.type) {
           case 'land':
           case 'perfect':
@@ -910,6 +934,7 @@ export class Game {
           if (me && e.kind) this.audio.play('itemGot');
           break;
         case 'use':
+          if (me) this.tally.itemsUsed += 1;
           if (me) this.seen.item = true;
           if (e.kind === 'banana') this.sfxFor(e.racer, 'drop');
           else if (e.kind === 'acorn') this.sfxFor(e.racer, 'throw');
@@ -923,6 +948,8 @@ export class Game {
           if (me && e.kind && e.kind !== 'mushroom') this.hud.toast(ITEM_NAMES[e.kind].toUpperCase(), 'info');
           break;
         case 'hit':
+          if (e.by === 0 && e.racer > 0 && e.kind === 'banana') this.tally.bananaHits += 1;
+          if (e.by === 0 && e.kind === 'ladybug' && this.race.rank[e.racer] === 0) this.tally.ladybugLeader = true;
           if (e.racer === 0 && e.by > 0) this.say(e.by, 'hitYou');
           else if (e.by === 0 && e.racer > 0) this.say(e.racer, 'hitBy');
           this.particles.burst(e.pos, 10, e.kind === 'acorn' ? COLORS.acorn : COLORS.peel, 4, 0.22, 0.5, 8, 1, this.fxRng);
@@ -1092,6 +1119,26 @@ export class Game {
     this.hud.hint(hint);
   }
 
+  private summary(mode: RaceMode, place: number, p: RacerBody, nemesisBeaten: boolean, ghostBeaten: boolean): RaceSummary {
+    const race = this.race;
+    return {
+      mode,
+      track: track.def.id,
+      place,
+      field: race.field,
+      difficulty: race.difficulty,
+      itemsOn: race.items.enabled,
+      ...this.tally,
+      tricks: p.tricks,
+      topKmh: p.maxSpeed * KMH,
+      rain: race.rainAt >= 0 && race.rain > 0.5,
+      wind: race.windy,
+      nemesisBeaten,
+      ghostBeaten,
+      daily: mode === 'daily',
+    };
+  }
+
   /** Names of cosmetics earned since `before`. */
   private newCosmetics(before: Set<string>): string[] {
     const now = earnedCosmetics();
@@ -1115,18 +1162,34 @@ export class Game {
     if (unlocked) this.audio.play('trick');
     this.raceCount += 1;
     saveRaceCount(this.raceCount);
-    addStats({ races: 1, wins: ranked && place === 1 ? 1 : 0, podiums: ranked && place <= 3 ? 1 : 0, tricks: p.tricks, distance: Math.round(Math.max(0, p.dist)) });
+    const scored = ranked || mode === 'daily';
+    addStats({ races: 1, wins: scored && place === 1 ? 1 : 0, podiums: scored && place <= 3 ? 1 : 0, tricks: p.tricks, distance: Math.round(Math.max(0, p.dist)) });
+    const nemesis = race.nemesis;
+    const nemesisBeaten = nemesis > 0 && race.rank[0] < race.rank[nemesis] && mode !== 'tt' && mode !== 'tutorial';
+    const dailyDone = mode === 'daily' && place <= 3;
+    bumpExtra((x) => {
+      if (mode !== 'tutorial' && !x.tracks.includes(id)) x.tracks.push(id);
+      if (nemesisBeaten) x.nemesisBeats += 1;
+    });
+    if (mode === 'daily') {
+      const date = todaysChallenge().date;
+      const prev = loadDaily()[date];
+      saveDaily(date, place);
+      if (dailyDone && (!prev || prev > 3)) bumpExtra((x) => (x.dailies += 1));
+    }
     const fameRank = mode !== 'tutorial' ? addFame(id, { name: this.menus.look.name, time: p.finishTime, date: new Date().toISOString().slice(0, 10), mode }) : 0;
     if ((ranked && place === 1) || newBestRace) this.platform.happytime();
 
     let best = newBestRace ? p.finishTime : previous;
     let newBest = newBestRace;
+    let ghostBeaten = false;
     let medal: { medal: 0 | 1 | 2 | 3; improved: boolean; nextTarget: number | null; ghostSaved: boolean } | undefined;
     if (mode === 'tt') {
       const ghostBest = this.ghost.ghostTime;
       const m = medalFor(id, p.finishTime);
       const improved = saveMedal(id, m);
       const ghostSaved = ghostBest === null || p.finishTime < ghostBest;
+      ghostBeaten = ghostBest !== null && p.finishTime < ghostBest;
       if (ghostSaved) saveGhost(this.ghost.result(id, p.finishTime, this.menus.look.name, this.menus.look.shell));
       const targets = MEDAL_TIMES[id];
       medal = { medal: m, improved, ghostSaved, nextTarget: m < 3 && targets ? targets[2 - m] : null };
@@ -1169,7 +1232,10 @@ export class Game {
       hasNext: TRACKS.some((d) => d.id !== id && loadUnlocked().has(d.id)),
       lapTimes: [...race.lapTimes],
       unlocked,
-      cosmetics: this.newCosmetics(earnedBefore),
+      cosmetics: [
+        ...this.newCosmetics(earnedBefore),
+        ...checkAchievements(this.summary(mode, place, p, nemesisBeaten, ghostBeaten)).map((a) => `${a.icon} ${a.name}`),
+      ],
       mode,
       medal,
       gp,
@@ -1420,6 +1486,7 @@ export class Game {
       return;
     }
     const me = race.rank[0];
+    if (race.lap(0) >= 2) this.tally.worstRankLate = Math.max(this.tally.worstRankLate, me + 1);
     const before = this.prevRank[0];
     for (let i = 1; i < RACER_COUNT; i += 1) {
       const r = race.racers[i];
@@ -1670,6 +1737,22 @@ export class Game {
         this.updateRaceUi(1 / 60);
         this.render();
         this.pausedForScreenshot = true;
+      },
+      achievements: () => {
+        this.toMenu(true);
+        (document.getElementById('btn-achievements') as HTMLButtonElement).click();
+        this.render();
+      },
+      'daily-results': () => {
+        this.mode = 'daily';
+        this.setTrack(todaysChallenge().track);
+        this.beginRace();
+        this.race.autopilot = true;
+        simulateUntil(() => this.race.player.finished, 400);
+        this.handleEvents();
+        this.showResults();
+        for (let i = 0; i < 30; i += 1) this.syncVisuals(1 / 60);
+        this.render();
       },
       fame: () => {
         this.toMenu(true);

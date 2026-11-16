@@ -10,7 +10,7 @@ export const FIXED_DT = 1 / 120;
 export const RACER_COUNT = 6;
 export const COUNTDOWN_TIME = 3.6;
 
-export type RaceMode = 'race' | 'gp' | 'tt' | 'tutorial' | 'duo';
+export type RaceMode = 'race' | 'gp' | 'tt' | 'tutorial' | 'duo' | 'daily';
 export type Difficulty = 0 | 1 | 2;
 
 export interface RaceEvent {

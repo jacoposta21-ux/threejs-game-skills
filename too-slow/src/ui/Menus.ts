@@ -1,5 +1,6 @@
 import type { RacerProfile } from '../ai/SnailAI';
 import type { RaceMode } from '../racing/RaceManager';
+import { ACHIEVEMENTS, dailyStreak, loadAchieved, loadDaily, MODIFIER_TEXT, todaysChallenge } from './Achievements';
 import { cosmeticFor, earnedCosmetics, loadFame, loadGhost, loadMedals, loadStats, loadTrophies, MEDAL_NAMES, MEDAL_TIMES, TRAILS, tutorialDone, type Medal } from './Progress';
 import type { HatKind, ShellPattern, SnailLook } from '../characters/SnailModel';
 import { TRACKS } from '../world/tracks';
@@ -143,12 +144,13 @@ export function saveRaceCount(n: number): void {
   write(RACES_KEY, { n });
 }
 
-export type Screen = 'none' | 'main' | 'fame' | 'modes' | 'tracks' | 'garage' | 'how' | 'settings' | 'pause' | 'results' | 'podium';
+export type Screen = 'none' | 'main' | 'fame' | 'achievements' | 'modes' | 'tracks' | 'garage' | 'how' | 'settings' | 'pause' | 'results' | 'podium';
 
 export interface MenuHandlers {
   chooseTrack(id: string, mode: RaceMode): void;
   startGp(): void;
   startTutorial(): void;
+  startDaily(): void;
   nextTrack(): void;
   lookChanged(look: PlayerLook): void;
   resume(): void;
@@ -213,6 +215,7 @@ export class Menus {
     main: el('menu-main'),
     modes: el('menu-modes'),
     fame: el('menu-fame'),
+    achievements: el('menu-achievements'),
     podium: el('menu-podium'),
     tracks: el('menu-tracks'),
     garage: el('menu-garage'),
@@ -241,6 +244,10 @@ export class Menus {
       this.show('modes');
     });
     on('btn-podium-menu', () => handlers.toMenu());
+    on('btn-achievements', () => {
+      this.renderAchievements();
+      this.show('achievements');
+    });
     on('btn-fame', () => {
       this.renderFame(TRACKS[0].id);
       this.show('fame');
@@ -255,6 +262,7 @@ export class Menus {
           this.mode = mode;
           if (mode === 'gp') handlers.startGp();
           else if (mode === 'tutorial') handlers.startTutorial();
+          else if (mode === 'daily') handlers.startDaily();
           else {
             this.renderTracks();
             this.show('tracks');
@@ -290,7 +298,7 @@ export class Menus {
     document.querySelectorAll<HTMLElement>('[data-back]').forEach((b) =>
       b.addEventListener('click', () => {
         handlers.sound('click');
-        this.show(this.current === 'tracks' ? 'modes' : this.current === 'garage' || this.current === 'modes' || this.current === 'fame' ? 'main' : this.back);
+        this.show(this.current === 'tracks' ? 'modes' : this.current === 'garage' || this.current === 'modes' || this.current === 'fame' || this.current === 'achievements' ? 'main' : this.back);
       }),
     );
     this.buildTracks(handlers);
@@ -430,7 +438,32 @@ export class Menus {
     }
   }
 
+  private renderAchievements(): void {
+    const have = loadAchieved();
+    const grid = el('ach-grid');
+    grid.replaceChildren();
+    for (const a of ACHIEVEMENTS) {
+      const d = document.createElement('div');
+      d.className = `ach${have.has(a.id) ? '' : ' locked'}`;
+      const i = document.createElement('i');
+      i.textContent = have.has(a.id) ? a.icon : '🔒';
+      const b = document.createElement('b');
+      b.textContent = a.name;
+      const s = document.createElement('span');
+      s.textContent = a.how;
+      d.append(i, b, s);
+      grid.appendChild(d);
+    }
+    el('ach-count').textContent = `${have.size} / ${ACHIEVEMENTS.length} unlocked`;
+  }
+
   private renderModes(): void {
+    const daily = todaysChallenge();
+    const dTrack = TRACKS.find((d) => d.id === daily.track);
+    el('daily-desc').textContent = `${dTrack?.name ?? ''} · ${MODIFIER_TEXT[daily.modifier]}. Top 3 to clear it.`;
+    const today = loadDaily()[daily.date];
+    const streak = dailyStreak();
+    el('daily-badge').textContent = today && today <= 3 ? `✔ ${today}${ordinal(today)}` : streak ? `🔥 ${streak}` : 'NEW';
     const medals = Object.values(loadMedals()).filter((m) => m === 3).length;
     el('tt-badge').textContent = medals ? `🥇 ${medals}` : '';
     const trophies = loadTrophies();
@@ -575,7 +608,7 @@ export class Menus {
       this.show('modes');
       return true;
     }
-    if (this.current === 'garage' || this.current === 'modes' || this.current === 'fame') {
+    if (this.current === 'garage' || this.current === 'modes' || this.current === 'fame' || this.current === 'achievements') {
       this.show('main');
       return true;
     }
@@ -601,7 +634,7 @@ export class Menus {
     kicker.textContent = data.newBest ? 'New personal best!' : data.place === 1 ? `You won ${data.trackName}!` : data.place <= 3 ? 'On the podium!' : 'Race complete';
     kicker.classList.toggle('best', data.newBest);
     const gp = data.gp;
-    el('btn-next').classList.toggle('hidden', gp ? false : !data.hasNext || data.mode === 'tutorial');
+    el('btn-next').classList.toggle('hidden', gp ? false : !data.hasNext || data.mode === 'tutorial' || data.mode === 'daily');
     el('btn-next').textContent = gp ? (gp.last ? 'SEE THE PODIUM' : 'NEXT RACE') : 'NEXT TRACK';
     el('btn-again').classList.toggle('hidden', !!gp);
     el('btn-again').textContent = data.mode === 'tt' ? 'TRY AGAIN' : data.mode === 'tutorial' ? 'PRACTICE AGAIN' : 'RACE AGAIN';
@@ -615,6 +648,8 @@ export class Menus {
       kicker.textContent = data.place < data.p2Place ? 'Player 1 wins the duel!' : 'Player 2 wins the duel!';
     } else if (gp) {
       kicker.textContent = `Grand Prix · race ${gp.race} of ${gp.of}`;
+    } else if (data.mode === 'daily') {
+      kicker.textContent = data.place <= 3 ? 'Daily challenge cleared!' : 'Daily challenge — top 3 to clear it';
     }
     const medal = el('results-medal');
     medal.classList.toggle('hidden', !data.medal);

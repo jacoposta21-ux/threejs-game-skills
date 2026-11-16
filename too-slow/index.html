@@ -95,6 +95,7 @@
           <button class="btn btn-primary" id="btn-play" type="button">PLAY</button>
           <button class="btn" id="btn-garage" type="button">CUSTOMIZE</button>
           <button class="btn" id="btn-fame" type="button">HALL OF FAME</button>
+          <button class="btn" id="btn-achievements" type="button">ACHIEVEMENTS</button>
           <button class="btn" id="btn-how" type="button">HOW TO PLAY</button>
           <button class="btn" id="btn-settings" type="button">SETTINGS</button>
         </nav>
@@ -110,6 +111,7 @@
             <button class="mode-card" data-mode="gp" type="button"><span class="mode-icon">🏆</span><b>Grand Prix</b><span>Every unlocked track in a row. Points decide the cup.</span><em class="mode-badge" id="gp-badge"></em></button>
             <button class="mode-card" data-mode="tt" type="button"><span class="mode-icon">⏱️</span><b>Time Trial</b><span>Alone against your ghost. Bronze, silver, gold.</span><em class="mode-badge" id="tt-badge"></em></button>
             <button class="mode-card" data-mode="duo" type="button"><span class="mode-icon">👥</span><b>2 Players</b><span>Split-screen on one PC. WASD vs arrows or gamepads.</span></button>
+            <button class="mode-card" data-mode="daily" type="button"><span class="mode-icon">📅</span><b>Daily Challenge</b><span id="daily-desc">Today's track and twist.</span><em class="mode-badge" id="daily-badge"></em></button>
             <button class="mode-card" data-mode="tutorial" type="button"><span class="mode-icon">🎓</span><b>Tutorial</b><span>A guided practice lap: crawl, roll, slide, items.</span><em class="mode-badge" id="tut-badge"></em></button>
           </div>
           <div class="row mode-diff"><span>Rival snails</span>
@@ -241,6 +243,16 @@
             <button class="btn" id="btn-results-menu" type="button">MAIN MENU</button>
           </div>
           <button class="btn btn-reward hidden" id="btn-reward" type="button">🍄 TURBO START — watch an ad</button>
+        </div>
+      </section>
+
+      <!-- Achievements -->
+      <section id="menu-achievements" class="screen hidden">
+        <div class="panel panel-wide">
+          <h2>Achievements</h2>
+          <p class="lead" id="ach-count"></p>
+          <div class="ach-grid" id="ach-grid"></div>
+          <button class="btn btn-primary" data-back type="button">BACK</button>
         </div>
       </section>
 

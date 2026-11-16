@@ -105,6 +105,8 @@ export class ItemSystem {
   enabled = true;
   /** The player's nemesis aims its acorns at the player. */
   nemesis = -1;
+  /** Daily-challenge twist: every box hands out this item. */
+  onlyKind: ItemKind | null = null;
 
   reset(): void {
     this.boxes.length = 0;
@@ -151,6 +153,7 @@ export class ItemSystem {
   }
 
   private roll(rank: number, rng: () => number): ItemKind {
+    if (this.onlyKind) return this.onlyKind;
     const band = rank === 0 ? 0 : rank <= 2 ? 1 : 2;
     const w = ODDS[band];
     let total = 0;

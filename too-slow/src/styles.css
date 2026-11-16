@@ -1718,3 +1718,10 @@ body.touch-ui #hud .hud-bc { transform: translateX(-50%) scale(0.7); transform-o
 @keyframes chatter-in { from { transform: translateY(8px) scale(0.9); opacity: 0; } }
 @media (max-height: 560px) { #chatter { top: auto; bottom: 120px; } }
 #app.duo #chatter { display: none; }
+
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.ach { display: grid; grid-template-columns: 36px 1fr; gap: 2px 8px; align-items: center; padding: 6px 10px; border: 3px solid var(--ink); border-radius: 14px; background: #fff; font: 500 13px/1.25 var(--body); }
+.ach i { grid-row: span 2; font-style: normal; font-size: 26px; text-align: center; }
+.ach b { font: 400 17px var(--title); }
+.ach.locked { opacity: 0.5; filter: grayscale(1); background: #f3eedf; }
+.menu-buttons .btn { padding-top: 8px; padding-bottom: 8px; }
