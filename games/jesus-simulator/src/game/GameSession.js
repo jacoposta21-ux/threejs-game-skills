@@ -1131,6 +1131,7 @@ export class GameSession {
           this.romans.update(1 / 60, 1, ctx);
         }
         this.ragdolls.sync();
+        this.world.update(0, this.simTime || 0, this.camera.position, this.camera.far);
         const sky = this.dayCycle.apply(this.screen === 'menu' ? 0.18 : this.clock, this.camera.position, this.camera.far);
         this.sunDir = sky.lightDir;
         this.night = sky.night;
