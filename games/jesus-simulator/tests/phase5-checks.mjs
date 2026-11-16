@@ -224,7 +224,7 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
   await camBehind();
   await holdSim(['KeyW', 'ShiftLeft'], 1.5);
   const pig = (await diag()).wildlife.pigeonsFlying;
-  await teleport(-174, -72, Math.PI / 2);
+  await teleport(-162.5, -56, Math.PI);
   await events();
   await holdSim(['KeyW', 'ShiftLeft'], 3.5);
   const goats = new Set((await events()).filter((e) => e.name === 'animal:flee' && e.kind === 'goat').map((e) => e.entityId)).size;
