@@ -117,7 +117,7 @@ export function saveLook(look: PlayerLook): void {
 }
 
 const UNLOCK_KEY = 'tooslow.unlocked.v1';
-const unlockAll = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('unlock') === 'all';
+const unlockAll = typeof window !== 'undefined' && (new URLSearchParams(window.location.search).get('unlock') === 'all' || !!(window as unknown as { __TOOSLOW_UNLOCK_ALL__?: boolean }).__TOOSLOW_UNLOCK_ALL__);
 
 /** Tracks open to play. The first is always open; a top-three finish opens the next. */
 export function loadUnlocked(): Set<string> {

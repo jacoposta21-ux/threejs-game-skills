@@ -201,7 +201,7 @@ export const COSMETICS: Cosmetic[] = [
 
 export function earnedCosmetics(): Set<string> {
   const set = new Set<string>();
-  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('unlock') === 'all') {
+  if (typeof window !== 'undefined' && (new URLSearchParams(window.location.search).get('unlock') === 'all' || (window as unknown as { __TOOSLOW_UNLOCK_ALL__?: boolean }).__TOOSLOW_UNLOCK_ALL__)) {
     for (const c of COSMETICS) set.add(c.id);
     return set;
   }
