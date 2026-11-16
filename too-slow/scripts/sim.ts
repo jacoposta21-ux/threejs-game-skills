@@ -26,6 +26,8 @@ for (let n = 0; n < races; n += 1) {
   const modeArg = process.argv.find((a) => a.startsWith('--mode='));
   race.configure((modeArg?.slice(7) ?? 'race') as never, Number(diffArg?.slice(7) ?? 1) as 0 | 1 | 2);
   if (modeArg?.includes('tt')) race.items.enabled = false;
+  const wArg = process.argv.find((x) => x.startsWith('--weather='));
+  if (wArg) race.forceWeather = wArg.slice(10) as 'rain' | 'wind' | 'clear';
   race.reset(rng);
   race.startCountdown();
   const respawns = new Array(6).fill(0);

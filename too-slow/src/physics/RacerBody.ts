@@ -28,6 +28,12 @@ export function emptyIntent(): Intent {
   return { steer: 0, throttle: 0, toggleRoll: false, slide: false, boost: false, spin: 0, useItem: false };
 }
 
+/**
+ * Race-wide conditions the physics reads: rain makes every surface slicker, wind pushes
+ * anything in the air. Set by the RaceManager each step, so simulations stay deterministic.
+ */
+export const WORLD = { wet: 0, windX: 0, windZ: 0 };
+
 export type RacerEventType =
   | 'land'
   | 'hardLand'
@@ -305,9 +311,10 @@ export class RacerBody {
     const surf = SURFACES[this.surface];
 
     if (contact) {
+      const grip = surf.grip * (1 - 0.2 * WORLD.wet);
       if (this.mode === 'crawl') this.crawlForces(dt, intent, surf.roll, surf.crawl);
-      else if (this.mode === 'roll') this.rollForces(dt, surf.roll, surf.grip, intent.throttle < -0.1);
-      else this.slideForces(dt, surf.roll, surf.grip);
+      else if (this.mode === 'roll') this.rollForces(dt, surf.roll, grip, intent.throttle < -0.1);
+      else this.slideForces(dt, surf.roll * (1 - 0.25 * WORLD.wet), grip);
       if (intent.boost && this.boost >= 1 && this.mode !== 'crawl') this.fireBoost();
       // Spider web and honey: heavy, gluey drag on the ground (the Giant Snail tears through).
       if ((this.webbed > 0 || this.sticky > 0) && this.giant <= 0) {
@@ -563,6 +570,8 @@ export class RacerBody {
 
   private airForces(dt: number, intent: Intent): void {
     const vel = this.vel;
+    vel.x += WORLD.windX * dt;
+    vel.z += WORLD.windZ * dt;
     const sp = Math.hypot(vel.x, vel.z);
     if (this.cannon > 0) {
       // Ballistic: the throw is aimed, so no drag and no steering; spins are still allowed.

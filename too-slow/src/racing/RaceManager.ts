@@ -1,5 +1,5 @@
 import { AI_PROFILES, PLAYER_PROFILE, SnailAI, type RacerProfile } from '../ai/SnailAI';
-import { emptyIntent, RacerBody, stepWorld, type Intent } from '../physics/RacerBody';
+import { emptyIntent, RacerBody, stepWorld, WORLD, type Intent } from '../physics/RacerBody';
 import { CHECKPOINTS, START_S, track } from '../world/Track';
 import { CritterSystem } from './Critters';
 import { ItemSystem } from './Items';
@@ -14,7 +14,7 @@ export type RaceMode = 'race' | 'gp' | 'tt' | 'tutorial' | 'duo';
 export type Difficulty = 0 | 1 | 2;
 
 export interface RaceEvent {
-  type: 'countdown' | 'go' | 'checkpoint' | 'overtake' | 'overtaken' | 'finish' | 'aiFinish' | 'lap';
+  type: 'countdown' | 'go' | 'checkpoint' | 'overtake' | 'overtaken' | 'finish' | 'aiFinish' | 'lap' | 'rain' | 'wind';
   value: number;
   racer: number;
 }
@@ -51,6 +51,15 @@ export class RaceManager {
   readonly items = new ItemSystem();
   readonly critters = new CritterSystem();
   laps = 3;
+  /** Race time when rain starts (-1: dry race). */
+  rainAt = -1;
+  /** 0 … 1, how hard it is raining now. */
+  rain = 0;
+  /** Base wind push on airborne snails (m/s²), gusting around this. */
+  windX = 0;
+  windZ = 0;
+  /** Forced conditions (daily challenge, tests); null = decided per race. */
+  forceWeather: 'rain' | 'wind' | 'clear' | null = null;
   /** Fixed lap count for special modes (0 = the track's own). */
   lapsOverride = 0;
   /** Player's lap times (seconds), filled as laps complete. */
@@ -133,7 +142,32 @@ export class RaceManager {
     this.laps = this.lapsOverride || track.def.laps;
     this.lapTimes.length = 0;
     this.lapStart = 0;
+    this.rollWeather(rng);
     this.updateOrder(false);
+  }
+
+  /** Garden tracks may cloud over and rain mid-race; open ones get gusty wind. Time trials stay calm. */
+  private rollWeather(rng: () => number): void {
+    const flora = track.def.theme.flora;
+    const wetTrack = flora === 'garden' || flora === 'veggie' || flora === 'pond' || flora === 'glow';
+    const a = rng();
+    const b = rng();
+    const c = rng();
+    let kind = this.forceWeather ?? (this.mode === 'tt' || this.mode === 'tutorial' ? 'clear' : wetTrack ? (a < 0.35 ? 'rain' : a < 0.5 ? 'wind' : 'clear') : a < 0.55 ? 'wind' : 'clear');
+    if (kind === 'rain' && !wetTrack && !this.forceWeather) kind = 'clear';
+    this.rainAt = kind === 'rain' ? (this.forceWeather ? 8 : 25 + b * 45) : -1;
+    this.rain = 0;
+    const strength = kind === 'wind' ? 0.6 + c * 0.6 : 0;
+    const ang = b * Math.PI * 2;
+    this.windX = Math.cos(ang) * strength;
+    this.windZ = Math.sin(ang) * strength;
+    WORLD.wet = 0;
+    WORLD.windX = 0;
+    WORLD.windZ = 0;
+  }
+
+  get windy(): boolean {
+    return this.windX !== 0 || this.windZ !== 0;
   }
 
   startCountdown(): void {
@@ -158,7 +192,19 @@ export class RaceManager {
         this.events.push({ type: 'go', value: 0, racer: 0 });
       }
     }
-    if (this.phase === 'racing' || this.phase === 'finished') this.time += dt;
+    if (this.phase === 'racing' || this.phase === 'finished') {
+      this.time += dt;
+      if (this.rainAt >= 0) {
+        if (this.rain === 0 && this.time >= this.rainAt) this.events.push({ type: 'rain', value: 0, racer: 0 });
+        this.rain = Math.max(0, Math.min(1, (this.time - this.rainAt) / 8));
+      }
+      if (this.windy && this.time < dt * 1.5) this.events.push({ type: 'wind', value: 0, racer: 0 });
+      // Gusts: the wind breathes in and out over a few seconds.
+      const gust = 0.6 + 0.4 * Math.sin(this.time * 0.6) * Math.sin(this.time * 0.23 + 1);
+      WORLD.windX = this.windX * gust;
+      WORLD.windZ = this.windZ * gust;
+      WORLD.wet = this.rain;
+    }
 
     const racing = this.phase === 'racing' || this.phase === 'finished';
     for (let i = 0; i < RACER_COUNT; i += 1) {

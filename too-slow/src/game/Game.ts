@@ -9,7 +9,7 @@ import { Platform } from '../core/Platform';
 import { Loop } from '../core/Loop';
 import { createRenderer, resizeRenderer } from '../core/Renderer';
 import { Particles, SpeedLines, Trail } from '../fx/Effects';
-import { TUNE, type RacerBody } from '../physics/RacerBody';
+import { TUNE, WORLD, type RacerBody } from '../physics/RacerBody';
 import { FIXED_DT, RACER_COUNT, RaceManager, type Difficulty, type RaceMode } from '../racing/RaceManager';
 import { addFame, addStats, COSMETICS, earnedCosmetics, GP_POINTS, TRAILS, loadGhost, medalFor, MEDAL_TIMES, saveGhost, saveMedal, saveTrophy, setTutorialDone } from '../ui/Progress';
 import { Hud2 } from '../ui/Hud2';
@@ -120,6 +120,9 @@ export class Game {
   private p2Tag: THREE.Texture | null = null;
   private rivalNames: string[] = [];
   private readonly ttPanel = document.getElementById('tt-panel');
+  private readonly windChip = document.getElementById('wind-chip');
+  private readonly windArrow = document.getElementById('wind-arrow');
+  private readonly camDir = new THREE.Vector3();
   private readonly ttMedal = document.getElementById('tt-medal');
   private readonly ttGhost = document.getElementById('tt-ghost');
 
@@ -947,6 +950,13 @@ export class Game {
           this.audio.play(e.value === this.race.laps ? 'finalLap' : 'checkpoint');
           if (e.value === this.race.laps) this.audio.setMusic(true, 142);
           break;
+        case 'rain':
+          this.hud.toast('RAIN!', 'info', 'every surface is slippery now');
+          this.hud2.toast('RAIN!');
+          break;
+        case 'wind':
+          this.hud.toast('WINDY!', 'info', 'gusts push you in the air');
+          break;
         case 'checkpoint':
           this.hud.toast('CHECKPOINT', 'info', formatTime(this.race.time));
           this.audio.play('checkpoint');
@@ -1222,6 +1232,7 @@ export class Game {
       }
     }
 
+    this.updateWeather(delta);
     if (this.menus.look.trail === 'rainbow') this.views[0].slime.color.setHSL((this.time * 0.35) % 1, 0.85, 0.62);
 
     // Camera.
@@ -1349,6 +1360,35 @@ export class Game {
     r.render(this.scene, this.camera2);
     r.setScissorTest(false);
     r.setViewport(0, 0, w, h);
+  }
+
+  /** Rain, gloom, gust sounds and the wind arrow follow the race's weather. */
+  private updateWeather(delta: number): void {
+    const race = this.race;
+    const live = this.state !== 'menu';
+    const rain = live ? race.rain : 0;
+    this.weather.setRain(rain);
+    this.env.setGloom(rain * 0.9);
+    const gust = live && race.windy ? Math.hypot(WORLD.windX, WORLD.windZ) / 1.2 : 0;
+    this.audio.setWeather(this.paused ? 0 : rain, this.paused ? 0 : gust);
+    const showWind = live && this.state === 'racing' && race.windy;
+    if (this.windChip && this.windChip.classList.contains('hidden') === showWind) this.windChip.classList.toggle('hidden', !showWind);
+    if (showWind && this.windArrow) {
+      // Arrow relative to where the camera looks: up = blowing ahead, right = blowing right.
+      this.camera.getWorldDirection(this.camDir);
+      const fwd = Math.atan2(this.camDir.x, -this.camDir.z);
+      const wind = Math.atan2(race.windX, -race.windZ);
+      const deg = ((wind - fwd) * 180) / Math.PI - 90;
+      this.windArrow.style.transform = `rotate(${deg.toFixed(0)}deg) scale(${(0.8 + gust * 0.5).toFixed(2)})`;
+    }
+    // Wet shells throw spray.
+    if (rain > 0.3 && live) {
+      const p = race.player;
+      if (p.speed > 8 && p.airTime < 0.05 && this.fxRng() < delta * 30) {
+        const v = this.views[0].pos;
+        this.particles.emit(v.x, v.y - 0.3, v.z, -p.vel.x * 0.15 + (this.fxRng() - 0.5) * 2, 1.5 + this.fxRng() * 1.5, -p.vel.z * 0.15 + (this.fxRng() - 0.5) * 2, COLORS.water, 0.12, 0.4, 9);
+      }
+    }
   }
 
   /** Show and size the rivals' name tags for one camera (split-screen renders twice); `self` gets none. */
@@ -1545,6 +1585,14 @@ export class Game {
         // Freeze right here so the showcase is not driven past before the capture.
         this.pausedForScreenshot = true;
       },
+      'rain-play': () => {
+        this.race.forceWeather = 'rain';
+        raceTo(420);
+      },
+      'wind-play': () => {
+        this.race.forceWeather = 'wind';
+        raceTo(240, undefined, 'sandbox');
+      },
       fame: () => {
         this.toMenu(true);
         (document.getElementById('btn-fame') as HTMLButtonElement).click();
@@ -1599,7 +1647,9 @@ export class Game {
         this.paused = false;
         this.mode = 'race';
         this.gp = null;
+        this.race.forceWeather = null;
         fn();
+        this.race.forceWeather = null;
         this.publishDiagnostics();
         return { state: name };
       },
@@ -1649,6 +1699,7 @@ export class Game {
       slime: p.slime,
       boost: p.boost,
       fps: this.fps,
+      weather: { rain: race.rain, rainAt: race.rainAt, wet: WORLD.wet, windX: race.windX },
       items: { puddles: race.items.puddles.map((p) => [p.pos.x, p.pos.y, p.pos.z, p.age]), ladybugs: race.items.ladybugs.length, webs: race.items.bananas.filter((b) => b.kind === 'web').length },
       racers: race.racers.map((r, i) => ({ name: race.profiles[i].name, s: r.s, d: r.d, finished: r.finished, time: r.finishTime, mode: r.mode })),
       player: {

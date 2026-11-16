@@ -11,6 +11,8 @@ export const SKY = {
 
 export interface EnvironmentResult {
   group: THREE.Group;
+  /** 0 … 1: overcast and rain darken the sun and greys the fog. */
+  setGloom(k: number): void;
   sun: THREE.DirectionalLight;
   /** Keep sky and shadow frustum centred on the action. */
   follow(target: THREE.Vector3, camera: THREE.Camera): void;
@@ -84,6 +86,15 @@ export function buildEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRender
   const hemi = new THREE.HemisphereLight(0xdff3ff, 0x7fb054, 1.05);
   group.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff0d0, 2.5);
+  let baseSun = 2.5;
+  let baseHemi = 1.05;
+  let gloom = 0;
+  const GREY = new THREE.Color(0x8a94a0);
+  const GREY_TOP = new THREE.Color(0x5c6672);
+  const GREY_CLOUD = new THREE.Color(0x9aa0a8);
+  const baseSky = { top: new THREE.Color(), horizon: new THREE.Color(), fog: new THREE.Color() };
+  const baseCloud = new THREE.Color(0xffffff);
+  let bakedStep = 0;
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 1;
@@ -142,7 +153,33 @@ export function buildEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRender
       sky.scale.setScalar(k);
       clouds.scale.setScalar(k);
     },
+    setGloom(k) {
+      if (Math.abs(k - gloom) < 0.01) return;
+      gloom = k;
+      sun.intensity = baseSun * (1 - 0.6 * k);
+      hemi.intensity = baseHemi * (1 - 0.25 * k);
+      SKY.top.copy(baseSky.top).lerp(GREY_TOP, k * 0.75);
+      SKY.horizon.copy(baseSky.horizon).lerp(GREY, k * 0.7);
+      const fog = (scene.fog as THREE.Fog).color;
+      fog.copy(baseSky.fog).lerp(GREY, k * 0.6);
+      SKY.fog.copy(fog);
+      cloudMat.color.copy(baseCloud).lerp(GREY_CLOUD, k * 0.8);
+      // The reflection map follows the sky, re-baked only in coarse steps.
+      const step = Math.round(k * 4);
+      if (step !== bakedStep) {
+        bakedStep = step;
+        bakeEnvironment();
+      }
+    },
     setTheme(theme) {
+      baseSun = theme.sunIntensity;
+      baseHemi = theme.hemiIntensity;
+      gloom = 0;
+      bakedStep = 0;
+      baseSky.top.set(theme.skyTop);
+      baseSky.horizon.set(theme.skyHorizon);
+      baseSky.fog.set(theme.fog);
+      baseCloud.set(theme.bloom ? 0x4a5288 : theme.fireflies ? 0xffd6e8 : 0xffffff);
       SKY.top.set(theme.skyTop);
       SKY.horizon.set(theme.skyHorizon);
       SKY.ground.set(theme.skyGround);

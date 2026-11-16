@@ -124,6 +124,8 @@ export class AudioManager {
   private slide!: Loop;
   private wind!: Loop;
   private ambience!: Loop;
+  private rainLoop!: Loop;
+  private gustLoop!: Loop;
   private rollLfo!: OscillatorNode;
   private rollLfoGain!: GainNode;
   private musicVolume = 0.6;
@@ -177,6 +179,8 @@ export class AudioManager {
     this.wind = this.makeLoop('bandpass', 700, 0.5, this.sfx);
     this.ambience = this.makeLoop('lowpass', 500, 0.3, this.music);
     this.ambience.gain.gain.value = 0.05;
+    this.rainLoop = this.makeLoop('highpass', 1800, 0.4, this.sfx);
+    this.gustLoop = this.makeLoop('bandpass', 380, 0.9, this.sfx);
     // Rumble wobble locked to shell rotation.
     this.rollLfo = ctx.createOscillator();
     this.rollLfoGain = ctx.createGain();
@@ -185,6 +189,15 @@ export class AudioManager {
     this.rollLfo.start();
 
     this.musicTimer = window.setInterval(() => this.schedule(), 90);
+  }
+
+  /** Rain hiss and wind gusts under the race, 0 … 1 each. */
+  setWeather(rain: number, gust: number): void {
+    if (!this.ctx || !this.rainLoop) return;
+    const t = this.ctx.currentTime;
+    this.rainLoop.gain.gain.setTargetAtTime(rain * 0.16, t, 0.4);
+    this.gustLoop.gain.gain.setTargetAtTime(gust * 0.12, t, 0.3);
+    this.gustLoop.filter.frequency.setTargetAtTime(260 + gust * 420, t, 0.3);
   }
 
   private makeLoop(type: BiquadFilterType, freq: number, q: number, dest: AudioNode): Loop {

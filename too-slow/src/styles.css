@@ -1685,3 +1685,16 @@ body.touch-ui #hud .hud-bc { transform: translateX(-50%) scale(0.7); transform-o
 @media (max-height: 460px) {
   body.touch-ui #hud #standings { display: none; }
 }
+
+#wind-chip {
+  position: absolute;
+  top: max(98px, 13vh);
+  right: max(16px, env(safe-area-inset-right));
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(30, 40, 60, 0.5);
+  color: #fff;
+  font: 700 14px var(--body);
+}
+#wind-chip i { display: inline-block; font-style: normal; transition: transform 0.2s linear; }
+#app.duo #wind-chip { display: none; }

@@ -16,6 +16,7 @@ interface ThreeGameDiagnostics {
   slime: number;
   boost: number;
   fps: number;
+  weather?: { rain: number; rainAt: number; wet: number; windX: number };
   items?: { puddles: number[][]; ladybugs: number; webs: number };
   racers: { name: string; s: number; d: number; finished: boolean; time: number; mode: string }[];
   player: {
