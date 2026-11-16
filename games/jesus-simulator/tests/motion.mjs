@@ -39,7 +39,7 @@ await waitFrames(20);
 const frames = [];
 const grab = async (label) => {
   const file = path.join(out, `frame-${String(frames.length).padStart(2, '0')}.png`);
-  await page.screenshot({ path: file, clip: { x: 280, y: 90, width: 400, height: 400 } });
+  await page.screenshot({ path: file, clip: { x: 280, y: 90, width: 400, height: 400 }, timeout: 120000 });
   const d = await diag();
   frames.push({ file: path.basename(file), label, speed: d.player.speed.toFixed(1), y: d.player.position.y.toFixed(2), grounded: d.player.grounded });
 };

@@ -37,7 +37,7 @@ const frame = (step) => page.evaluate((dt) => {
 const frames = [];
 const shoot = async (name, t, info) => {
   const file = path.join(out, `${name}.png`);
-  await page.screenshot({ path: file, clip: { x: 160, y: 70, width: 640, height: 400 } });
+  await page.screenshot({ path: file, clip: { x: 160, y: 70, width: 640, height: 400 }, timeout: 120000 });
   frames.push({ file: path.basename(file), label: `${name.split('-')[0]} t+${t.toFixed(2)}s`, info });
 };
 

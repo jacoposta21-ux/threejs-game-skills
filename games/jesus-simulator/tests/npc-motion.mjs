@@ -33,7 +33,7 @@ for (let i = 0; i < 12; i += 1) {
     return s.npcs.stats().states;
   });
   const file = path.join(out, `npc-${String(i).padStart(2, '0')}.png`);
-  await page.screenshot({ path: file, clip: { x: 160, y: 60, width: 640, height: 400 } });
+  await page.screenshot({ path: file, clip: { x: 160, y: 60, width: 640, height: 400 }, timeout: 120000 });
   frames.push({ file: path.basename(file), t: ((i + 1) * 0.4).toFixed(1), states: info });
 }
 const cells = frames.map((f) => `<figure><img src="data:image/png;base64,${fs.readFileSync(path.join(out, f.file)).toString('base64')}"><figcaption>t+${f.t}s</figcaption></figure>`).join('');
