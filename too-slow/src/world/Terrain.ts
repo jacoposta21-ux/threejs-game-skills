@@ -39,6 +39,31 @@ export interface TerrainResult {
   update(time: number): void;
 }
 
+const reachPos = new THREE.Vector3();
+const reachProj = { s: 0, d: 0 };
+
+/** Lateral extent [lo, hi] of the ribbon at s that does not overlap another part of the circuit. */
+function ribbonReach(s: number): [number, number] {
+  const owns = (d: number) => {
+    track.toWorld(s, d, reachPos);
+    track.project(reachPos.x, reachPos.z, -1, reachProj);
+    return Math.abs(track.rel(reachProj.s, s)) < 2.5 && Math.abs(reachProj.d - d) < 2.5;
+  };
+  let hi = 0;
+  let lo = 0;
+  for (const d of COLS) if (d > 0) {
+    if (!owns(d)) break;
+    hi = d;
+  }
+  for (let i = COLS.length - 1; i >= 0; i -= 1) {
+    const d = COLS[i];
+    if (d >= 0) continue;
+    if (!owns(d)) break;
+    lo = d;
+  }
+  return [lo, hi];
+}
+
 /** Builds the ribbon terrain straight from the track's height and surface functions. */
 export function buildTerrain(quality = 2): TerrainResult {
   const group = new THREE.Group();
@@ -99,8 +124,12 @@ export function buildTerrain(quality = 2): TerrainResult {
     for (let r = r0; r <= r1; r += 1) {
       const s = rows[r];
       const hw = track.halfWidth(s);
+      // On the inside of tight bends (and where two parts of the loop come close) the outer columns
+      // would fold back over other ground and bury the snails: stop each side at the last column that
+      // still belongs to this part of the course. The ground grid covers the rest.
+      const [lo, hi] = ribbonReach(s);
       for (let ci = 0; ci < cols; ci += 1) {
-        const d = COLS[ci];
+        const d = Math.max(lo, Math.min(hi, COLS[ci]));
         track.toWorld(s, d, pos);
         track.normal(s, d, normal);
         positions.set([pos.x, pos.y, pos.z], v * 3);
@@ -231,9 +260,18 @@ function buildGround(quality: number, ribbonMat: THREE.MeshStandardMaterial, det
       const x = x0 + ix * step;
       const z = z0 + iz * step;
       let y = track.groundAt(x, z, proj);
-      const ad = Math.abs(proj.d);
+      let ad = Math.abs(proj.d);
+      if (ad < 40) {
+        // Near the course a grid triangle can span two legs of a hairpin at different heights; take
+        // the lowest ground around the vertex so the coarse grid never pokes up through the ribbon.
+        const r = step;
+        for (const [ox, oz] of [[r, 0], [-r, 0], [0, r], [0, -r], [r, r], [-r, r], [r, -r], [-r, -r], [2 * r, 0], [-2 * r, 0], [0, 2 * r], [0, -2 * r]]) {
+          y = Math.min(y, track.groundAt(x + ox, z + oz, proj));
+          ad = Math.min(ad, Math.abs(proj.d));
+        }
+      }
       // Tuck the grid under the ribbon; from |d| = 27 outwards the two share the same surface.
-      y -= 1.4 * THREE.MathUtils.smoothstep(ad, 27, 21);
+      y -= 3 * (1 - THREE.MathUtils.smoothstep(ad, 20, 27));
       positions.set([x, y, z], v * 3);
       col.copy(FAR_A).lerp(FAR_B, noise2(x * 0.02, z * 0.02));
       col.lerp(VERGE, (1 - THREE.MathUtils.smoothstep(ad, 26, 60)) * 0.5);

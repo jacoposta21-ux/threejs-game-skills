@@ -1625,7 +1625,7 @@ export class Game {
       settle();
     };
     const kicker = (id: string) => () => {
-      loadTrack(id);
+      this.setTrack(id);
       const k = KICKER!;
       raceTo(k.s1 + 6, () => !this.race.player.grounded, id);
     };
@@ -1647,13 +1647,15 @@ export class Game {
       'active-play': () => raceTo(236),
       'leaf-slide': () => raceTo(400),
       'root-maze': () => raceTo(640),
+      hairpin: () => raceTo(712),
+      'hairpin-late': () => raceTo(745),
       'big-drop': kicker('backyard'),
       'pre-cannon': () => {
-        loadTrack('backyard');
+        this.setTrack('backyard');
         raceTo(track.cannon.launchS - 30);
       },
       cannon: () => {
-        loadTrack('backyard');
+        this.setTrack('backyard');
         raceTo(track.cannon.launchS + 25, () => this.race.player.cannon > 1.4);
       },
       'veggie-play': () => raceTo(270, undefined, 'veggie'),
