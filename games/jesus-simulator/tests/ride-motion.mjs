@@ -36,6 +36,7 @@ const frame = (args) => page.evaluate(({ dt, to, sprint, cam }) => {
   if (cam.fixed) s.camera.position.set(...cam.pos);
   else s.camera.position.set(target[0] + ox, target[1] + oy, target[2] + oz);
   s.camera.lookAt(target[0], target[1], target[2]);
+  s.vehicles.update(0, 1, s.camera.position); // cull/LOD from the final camera
   s.world.update(1 / 60, s.simTime || 0, s.camera.position, s.camera.far);
   s.dayCycle.apply(s.clock, s.camera.position, s.camera.far);
   s.render();
@@ -57,6 +58,7 @@ await page.evaluate(() => {
   h.hideDebugUi(true);
   const s = window.__JESUS_SIM__.session;
   s.romans.setActive(false);
+  for (const n of s.npcs.npcs) if (Math.hypot(n.pos.x + 2, n.pos.z - 4) < 16) { s.npcs.leaveAnchor(n, true); s.npcs.place(n, -40, 1.2, 30); }
   s.mountForTest('vehicle.donkey.joseph');
   s.vehicles.place(s.vehicles.ridden, -14, 6, Math.PI / 2 - 0.25);
 });
