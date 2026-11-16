@@ -74,7 +74,7 @@ export async function phase2Checks({ page, check, diag, waitFrames, hold, out })
   await page.keyboard.down('KeyW');
   for (let i = 0; i < 80; i += 1) {
     await waitFrames(3);
-    if (await setup(() => window.__contacts > 20 || window.__minGap < 0.75)) break;
+    if (await setup(() => window.__contacts > 20 || (window.__minGap < 0.75 && window.__contacts > 0))) break;
   }
   await waitFrames(15);
   await page.keyboard.up('KeyW');
