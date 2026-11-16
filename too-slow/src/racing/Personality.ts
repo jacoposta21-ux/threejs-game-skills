@@ -1,3 +1,5 @@
+import { getLang } from '../i18n';
+import { LOCAL_LINES } from './PersonalityLines';
 /**
  * What the rival snails say. Each has a voice: Turbo brags, Shelldon is polite, Gooey Louie is
  * laid-back, Slimothy is dramatic, Escargo is a snob. Lines are keyed by moment.
@@ -53,7 +55,7 @@ const LINES: Record<string, Record<Moment, string[]>> = {
 };
 
 export function line(name: string, moment: Moment, rng: () => number): string | null {
-  const set = LINES[name]?.[moment];
+  const set = LOCAL_LINES[getLang()]?.[name]?.[moment] ?? LINES[name]?.[moment];
   if (!set || set.length === 0) return null;
   return set[Math.floor(rng() * set.length) % set.length];
 }

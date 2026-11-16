@@ -1,6 +1,7 @@
 import type { ItemKind, RacerBody } from '../physics/RacerBody';
 import { ITEM_NAMES } from '../racing/Items';
 import { ordinal } from './Hud';
+import { t } from '../i18n';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
@@ -40,7 +41,7 @@ export class Hud2 {
     this.lap.textContent = String(lap);
     this.laps.textContent = String(laps);
     this.speed.textContent = String(Math.round(kmh));
-    this.item.textContent = r.finished ? 'FINISHED' : r.itemRoulette > 0 ? '…' : item ? ITEM_NAMES[item] : '';
+    this.item.textContent = r.finished ? t('FINISHED') : r.itemRoulette > 0 ? '…' : item ? t(ITEM_NAMES[item]) : '';
     this.boost.style.width = `${Math.round(Math.min(1, r.boost) * 100)}%`;
   }
 }

@@ -5,6 +5,7 @@ import { cosmeticFor, earnedCosmetics, loadFame, loadGhost, loadMedals, loadStat
 import type { HatKind, ShellPattern, SnailLook } from '../characters/SnailModel';
 import { TRACKS } from '../world/tracks';
 import { formatTime, ordinal } from './Hud';
+import { LANGS, setLang, t, type Lang } from '../i18n';
 
 export interface Settings {
   music: number;
@@ -16,6 +17,8 @@ export interface Settings {
   difficulty: number;
   /** Lower resolution and shadows automatically when the frame rate drops. */
   autoQuality: boolean;
+  /** Interface language, or 'auto' from the browser. */
+  lang: Lang | 'auto';
 }
 
 export interface PlayerLook extends SnailLook {
@@ -48,7 +51,7 @@ function write(key: string, value: unknown): void {
 export function loadSettings(): Settings {
   // Phones and tablets start on the light tier; desktops on High.
   const touchOnly = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches && !window.matchMedia('(pointer: fine)').matches;
-  return read<Settings>(SETTINGS_KEY, { music: 0.6, sfx: 0.8, quality: touchOnly ? -1 : 2, shake: true, items: true, difficulty: 1, autoQuality: true });
+  return read<Settings>(SETTINGS_KEY, { music: 0.6, sfx: 0.8, quality: touchOnly ? -1 : 2, shake: true, items: true, difficulty: 1, autoQuality: true, lang: 'auto' });
 }
 
 const bestKey = (track: string) => `tooslow.best.${track}.v1`;
@@ -233,6 +236,9 @@ export class Menus {
     handlers: MenuHandlers,
     private readonly profiles: RacerProfile[],
   ) {
+    // ?lang=it etc. overrides for testing without changing the saved setting.
+    const urlLang = new URLSearchParams(window.location.search).get('lang') as Lang | null;
+    setLang(urlLang && LANGS.some(([c]) => c === urlLang) ? urlLang : (this.settings.lang ?? 'auto'));
     const on = (id: string, fn: () => void) => {
       el(id).addEventListener('click', () => {
         handlers.sound('click');
@@ -345,6 +351,23 @@ export class Menus {
       this.settings.items = items.checked;
       commit();
     });
+    const langSel = el<HTMLSelectElement>('set-lang');
+    for (const [code, name] of [['auto', 'Auto'], ...LANGS] as [string, string][]) {
+      const o = document.createElement('option');
+      o.value = code;
+      o.textContent = name;
+      langSel.appendChild(o);
+    }
+    langSel.value = this.settings.lang ?? 'auto';
+    langSel.addEventListener('change', () => {
+      this.settings.lang = langSel.value as Lang | 'auto';
+      setLang(this.settings.lang);
+      commit();
+      this.paintGarage();
+      this.renderModes();
+      this.renderTracks();
+      handlers.sound('click');
+    });
     const auto = el<HTMLInputElement>('set-auto');
     auto.checked = this.settings.autoQuality;
     auto.addEventListener('change', () => {
@@ -365,9 +388,9 @@ export class Menus {
       card.style.setProperty('--hor', hex(def.theme.skyHorizon));
       card.style.setProperty('--ground', hex(def.theme.farA));
       const num = TRACKS.indexOf(def) + 1;
-      card.innerHTML = `<span class="track-art"><i></i><span class="track-num">${num}</span><span class="track-lock">LOCKED</span></span><b></b><span class="track-blurb"></span><span class="track-meta"><span>${def.laps} laps</span><span class="track-best"></span></span>`;
-      (card.querySelector('b') as HTMLElement).textContent = def.name;
-      (card.querySelector('.track-blurb') as HTMLElement).textContent = def.blurb;
+      card.innerHTML = `<span class="track-art"><i></i><span class="track-num">${num}</span><span class="track-lock">${t('LOCKED')}</span></span><b></b><span class="track-blurb"></span><span class="track-meta"><span>${t('{n} laps', { n: def.laps })}</span><span class="track-best"></span></span>`;
+      (card.querySelector('b') as HTMLElement).textContent = t(def.name);
+      (card.querySelector('.track-blurb') as HTMLElement).textContent = t(def.blurb);
       card.addEventListener('click', () => {
         if (card.classList.contains('locked')) return;
         handlers.sound('click');
@@ -386,6 +409,13 @@ export class Menus {
         const open = loadUnlocked().has(id);
         card.classList.toggle('locked', !open);
         card.setAttribute('aria-disabled', String(!open));
+        const def = TRACKS.find((d) => d.id === id);
+        if (def) {
+          (card.querySelector('b') as HTMLElement).textContent = t(def.name);
+          (card.querySelector('.track-blurb') as HTMLElement).textContent = t(def.blurb);
+          (card.querySelector('.track-lock') as HTMLElement).textContent = t('LOCKED');
+          (card.querySelector('.track-meta span') as HTMLElement).textContent = t('{n} laps', { n: def.laps });
+        }
         const best = loadBest(id);
         const prev = TRACKS[TRACKS.findIndex((d) => d.id === id) - 1];
         const meta = card.querySelector('.track-best') as HTMLElement;
@@ -393,12 +423,12 @@ export class Menus {
           const medal = loadMedals()[id] ?? 0;
           const ghost = loadGhost(id);
           const gold = MEDAL_TIMES[id]?.[0];
-          meta.textContent = medal ? `${['', '🥉', '🥈', '🥇'][medal]} ${ghost ? formatTime(ghost.time) : MEDAL_NAMES[medal]}` : gold ? `Gold ${formatTime(gold)}` : 'No time yet';
+          meta.textContent = medal ? `${['', '🥉', '🥈', '🥇'][medal]} ${ghost ? formatTime(ghost.time) : t(MEDAL_NAMES[medal])}` : gold ? t('Gold {time}', { time: formatTime(gold) }) : t('No time yet');
         } else {
-          meta.textContent = !open && prev ? `Top 3 on ${prev.name}` : best ? `Best ${formatTime(best)}` : 'No time yet';
+          meta.textContent = !open && prev ? t('Top 3 on {track}', { track: t(prev.name) }) : best ? t('Best {time}', { time: formatTime(best) }) : t('No time yet');
         }
       });
-    el('tracks-title').textContent = this.mode === 'tt' ? 'Time Trial' : this.mode === 'duo' ? '2 Players' : 'Choose a Track';
+    el('tracks-title').textContent = t(this.mode === 'tt' ? 'Time Trial' : this.mode === 'duo' ? '2 Players' : 'Choose a Track');
   }
 
   private renderFame(trackId: string): void {
@@ -408,7 +438,7 @@ export class Menus {
         const b = document.createElement('button');
         b.type = 'button';
         b.dataset.v = d.id;
-        b.textContent = d.name;
+        b.textContent = t(d.name);
         b.addEventListener('click', () => this.renderFame(d.id));
         tabs.appendChild(b);
       }
@@ -417,7 +447,7 @@ export class Menus {
     const list = el('fame-list');
     list.replaceChildren();
     const rows = loadFame(trackId);
-    const modeNames: Record<string, string> = { race: 'Race', gp: 'Grand Prix', tt: 'Time Trial', duo: '2 Players' };
+    const modeNames: Record<string, string> = { race: 'Race', gp: 'Grand Prix', tt: 'Time Trial', duo: '2 Players', daily: 'Daily Challenge' };
     rows.forEach((r, i) => {
       const li = document.createElement('li');
       const place = document.createElement('b');
@@ -425,7 +455,7 @@ export class Menus {
       const name = document.createElement('span');
       name.textContent = r.name;
       const meta = document.createElement('em');
-      meta.textContent = `${modeNames[r.mode] ?? r.mode} · ${r.date}`;
+      meta.textContent = `${t(modeNames[r.mode] ?? r.mode)} · ${r.date}`;
       const time = document.createElement('b');
       time.textContent = formatTime(r.time);
       li.append(place, name, meta, time);
@@ -433,7 +463,7 @@ export class Menus {
     });
     if (!rows.length) {
       const li = document.createElement('li');
-      li.textContent = 'No finishes yet — go set a time!';
+      li.textContent = t('No finishes yet — go set a time!');
       list.appendChild(li);
     }
   }
@@ -448,31 +478,31 @@ export class Menus {
       const i = document.createElement('i');
       i.textContent = have.has(a.id) ? a.icon : '🔒';
       const b = document.createElement('b');
-      b.textContent = a.name;
+      b.textContent = t(a.name);
       const s = document.createElement('span');
-      s.textContent = a.how;
+      s.textContent = t(a.how);
       d.append(i, b, s);
       grid.appendChild(d);
     }
-    el('ach-count').textContent = `${have.size} / ${ACHIEVEMENTS.length} unlocked`;
+    el('ach-count').textContent = t('{n} / {total} unlocked', { n: have.size, total: ACHIEVEMENTS.length });
   }
 
   private renderModes(): void {
     const daily = todaysChallenge();
     const dTrack = TRACKS.find((d) => d.id === daily.track);
-    el('daily-desc').textContent = `${dTrack?.name ?? ''} · ${MODIFIER_TEXT[daily.modifier]}. Top 3 to clear it.`;
+    el('daily-desc').textContent = `${t(dTrack?.name ?? '')} · ${t(MODIFIER_TEXT[daily.modifier])}. ${t('Top 3 to clear it.')}`;
     const today = loadDaily()[daily.date];
     const streak = dailyStreak();
-    el('daily-badge').textContent = today && today <= 3 ? `✔ ${today}${ordinal(today)}` : streak ? `🔥 ${streak}` : 'NEW';
+    el('daily-badge').textContent = today && today <= 3 ? `✔ ${today}${ordinal(today)}` : streak ? `🔥 ${streak}` : t('NEW');
     const medals = Object.values(loadMedals()).filter((m) => m === 3).length;
     el('tt-badge').textContent = medals ? `🥇 ${medals}` : '';
     const trophies = loadTrophies();
     const best = Math.min(...Object.values(trophies), 99);
     const open = loadUnlocked().size;
     const gpLocked = open < 3;
-    el('gp-badge').textContent = gpLocked ? `🔒 unlock ${3 - open} more track${3 - open > 1 ? 's' : ''}` : best <= 3 ? `🏆 ${best}${ordinal(best)}` : `${open} tracks`;
+    el('gp-badge').textContent = gpLocked ? t(3 - open > 1 ? '🔒 unlock {n} more tracks' : '🔒 unlock {n} more track', { n: 3 - open }) : best <= 3 ? `🏆 ${best}${ordinal(best)}` : t('{n} tracks', { n: open });
     el('mode-list').querySelector('[data-mode="gp"]')?.classList.toggle('locked', gpLocked);
-    el('tut-badge').textContent = tutorialDone() ? '' : 'START HERE';
+    el('tut-badge').textContent = tutorialDone() ? '' : t('START HERE');
     // First time ever: the tutorial is the obvious choice.
     el('mode-list')
       .querySelectorAll<HTMLElement>('.mode-card')
@@ -495,7 +525,7 @@ export class Menus {
         b.className = 'swatch';
         b.dataset.c = String(c);
         b.style.background = `#${c.toString(16).padStart(6, '0')}`;
-        b.setAttribute('aria-label', `Colour #${c.toString(16)}`);
+        b.setAttribute('aria-label', `#${c.toString(16)}`);
         b.addEventListener('click', () => {
           look[key] = c;
           handlers.sound('click');
@@ -512,10 +542,10 @@ export class Menus {
         b.type = 'button';
         b.dataset.v = value;
         b.dataset.label = label;
-        b.textContent = label;
+        b.textContent = t(label);
         const unlock = cosmeticFor(key, value);
         const explain = () => {
-          note.textContent = b.classList.contains('locked') && unlock ? `🔒 ${label}: ${unlock.how}` : '';
+          note.textContent = b.classList.contains('locked') && unlock ? `🔒 ${t(label)}: ${t(unlock.how)}` : '';
         };
         b.addEventListener('pointerenter', explain);
         b.addEventListener('focus', explain);
@@ -573,8 +603,8 @@ export class Menus {
             const c = cosmeticFor(kind, b.dataset.v ?? '');
             const locked = !!c && !earned.has(c.id);
             b.classList.toggle('locked', locked);
-            b.textContent = locked ? `🔒 ${b.dataset.label}` : (b.dataset.label ?? '');
-            b.title = locked && c ? c.how : '';
+            b.textContent = locked ? `🔒 ${t(b.dataset.label ?? '')}` : t(b.dataset.label ?? '');
+            b.title = locked && c ? t(c.how) : '';
           });
       }
       // A cosmetic chosen earlier but no longer earned (e.g. cleared storage) falls back to the default.
@@ -586,7 +616,7 @@ export class Menus {
       check('pattern', 'stripes');
       check('trail', 'lime');
       const s = loadStats();
-      el('garage-stats').textContent = `Races ${s.races} · Wins ${s.wins} · Podiums ${s.podiums} · Tricks ${s.tricks} · ${(s.distance / 1000).toFixed(1)} km rolled`;
+      el('garage-stats').textContent = t('Races {races} · Wins {wins} · Podiums {podiums} · Tricks {tricks} · {km} km rolled', { races: s.races, wins: s.wins, podiums: s.podiums, tricks: s.tricks, km: (s.distance / 1000).toFixed(1) });
       note.textContent = '';
       paint();
     };
@@ -625,31 +655,31 @@ export class Menus {
   }
 
   setBest(trackName: string, time: number | null): void {
-    el('menu-best').textContent = time ? `${trackName} best: ${formatTime(time)}` : '';
+    el('menu-best').textContent = time ? t('{track} best: {time}', { track: t(trackName), time: formatTime(time) }) : '';
   }
 
   showResults(data: ResultsData): void {
     el('results-place').textContent = data.mode === 'duo' && data.p2Place ? `${data.place}${ordinal(data.place)} · ${data.p2Place}${ordinal(data.p2Place)}` : `${data.place}${ordinal(data.place)}`;
     const kicker = el('results-kicker');
-    kicker.textContent = data.newBest ? 'New personal best!' : data.place === 1 ? `You won ${data.trackName}!` : data.place <= 3 ? 'On the podium!' : 'Race complete';
+    kicker.textContent = data.newBest ? t('New personal best!') : data.place === 1 ? t('You won {track}!', { track: t(data.trackName) }) : data.place <= 3 ? t('On the podium!') : t('Race complete');
     kicker.classList.toggle('best', data.newBest);
     const gp = data.gp;
     el('btn-next').classList.toggle('hidden', gp ? false : !data.hasNext || data.mode === 'tutorial' || data.mode === 'daily');
-    el('btn-next').textContent = gp ? (gp.last ? 'SEE THE PODIUM' : 'NEXT RACE') : 'NEXT TRACK';
+    el('btn-next').textContent = t(gp ? (gp.last ? 'SEE THE PODIUM' : 'NEXT RACE') : 'NEXT TRACK');
     el('btn-again').classList.toggle('hidden', !!gp);
-    el('btn-again').textContent = data.mode === 'tt' ? 'TRY AGAIN' : data.mode === 'tutorial' ? 'PRACTICE AGAIN' : 'RACE AGAIN';
+    el('btn-again').textContent = t(data.mode === 'tt' ? 'TRY AGAIN' : data.mode === 'tutorial' ? 'PRACTICE AGAIN' : 'RACE AGAIN');
     el('btn-again').classList.toggle('btn-primary', !gp);
     el('btn-next').classList.toggle('btn-primary', !!gp);
     if (data.mode === 'tt') {
-      kicker.textContent = data.newBest ? 'New personal best!' : 'Time trial complete';
+      kicker.textContent = t(data.newBest ? 'New personal best!' : 'Time trial complete');
     } else if (data.mode === 'tutorial') {
-      kicker.textContent = 'Tutorial complete — you are ready to race!';
+      kicker.textContent = t('Tutorial complete — you are ready to race!');
     } else if (data.mode === 'duo' && data.p2Place) {
-      kicker.textContent = data.place < data.p2Place ? 'Player 1 wins the duel!' : 'Player 2 wins the duel!';
+      kicker.textContent = t(data.place < data.p2Place ? 'Player 1 wins the duel!' : 'Player 2 wins the duel!');
     } else if (gp) {
-      kicker.textContent = `Grand Prix · race ${gp.race} of ${gp.of}`;
+      kicker.textContent = t('Grand Prix · race {n} of {total}', { n: gp.race, total: gp.of });
     } else if (data.mode === 'daily') {
-      kicker.textContent = data.place <= 3 ? 'Daily challenge cleared!' : 'Daily challenge — top 3 to clear it';
+      kicker.textContent = t(data.place <= 3 ? 'Daily challenge cleared!' : 'Daily challenge — top 3 to clear it');
     }
     const medal = el('results-medal');
     medal.classList.toggle('hidden', !data.medal);
@@ -657,9 +687,9 @@ export class Menus {
       const m = data.medal;
       medal.className = `results-medal m${m.medal}`;
       medal.textContent =
-        (m.medal ? `${['', '🥉', '🥈', '🥇'][m.medal]} ${MEDAL_NAMES[m.medal]} medal${m.improved ? '!' : ''}` : 'No medal yet') +
-        (m.nextTarget ? ` · next: ${formatTime(m.nextTarget)}` : '') +
-        (m.ghostSaved ? ' · ghost saved' : '');
+        (m.medal ? `${['', '🥉', '🥈', '🥇'][m.medal]} ${t('{medal} medal', { medal: t(MEDAL_NAMES[m.medal]) })}${m.improved ? '!' : ''}` : t('No medal yet')) +
+        (m.nextTarget ? ` · ${t('next: {time}', { time: formatTime(m.nextTarget) })}` : '') +
+        (m.ghostSaved ? ` · ${t('ghost saved')}` : '');
     }
     const table = el('gp-table');
     table.classList.toggle('hidden', !gp);
@@ -669,22 +699,22 @@ export class Menus {
     const bestLap = Math.min(...data.lapTimes);
     data.lapTimes.forEach((lt, i) => {
       const span = document.createElement('span');
-      span.textContent = `Lap ${i + 1} ${formatTime(lt)}`;
+      span.textContent = `${t('Lap {n}', { n: i + 1 })} ${formatTime(lt)}`;
       if (lt === bestLap && data.lapTimes.length > 1) span.className = 'best';
       laps.appendChild(span);
     });
     const unlock = el('results-unlock');
-    const news = [data.unlocked ? `New track: ${data.unlocked}!` : '', ...data.cosmetics.map((c) => `Unlocked: ${c}!`), data.fameRank ? `Hall of Fame #${data.fameRank}` : ''].filter(Boolean);
+    const news = [data.unlocked ? t('New track: {track}!', { track: t(data.unlocked) }) : '', ...data.cosmetics.map((c) => t('Unlocked: {what}!', { what: c })), data.fameRank ? t('Hall of Fame #{n}', { n: data.fameRank }) : ''].filter(Boolean);
     const reward = el<HTMLButtonElement>('btn-reward');
     reward.classList.toggle('hidden', !data.rewardAvailable || !!data.gp);
     reward.disabled = false;
-    reward.textContent = '🍄 TURBO START — watch an ad';
+    reward.textContent = t('🍄 TURBO START — watch an ad');
     unlock.classList.toggle('hidden', news.length === 0);
     unlock.textContent = news.join('  ·  ');
     el('results-time').textContent = formatTime(data.time);
     el('results-best').textContent = data.best ? formatTime(data.best) : '–';
     el('results-speed').textContent = `${Math.round(data.topSpeedKmh)} km/h`;
-    el('results-tricks').textContent = data.tricks ? `${data.tricks} · ${data.trickScore} pts` : '0';
+    el('results-tricks').textContent = data.tricks ? `${data.tricks} · ${t('{n} pts', { n: data.trickScore })}` : '0';
     const list = el('results-list');
     list.replaceChildren();
     data.rows.forEach((row, i) => {
@@ -698,7 +728,7 @@ export class Menus {
       const name = document.createElement('span');
       name.textContent = p.name;
       const time = document.createElement('em');
-      time.textContent = row.time !== null ? formatTime(row.time) : 'still racing';
+      time.textContent = row.time !== null ? formatTime(row.time) : t('still racing');
       li.append(place, dot, name, time);
       list.appendChild(li);
     });
@@ -720,7 +750,7 @@ export class Menus {
       const gained = document.createElement('em');
       gained.textContent = row.gained ? `+${row.gained}` : '';
       const pts = document.createElement('b');
-      pts.textContent = `${row.points} pts`;
+      pts.textContent = t('{n} pts', { n: row.points });
       li.append(place, name, gained, pts);
       table.appendChild(li);
     });
@@ -728,8 +758,8 @@ export class Menus {
 
   showPodium(data: PodiumData): void {
     const diff = ['Easy', 'Normal', 'Hard'][data.difficulty] ?? 'Normal';
-    el('podium-kicker').textContent = `Garden Cup · ${diff}` + (data.cosmetics.length ? ` · Unlocked: ${data.cosmetics.join(', ')}!` : '');
-    el('podium-title').textContent = data.place === 1 ? 'You won the cup!' : data.place <= 3 ? `${data.place}${ordinal(data.place)} in the cup!` : 'Cup complete';
+    el('podium-kicker').textContent = `${t('Garden Cup')} · ${t(diff)}` + (data.cosmetics.length ? ` · ${t('Unlocked: {what}!', { what: data.cosmetics.join(', ') })}` : '');
+    el('podium-title').textContent = data.place === 1 ? t('You won the cup!') : data.place <= 3 ? t('{place} in the cup!', { place: `${data.place}${ordinal(data.place)}` }) : t('Cup complete');
     const podium = el('podium');
     podium.replaceChildren();
     // Display order: 2nd, 1st, 3rd.

@@ -1,3 +1,4 @@
+import { ord, t } from '../i18n';
 import type { RacerProfile } from '../ai/SnailAI';
 import type { ItemKind } from '../physics/RacerBody';
 import { ITEM_NAMES } from '../racing/Items';
@@ -39,7 +40,7 @@ export function formatTime(seconds: number): string {
 }
 
 export function ordinal(n: number): string {
-  return n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th';
+  return ord(n);
 }
 
 function hex(color: number): string {
@@ -182,8 +183,8 @@ export class Hud {
       void this.posBadge.offsetWidth;
       this.posBadge.classList.add('pop');
     }
-    const t = formatTime(s.time);
-    if (this.set('time', t)) this.time.textContent = t;
+    const tm = formatTime(s.time);
+    if (this.set('time', tm)) this.time.textContent = tm;
 
     const kmh = Math.round(s.speedKmh);
     if (this.set('kmh', kmh)) {
@@ -192,7 +193,7 @@ export class Hud {
     }
     if (this.set('fast', kmh > 120)) this.speedo.classList.toggle('fast', kmh > 120);
     if (this.set('mode', s.mode)) {
-      this.modeChip.textContent = s.mode.toUpperCase();
+      this.modeChip.textContent = t(s.mode.toUpperCase());
       this.modeChip.className = `mode-${s.mode}`;
     }
     const slime = Math.round(s.slime * 100);
@@ -205,7 +206,7 @@ export class Hud {
 
     const dist = Math.round(s.distance);
     if (this.set('dist', dist)) this.dist.textContent = String(dist);
-    if (this.set('section', s.sectionIndex)) this.section.textContent = SECTIONS[s.sectionIndex]?.name ?? '';
+    if (this.set('section', s.sectionIndex)) this.section.textContent = t(SECTIONS[s.sectionIndex]?.name ?? '');
     if (this.set('lap', s.lap)) {
       this.lapNum.textContent = String(s.lap);
       this.lapNum.parentElement?.classList.toggle('final', s.lap === s.laps && s.laps > 1);
@@ -245,7 +246,7 @@ export class Hud {
       if (this.set('itemShow', `r${k}`)) this.itemIcon.innerHTML = ITEM_ICONS[k];
     } else if (this.set('itemShow', s.item ?? '')) {
       this.itemIcon.innerHTML = s.item ? ITEM_ICONS[s.item] : '';
-      this.itemName.textContent = s.item ? ITEM_NAMES[s.item] : '';
+      this.itemName.textContent = s.item ? t(ITEM_NAMES[s.item]) : '';
     }
     if (this.set('itemState', s.rolling ? 'rolling' : s.item ? 'ready' : 'empty')) {
       this.itemSlot.classList.toggle('rolling', s.rolling);

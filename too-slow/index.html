@@ -23,7 +23,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="8" fill="none" stroke="currentColor" stroke-width="2.6" /><path d="M12 14V9M9 2.5h6M12 2.5V6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none" /></svg>
             <span id="race-time">0:00.00</span>
           </div>
-          <div class="lap-chip"><small>LAP</small> <b id="lap-num">1</b><span id="lap-total">/3</span></div>
+          <div class="lap-chip"><small data-i18n>LAP</small> <b id="lap-num">1</b><span id="lap-total">/3</span></div>
           <ol id="standings" aria-label="Standings"></ol>
         </div>
 
@@ -68,8 +68,8 @@
         <div id="countdown" class="hidden"></div>
         <div id="toasts"></div>
         <div id="hint" class="hidden"></div>
-        <div id="offtrack" class="hidden">Off the course! Returning to checkpoint…</div>
-        <div id="tutorial-panel" class="hidden" aria-live="polite"><b>TUTORIAL</b><ol id="tutorial-steps"></ol></div>
+        <div id="offtrack" class="hidden" data-i18n>Off the course! Returning to checkpoint…</div>
+        <div id="tutorial-panel" class="hidden" aria-live="polite"><b data-i18n>TUTORIAL</b><ol id="tutorial-steps"></ol></div>
         <div id="chatter" class="hidden"><i id="chatter-dot"></i><b id="chatter-name"></b><span id="chatter-text"></span></div>
         <div id="wind-chip" class="hidden"><i id="wind-arrow">➤</i> <span id="wind-label">WIND</span></div>
         <div id="tt-panel" class="hidden"><span id="tt-medal"></span><span id="tt-ghost"></span></div>
@@ -89,15 +89,15 @@
       <section id="menu-main" class="screen">
         <div class="title-block">
           <h1 class="logo"><span>TOO</span> <span>SLOW!</span></h1>
-          <p class="tagline">The Slowest Racer. The Fastest Game.</p>
+          <p class="tagline" data-i18n>The Slowest Racer. The Fastest Game.</p>
         </div>
         <nav class="menu-buttons">
-          <button class="btn btn-primary" id="btn-play" type="button">PLAY</button>
-          <button class="btn" id="btn-garage" type="button">CUSTOMIZE</button>
-          <button class="btn" id="btn-fame" type="button">HALL OF FAME</button>
-          <button class="btn" id="btn-achievements" type="button">ACHIEVEMENTS</button>
-          <button class="btn" id="btn-how" type="button">HOW TO PLAY</button>
-          <button class="btn" id="btn-settings" type="button">SETTINGS</button>
+          <button class="btn btn-primary" id="btn-play" type="button" data-i18n>PLAY</button>
+          <button class="btn" id="btn-garage" type="button" data-i18n>CUSTOMIZE</button>
+          <button class="btn" id="btn-fame" type="button" data-i18n>HALL OF FAME</button>
+          <button class="btn" id="btn-achievements" type="button" data-i18n>ACHIEVEMENTS</button>
+          <button class="btn" id="btn-how" type="button" data-i18n>HOW TO PLAY</button>
+          <button class="btn" id="btn-settings" type="button" data-i18n>SETTINGS</button>
         </nav>
         <p class="best-line" id="menu-best"></p>
       </section>
@@ -105,46 +105,46 @@
       <!-- Mode select -->
       <section id="menu-modes" class="screen hidden">
         <div class="panel panel-wide">
-          <h2>How do you race?</h2>
+          <h2 data-i18n>How do you race?</h2>
           <div class="mode-list" id="mode-list">
-            <button class="mode-card btn-primary" data-mode="race" type="button"><span class="mode-icon">🏁</span><b>Quick Race</b><span>One track, five rivals, three laps.</span></button>
-            <button class="mode-card" data-mode="gp" type="button"><span class="mode-icon">🏆</span><b>Grand Prix</b><span>Every unlocked track in a row. Points decide the cup.</span><em class="mode-badge" id="gp-badge"></em></button>
-            <button class="mode-card" data-mode="tt" type="button"><span class="mode-icon">⏱️</span><b>Time Trial</b><span>Alone against your ghost. Bronze, silver, gold.</span><em class="mode-badge" id="tt-badge"></em></button>
-            <button class="mode-card" data-mode="duo" type="button"><span class="mode-icon">👥</span><b>2 Players</b><span>Split-screen on one PC. WASD vs arrows or gamepads.</span></button>
-            <button class="mode-card" data-mode="daily" type="button"><span class="mode-icon">📅</span><b>Daily Challenge</b><span id="daily-desc">Today's track and twist.</span><em class="mode-badge" id="daily-badge"></em></button>
-            <button class="mode-card" data-mode="tutorial" type="button"><span class="mode-icon">🎓</span><b>Tutorial</b><span>A guided practice lap: crawl, roll, slide, items.</span><em class="mode-badge" id="tut-badge"></em></button>
+            <button class="mode-card btn-primary" data-mode="race" type="button"><span class="mode-icon">🏁</span><b data-i18n>Quick Race</b><span data-i18n>One track, five rivals, three laps.</span></button>
+            <button class="mode-card" data-mode="gp" type="button"><span class="mode-icon">🏆</span><b data-i18n>Grand Prix</b><span data-i18n>Every unlocked track in a row. Points decide the cup.</span><em class="mode-badge" id="gp-badge"></em></button>
+            <button class="mode-card" data-mode="tt" type="button"><span class="mode-icon">⏱️</span><b data-i18n>Time Trial</b><span data-i18n>Alone against your ghost. Bronze, silver, gold.</span><em class="mode-badge" id="tt-badge"></em></button>
+            <button class="mode-card" data-mode="duo" type="button"><span class="mode-icon">👥</span><b data-i18n>2 Players</b><span data-i18n>Split-screen on one PC. WASD vs arrows or gamepads.</span></button>
+            <button class="mode-card" data-mode="daily" type="button"><span class="mode-icon">📅</span><b data-i18n>Daily Challenge</b><span id="daily-desc">Today's track and twist.</span><em class="mode-badge" id="daily-badge"></em></button>
+            <button class="mode-card" data-mode="tutorial" type="button"><span class="mode-icon">🎓</span><b data-i18n>Tutorial</b><span data-i18n>A guided practice lap: crawl, roll, slide, items.</span><em class="mode-badge" id="tut-badge"></em></button>
           </div>
-          <div class="row mode-diff"><span>Rival snails</span>
-            <div class="seg" id="set-difficulty"><button type="button" data-d="0">Easy</button><button type="button" data-d="1">Normal</button><button type="button" data-d="2">Hard</button></div>
+          <div class="row mode-diff"><span data-i18n>Rival snails</span>
+            <div class="seg" id="set-difficulty"><button type="button" data-d="0" data-i18n>Easy</button><button type="button" data-d="1" data-i18n>Normal</button><button type="button" data-d="2" data-i18n>Hard</button></div>
           </div>
-          <button class="btn" data-back type="button">BACK</button>
+          <button class="btn" data-back type="button" data-i18n>BACK</button>
         </div>
       </section>
 
       <!-- Track select -->
       <section id="menu-tracks" class="screen hidden">
         <div class="panel panel-wide">
-          <h2 id="tracks-title">Choose a Track</h2>
+          <h2 id="tracks-title" data-i18n>Choose a Track</h2>
           <div class="track-list" id="track-list"></div>
-          <button class="btn" data-back type="button">BACK</button>
+          <button class="btn" data-back type="button" data-i18n>BACK</button>
         </div>
       </section>
 
       <!-- Garage -->
       <section id="menu-garage" class="screen hidden">
         <div class="panel garage">
-          <h2>Customize</h2>
-          <label class="row"><span>Name</span><input id="garage-name" type="text" maxlength="12" autocomplete="off" spellcheck="false" /></label>
-          <div class="garage-group"><span>Shell</span><div class="swatches" id="garage-shell"></div></div>
-          <div class="garage-group"><span>Pattern</span><div class="seg seg-wrap" id="garage-pattern"></div></div>
-          <div class="garage-group"><span>Body</span><div class="swatches" id="garage-skin"></div></div>
-          <div class="garage-group"><span>Hat</span><div class="seg seg-wrap" id="garage-hat"></div></div>
-          <div class="garage-group"><span>Slime trail</span><div class="seg seg-wrap" id="garage-trail"></div></div>
+          <h2 data-i18n>Customize</h2>
+          <label class="row"><span data-i18n>Name</span><input id="garage-name" type="text" maxlength="12" autocomplete="off" spellcheck="false" /></label>
+          <div class="garage-group"><span data-i18n>Shell</span><div class="swatches" id="garage-shell"></div></div>
+          <div class="garage-group"><span data-i18n>Pattern</span><div class="seg seg-wrap" id="garage-pattern"></div></div>
+          <div class="garage-group"><span data-i18n>Body</span><div class="swatches" id="garage-skin"></div></div>
+          <div class="garage-group"><span data-i18n>Hat</span><div class="seg seg-wrap" id="garage-hat"></div></div>
+          <div class="garage-group"><span data-i18n>Slime trail</span><div class="seg seg-wrap" id="garage-trail"></div></div>
           <p class="garage-note" id="garage-note"></p>
           <p class="garage-stats" id="garage-stats"></p>
           <div class="garage-buttons">
-            <button class="btn" id="btn-random-look" type="button">RANDOM</button>
-            <button class="btn btn-primary" data-back type="button">DONE</button>
+            <button class="btn" id="btn-random-look" type="button" data-i18n>RANDOM</button>
+            <button class="btn btn-primary" data-back type="button" data-i18n>DONE</button>
           </div>
         </div>
       </section>
@@ -152,72 +152,73 @@
       <!-- How to play -->
       <section id="menu-how" class="screen hidden">
         <div class="panel panel-wide">
-          <h2>How to Play</h2>
-          <p class="lead">You are a snail. You cannot accelerate. <b>Gravity can.</b></p>
+          <h2 data-i18n>How to Play</h2>
+          <p class="lead" data-i18n-html>You are a snail. You cannot accelerate. <b>Gravity can.</b></p>
           <div class="how-grid">
             <div class="how-card how-crawl">
-              <h3>Crawl</h3>
-              <p><kbd>W</kbd> forward · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>S</kbd> brake / reverse</p>
-              <p>Slow and grippy. Use it to line up a descent or recover. Refills slime.</p>
+              <h3 data-i18n>Crawl</h3>
+              <p data-i18n-html><kbd>W</kbd> forward · <kbd>A</kbd><kbd>D</kbd> turn · <kbd>S</kbd> brake / reverse</p>
+              <p data-i18n>Slow and grippy. Use it to line up a descent or recover. Refills slime.</p>
             </div>
             <div class="how-card how-roll">
-              <h3>Roll</h3>
-              <p><kbd>SPACE</kbd> tuck into your shell (and pop back out)</p>
-              <p>Slopes make speed, momentum keeps it. The faster you go, the wider you turn. <kbd>S</kbd> drags the shell to brake.</p>
+              <h3 data-i18n>Roll</h3>
+              <p data-i18n-html><kbd>SPACE</kbd> tuck into your shell (and pop back out)</p>
+              <p data-i18n-html>Slopes make speed, momentum keeps it. The faster you go, the wider you turn. <kbd>S</kbd> drags the shell to brake.</p>
             </div>
             <div class="how-card how-slide">
-              <h3>Slide</h3>
-              <p>Hold <kbd>SHIFT</kbd> to slime-slide</p>
-              <p>Almost no friction: glide through mud, shallow slopes and long bends. Drains the slime meter.</p>
+              <h3 data-i18n>Slide</h3>
+              <p data-i18n-html>Hold <kbd>SHIFT</kbd> to slime-slide</p>
+              <p data-i18n>Almost no friction: glide through mud, shallow slopes and long bends. Drains the slime meter.</p>
             </div>
             <div class="how-card how-boost">
-              <h3>Boost &amp; Tricks</h3>
-              <p><kbd>E</kbd> shell boost when the meter is full · glowing chevron pads boost you for free</p>
-              <p>Steer hard while sliding: blue, then orange sparks. Let go of <kbd>SHIFT</kbd> for a mini-turbo. In the air <kbd>Q</kbd> / <kbd>E</kbd> spin.</p>
+              <h3 data-i18n>Boost &amp; Tricks</h3>
+              <p data-i18n-html><kbd>E</kbd> shell boost when the meter is full · glowing chevron pads boost you for free</p>
+              <p data-i18n-html>Steer hard while sliding: blue, then orange sparks. Let go of <kbd>SHIFT</kbd> for a mini-turbo. In the air <kbd>Q</kbd> / <kbd>E</kbd> spin.</p>
             </div>
             <div class="how-card how-items">
-              <h3>Items</h3>
-              <p>Roll through a <b>?</b> box, then <kbd>F</kbd> to use what you got:</p>
-              <p>Turbo Mushroom · Banana Peel (dropped behind) · Acorn (rolls at the snail ahead) · Super Slime (endless slide) · Shell Shield (blocks one hit)</p>
+              <h3 data-i18n>Items</h3>
+              <p data-i18n-html>Roll through a <b>?</b> box, then <kbd>F</kbd> to use what you got:</p>
+              <p data-i18n>Turbo Mushroom · Banana Peel · Acorn (at the snail ahead) · Super Slime · Shell Shield · Giant Snail (flatten rivals) · Spider Web · Ladybug (hunts the leader) · Honey Drop (sticky puddle)</p>
             </div>
           </div>
-          <p class="surfaces">
+          <p class="surfaces" data-i18n-html>
             <span class="sw sw-stone"></span>Stone is fast <span class="sw sw-leaves"></span>Wet leaves are fast but slippery <span class="sw sw-grass"></span>Grass is steady
             <span class="sw sw-mud"></span>Mud and <span class="sw sw-water"></span>water are slow
           </p>
-          <p class="small"><kbd>R</kbd> back to checkpoint · <kbd>ESC</kbd> pause · <kbd>M</kbd> mute</p>
-          <button class="btn btn-primary" data-back type="button">GOT IT</button>
+          <p class="small" data-i18n-html><kbd>R</kbd> back to checkpoint · <kbd>ESC</kbd> pause · <kbd>M</kbd> mute</p>
+          <button class="btn btn-primary" data-back type="button" data-i18n>GOT IT</button>
         </div>
       </section>
 
       <!-- Settings -->
       <section id="menu-settings" class="screen hidden">
         <div class="panel">
-          <h2>Settings</h2>
-          <label class="row"><span>Music</span><input id="set-music" type="range" min="0" max="100" value="60" /></label>
-          <label class="row"><span>Sound effects</span><input id="set-sfx" type="range" min="0" max="100" value="80" /></label>
+          <h2 data-i18n>Settings</h2>
+          <label class="row"><span data-i18n>Music</span><input id="set-music" type="range" min="0" max="100" value="60" /></label>
+          <label class="row"><span data-i18n>Sound effects</span><input id="set-sfx" type="range" min="0" max="100" value="80" /></label>
           <div class="row">
-            <span>Graphics</span>
+            <span data-i18n>Graphics</span>
             <div class="seg" id="set-quality">
-              <button type="button" data-q="-1">Mobile</button><button type="button" data-q="0">Low</button><button type="button" data-q="1">Medium</button><button type="button" data-q="2">High</button>
+              <button type="button" data-q="-1" data-i18n>Mobile</button><button type="button" data-q="0" data-i18n>Low</button><button type="button" data-q="1" data-i18n>Medium</button><button type="button" data-q="2" data-i18n>High</button>
             </div>
           </div>
-          <label class="row"><span>Camera shake</span><input id="set-shake" type="checkbox" checked /></label>
-          <label class="row"><span>Items</span><input id="set-items" type="checkbox" checked /></label>
-          <label class="row"><span>Auto graphics</span><input id="set-auto" type="checkbox" checked /></label>
-          <p class="small">F3 shows frame rate · auto graphics eases the load if the game stutters</p>
-          <button class="btn btn-primary" data-back type="button">DONE</button>
+          <label class="row"><span data-i18n>Camera shake</span><input id="set-shake" type="checkbox" checked /></label>
+          <label class="row"><span data-i18n>Language</span><select id="set-lang" class="select"></select></label>
+          <label class="row"><span data-i18n>Items</span><input id="set-items" type="checkbox" checked /></label>
+          <label class="row"><span data-i18n>Auto graphics</span><input id="set-auto" type="checkbox" checked /></label>
+          <p class="small" data-i18n>F3 shows frame rate · auto graphics eases the load if the game stutters</p>
+          <button class="btn btn-primary" data-back type="button" data-i18n>DONE</button>
         </div>
       </section>
 
       <!-- Pause -->
       <section id="menu-pause" class="screen hidden">
         <div class="panel">
-          <h2>Paused</h2>
-          <button class="btn btn-primary" id="btn-resume" type="button">RESUME</button>
-          <button class="btn" id="btn-restart" type="button">RESTART</button>
-          <button class="btn" id="btn-pause-settings" type="button">SETTINGS</button>
-          <button class="btn" id="btn-pause-menu" type="button">MAIN MENU</button>
+          <h2 data-i18n>Paused</h2>
+          <button class="btn btn-primary" id="btn-resume" type="button" data-i18n>RESUME</button>
+          <button class="btn" id="btn-restart" type="button" data-i18n>RESTART</button>
+          <button class="btn" id="btn-pause-settings" type="button" data-i18n>SETTINGS</button>
+          <button class="btn" id="btn-pause-menu" type="button" data-i18n>MAIN MENU</button>
         </div>
       </section>
 
@@ -225,12 +226,12 @@
       <section id="menu-results" class="screen hidden">
         <div class="panel panel-wide results">
           <p class="results-kicker" id="results-kicker">Race complete</p>
-          <h2 class="results-place"><span id="results-place">1st</span><small>place</small></h2>
+          <h2 class="results-place"><span id="results-place">1st</span><small data-i18n>place</small></h2>
           <div class="results-stats">
-            <div><small>Time</small><b id="results-time">0:00.00</b></div>
-            <div><small>Best</small><b id="results-best">–</b></div>
-            <div><small>Top speed</small><b id="results-speed">0 km/h</b></div>
-            <div><small>Tricks</small><b id="results-tricks">0</b></div>
+            <div><small data-i18n>Time</small><b id="results-time">0:00.00</b></div>
+            <div><small data-i18n>Best</small><b id="results-best">–</b></div>
+            <div><small data-i18n>Top speed</small><b id="results-speed">0 km/h</b></div>
+            <div><small data-i18n>Tricks</small><b id="results-tricks">0</b></div>
           </div>
           <div class="results-laps" id="results-laps"></div>
           <p class="results-unlock hidden" id="results-unlock"></p>
@@ -238,32 +239,32 @@
           <ol class="gp-table hidden" id="gp-table"></ol>
           <ol id="results-list"></ol>
           <div class="results-buttons">
-            <button class="btn btn-primary" id="btn-again" type="button">RACE AGAIN</button>
-            <button class="btn" id="btn-next" type="button">NEXT TRACK</button>
-            <button class="btn" id="btn-results-menu" type="button">MAIN MENU</button>
+            <button class="btn btn-primary" id="btn-again" type="button" data-i18n>RACE AGAIN</button>
+            <button class="btn" id="btn-next" type="button" data-i18n>NEXT TRACK</button>
+            <button class="btn" id="btn-results-menu" type="button" data-i18n>MAIN MENU</button>
           </div>
-          <button class="btn btn-reward hidden" id="btn-reward" type="button">🍄 TURBO START — watch an ad</button>
+          <button class="btn btn-reward hidden" id="btn-reward" type="button" data-i18n>🍄 TURBO START — watch an ad</button>
         </div>
       </section>
 
       <!-- Achievements -->
       <section id="menu-achievements" class="screen hidden">
         <div class="panel panel-wide">
-          <h2>Achievements</h2>
+          <h2 data-i18n>Achievements</h2>
           <p class="lead" id="ach-count"></p>
           <div class="ach-grid" id="ach-grid"></div>
-          <button class="btn btn-primary" data-back type="button">BACK</button>
+          <button class="btn btn-primary" data-back type="button" data-i18n>BACK</button>
         </div>
       </section>
 
       <!-- Hall of Fame -->
       <section id="menu-fame" class="screen hidden">
         <div class="panel panel-wide">
-          <h2>Hall of Fame</h2>
+          <h2 data-i18n>Hall of Fame</h2>
           <div class="seg seg-wrap fame-tabs" id="fame-tabs"></div>
           <ol class="gp-table fame-list" id="fame-list"></ol>
-          <p class="small" id="fame-note">Your five fastest finishes per track, kept on this device.</p>
-          <button class="btn btn-primary" data-back type="button">BACK</button>
+          <p class="small" id="fame-note" data-i18n>Your five fastest finishes per track, kept on this device.</p>
+          <button class="btn btn-primary" data-back type="button" data-i18n>BACK</button>
         </div>
       </section>
 
@@ -275,14 +276,14 @@
           <div class="podium" id="podium"></div>
           <ol class="gp-table" id="podium-table"></ol>
           <div class="results-buttons">
-            <button class="btn btn-primary" id="btn-podium-menu" type="button">MAIN MENU</button>
+            <button class="btn btn-primary" id="btn-podium-menu" type="button" data-i18n>MAIN MENU</button>
           </div>
         </div>
       </section>
 
       <div id="perf" class="hidden" aria-hidden="true"></div>
       <div id="fade" aria-hidden="true"></div>
-      <div id="loading"><span class="loading-snail"></span>Waking up the snails…</div>
+      <div id="loading"><span class="loading-snail"></span><span data-i18n>Waking up the snails…</span></div>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

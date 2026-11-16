@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { RacerBody } from '../physics/RacerBody';
 
 type Device = 'keyboard' | 'gamepad' | 'touch';
@@ -5,17 +6,20 @@ type Device = 'keyboard' | 'gamepad' | 'touch';
 interface Step {
   id: string;
   text: Record<Device, string>;
+  /** Control label per device: keyboard, gamepad, touch. */
+  keys: [string, string, string];
 }
 
+// Each step: a sentence with {key} filled from the device's control label.
 const STEPS: Step[] = [
-  { id: 'crawl', text: { keyboard: 'Hold <kbd>W</kbd> to crawl to the edge', gamepad: 'Hold <kbd>RT</kbd> to crawl to the edge', touch: 'You crawl forward on your own' } },
-  { id: 'roll', text: { keyboard: '<kbd>SPACE</kbd> — tuck into your shell and roll', gamepad: '<kbd>A</kbd> — tuck into your shell and roll', touch: '<kbd>SHELL</kbd> — tuck in and roll' } },
-  { id: 'steer', text: { keyboard: '<kbd>A</kbd> <kbd>D</kbd> steer · the slope gives the speed', gamepad: 'Left stick steers · the slope gives the speed', touch: '<kbd>◀</kbd> <kbd>▶</kbd> steer · the slope gives the speed' } },
-  { id: 'slide', text: { keyboard: 'Hold <kbd>SHIFT</kbd> to slime-slide through bends', gamepad: 'Hold <kbd>B</kbd> to slime-slide through bends', touch: 'Hold <kbd>SLIDE</kbd> through bends' } },
-  { id: 'item', text: { keyboard: 'Here is a Turbo Mushroom — press <kbd>F</kbd>', gamepad: 'Here is a Turbo Mushroom — press <kbd>Y</kbd>', touch: 'Here is a Turbo Mushroom — tap <kbd>ITEM</kbd>' } },
-  { id: 'boost', text: { keyboard: 'Shell boost is charged — press <kbd>E</kbd>', gamepad: 'Shell boost is charged — press <kbd>X</kbd>', touch: 'Shell boost is charged — tap <kbd>BOOST</kbd>' } },
-  { id: 'spin', text: { keyboard: 'At the Boing Mushroom, spin with <kbd>Q</kbd> / <kbd>E</kbd>', gamepad: 'At the Boing Mushroom, spin with <kbd>LB</kbd> / <kbd>X</kbd>', touch: 'At the Boing Mushroom, hold <kbd>BOOST</kbd> to spin' } },
-  { id: 'finish', text: { keyboard: 'Cross the finish line!', gamepad: 'Cross the finish line!', touch: 'Cross the finish line!' } },
+  { id: 'crawl', text: { keyboard: 'Hold {k} to crawl to the edge', gamepad: 'Hold {k} to crawl to the edge', touch: 'You crawl forward on your own' }, keys: ['W', 'RT', ''] },
+  { id: 'roll', text: { keyboard: '{k} — tuck into your shell and roll', gamepad: '{k} — tuck into your shell and roll', touch: '{k} — tuck into your shell and roll' }, keys: ['SPACE', 'A', 'SHELL'] },
+  { id: 'steer', text: { keyboard: '{k} steer · the slope gives the speed', gamepad: '{k} steer · the slope gives the speed', touch: '{k} steer · the slope gives the speed' }, keys: ['A</kbd> <kbd>D', 'Left stick', '◀</kbd> <kbd>▶'] },
+  { id: 'slide', text: { keyboard: 'Hold {k} to slime-slide through bends', gamepad: 'Hold {k} to slime-slide through bends', touch: 'Hold {k} to slime-slide through bends' }, keys: ['SHIFT', 'B', 'SLIDE'] },
+  { id: 'item', text: { keyboard: 'Here is a Turbo Mushroom — press {k}', gamepad: 'Here is a Turbo Mushroom — press {k}', touch: 'Here is a Turbo Mushroom — press {k}' }, keys: ['F', 'Y', 'ITEM'] },
+  { id: 'boost', text: { keyboard: 'Shell boost is charged — press {k}', gamepad: 'Shell boost is charged — press {k}', touch: 'Shell boost is charged — press {k}' }, keys: ['E', 'X', 'BOOST'] },
+  { id: 'spin', text: { keyboard: 'At the Boing Mushroom, spin with {k}', gamepad: 'At the Boing Mushroom, spin with {k}', touch: 'At the Boing Mushroom, spin with {k}' }, keys: ['Q</kbd> / <kbd>E', 'LB</kbd> / <kbd>X', 'BOOST'] },
+  { id: 'finish', text: { keyboard: 'Cross the finish line!', gamepad: 'Cross the finish line!', touch: 'Cross the finish line!' }, keys: ['', '', ''] },
 ];
 
 /** The guided practice lap: a checklist that ticks itself off as the player does each thing. */
@@ -103,7 +107,8 @@ export class Tutorial {
       // Show what is done, the current step and the next one: the panel stays small.
       if (i > this.index + 1) return;
       const li = document.createElement('li');
-      li.innerHTML = s.text[this.device];
+      const di = this.device === 'keyboard' ? 0 : this.device === 'gamepad' ? 1 : 2;
+      li.innerHTML = t(s.text[this.device], { k: `<kbd>${t(s.keys[di])}</kbd>` });
       li.className = i < this.index ? 'done' : i === this.index ? 'now' : '';
       this.list?.appendChild(li);
     });

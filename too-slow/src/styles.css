@@ -1725,3 +1725,5 @@ body.touch-ui #hud .hud-bc { transform: translateX(-50%) scale(0.7); transform-o
 .ach b { font: 400 17px var(--title); }
 .ach.locked { opacity: 0.5; filter: grayscale(1); background: #f3eedf; }
 .menu-buttons .btn { padding-top: 8px; padding-bottom: 8px; }
+
+.row select.select { font: 600 16px var(--body); padding: 4px 10px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; color: var(--ink); }

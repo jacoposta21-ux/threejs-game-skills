@@ -15,6 +15,7 @@ import { addFame, addStats, COSMETICS, earnedCosmetics, GP_POINTS, TRAILS, loadG
 import { Hud2 } from '../ui/Hud2';
 import { GhostRunner } from './GhostRunner';
 import { Tutorial } from './Tutorial';
+import { t } from '../i18n';
 import { bumpExtra, checkAchievements, loadDaily, MODIFIER_ITEM, saveDaily, todaysChallenge, type RaceSummary } from '../ui/Achievements';
 import { line, loadNemesis, saveNemesis, type Moment } from '../racing/Personality';
 import { formatTime, Hud, ordinal } from '../ui/Hud';
@@ -567,10 +568,10 @@ export class Game {
     this.appEl?.classList.toggle('duo', on);
     this.hud2.show(on && this.state === 'racing');
     const p2 = this.race.profiles[1];
-    p2.name = on ? 'Player 2' : this.rivalNames[1];
+    p2.name = on ? t('Player 2') : this.rivalNames[1];
     const tag = this.views[1]?.tag;
     if (tag) {
-      if (on && !this.p2Tag) this.p2Tag = createNameTag('Player 2', p2.shell);
+      if (on && !this.p2Tag) this.p2Tag = createNameTag(t('Player 2'), p2.shell);
       const mat = tag.material as THREE.SpriteMaterial;
       if (on) {
         if (!mat.userData.rival) mat.userData.rival = mat.map;
@@ -601,7 +602,7 @@ export class Game {
       this.lowFpsTime = 0;
       this.autoLevel += 1;
       this.applySettings(this.menus.settings);
-      this.hud.toast('GRAPHICS EASED', 'info', 'for a smoother race');
+      this.hud.toast(t('GRAPHICS EASED'), 'info', t('for a smoother race'));
     }
   }
 
@@ -694,10 +695,10 @@ export class Game {
       void it;
       if (done) {
         this.audio.play('checkpoint');
-        this.hud.toast('NICE!', 'good');
+        this.hud.toast(t('NICE!'), 'good');
         if (this.tutorial.complete) {
           setTutorialDone();
-          this.hud.toast('ALL MOVES LEARNED!', 'great', 'now finish the lap');
+          this.hud.toast(t('ALL MOVES LEARNED!'), 'great', t('now finish the lap'));
         }
       }
     }
@@ -772,11 +773,11 @@ export class Game {
             if (me) {
               this.rig.addShake(e.type === 'hardLand' ? 0.6 : 0.12 + power * 0.3);
               if (e.type === 'perfect') {
-                this.hud.toast('PERFECT LANDING!', 'great');
+                this.hud.toast(t('PERFECT LANDING!'), 'great');
                 this.audio.play('perfect');
-              } else if (e.type === 'hardLand') this.hud.toast('HARD LANDING', 'bad');
+              } else if (e.type === 'hardLand') this.hud.toast(t('HARD LANDING'), 'bad');
               else if (e.type === 'sloppy') {
-                this.hud.toast('SLOPPY LANDING!', 'bad', 'speed lost');
+                this.hud.toast(t('SLOPPY LANDING!'), 'bad', t('speed lost'));
                 this.audio.play('sloppy');
               }
             }
@@ -785,14 +786,14 @@ export class Game {
           case 'trick':
             if (me) {
               const n = e.value;
-              this.hud.toast(n === 1 ? 'SPIN!' : n === 2 ? 'DOUBLE SPIN!' : n === 3 ? 'TRIPLE SPIN!' : `${n}x SPIN!`, 'great', `+${n * n * 100}`);
+              this.hud.toast(n === 1 ? t('SPIN!') : n === 2 ? t('DOUBLE SPIN!') : n === 3 ? t('TRIPLE SPIN!') : t('{n}x SPIN!', { n }), 'great', `+${n * n * 100}`);
               this.audio.play('trick');
               this.seen.spin = true;
             }
             this.particles.burst(r.pos, 14, COLORS.star, 4, 0.22, 0.7, 4, 1, this.fxRng);
             break;
           case 'bigAir':
-            if (me) this.hud.toast('BIG AIR!', 'good', `${e.value.toFixed(1)}s`);
+            if (me) this.hud.toast(t('BIG AIR!'), 'good', `${e.value.toFixed(1)}s`);
             break;
           case 'jump':
             this.sfxFor(i, 'jump');
@@ -817,7 +818,7 @@ export class Game {
             this.sfxFor(i, 'boost');
             this.particles.burst(r.pos, 18, COLORS.boost, 6, 0.26, 0.6, 2, 0.6, this.fxRng);
             if (me) {
-              this.hud.toast('SHELL BOOST!', 'great');
+              this.hud.toast(t('SHELL BOOST!'), 'great');
               this.rig.addShake(0.25);
               this.seen.boost = true;
             }
@@ -842,14 +843,14 @@ export class Game {
             this.particles.burst(foot, 12, COLORS.boost, 5, 0.22, 0.5, 3, 0.8, this.fxRng);
             if (me) {
               this.rig.addShake(0.15);
-              this.hud.toast('DASH!', 'good');
+              this.hud.toast(t('DASH!'), 'good');
             }
             break;
           case 'draft':
             if (me) {
               this.audio.play('draft');
-              this.hud.toast('SLIPSTREAM!', 'good', 'tucked in behind');
-            } else if (i === 1 && this.mode === 'duo') this.hud2.toast('SLIPSTREAM!');
+              this.hud.toast(t('SLIPSTREAM!'), 'good', t('tucked in behind'));
+            } else if (i === 1 && this.mode === 'duo') this.hud2.toast(t('SLIPSTREAM!'));
             break;
           case 'driftCharge':
             if (me) this.audio.play('spark', e.value);
@@ -858,7 +859,7 @@ export class Game {
             this.sfxFor(i, 'miniturbo');
             this.particles.burst(r.pos, 16, e.value === 2 ? COLORS.orangeSpark : COLORS.blueSpark, 5, 0.22, 0.5, 2, 0.6, this.fxRng);
             if (me) {
-              this.hud.toast(e.value === 2 ? 'SUPER MINI-TURBO!' : 'MINI-TURBO!', e.value === 2 ? 'great' : 'good');
+              this.hud.toast(e.value === 2 ? t('SUPER MINI-TURBO!') : t('MINI-TURBO!'), e.value === 2 ? 'great' : 'good');
               this.rig.addShake(0.15);
             }
             break;
@@ -874,15 +875,15 @@ export class Game {
             this.sfxFor(i, 'spinout');
             if (me) {
               this.rig.addShake(e.value === 4 ? 0.2 : 0.5);
-              const label = e.value === 2 ? 'BONK!' : e.value === 3 ? 'BUG BUMP!' : e.value === 4 ? 'ANT TRAFFIC!' : e.value === 5 ? 'LADYBUG STRIKE!' : e.value === 6 ? 'SQUASHED!' : 'WHOOPS!';
-              this.hud.toast(label, 'bad', e.value === 4 ? 'stumbled' : 'spun out');
+              const label = t(e.value === 2 ? 'BONK!' : e.value === 3 ? 'BUG BUMP!' : e.value === 4 ? 'ANT TRAFFIC!' : e.value === 5 ? 'LADYBUG STRIKE!' : e.value === 6 ? 'SQUASHED!' : 'WHOOPS!');
+              this.hud.toast(label, 'bad', t(e.value === 4 ? 'stumbled' : 'spun out'));
             }
             break;
           case 'webbed':
             this.particles.burst(r.pos, 14, COLORS.white, 3, 0.18, 0.6, 2, 1, this.fxRng);
             this.sfxFor(i, 'web');
             if (me) {
-              this.hud.toast('STUCK IN A WEB!', 'bad', 'slowed down');
+              this.hud.toast(t('STUCK IN A WEB!'), 'bad', t('slowed down'));
               this.rig.addShake(0.2);
             }
             break;
@@ -890,14 +891,14 @@ export class Game {
             this.sfxFor(i, 'giant');
             this.particles.burst(r.pos, 24, COLORS.star, 7, 0.3, 0.8, 3, 1, this.fxRng);
             if (me) {
-              this.hud.toast('GIANT SNAIL!', 'great', 'flatten them!');
+              this.hud.toast(t('GIANT SNAIL!'), 'great', t('flatten them!'));
               this.rig.addShake(0.4);
             }
             break;
           case 'shieldBlock':
             this.particles.burst(r.pos, 18, COLORS.shield, 5, 0.24, 0.5, 2, 1, this.fxRng);
             this.sfxFor(i, 'shieldBreak');
-            if (me) this.hud.toast('BLOCKED!', 'good');
+            if (me) this.hud.toast(t('BLOCKED!'), 'good');
             break;
           case 'cannon':
             this.sfxFor(i, 'cannon');
@@ -906,7 +907,7 @@ export class Game {
             this.particles.burst(foot, 26, COLORS.confetti[i % 5], 8, 0.3, 0.8, 6, 1.5, this.fxRng);
             if (me) {
               this.rig.addShake(0.4);
-              this.hud.toast('BOING!', 'great', 'Q / E to spin');
+              this.hud.toast(t('BOING!'), 'great', t('Q / E to spin'));
             }
             break;
           case 'respawn':
@@ -914,7 +915,7 @@ export class Game {
             view.boost.clear();
             if (me) {
               this.audio.play('respawn');
-              this.hud.toast('Back to checkpoint', 'info');
+              this.hud.toast(t('Back to checkpoint'), 'info');
               this.rig.snap(r.pos, r.heading);
             }
             break;
@@ -945,7 +946,7 @@ export class Game {
             this.sfxFor(e.racer, 'slimeUp');
             this.particles.burst(e.pos, 16, COLORS.slime, 4, 0.22, 0.6, 4, 1, this.fxRng);
           }
-          if (me && e.kind && e.kind !== 'mushroom') this.hud.toast(ITEM_NAMES[e.kind].toUpperCase(), 'info');
+          if (me && e.kind && e.kind !== 'mushroom') this.hud.toast(t(ITEM_NAMES[e.kind]).toUpperCase(), 'info');
           break;
         case 'hit':
           if (e.by === 0 && e.racer > 0 && e.kind === 'banana') this.tally.bananaHits += 1;
@@ -953,7 +954,7 @@ export class Game {
           if (e.racer === 0 && e.by > 0) this.say(e.by, 'hitYou');
           else if (e.by === 0 && e.racer > 0) this.say(e.racer, 'hitBy');
           this.particles.burst(e.pos, 10, e.kind === 'acorn' ? COLORS.acorn : COLORS.peel, 4, 0.22, 0.5, 8, 1, this.fxRng);
-          if (!me && this.race.items.events.some((x) => x.type === 'use' && x.racer === 0)) this.hud.toast('HIT!', 'great');
+          if (!me && this.race.items.events.some((x) => x.type === 'use' && x.racer === 0)) this.hud.toast(t('HIT!'), 'great');
           break;
         case 'acornBreak':
           this.particles.burst(e.pos, 8, COLORS.acorn, 3, 0.2, 0.4, 8, 1, this.fxRng);
@@ -972,9 +973,9 @@ export class Game {
 
     for (const e of this.race.events) {
       if (e.racer === 1 && this.mode === 'duo' && e.type !== 'countdown' && e.type !== 'go') {
-        if (e.type === 'lap') this.hud2.toast(e.value === this.race.laps ? 'FINAL LAP!' : `LAP ${e.value}`);
-        else if (e.type === 'finish') this.hud2.toast(`FINISH! ${e.value}${ordinal(e.value)}`);
-        else if (e.type === 'overtake') this.hud2.toast('OVERTAKE!');
+        if (e.type === 'lap') this.hud2.toast(e.value === this.race.laps ? t('FINAL LAP!') : t('LAP {n}', { n: e.value }));
+        else if (e.type === 'finish') this.hud2.toast(`${t('FINISH!')} ${e.value}${ordinal(e.value)}`);
+        else if (e.type === 'overtake') this.hud2.toast(t('OVERTAKE!'));
         continue;
       }
       switch (e.type) {
@@ -984,33 +985,33 @@ export class Game {
           break;
         case 'go':
           if (this.race.nemesis > 0) {
-            this.hud.toast(`NEMESIS: ${this.race.profiles[this.race.nemesis].name.toUpperCase()}`, 'bad', 'beat them!');
+            this.hud.toast(t('NEMESIS: {name}', { name: this.race.profiles[this.race.nemesis].name.toUpperCase() }), 'bad', t('beat them!'));
             this.say(this.race.nemesis, 'nemesis', true);
           }
-          this.hud.countdown('GO!', true);
+          this.hud.countdown(t('GO!'), true);
           this.audio.play('go');
           break;
         case 'lap':
-          this.hud.toast(e.value === this.race.laps ? 'FINAL LAP!' : `LAP ${e.value}`, e.value === this.race.laps ? 'great' : 'info', formatTime(this.race.lapTimes[this.race.lapTimes.length - 1] ?? 0));
+          this.hud.toast(e.value === this.race.laps ? t('FINAL LAP!') : t('LAP {n}', { n: e.value }), e.value === this.race.laps ? 'great' : 'info', formatTime(this.race.lapTimes[this.race.lapTimes.length - 1] ?? 0));
           this.audio.play(e.value === this.race.laps ? 'finalLap' : 'checkpoint');
           if (e.value === this.race.laps) this.audio.setMusic(true, 142);
           break;
         case 'rain':
-          this.hud.toast('RAIN!', 'info', 'every surface is slippery now');
-          this.hud2.toast('RAIN!');
+          this.hud.toast(t('RAIN!'), 'info', t('every surface is slippery now'));
+          this.hud2.toast(t('RAIN!'));
           break;
         case 'wind':
-          this.hud.toast('WINDY!', 'info', 'gusts push you in the air');
+          this.hud.toast(t('WINDY!'), 'info', t('gusts push you in the air'));
           break;
         case 'checkpoint':
-          this.hud.toast('CHECKPOINT', 'info', formatTime(this.race.time));
+          this.hud.toast(t('CHECKPOINT'), 'info', formatTime(this.race.time));
           this.audio.play('checkpoint');
           break;
         case 'overtake':
           // Side-by-side jostling flips the order rapidly; celebrate at most every couple of seconds.
           if (this.time - this.lastOvertakeToast > 2) {
             this.lastOvertakeToast = this.time;
-            this.hud.toast('OVERTAKE!', 'good', `${e.value}${ordinal(e.value)}`);
+            this.hud.toast(t('OVERTAKE!'), 'good', `${e.value}${ordinal(e.value)}`);
             this.audio.play('overtake');
           }
           break;
@@ -1019,12 +1020,12 @@ export class Game {
           break;
         case 'aiFinish':
           if (e.value === 1) this.say(e.racer, 'win', true);
-          if (!this.race.player.finished && this.mode !== 'duo') this.hud.toast(`${this.race.profiles[e.racer].name} finished`, 'info', `${e.value}${ordinal(e.value)}`);
+          if (!this.race.player.finished && this.mode !== 'duo') this.hud.toast(t('{name} finished', { name: this.race.profiles[e.racer].name }), 'info', `${e.value}${ordinal(e.value)}`);
           break;
         case 'finish':
           this.audio.play('finish');
           this.audio.silenceMotion();
-          this.hud.toast('FINISH!', 'great', `${e.value}${ordinal(e.value)} place`);
+          this.hud.toast(t('FINISH!'), 'great', t('{place} place', { place: `${e.value}${ordinal(e.value)}` }));
           for (let k = 0; k < 5; k += 1) this.particles.burst(this.race.player.pos, 16, COLORS.confetti[k], 9, 0.3, 1.6, 9, 1.4, this.fxRng);
           break;
       }
@@ -1046,7 +1047,7 @@ export class Game {
     let section = 0;
     for (let i = 0; i < SECTIONS.length; i += 1) if (p.s >= SECTIONS[i].s0) section = i;
     if (section !== this.lastSection) {
-      if (this.lastSection >= 0 && live) this.hud.toast(SECTIONS[section].name.toUpperCase(), 'info');
+      if (this.lastSection >= 0 && live) this.hud.toast(t(SECTIONS[section].name).toUpperCase(), 'info');
       this.lastSection = section;
     }
 
@@ -1105,17 +1106,19 @@ export class Game {
     else this.seen.wrongWay = 0;
 
     let hint: string | null = null;
-    if (this.seen.wrongWay > 1.2) hint = '<b>Wrong way!</b> Turn around — or press <kbd>R</kbd> for the last checkpoint';
-    else if (this.seen.stallTime > 0.8) hint = 'Out of momentum! <kbd>SPACE</kbd> to pop out and crawl';
+    const k = (a: string) => this.keyLabel(a);
+    const touch = this.input.lastDevice === 'touch';
+    if (this.seen.wrongWay > 1.2) hint = t('<b>Wrong way!</b> Turn around — or press {respawn} for the last checkpoint', { respawn: k('respawn') });
+    else if (this.seen.stallTime > 0.8) hint = t('Out of momentum! {roll} to pop out and crawl', { roll: k('roll') });
     else if (!novice || this.mode === 'tutorial') hint = null;
-    else if (!this.seen.roll && p.mode === 'crawl' && slope > 0.045) hint = 'Downhill! Press <kbd>SPACE</kbd> to tuck into your shell and <b>ROLL</b>';
-    else if (!this.seen.roll && this.race.time < 6) hint = 'Hold <kbd>W</kbd> to crawl to the edge of the hill';
-    else if (this.seen.roll && this.seen.steerTime > 0.5 && this.seen.steerTime < 5) hint = '<kbd>A</kbd> <kbd>D</kbd> steer · speed comes from the slope, not from <kbd>W</kbd>';
-    else if (p.item && p.itemRoulette <= 0 && this.race.time < 60 && !this.seen.item) hint = `Got ${/^[AEIOU]/.test(ITEM_NAMES[p.item]) ? 'an' : 'a'} <b>${ITEM_NAMES[p.item]}</b>! Press <kbd>F</kbd> to use it`;
-    else if (!this.seen.boost && p.boost >= 1 && p.mode !== 'crawl') hint = 'Shell boost charged — press <kbd>E</kbd>!';
-    else if (!this.seen.slide && p.s > SECTIONS[2].s0 && p.s < SECTIONS[3].s0 && p.slime > 0.4 && p.mode === 'roll' && p.speed > 9) hint = 'Hold <kbd>SHIFT</kbd> to slime-slide and keep your momentum';
-    else if (p.cannon > 0) hint = 'BOING! Spin with <kbd>Q</kbd> / <kbd>E</kbd> on the way up — land it clean';
-    else if (!this.seen.spin && KICKER && track.rel(p.s, KICKER.s0) > -70 && track.rel(p.s, KICKER.s1) < 60 && (airborne || track.rel(p.s, KICKER.s1) < 0)) hint = 'Big jump! <kbd>Q</kbd> / <kbd>E</kbd> to spin in the air — land it clean';
+    else if (!this.seen.roll && p.mode === 'crawl' && slope > 0.045) hint = t('Downhill! Press {roll} to tuck into your shell and <b>ROLL</b>', { roll: k('roll') });
+    else if (!this.seen.roll && this.race.time < 6 && !touch) hint = t('Hold {crawl} to crawl to the edge of the hill', { crawl: k('crawl') });
+    else if (this.seen.roll && this.seen.steerTime > 0.5 && this.seen.steerTime < 5) hint = t('{steer} steer · speed comes from the slope, not from crawling', { steer: k('steer') });
+    else if (p.item && p.itemRoulette <= 0 && this.race.time < 60 && !this.seen.item) hint = t('Got <b>{item}</b>! Press {use} to use it', { item: t(ITEM_NAMES[p.item]), use: k('item') });
+    else if (!this.seen.boost && p.boost >= 1 && p.mode !== 'crawl') hint = t('Shell boost charged — press {boost}!', { boost: k('boost') });
+    else if (!this.seen.slide && p.s > SECTIONS[2].s0 && p.s < SECTIONS[3].s0 && p.slime > 0.4 && p.mode === 'roll' && p.speed > 9) hint = t('Hold {slide} to slime-slide and keep your momentum', { slide: k('slide') });
+    else if (p.cannon > 0) hint = t('BOING! Spin with {spin} on the way up — land it clean', { spin: k('spin') });
+    else if (!this.seen.spin && KICKER && track.rel(p.s, KICKER.s0) > -70 && track.rel(p.s, KICKER.s1) < 60 && (airborne || track.rel(p.s, KICKER.s1) < 0)) hint = t('Big jump! {spin} to spin in the air — land it clean', { spin: k('spin') });
     this.hud.hint(hint);
   }
 
@@ -1142,7 +1145,7 @@ export class Game {
   /** Names of cosmetics earned since `before`. */
   private newCosmetics(before: Set<string>): string[] {
     const now = earnedCosmetics();
-    return COSMETICS.filter((c) => now.has(c.id) && !before.has(c.id)).map((c) => `${c.label} ${c.kind === 'pattern' ? 'shell' : c.kind === 'trail' ? 'trail' : 'hat'}`);
+    return COSMETICS.filter((c) => now.has(c.id) && !before.has(c.id)).map((c) => `${c.kind === 'pattern' ? '🐚' : c.kind === 'trail' ? '✨' : '🎩'} ${t(c.label)}`);
   }
 
   private showResults(): void {
@@ -1234,7 +1237,7 @@ export class Game {
       unlocked,
       cosmetics: [
         ...this.newCosmetics(earnedBefore),
-        ...checkAchievements(this.summary(mode, place, p, nemesisBeaten, ghostBeaten)).map((a) => `${a.icon} ${a.name}`),
+        ...checkAchievements(this.summary(mode, place, p, nemesisBeaten, ghostBeaten)).map((a) => `${a.icon} ${t(a.name)}`),
       ],
       mode,
       medal,
@@ -1453,6 +1456,23 @@ export class Game {
     r.render(this.scene, this.camera2);
     r.setScissorTest(false);
     r.setViewport(0, 0, w, h);
+  }
+
+  /** The control for an action on the device the player is using, as <kbd> markup. */
+  private keyLabel(action: string): string {
+    const dev = this.input.lastDevice;
+    const map: Record<string, [string, string, string]> = {
+      crawl: ['W', 'RT', '—'],
+      roll: ['SPACE', 'A', t('SHELL')],
+      steer: ['A</kbd> <kbd>D', '◀ ▶', '◀ ▶'],
+      boost: ['E', 'X', t('BOOST')],
+      slide: ['SHIFT', 'B', t('SLIDE')],
+      item: ['F', 'Y', t('ITEM')],
+      spin: ['Q</kbd> / <kbd>E', 'LB</kbd> / <kbd>X', t('BOOST')],
+      respawn: ['R', 'BACK', '—'],
+    };
+    const row = map[action] ?? [action, action, action];
+    return `<kbd>${row[dev === 'gamepad' ? 1 : dev === 'touch' ? 2 : 0]}</kbd>`;
   }
 
   /** A rival speaks up (rate-limited so the bubble stays readable). */

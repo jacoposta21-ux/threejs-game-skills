@@ -4,7 +4,7 @@ import type { TrackDef } from '../Track';
 export const GREENHOUSE: TrackDef = {
   id: 'greenhouse',
   name: 'The Greenhouse',
-  blurb: 'Warm mist under glass. Hairpin terraces, a seed-tray slalom and the hose bridge.',
+  blurb: 'Warm mist under glass. Fern terraces, a seed-tray slalom and sprinkler puddles.',
   points: [[0, 0], [0, -50], [0, -95], [40, -145], [110, -160], [165, -125], [160, -70], [110, -40], [80, 10], [110, 60], [175, 50], [225, 10], [262, 40], [262, 100], [195, 140], [120, 150], [60, 175], [0, 165], [0, 85]],
   laps: 3,
   slope: [[0, 0], [44, 0], [58, 7], [260, 7], [300, 6], [420, 7], [540, 7], [700, 6.5], [801, 6.5], [827, 18], [851, 19], [857, 6], [901, 6.5], [1021, 4], [1115, 1]],

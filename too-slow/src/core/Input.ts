@@ -1,3 +1,4 @@
+import { applyStatic } from '../i18n';
 export interface InputCallbacks {
   pause(): void;
   respawn(): void;
@@ -333,11 +334,11 @@ export class Input {
         <button type="button" data-t="right" aria-label="Steer right">▶</button>
       </div>
       <div class="tc-right">
-        <button type="button" data-t="item" class="tc-small" aria-label="Use item">ITEM</button>
-        <button type="button" data-t="boost" class="tc-small" aria-label="Boost">BOOST</button>
-        <button type="button" data-t="brake" class="tc-small" aria-label="Brake">BRAKE</button>
-        <button type="button" data-t="slide" aria-label="Slide">SLIDE</button>
-        <button type="button" data-t="roll" class="tc-main" aria-label="Shell">SHELL</button>
+        <button type="button" data-t="item" class="tc-small" aria-label="Use item" data-i18n>ITEM</button>
+        <button type="button" data-t="boost" class="tc-small" aria-label="Boost" data-i18n>BOOST</button>
+        <button type="button" data-t="brake" class="tc-small" aria-label="Brake" data-i18n>BRAKE</button>
+        <button type="button" data-t="slide" aria-label="Slide" data-i18n>SLIDE</button>
+        <button type="button" data-t="roll" class="tc-main" aria-label="Shell" data-i18n>SHELL</button>
       </div>`;
     const press = (name: string, on: boolean) => {
       if (on) {
@@ -369,6 +370,7 @@ export class Input {
     });
     (document.getElementById('app') ?? document.body).appendChild(root);
     this.touchRoot = root;
+    applyStatic(root);
   }
 
   /** Touch buttons show only during a race on touch devices. */
