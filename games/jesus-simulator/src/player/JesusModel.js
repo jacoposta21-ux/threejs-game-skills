@@ -210,6 +210,15 @@ export class JesusModel {
       armR = -1.4;
       armSpread = 0.1;
     }
+    // miracle poses (one-shot casts and held poses)
+    this.castT = Math.max(0, (this.castT || 0) - dt);
+    const pose = this.castT > 0 ? this.castPose : this.holdPose;
+    let leanAdd = 0;
+    if (pose === 'push') { armL = -1.55; armR = -1.55; armSpread = -0.05; leanAdd = 0.25; }
+    else if (pose === 'bless') { armL = -2.5; armR = -2.5; armSpread = 0.45; }
+    else if (pose === 'touch') { armR = -1.45; armL = -0.3; leanAdd = 0.12; }
+    else if (pose === 'levitate') { armL = -2.0 + Math.sin(this.time * 3) * 0.08; armR = -2.0 - Math.sin(this.time * 3) * 0.08; armSpread = 0.2; }
+    else if (pose === 'water') { armSpread = Math.max(armSpread, 0.55); }
 
     this.legs[0].rotation.x = legL;
     this.legs[1].rotation.x = legR;
@@ -219,7 +228,7 @@ export class JesusModel {
     this.arms[1].rotation.z += (armSpread - this.arms[1].rotation.z) * k;
 
     const bob = Math.abs(Math.cos(this.phase)) * 0.07 * amp;
-    const targetLean = speedN * 0.22 * this.moveBlend + air * -0.05;
+    const targetLean = speedN * 0.22 * this.moveBlend + air * -0.05 + leanAdd;
     this.lean += (targetLean - this.lean) * k;
     this.body.position.y = bob + (1 - this.moveBlend) * breath * 0.008 * (1 - air);
     this.torso.rotation.x = this.lean;
@@ -238,6 +247,18 @@ export class JesusModel {
 
     this.halo.position.y = 0.86 + Math.sin(this.time * 1.8) * 0.025;
     this.halo.rotation.z = this.time * 0.6;
+    this.materials.halo.emissiveIntensity = 1.4 + (this.castT || 0) * 6 + (this.holdPose ? 1.2 : 0);
+  }
+
+  /** One-shot casting pose. */
+  cast(pose, seconds = 0.6) {
+    this.castPose = pose;
+    this.castT = seconds;
+  }
+
+  /** Held pose while a sustained miracle is active (levitate, water); null clears. */
+  hold(pose) {
+    this.holdPose = pose;
   }
 
   land(intensity) {

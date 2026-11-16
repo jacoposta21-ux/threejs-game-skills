@@ -1,4 +1,6 @@
-import { LANDMARKS, PLAY_RADIUS } from '../world/layout.js';
+import { LANDMARKS } from '../world/layout.js';
+
+const SAVE_EXTENT = 200;
 
 const SAVE_KEY = 'jesus-simulator.save.v1';
 const SETTINGS_KEY = 'jesus-simulator.settings.v1';
@@ -124,9 +126,9 @@ export function validateSave(raw) {
   if (!raw || typeof raw !== 'object' || raw.version !== 1) return null;
   const p = raw.player;
   if (!p || typeof p !== 'object') return null;
-  const x = num(p.x, -PLAY_RADIUS, PLAY_RADIUS, NaN);
+  const x = num(p.x, -SAVE_EXTENT, SAVE_EXTENT, NaN);
   const y = num(p.y, -5, 80, NaN);
-  const z = num(p.z, -PLAY_RADIUS, PLAY_RADIUS, NaN);
+  const z = num(p.z, -SAVE_EXTENT, SAVE_EXTENT, NaN);
   if (![x, y, z].every(Number.isFinite)) return null;
   const stats = raw.stats && typeof raw.stats === 'object' ? raw.stats : {};
   return {

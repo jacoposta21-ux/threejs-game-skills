@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clamp, damp, wrapAngle } from '../core/rng.js';
-import { PLAY_RADIUS, terrainHeight } from '../world/layout.js';
+import { terrainHeight, inPlayArea, waterDepth } from '../world/layout.js';
 
 export const MOVE = {
   walkSpeed: 4.6,
@@ -77,30 +77,58 @@ export class PlayerController {
     let wx = fx * iy + rx * ix;
     let wz = fz * iy + rz * ix;
 
-    // soft world boundary for this release
+    // soft world boundary: probe a step ahead; if it leaves the play area, cancel the outward part
     const p = st.position;
-    const dist = Math.hypot(p.x, p.z);
-    if (dist > PLAY_RADIUS - 2) {
-      const nx = p.x / dist;
-      const nz = p.z / dist;
+    if (len > 0.05 && !inPlayArea(p.x + wx * 2, p.z + wz * 2)) {
+      const d = Math.hypot(p.x, p.z) || 1;
+      const nx = p.x / d;
+      const nz = p.z / d;
       const outward = wx * nx + wz * nz;
       if (outward > 0) {
         wx -= nx * outward;
         wz -= nz * outward;
       }
-      if (dist > PLAY_RADIUS) {
+      if (!inPlayArea(p.x, p.z)) {
         wx -= nx * 0.8;
         wz -= nz * 0.8;
       }
-      if (this.boundaryCooldown <= 0 && len > 0.1) {
+      if (this.boundaryCooldown <= 0) {
         this.bus.emit('player:boundary', { entityId: st.id });
         this.boundaryCooldown = 4;
       }
     }
     this.boundaryCooldown -= dt;
 
+    // wading: water slows you down; deep water pushes you back unless you walk on it
+    const depth = waterDepth(p.x, p.z);
+    st.waterDepth = depth;
+    st.onWater = !!this.walkOnWater && depth > 0.05 && p.y > -0.2;
+    let waterSlow = 1;
+    if (!this.walkOnWater && depth > 0.25) {
+      waterSlow = depth > 0.9 ? 0.45 : 0.7;
+      if (depth > 1.3 && len > 0.05) {
+        const ahead = waterDepth(p.x + wx * 1.5, p.z + wz * 1.5);
+        if (ahead >= depth) {
+          // can't wade deeper: cancel the motion and, past chest height, drift back toward shore
+          wx = 0;
+          wz = 0;
+          if (depth > 1.5) {
+            const sx = waterDepth(p.x - 1, p.z) < depth ? -1 : waterDepth(p.x + 1, p.z) < depth ? 1 : 0;
+            const sz = waterDepth(p.x, p.z - 1) < depth ? -1 : waterDepth(p.x, p.z + 1) < depth ? 1 : 0;
+            wx = sx * 0.6;
+            wz = sz * 0.6;
+          }
+          if (this.deepCooldown <= 0) {
+            this.bus.emit('player:deep-water', { entityId: st.id });
+            this.deepCooldown = 5;
+          }
+        }
+      }
+    }
+    this.deepCooldown = (this.deepCooldown || 0) - dt;
+
     const sprint = intent.sprint && iy > -0.2 && !intent.aim;
-    const maxSpeed = (sprint ? MOVE.sprintSpeed : MOVE.walkSpeed) * (intent.aim ? 0.6 : 1);
+    const maxSpeed = (sprint ? MOVE.sprintSpeed : MOVE.walkSpeed) * (intent.aim ? 0.6 : 1) * waterSlow * (this.speedScale ?? 1);
     const tx = wx * maxSpeed;
     const tz = wz * maxSpeed;
     const grounded = st.grounded;

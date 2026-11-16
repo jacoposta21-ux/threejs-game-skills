@@ -2,7 +2,7 @@
 
 A humorous, Roblox-inspired, GTA-style open-world sandbox set in first-century Galilee. Built with Three.js, Rapier 3D and Vite as plain JavaScript ES modules. **This release is single-player only.**
 
-> Status: **Phase 1 — Playable Foundation** and **Phase 2 — Living World** are complete. Later phases (miracles, Romans, world expansion, missions, polish) are not implemented yet. See [Roadmap](#roadmap).
+> Status: **Phases 1–3 are complete**: playable foundation, living world and miracles. Later phases (Romans, world expansion, missions, polish) are not implemented yet. See [Roadmap](#roadmap).
 
 ## Run it
 
@@ -40,10 +40,29 @@ If Playwright can't find a browser, point it at an installed Chromium with `CHRO
 | 1 / 2 / 3 (in a conversation) | Choose an answer · Esc leaves the conversation |
 | Mouse wheel | Camera distance |
 | Right mouse | Shoulder aim view |
-| Left mouse / 1–6 | Use / select miracle (all locked in Phase 1) |
+| 1–6 | Select a miracle |
+| Left mouse **or Q** | Cast the selected miracle (hold to keep lifting with Levitation; hold to keep multiplying) |
 | F | Enter/exit vehicle (none yet) |
 | Tab | Map |
 | Esc | Pause menu |
+
+## What Phase 3 adds — miracles
+
+A `MiracleManager` owns unlocks, cooldowns, targeting, casting and ongoing effects, and publishes `miracle:cast`, `miracle:reveal` and `miracle:end` events. Each gift is **revealed by discovering a landmark**:
+
+| Key | Miracle | Revealed at | What it does |
+| --- | --- | --- | --- |
+| 1 | **Divine Push** | Joseph & Son Carpentry | A cone of holy force (7.5 m) with distance and angle falloff. Strong hits topple villagers (they recover) and may bruise them. Props, fruit, bread and chickens fly; pots can break. +Chaos. |
+| 2 | **Multiplication** | Nazareth Market | Aim at the bread or fish on the counters (or at a copy) to spawn copies that bounce, roll and collide; holding the button keeps going. Pooled with a **hard cap of 80** (the oldest is recycled with a poof) and a 60 s lifetime. Villagers cheer and fetch free bread (+Faith); a street drowning in bread raises Chaos. |
+| 3 | **Water to Wine** | The Town Well | Aim at the well, the trough or a clay jar. The water turns deep red with a swirl of particles. Villagers react in three ways: some celebrate, some walk over curious, some shout for their friends, who come running. +Faith. The well runs clear again after a while. |
+| 4 | **Walk on Water** | Shore of Galilee (new 8th landmark) | For 25 s a walkable surface appears over the open lake strip, with ripples at every step. Witnesses gasp (+Faith). If it runs out over deep water you sink and get fished out onto the dock. Without it you can wade into the shallows, but deep water pushes you back. |
+| 5 | **Healing Touch** | The Synagogue | Heals injured villagers (Benjamin's old knee, a villager's sprained ankle, anyone bruised by your Push) with a golden column, cheering bystanders and +Faith (+5 for chronic ailments). Healthy people just say thanks. |
+| 6 | **Holy Levitation** | Rooftop Lookout | Hold to lift a person or an object about 2.5 m and steer it gently with the crosshair (within 4 m). Release, or wait 7 s, and it is set down safely. Lifted villagers flail and shout "PUT ME DOWN!", then land dizzy. |
+
+Supporting changes:
+- **Lake shore:** the explorable area now includes the near shore of the Sea of Galilee, with a dock and a moored fishing boat.
+- **Effects and sound:** a pooled VFX system (one particle draw call plus a ring pool), Jesus casting poses and halo glow, and procedural sounds for every miracle.
+- **HUD:** a crosshair, a golden marker over the current target, the target or status line ("Heal: Benjamin (bad knee)"), and cooldown sweeps on each slot. Revealed gifts are saved.
 
 ## What Phase 2 adds — the living world
 
@@ -135,10 +154,11 @@ artifacts/                evidence manifest, captures, playtest results, final-e
 
 ## Known limitations (Phase 1)
 
-- **Content not built yet:** no miracles, Roman AI, vehicles, followers or the full mission framework. Their HUD slots and menu entries say plainly that they're not yet revealed or coming in a later chapter, and nothing fakes them. The lost-sheep errand is a single scripted good deed, not the Phase 6 mission system.
+- **Content not built yet:** no Roman AI, vehicles, followers or the full mission framework. Their HUD slots and menu entries say plainly that they're not yet revealed or coming in a later chapter, and nothing fakes them. The lost-sheep errand is a single scripted good deed, not the Phase 6 mission system.
 - **Knock-overs are animated, not simulated:** a toppled villager falls over and gets back up through the animation rig. True ragdolls arrive with Phase 4.
 - **Night is brief:** about 84 seconds. Villagers vanish indoors rather than performing evening activities inside houses.
-- **Partial map:** only the Nazareth valley is playable (radius 135 m). The lake, outpost, desert and countryside are scenery beyond a soft boundary.
+- **Partial map:** only the Nazareth valley (radius 135 m) and the near strip of the lake are playable. The outpost, desert, countryside and the far lake are scenery beyond a soft boundary.
+- **No miracle upgrades yet:** upgrades and follower recruitment from healing are planned for Phase 6. Healed villagers are already recorded in the save.
 - **Large Rapier bundle:** about 1.7 MB gzipped, because the `-compat` build inlines its WASM. Switching to the non-compat package with a separate `.wasm` file would cut this.
 - **Performance unmeasured on a real GPU:** all automated captures ran on a software renderer, so FPS numbers from them aren't meaningful. Desktop render budgets pass; the mobile triangle budget is exceeded (≈340k vs 300k), and mobile is not a target for this release.
 - **Camera passes through foliage:** the camera ignores tree trunks for collision, so it can pass through canopies. Occluder fading is planned for the polish phase.
@@ -148,8 +168,8 @@ artifacts/                evidence manifest, captures, playtest results, final-e
 
 1. ~~Phase 1 — Playable foundation~~ ✅
 2. ~~Phase 2 — Living world~~ ✅
-3. **Phase 3 — Miracles** (MiracleManager + the six miracles). *(next)*
-4. Phase 4 — Roman system (patrols, line of sight, Roman Attention, capture/respawn, ragdolls).
+3. ~~Phase 3 — Miracles~~ ✅
+4. **Phase 4 — Roman system** *(next)*: patrols, line of sight, Roman Attention, capture/respawn, ragdolls.
 5. Phase 5 — World expansion (countryside, lake, outpost, desert, vehicles, animals).
 6. Phase 6 — Missions, Faith/Chaos, followers, full save.
 7. Phase 7 — Polish, audio, optimisation, CrazyGames SDK integration.

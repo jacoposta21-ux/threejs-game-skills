@@ -3,7 +3,7 @@
  * never DOM events, so input can later come from a network or replay source.
  */
 const GAME_KEYS = new Set([
-  'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight', 'Space', 'KeyE', 'KeyF', 'Tab',
+  'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight', 'Space', 'KeyE', 'KeyF', 'KeyQ', 'Tab',
   'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
 ]);
 
@@ -101,6 +101,9 @@ export class Input {
       vehicle: this.pressed.has('KeyF'),
       map: this.pressed.has('Tab'),
       primary: this.mousePressed.has(0),
+      // cast = left click (while the pointer is captured) or Q; held versions for sustained miracles
+      cast: (this.mousePressed.has(0) && this.pointerLocked) || this.pressed.has('KeyQ'),
+      castHeld: ((this.buttons & 1) !== 0 && this.pointerLocked) || d.has('KeyQ'),
       aim: (this.buttons & 2) !== 0,
       slot: null,
       lookX: this.mouseDX + ((d.has('ArrowRight') ? 1 : 0) - (d.has('ArrowLeft') ? 1 : 0)) * 14,

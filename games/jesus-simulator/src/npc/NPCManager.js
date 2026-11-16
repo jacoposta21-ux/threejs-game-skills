@@ -93,7 +93,7 @@ export class NPCManager {
 
     // register graph anchors for everything the routines can target
     const reg = (key, p) => { if (p && !nav.anchorIds.has(key)) nav.addAnchor(key, p); };
-    for (const [name, p] of Object.entries(this.anchors.spots)) reg(`spot:${name}`, p);
+    for (const [name, p] of Object.entries(this.anchors.spots)) if (p.yaw !== undefined) reg(`spot:${name}`, p);
     this.anchors.stalls.forEach((s, k) => { reg(`stallSide:${k}`, s.side); reg(`stallFront:${k}`, s.front); });
     this.anchors.benches.forEach((b, i) => reg(`benchApproach:${i}`, b.approach));
     this.doorPool = doors.filter((d) => Math.hypot(d.x, d.z) < 50).slice(0, 14);
@@ -101,6 +101,16 @@ export class NPCManager {
     for (const n of this.npcs) {
       for (const block of Object.values(n.routine)) {
         for (const step of block) if (step.go?.startsWith('point:')) { const [x, z] = step.go.slice(6).split(',').map(Number); reg(step.go, { x, z, y: terrainHeight(x, z) }); }
+      }
+    }
+
+    // never strand anyone: villagers whose door isn't reachable move to a reachable one
+    const unreachable = new Set(nav.unreachable);
+    const okDoors = [...new Set([...this.npcs.map((n) => n.home), ...this.doorPool])].filter((d) => d && !unreachable.has(this.doorKey(d)));
+    this.doorPool = this.doorPool.filter((d) => !unreachable.has(this.doorKey(d)));
+    for (const n of this.npcs) {
+      if (n.home && unreachable.has(this.doorKey(n.home))) {
+        n.home = okDoors.reduce((best, d) => (!best || Math.hypot(d.x - n.home.x, d.z - n.home.z) < Math.hypot(best.x - n.home.x, best.z - n.home.z) ? d : best), null);
       }
     }
 
@@ -156,6 +166,7 @@ export class NPCManager {
       lookYaw: 0, progressT: 0, progressPos: new THREE.Vector3(start.x, y, start.z), stuck: 0, sidestep: null,
       distP: 999, distC: 999, lod: 'near', animAcc: 0, frameSkip: this.npcs.length % 3, expr: 'neutral', mouthT: 0,
       tag: def.kid ? { it: def.id === 'npc.sami', target: null, pause: 0 } : null,
+      injured: def.injured ? { kind: def.injured, label: 'injured' } : (def.id === 'npc.villager.3' ? { kind: 'chronic', label: 'sprained ankle' } : null),
     };
     rig.group.position.copy(npc.pos);
     rig.group.rotation.y = npc.yaw;
@@ -316,6 +327,7 @@ export class NPCManager {
   }
 
   travelTo(npc, step) {
+    if (!step) { npc.phase = 'none'; npc.path = null; return; }
     const target = this.resolve(npc, step.go);
     if (!target || target.node === undefined) {
       npc.phase = 'act';
@@ -398,6 +410,8 @@ export class NPCManager {
           if (npc.hidden) this.hide(npc, false);
           npc.walkBoost = 1;
           npc.step = null;
+          npc.phase = 'none';
+          npc.path = null;
         }
       }
       if (npc.hidden) continue;
@@ -411,7 +425,24 @@ export class NPCManager {
       if (o) {
         o.t -= dt;
         o.age += dt;
-        action = { 'talk-player': 'talk', chat: 'talk', greet: 'wave', bumped: 'look', angry: 'angry', startle: 'startle', stumble: 'stumble', cheer: 'cheer', look: 'look' }[o.type] || 'none';
+        action = { 'talk-player': 'talk', chat: 'talk', greet: 'wave', bumped: 'look', angry: 'angry', startle: 'startle', stumble: 'stumble', cheer: 'cheer', look: 'look', levitate: 'levitate', pray: 'pray', shrug: 'shrug', wave: 'wave' }[o.type] || 'none';
+        if (o.type === 'approach' || o.type === 'fetch') {
+          const tp = o.copy ? o.copy.body.translation() : o.target;
+          const dx = tp.x - npc.pos.x;
+          const dz = tp.z - npc.pos.z;
+          const dd = Math.hypot(dx, dz);
+          if (o.copy && !o.copy.body.isEnabled()) { o.t = 0; }
+          else if (dd > (o.stopAt ?? 2.2)) {
+            const sp = (o.speed ?? 2.4) * (npc.injured ? 0.5 : 1);
+            vx = (dx / dd) * sp; vz = (dz / dd) * sp; speed = sp;
+          } else {
+            if (o.type === 'fetch' && o.copy) {
+              this.bus.emit('npc:fetched', { entityId: npc.id, copy: o.copy });
+              this.say(npc, this.pickLine(['Free bread!', 'Dinner!', 'Is this… for me?', 'Bless you!']), 2, 'smile');
+            } else if (o.onArrive) this.say(npc, this.pickLine(o.onArrive), 2.2, 'surprised');
+            npc.override = { type: 'look', t: 2.5, age: 0, lookAt: { x: tp.x, z: tp.z } };
+          }
+        }
         if (o.type === 'talk-player') { npc.faceYaw = Math.atan2(player.x - npc.pos.x, player.z - npc.pos.z); action = npc.speaking ? 'talk' : 'none'; }
         if (o.lookAt) npc.faceYaw = Math.atan2(o.lookAt.x - npc.pos.x, o.lookAt.z - npc.pos.z);
         if (o.type === 'bumped' && o.age < 0.4) {
@@ -425,6 +456,13 @@ export class NPCManager {
           const dx = player.x - npc.pos.x; const dz = player.z - npc.pos.z; const d = Math.hypot(dx, dz) || 1;
           vx = (dx / d) * 3.4; vz = (dz / d) * 3.4; speed = 3.4; action = 'none';
         } else if (o.type === 'cheer') npc.faceYaw = Math.atan2(player.x - npc.pos.x, player.z - npc.pos.z);
+        if (o.type === 'levitate') {
+          npc.prev.copy(npc.pos);
+          npc.body.setNextKinematicTranslation({ x: npc.pos.x, y: npc.pos.y + npc.half + npc.radius, z: npc.pos.z });
+          npc.action = 'levitate';
+          npc.actionTime = o.age;
+          continue;
+        }
         if (o.t <= 0 && o.type !== 'talk-player') {
           npc.override = null;
           if (npc.phase === 'travel' && npc.path) this.travelTo(npc, npc.step); // re-path after interruption
@@ -497,6 +535,11 @@ export class NPCManager {
   }
 
   socialScan(npc, player, ctx) {
+    if (npc.injured && npc.distP < 8 && npc.greetCd <= 0) {
+      npc.greetCd = 18 + this.rng() * 12;
+      this.say(npc, this.pickLine(npc.injured.kind === 'chronic' ? ['Oh, my leg…', 'Twenty years of this knee…', 'If only someone could help…'] : ['Ow… my back.', 'That really hurt.', 'Ouch…']), 2.4, 'angry');
+      return;
+    }
     if (npc.anchored && npc.step?.act === 'sit' && npc.distP > 4) return;
     // notice and greet Yeshua
     if (npc.distP < 5.5 && npc.greetCd <= 0 && !npc.tag) {
@@ -541,7 +584,7 @@ export class NPCManager {
       if (npc.pathIdx >= npc.path.length) { this.arrive(npc); return { vx: 0, vz: 0, speed: 0 }; }
       return this.follow(npc, dt);
     }
-    let sp = npc.walkSpeed * (npc.walkBoost || 1);
+    let sp = npc.walkSpeed * (npc.walkBoost || 1) * (npc.injured ? 0.45 : 1);
     if (last || pt.direct) sp = Math.min(sp, Math.max(0.6, d * 2.5));
     npc.directMove = !!pt.direct;
     // stuck detection (only for collision-driven movement)
@@ -588,7 +631,16 @@ export class NPCManager {
       const pd = Math.hypot(px, pz);
       if (pd < 1.4 && pd > 0.01) { vx += (px / pd) * (1.4 - pd) * 2.2; vz += (pz / pd) * (1.4 - pd) * 2.2; }
     }
-    const k = damp(speed > 0 ? 8 : 12, dt);
+    if (npc.pushV) {
+      vx += npc.pushV.x;
+      vz += npc.pushV.z;
+      speed = Math.max(speed, Math.hypot(npc.pushV.x, npc.pushV.z));
+      const decay = Math.max(0, 1 - 3.5 * dt);
+      npc.pushV.x *= decay;
+      npc.pushV.z *= decay;
+      if (Math.hypot(npc.pushV.x, npc.pushV.z) < 0.1) npc.pushV = null;
+    }
+    const k = npc.pushV ? 1 : damp(speed > 0 ? 8 : 12, dt);
     npc.vx += (vx - npc.vx) * k;
     npc.vz += (vz - npc.vz) * k;
     const hs = Math.hypot(npc.vx, npc.vz);
@@ -601,7 +653,7 @@ export class NPCManager {
     if (faceTarget !== null) npc.yaw += wrapAngle(faceTarget - npc.yaw) * damp(8, dt);
     if (hs > 0.25 && npc.phase === 'travel') npc.faceYaw = null;
 
-    if (npc.anchored && hs < 0.05) {
+    if (npc.anchored && hs < 0.05 && !npc.pushV) {
       npc.lod = npc.distP < KCC_RANGE ? 'near' : 'far';
       return; // pinned in place (stall, bench, workbench)
     }
@@ -674,7 +726,8 @@ export class NPCManager {
         if (Math.abs(rel) < 1.6) look = rel;
       }
       // expressions, with mouth flap while a bubble is showing
-      let expr = npc.exprHold?.expr || (npc.distP < 4 ? 'smile' : 'neutral');
+      let expr = npc.exprHold?.expr || (npc.injured ? 'angry' : npc.distP < 4 ? 'smile' : 'neutral');
+      if (npc.action === 'levitate') expr = 'surprised';
       if (npc.action === 'stumble') expr = 'surprised';
       if (npc.anchored && npc.step?.act === 'sit' && this.isNight()) expr = 'sleepy';
       if (npc.bubble || (npc.override?.type === 'talk-player' && npc.speaking)) {
@@ -688,12 +741,118 @@ export class NPCManager {
       if (near || (this.frameIndex = (this.frameIndex || 0) + 1) % 3 === npc.frameSkip) {
         npc.anim.update(npc.animAcc, {
           speed: npc.speed, grounded: true, action: npc.action, actionTime: npc.actionTime, lookYaw: look,
-          carryHead: npc.carry === 'jar', carrySide: npc.carry === 'basket' || npc.carry === 'plank',
+          carryHead: npc.carry === 'jar', carrySide: npc.carry === 'basket' || npc.carry === 'plank', injured: !!npc.injured,
         });
         npc.animAcc = 0;
       }
     }
     this.animals.setShadows(cam);
+  }
+
+  // ---------------------------------------------------------------- miracles
+  /** Divine Push: knock back with falloff; strong hits topple and bruise. */
+  push(npc, dirX, dirZ, strength) {
+    if (npc.hidden || npc.override?.type === 'talk-player' || npc.override?.type === 'levitate') return 'none';
+    if (npc.anchored) {
+      this.setOverride(npc, 'startle', 1.2);
+      this.say(npc, this.pickLine(['Hey! My stall!', 'Whoa!', 'Mind the counter!']), 1.8, 'surprised');
+      return 'startle';
+    }
+    npc.pushV = { x: dirX * (2 + strength * 7), z: dirZ * (2 + strength * 7) };
+    npc.bumpCd = 1;
+    if (strength > 0.35) {
+      this.setOverride(npc, 'stumble', 2.8);
+      this.say(npc, this.pickLine(BARKS.knocked), 2, 'surprised');
+      if (!npc.injured && this.rng() < 0.6) npc.injured = { kind: 'bruised', label: 'bruised' };
+      return 'stumble';
+    }
+    this.setOverride(npc, 'startle', 1);
+    this.say(npc, this.pickLine(['Whoa!', 'What a wind!', 'Hey!']), 1.6, 'surprised');
+    return 'startle';
+  }
+
+  heal(npc) {
+    const was = npc.injured;
+    npc.injured = null;
+    this.setOverride(npc, 'cheer', 3.2, { lookAt: null });
+    const lines = was?.kind === 'chronic'
+      ? ['I can walk! I CAN WALK!', 'Twenty years! Gone!', 'My leg… it doesn\'t hurt!']
+      : was ? ['The bruise is gone!', 'Good as new!', 'Thank you, Yeshua!'] : ['I feel… wonderful?', 'Thank you… I think?'];
+    this.say(npc, this.pickLine(lines), 2.8, 'smile');
+    if (was) this.flags[`healed.${npc.id}`] = true;
+    return !!was;
+  }
+
+  beginLevitate(npc) {
+    this.leaveAnchor(npc);
+    npc.override = { type: 'levitate', t: Infinity, age: 0 };
+    npc.pushV = null;
+    this.say(npc, this.pickLine(['PUT ME DOWN!', 'Aaaah!', 'I\'m flying?!', 'Is this allowed?!']), 2.4, 'surprised');
+  }
+
+  holdAt(npc, x, y, z) {
+    npc.pos.set(x, y, z);
+    npc.body.setNextKinematicTranslation({ x, y: y + npc.half + npc.radius, z });
+  }
+
+  endLevitate(npc) {
+    const gy = terrainHeight(npc.pos.x, npc.pos.z);
+    this.place(npc, npc.pos.x, gy, npc.pos.z);
+    npc.override = { type: 'stumble', t: 1.6, age: 1.0 };
+    this.say(npc, this.pickLine(['Whoa… dizzy…', 'Never again.', 'That was… actually fun.']), 2.2, 'surprised');
+    if (npc.phase === 'travel' && npc.step) npc.phase = 'none';
+  }
+
+  /** Witness reactions to a miracle at (x,z). */
+  witness(kind, x, z, radius, extra = {}) {
+    let count = 0;
+    for (const npc of this.npcs) {
+      if (npc.hidden || npc.override?.type === 'talk-player' || npc.override?.type === 'levitate' || npc.override?.type === 'stumble') continue;
+      const d = Math.hypot(npc.pos.x - x, npc.pos.z - z);
+      if (d > radius) continue;
+      count += 1;
+      const roll = this.rng();
+      const look = { x, z };
+      if (kind === 'wine') {
+        if (roll < 0.4) { this.setOverride(npc, 'cheer', 3, { lookAt: look }); this.say(npc, this.pickLine(['WINE!', 'It\'s… WINE!', 'Best day ever!', 'L\'chaim!']), 2.4, 'smile'); }
+        else if (roll < 0.75 && !npc.anchored && !npc.tag) { npc.override = { type: 'approach', t: 14, age: 0, target: { x, z }, stopAt: 2.4, speed: 2.4, onArrive: ['Smell that!', 'Real wine!', 'From WATER?'] }; this.say(npc, this.pickLine(['What\'s that?', 'Is that…?']), 1.6, 'surprised'); }
+        else { this.setOverride(npc, 'wave', 2.5, { lookAt: look }); this.say(npc, this.pickLine(['Everyone, come see!', 'Come quick! The well!', 'Hannah! HANNAH!']), 2.4, 'surprised'); this.callFriends(npc, x, z); }
+      } else if (kind === 'bread') {
+        if (roll < 0.45) { this.setOverride(npc, 'cheer', 2.2, { lookAt: look }); this.say(npc, this.pickLine(['Bread!', 'More bread!', 'It keeps coming!']), 1.8, 'smile'); }
+        else if (roll < 0.75 && !npc.anchored && !npc.tag && extra.copy) { npc.override = { type: 'fetch', t: 12, age: 0, copy: extra.copy, stopAt: 0.9, speed: 2.6 }; }
+        else { this.setOverride(npc, 'startle', 1.1, { lookAt: look }); npc.exprHold = { expr: 'surprised', t: 1.2 }; }
+      } else if (kind === 'push') {
+        if (roll < 0.5) { this.setOverride(npc, 'startle', 1.2, { lookAt: look }); this.say(npc, this.pickLine(BARKS.startle), 1.6, 'surprised'); }
+        else { this.setOverride(npc, 'angry', 1.8, { lookAt: look }); this.say(npc, this.pickLine(['Who did that?!', 'Manners, Yeshua!', 'Stop that!']), 1.8, 'angry'); }
+      } else if (kind === 'water') {
+        this.setOverride(npc, roll < 0.5 ? 'cheer' : 'startle', 3, { lookAt: look });
+        this.say(npc, this.pickLine(['He\'s WALKING ON WATER!', 'Simon, LOOK!', 'Am I dreaming?', 'He\'s not even wet!']), 2.6, 'surprised');
+      } else if (kind === 'heal') {
+        this.setOverride(npc, 'cheer', 2.6, { lookAt: look });
+        this.say(npc, this.pickLine(['Praise be!', 'A miracle!', 'Did you see that?!']), 2.2, 'smile');
+      } else if (kind === 'levitate') {
+        if (roll < 0.5) { this.setOverride(npc, 'startle', 1.6, { lookAt: look }); this.say(npc, this.pickLine(['It\'s FLOATING!', 'Witchcraft?!', 'Oh my.']), 2, 'surprised'); }
+        else { this.setOverride(npc, 'look', 2.4, { lookAt: look }); npc.exprHold = { expr: 'surprised', t: 2 }; }
+      }
+    }
+    return count;
+  }
+
+  callFriends(caller, x, z) {
+    let n = 0;
+    for (const npc of this.npcs) {
+      if (n >= 3 || npc === caller || npc.hidden || npc.anchored || npc.tag || npc.override) continue;
+      const d = Math.hypot(npc.pos.x - caller.pos.x, npc.pos.z - caller.pos.z);
+      if (d < 12 || d > 45) continue;
+      npc.override = { type: 'approach', t: 25, age: 0, target: { x, z }, stopAt: 3, speed: 2.8, onArrive: ['What happened here?', 'Wine? From the well?!', 'I came as fast as I could!'] };
+      n += 1;
+    }
+    return n;
+  }
+
+  /** Living NPCs a miracle can aim at. */
+  targetables() {
+    return this.npcs.filter((n) => !n.hidden).map((n) => ({ kind: 'npc', type: n.injured ? 'injured' : 'person', ref: n, id: n.id, x: n.pos.x, y: n.pos.y + 1.2, z: n.pos.z, name: n.name }));
   }
 
   // ---------------------------------------------------------------- player interaction
@@ -745,6 +904,11 @@ export class NPCManager {
 
   reset(flags) {
     this.flags = flags;
+    for (const npc of this.npcs) {
+      const base = npc.def.injured ? { kind: npc.def.injured, label: 'injured' } : (npc.id === 'npc.villager.3' ? { kind: 'chronic', label: 'sprained ankle' } : null);
+      npc.injured = flags[`healed.${npc.id}`] ? null : base;
+      npc.pushV = null;
+    }
     for (const s of this.seats) s.taken = null;
     for (const npc of this.npcs) {
       npc.override = null;
@@ -773,6 +937,8 @@ export class NPCManager {
       const k = n.override?.type || n.phase;
       states[k] = (states[k] || 0) + 1;
     }
-    return { count: this.npcs.length, near, visible, hidden, states, nav: this.nav.stats(), animals: this.animals.list.length };
+    const bad = new Set(this.nav.unreachable);
+    const homesReachable = this.npcs.every((n) => !n.home || !bad.has(this.doorKey(n.home)));
+    return { count: this.npcs.length, near, visible, hidden, states, nav: this.nav.stats(), homesReachable, animals: this.animals.list.length };
   }
 }

@@ -6,7 +6,7 @@ import { createRenderer, resizeRenderer, QUALITY_PRESETS } from '../core/Rendere
 import { createRng, damp } from '../core/rng.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { World } from '../world/World.js';
-import { SPAWN, MARKET, LANDMARKS, terrainHeight } from '../world/layout.js';
+import { SPAWN, MARKET, LANDMARKS, terrainHeight, lakeDistance } from '../world/layout.js';
 import { PlayerState } from './PlayerState.js';
 import { WorldState } from './WorldState.js';
 import { MIRACLES } from './miracles.js';
@@ -20,6 +20,9 @@ import { Minimap, buildMapBase } from '../ui/Minimap.js';
 import { NPCManager } from '../npc/NPCManager.js';
 import { DialogueController } from './DialogueController.js';
 import { DayCycle, DAY_LENGTH, clockLabel } from '../world/DayCycle.js';
+import { MiracleManager } from '../miracles/MiracleManager.js';
+import { Effects } from '../vfx/Effects.js';
+import { MIRACLE_REVEALS } from './miracles.js';
 
 const AUTOSAVE_SECONDS = 30;
 
@@ -94,6 +97,11 @@ export class GameSession {
     this.model = new JesusModel();
     this.scene.add(this.model.group);
     this.cam = new ThirdPersonCamera(this.camera);
+    this.effects = new Effects(this.scene);
+    this.miracles = new MiracleManager({
+      bus: this.bus, effects: this.effects, audio: this.audio, npcs: this.npcs, props: this.world.propSystem, world: this.world,
+      player: this.player, state: this.playerState, model: this.model, camera: this.camera, rng: this.rng,
+    });
 
     this.mapBase = buildMapBase(this.world.splat, this.world.footprints);
     this.minimap = new Minimap(document.getElementById('minimap'), this.mapBase);
@@ -183,6 +191,12 @@ export class GameSession {
     });
     bus.on('player:footstep', ({ sprint }) => {
       const p = this.playerState.position;
+      if (this.playerState.waterDepth > 0.05) {
+        this.effects.ring({ x: p.x, y: 0.04, z: p.z, color: this.playerState.onWater ? '#fff6d0' : '#d8f2ff', from: 0.2, to: this.playerState.onWater ? 2.2 : 1.2, life: 0.9, opacity: 0.6 });
+        this.effects.burst({ x: p.x, y: 0.05, z: p.z, count: 6, color: '#e9f7ff', speed: 1.2, up: 0.8, life: 0.5, gravity: -6, size: 0.15 });
+        this.audio.splash(this.playerState.onWater ? 0.25 : 0.45);
+        return;
+      }
       const paved = Math.hypot(p.x, p.z) < 13 || (p.x > MARKET.x0 && p.x < MARKET.x1 && p.z > MARKET.z0 && p.z < MARKET.z1) || p.y > 3.5;
       this.audio.footstep(paved ? 'stone' : 'sand', sprint);
     });
@@ -251,6 +265,41 @@ export class GameSession {
       this.input.releaseAll();
     });
     bus.on('ui:dialogue-choice', ({ index }) => this.dialogue.choose(index));
+
+    // ---- miracles
+    bus.on('landmark:discover', ({ landmarkId }) => {
+      const id = MIRACLE_REVEALS[landmarkId];
+      if (id) this.miracles.unlock(id);
+    });
+    bus.on('miracle:reveal', ({ miracle }) => {
+      this.audio.discovery();
+      this.ui.banner('A GIFT IS REVEALED', miracle.name, `${miracle.description}  —  press ${miracle.key}, then click or Q`);
+      this.playerState.selectedMiracle = miracle.key - 1;
+      this.ui.setSelectedMiracle(this.playerState.selectedMiracle, this.playerState.unlockedMiracles);
+      this.saveGame();
+    });
+    bus.on('npc:fetched', ({ copy }) => {
+      const t = copy.body.translation();
+      this.effects.burst({ x: t.x, y: t.y + 0.2, z: t.z, count: 10, color: '#ffe9a8', speed: 1, up: 1, life: 0.7, size: 0.2 });
+      this.world.propSystem.removeCopy(copy);
+      this.playerState.stats.fed = (this.playerState.stats.fed || 0) + 1;
+      this.addFaith(1);
+    });
+    bus.on('copy:recycled', ({ x, y, z }) => this.effects.burst({ x, y: y + 0.1, z, count: 8, color: '#fff3c4', speed: 1, up: 0.8, life: 0.5, size: 0.2 }));
+    bus.on('player:deep-water', () => this.ui.toast(this.miracles.isUnlocked('miracle.walk-on-water') ? 'Too deep to wade. Press 4 and cast Walk on Water.' : 'Too deep to wade any further.', 'deep', 5));
+    bus.on('miracle:fading', () => this.ui.toast('Your steps feel heavier… get back to shore!', 'fading', 4));
+    bus.on('miracle:end', ({ miracleId, reason }) => {
+      if (miracleId === 'miracle.walk-on-water' && reason === 'sank') {
+        this.ui.toast('O ye of little faith! (You sank. Someone fished you out onto the dock.)', 'sank', 6);
+        this.addChaos(0.5);
+      }
+    });
+    bus.on('miracle:witnessed', ({ witnesses }) => { if (witnesses > 0) this.addFaith(3); });
+    bus.on('wine:faded', ({ name }) => this.ui.toast(`${name} runs clear again.`, `faded-${name}`, 5));
+    bus.on('miracle:cast', ({ miracleId, crowd }) => {
+      this.playerState.stats.miracles = (this.playerState.stats.miracles || 0) + 1;
+      if (miracleId === 'miracle.multiplication' && crowd > 25) this.ui.toast('The street is filling up with bread…', 'crowd', 8);
+    });
 
     document.addEventListener('keydown', (e) => {
       if (e.code !== 'Escape') return;
@@ -325,6 +374,8 @@ export class GameSession {
     this.cam.pitch = 0.3;
     if (this.dialogue.active) this.dialogue.close();
     this.cam.dialogueTarget = null;
+    this.miracles.reset();
+    for (const id of this.worldState.discovered) if (MIRACLE_REVEALS[id]) this.miracles.unlock(MIRACLE_REVEALS[id], false);
     this.npcs.reset({ ...this.flags });
     this.ui.hideMenu();
     this.ui.showHud();
@@ -335,7 +386,7 @@ export class GameSession {
     this.input.requestLock();
     this.autosaveTimer = AUTOSAVE_SECONDS;
     if (corrupted) this.ui.toast('Your previous save could not be read, so a fresh journey begins.', 'corrupt', 8);
-    if (!data) this.ui.banner('CHAPTER I', 'Nazareth', 'Explore your home village. Discover all seven landmarks.');
+    if (!data) this.ui.banner('CHAPTER I', 'Nazareth', 'Explore your home village. Discover all eight landmarks — and the gifts hidden among them.');
     else this.ui.toast('Welcome back to Galilee.');
     this.bus.emit('session:start', { entityId: this.playerState.id, newGame: !data });
   }
@@ -429,7 +480,7 @@ export class GameSession {
       faith: p.faith,
       chaos: p.chaos,
       stats: p.stats,
-      flags: { ...this.flags, ...(this.npcs.flags['pots.broken'] ? { 'pots.broken': true } : {}) },
+      flags: { ...this.flags, ...this.npcs.flags },
       met: [...this.met],
       clock: this.clock,
     });
@@ -453,8 +504,10 @@ export class GameSession {
         chaos: this.playerState.chaos, flags: { ...this.flags, ...this.npcs.flags },
       });
     }
+    if (this.screen === 'playing') this.miracles.fixedUpdate(dt, { castHeld: (this.testCastHeld || !!this.intent?.castHeld) && !this.dialogue.active });
     this.physics.step();
     this.simTime = (this.simTime || 0) + dt;
+    this.world.propSystem.simTime = this.simTime;
     this.world.propSystem.playerPos.copy(this.playerState.position);
     this.world.syncProps(this.simTime);
   }
@@ -496,6 +549,7 @@ export class GameSession {
 
     this.world.update(animDt, this.reducedMotion ? 0 : elapsed, this.camera.position, this.camera.far);
     this.dialogue.tick(dt);
+    this.effects.update(animDt);
     this.npcs.update(animDt, alpha, { cameraPos: this.camera.position, playerPos: renderPos });
     const sky = this.dayCycle.apply(this.screen === 'menu' ? 0.18 : this.clock, this.camera.position, this.camera.far);
     this.sunDir = sky.lightDir;
@@ -520,7 +574,6 @@ export class GameSession {
     const renderPos = this.player.interpolate(alpha);
     this.cam.dialogueTarget = this.dialogue.active ? this.dialogue.npc.render : null;
     this.cam.update(dt, intent, renderPos, this.settings, this.physics, this.player.collider);
-    this.ui.setAiming(intent.aim);
     this.ui.setLockHint(!this.input.pointerLocked && !this.hideDebugUi);
 
     // discovery + interaction
@@ -548,20 +601,37 @@ export class GameSession {
 
     if (intent.slot !== null) {
       st.selectedMiracle = intent.slot;
-      this.ui.setSelectedMiracle(st.selectedMiracle, st.unlockedMiracles);
       const m = MIRACLES[intent.slot];
       if (!st.unlockedMiracles.includes(m.id)) {
         this.audio.uiDenied();
-        this.ui.toast(`${m.name} has not yet been revealed to you.`, `locked-${m.id}`);
+        this.ui.toast(`${m.name} has not yet been revealed to you. (Revealed at: ${m.revealAt})`, `locked-${m.id}`);
       } else this.audio.uiClick();
     }
-    if (intent.primary && this.input.pointerLocked) {
-      const m = MIRACLES[st.selectedMiracle];
-      if (!st.unlockedMiracles.includes(m.id)) {
-        this.ui.toast('No miracle revealed yet. Your first one is coming soon.', 'no-miracle', 4);
+    const selected = MIRACLES[st.selectedMiracle];
+    if (intent.cast && !this.dialogue.active) {
+      const res = this.miracles.tryCast(selected.id);
+      if (res.ok) {
+        if (res.faith) this.addFaith(res.faith);
+        if (res.chaos) this.addChaos(res.chaos);
+      } else if (!res.quiet) {
         this.audio.uiDenied();
+        this.ui.toast(res.reason, `cast-fail-${selected.id}`, 2);
       }
     }
+    // multiplication auto-repeats while the button is held — the fun part
+    if (selected.id === 'miracle.multiplication' && intent.castHeld && !intent.cast && !this.dialogue.active && this.miracles.cooldownLeft(selected.id) <= 0 && this.miracles.isUnlocked(selected.id)) {
+      const res = this.miracles.tryCast(selected.id);
+      if (res.ok && res.chaos) this.addChaos(res.chaos);
+    }
+    const targeting = ['miracle.multiplication', 'miracle.water-to-wine', 'miracle.healing-touch', 'miracle.holy-levitation'].includes(selected.id) && st.unlockedMiracles.includes(selected.id);
+    const target = this.miracles.update(dt, selected.id, targeting && !this.dialogue.active);
+    this.ui.setMiracleHud({
+      index: st.selectedMiracle,
+      unlocked: st.unlockedMiracles,
+      cooldown: MIRACLES.map((m) => this.miracles.cooldownLeft(m.id) / m.cooldown),
+      label: this.miracles.describe(selected.id, target),
+    });
+    this.ui.setAiming(intent.aim || targeting);
     if (intent.vehicle) this.ui.toast('Nothing to ride here yet — the donkeys are still on their way.', 'no-vehicle', 4);
     if (intent.map) this.openMap();
 
@@ -579,7 +649,8 @@ export class GameSession {
 
     const d = Math.hypot(st.position.x, st.position.z);
     let region = d < 64 ? 'Nazareth' : 'Nazareth Valley';
-    if (Math.hypot(st.position.x - 64, st.position.z - 46) < 22) region = 'Olive Grove';
+    if (lakeDistance(st.position.x, st.position.z) < 1.15) region = 'Sea of Galilee';
+    else if (Math.hypot(st.position.x - 64, st.position.z - 46) < 22) region = 'Olive Grove';
     else if (Math.hypot(st.position.x + 80, st.position.z + 62) < 24) region = 'Watchtower Ridge';
     this.ui.setRegion(region);
     this.ui.setClock(clockLabel(this.clock), this.dayCycle.nightWeight(this.clock) > 0.5);
@@ -724,6 +795,80 @@ export class GameSession {
         this.cam.dialogueTarget = eli.render;
         for (let i = 0; i < 120; i += 1) this.cam.update(1 / 60, { lookX: 0, lookY: 0, zoom: 0, aim: false }, this.playerState.position, this.settings, this.physics, this.player.collider);
       },
+      'miracle-push': () => {
+        states['active-play']();
+        this.unlockAllForTest();
+        this.simulate(25);
+        // crowd a few villagers in front of Jesus at the market
+        const people = this.npcs.npcs.filter((n) => !n.anchored && !n.tag).slice(0, 4);
+        people.forEach((n, i) => { n.override = { type: 'look', t: 5, age: 0 }; this.npcs.place(n, -2 + i * 1.3, terrainHeight(-2 + i * 1.3, -24), -24 - (i % 2)); });
+        this.player.teleport(-0.5, 0, -19.5, Math.PI);
+        this.cam.snap(this.playerState.position, 0.35);
+        this.cam.pitch = 0.25;
+        this.castForTest(0, 0.18);
+      },
+      'miracle-multiply': () => {
+        states['active-play']();
+        this.unlockAllForTest();
+        this.simulate(3);
+        const eli = this.npcs.byId.get('npc.eli');
+        const f = this.world.anchors.stalls[eli.def.stall].front;
+        this.player.teleport(f.x, 0, f.z, f.yaw);
+        this.cam.snap(this.playerState.position, f.yaw + Math.PI - 0.6);
+        this.cam.pitch = 0.3;
+        for (let i = 0; i < 8; i += 1) this.castForTest(1, 0.35);
+        this.simulate(0.4);
+      },
+      'miracle-wine': () => {
+        states['active-play']();
+        this.unlockAllForTest();
+        this.simulate(10);
+        this.player.teleport(2.6, 0, 3.2, Math.atan2(-2.6, -3.2));
+        this.cam.snap(this.playerState.position, Math.atan2(2.6, 3.2) + 0.5);
+        this.cam.pitch = 0.4;
+        this.castForTest(2, 1.2);
+      },
+      'miracle-water': () => {
+        states['active-play']();
+        this.unlockAllForTest();
+        this.player.teleport(118, 0, -9, Math.PI / 2);
+        this.castForTest(3, 0.1);
+        this.player.teleport(133, 0.1, -16, 1.9);
+        this.simulate(1.2);
+        this.cam.snap(this.playerState.position, 1.9 + Math.PI - 0.4);
+        this.cam.pitch = 0.22;
+        this.cam.targetDistance = 7;
+        this.cam.currentDistance = 7;
+      },
+      'miracle-heal': () => {
+        states['active-play']();
+        this.unlockAllForTest();
+        this.simulate(4);
+        const b = this.npcs.byId.get('npc.benjamin');
+        this.npcs.leaveAnchor(b, true);
+        this.npcs.place(b, 4, terrainHeight(4, 9), 9);
+        b.override = { type: 'look', t: 3, age: 0 };
+        this.player.teleport(4, 0, 11.2, Math.PI);
+        this.cam.snap(this.playerState.position, Math.PI * 0.5 + 0.2);
+        this.cam.pitch = 0.2;
+        this.cam.targetDistance = 4.5;
+        this.cam.currentDistance = 4.5;
+        this.castForTest(4, 0.45);
+      },
+      'miracle-levitate': () => {
+        states['active-play']();
+        this.unlockAllForTest();
+        this.simulate(4);
+        const n = this.npcs.byId.get('npc.villager.1');
+        this.npcs.leaveAnchor(n, true);
+        this.npcs.place(n, 2, terrainHeight(2, 10), 10);
+        n.override = { type: 'look', t: 3, age: 0 };
+        this.player.teleport(2, 0, 12.6, Math.PI);
+        this.cam.snap(this.playerState.position, 0.6);
+        this.cam.pitch = 0.18;
+        this.testCastHeld = true;
+        this.castForTest(5, 1.3);
+      },
       night: () => {
         states['active-play']();
         this.clock = 0.885;
@@ -751,6 +896,7 @@ export class GameSession {
         const fn = states[name];
         if (!fn) throw new Error(`Unknown test state: ${name}`);
         this.pausedForScreenshot = false;
+        this.testCastHeld = false;
         fn();
         // settle physics/camera for a few steps so the frame is representative
         if (this.screen === 'playing') this.intent = this.input.read();
@@ -793,6 +939,27 @@ export class GameSession {
     };
   }
 
+  unlockAllForTest() {
+    for (const m of MIRACLES) this.miracles.unlock(m.id, false);
+  }
+
+  /** Test hooks: select a slot, cast through the real MiracleManager path, then advance time. */
+  castForTest(slot, seconds) {
+    this.playerState.selectedMiracle = slot;
+    const res = this.miracles.tryCast(MIRACLES[slot].id);
+    if (res.ok) {
+      if (res.faith) this.addFaith(res.faith);
+      if (res.chaos) this.addChaos(res.chaos);
+    }
+    this.simulate(seconds);
+    for (let i = 0; i < Math.round(seconds * 60); i += 1) {
+      this.effects.update(1 / 60);
+      this.world.update(1 / 60, this.simTime || 0, this.camera.position, this.camera.far);
+    }
+    this.lastTestCast = res;
+    return res;
+  }
+
   /** Advance the simulation (NPCs, animals, props, clock) without rendering — used by test hooks. */
   simulate(seconds) {
     const steps = Math.round(seconds * 60);
@@ -830,6 +997,11 @@ export class GameSession {
       dialogue: this.dialogue?.active ? { npc: this.dialogue.npc.id, options: this.dialogue.options.length } : null,
       talkTarget: this.talkTarget?.id ?? null,
       npcs: this.npcs?.stats(),
+      miracles: this.miracles?.stats(),
+      unlocked: this.playerState?.unlockedMiracles,
+      selected: this.playerState?.selectedMiracle,
+      effects: this.effects?.stats(),
+      water: this.playerState ? { depth: +(this.playerState.waterDepth || 0).toFixed(2), onWater: !!this.playerState.onWater } : null,
       props: this.world?.propSystem?.stats(),
       stats: this.playerState?.stats,
       physics: this.physics?.stats(),

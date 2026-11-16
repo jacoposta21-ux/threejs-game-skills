@@ -462,6 +462,11 @@ export class CharacterAnimator {
         headX = -0.15;
         armR = -0.2;
         break;
+      case 'levitate':
+        armL = -2.6 + Math.sin(t * 11) * 0.5; armR = -2.6 + Math.cos(t * 11) * 0.5; armLz = -0.7; armRz = 0.7;
+        legL = Math.sin(t * 9) * 0.7; legR = -Math.sin(t * 9) * 0.7;
+        torsoX = -0.1;
+        break;
       case 'stumble':
         fallTarget = at < 1.7 ? 1 : 0;
         armL = -2.4; armR = -2.4; armLz = -0.8; armRz = 0.8;
@@ -469,6 +474,13 @@ export class CharacterAnimator {
         break;
       default:
         break;
+    }
+    if (s.injured && a === 'none') {
+      // limp: uneven stride, hand on the lower back, hunched
+      legL *= 0.5; legR *= 1.1;
+      armR = 0.6; armRz = 0.9;
+      torsoX += 0.22;
+      bodyY -= Math.abs(Math.sin(this.phase)) * 0.04 * this.move;
     }
     if (s.carryHead && a !== 'sit') { armL = -2.9; armR = -2.9; armLz = -0.25; armRz = 0.25; }
     else if (s.carrySide && (a === 'none')) { armL = -0.9; armLz = 0.25; }

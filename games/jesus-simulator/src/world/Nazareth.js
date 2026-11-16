@@ -288,7 +288,8 @@ function buildWell(B) {
   B.at(x, 0, z, 0);
   const ring = [[1.0, 0], [1.4, 0], [1.4, 0.85], [1.3, 0.98], [1.05, 0.98], [1.0, 0.85], [1.0, 0]].map(([a, b]) => new THREE.Vector2(a, b));
   B.put(new THREE.LatheGeometry(ring, 18), 'stone', '#d9c8a4', 0, g, 0);
-  B.put(new THREE.CircleGeometry(1.0, 18), 'water', '#ffffff', 0, g + 0.55, 0, { rx: -Math.PI / 2 });
+  // well water is its own mesh (built in World) so a miracle can change it
+  B.spots.wellWater = { x: 0, y: g + 0.55, z: 0, r: 1.0 };
   // stepped stone base
   B.put(new THREE.CylinderGeometry(2.1, 2.2, 0.18, 18), 'stone', '#cdb995', 0, g + 0.05, 0);
   for (const s of [-1, 1]) {
@@ -307,7 +308,7 @@ function buildWell(B) {
   B.colBox(0.1, 1.2, 0.1, 1.25, g + 1.2, 0);
   // jars, trough
   B.box('stone', '#cbb690', 2.2, 0.5, 0.6, 0, g + 0.25, -3.2);
-  B.box('water', '#ffffff', 1.9, 0.04, 0.38, 0, g + 0.46, -3.2);
+  B.spots.troughWater = { x: 0, y: g + 0.46, z: -3.2, w: 1.9, d: 0.38 };
   B.colBox(1.1, 0.25, 0.3, 0, g + 0.25, -3.2);
   amphora(B, 2.4, g, 1.6, 1);
   amphora(B, 2.9, g, 1.1, 0.85);

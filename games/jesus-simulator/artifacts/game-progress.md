@@ -57,10 +57,22 @@ Player **explores** to **discover the 7 landmarks of Nazareth**; the minimap and
 - **World and progression:** a DayCycle drives sun/moon, sky, fog and stars, with crickets at night. Faith and Chaos now move, and saves include flags, people met and the clock.
 - **Evidence:** `phase2-pass-3` — inspector 8/8, playtest 22/22, motion sheets for the player and NPCs.
 
-## Next actions (Phase 3 — Miracles)
-- **MiracleManager:** cooldowns, targeting, events (`miracle:cast`) and HUD hooks — the hotbar slots already exist.
-- **Divine Push:** use NPCs' stumble state and PropSystem bodies.
-- **Multiplication:** pooled bread/fish bodies reuse the shard-pool pattern.
-- **Water to Wine:** target the well, trough and jars (`spot:well`, `spot:trough` anchors exist).
-- **Healing Touch and Levitation:** need NPC "injured" states and a lift constraint.
-- **Walk on Water:** needs the lake region opened.
+## Phase 3 — Miracles (completed)
+- **MiracleManager** (`src/miracles/`): unlocks, cooldowns, crosshair-ray targeting with a "close and in front" fallback, a target marker, casting, ongoing effects, and the events `miracle:cast`, `miracle:reveal`, `miracle:end` and `miracle:witnessed`.
+- **The six miracles:** Divine Push (cone with falloff, knock-backs, bruising, prop impulses), Multiplication (pooled copies, cap 80, 60 s lifetime, villagers fetch bread), Water to Wine (well, trough, jars; three villager reaction types plus calling friends), Walk on Water (lake collider toggled, ripples, sinking on expiry, wading limits), Healing Touch (injured, chronic and bruised villagers) and Holy Levitation (hold to lift people or props, safe set-down).
+- **Reveals:** each gift is revealed by discovering its landmark. A new 8th landmark, the Shore of Galilee, comes with a dock, a boat and the open lake strip.
+- **Effects and feedback:** an Effects VFX pool (900 particles in one draw call, plus 14 rings), Jesus casting poses and halo glow, six procedural miracle sounds, and a HUD with cooldown sweeps and target labels. Q is the keyboard cast key.
+- **Defects found by tests and fixed:**
+  - Web Audio threw on zero-gain sounds (a distant pot shattering could throw inside an event handler).
+  - Wading could creep into deep water.
+  - Casting Walk on Water while submerged left Jesus on the lake bed.
+  - Kids kept a stale travel phase at dawn (null-step crash).
+  - Well-water spots were registered as nav anchors.
+  - An NPC home was unreachable; homes are now reassigned to reachable doors.
+
+## Next actions (Phase 4 — Roman system)
+- **Soldier model:** a Roman soldier built on CharacterKit (helmet, scutum and armour parts) with patrol routes on the NavGraph around a north outpost. Open the north road strip, the same way the lake strip was opened.
+- **Perception:** ray-cast line of sight against static colliders, plus last-known-position tracking.
+- **Roman Attention:** feed from `npc:knocked`, `miracle:cast` (Push and Levitation on soldiers), restricted zones and stolen vehicles (Phase 5). The HUD stars already exist.
+- **Ragdolls:** replace the animated stumble with Rapier multi-body ragdolls for soldiers (the villager stumble can stay).
+- **Capture and respawn:** design to be decided.

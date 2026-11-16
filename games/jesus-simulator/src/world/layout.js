@@ -55,7 +55,29 @@ export const LANDMARKS = [
     blurb: 'Old twisted trees and a stone press, heavy with this year\'s harvest.' },
   { id: 'landmark.watchtower', name: 'Old Watchtower', x: -80, z: -62, r: 10,
     blurb: 'A crumbling tower on the ridge. Rome built a bigger one up north.' },
+  { id: 'landmark.galilee-shore', name: 'Shore of Galilee', x: 113, z: -8, r: 10,
+    blurb: 'The lake stretches out, calm and wide. The water almost looks walkable.' },
 ];
+
+/** Shallow-water strip of the Sea of Galilee opened for this release (walk-on-water practice). */
+export const LAKE_OPEN_MAX_X = 172;
+export const WATER_LEVEL = 0;
+
+export function lakeDistance(x, z) {
+  return Math.hypot((x - LAKE.x) / LAKE.rx, (z - LAKE.z) / LAKE.rz);
+}
+
+/** Is a point inside the explorable area (valley circle + the near part of the lake)? */
+export function inPlayArea(x, z) {
+  if (Math.hypot(x, z) <= PLAY_RADIUS) return true;
+  return x > 90 && x < LAKE_OPEN_MAX_X && lakeDistance(x, z) < 1.04;
+}
+
+/** Water depth at a point (0 on dry land). */
+export function waterDepth(x, z) {
+  if (lakeDistance(x, z) > 1.15) return 0;
+  return Math.max(0, WATER_LEVEL - terrainHeight(x, z));
+}
 
 /** Interactable signs / objects that answer the E key in this release. */
 export const INTERACTABLES = [

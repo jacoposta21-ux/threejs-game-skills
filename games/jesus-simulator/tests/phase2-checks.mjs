@@ -14,7 +14,7 @@ export async function phase2Checks({ page, check, diag, waitFrames, hold, out })
   const after = await setup(() => window.__JESUS_SIM__.session.npcs.npcs.map((n) => [n.pos.x, n.pos.z]));
   const moving = after.filter((p, i) => Math.hypot(p[0] - before[i][0], p[1] - before[i][1]) > 2).length;
   d = await diag();
-  check('NPCs spawn and follow routines', d.npcs.count >= 20 && moving >= 8 && d.npcs.nav.unreachable === 0,
+  check('NPCs spawn and follow routines', d.npcs.count >= 20 && moving >= 8 && d.npcs.homesReachable,
     `count=${d.npcs.count} moved>2m=${moving} states=${JSON.stringify(d.npcs.states)} nav=${JSON.stringify(d.npcs.nav)}`);
 
   // 2. talk to Eli the baker with E, answer with 1, leave with Esc
@@ -71,7 +71,13 @@ export async function phase2Checks({ page, check, diag, waitFrames, hold, out })
     });
   });
   await waitFrames(3);
-  await hold('KeyW', 50);
+  await page.keyboard.down('KeyW');
+  for (let i = 0; i < 80; i += 1) {
+    await waitFrames(3);
+    if (await setup(() => window.__contacts > 20 || window.__minGap < 0.75)) break;
+  }
+  await waitFrames(15);
+  await page.keyboard.up('KeyW');
   const col = await setup(() => ({ contacts: window.__contacts, minGap: window.__minGap, o: window.__JESUS_SIM__.session.npcs.byId.get('npc.villager.1').override?.type }));
   // capsule radii 0.36 + 0.30 (minus controller skin): centres never closer than ~0.6 m
   check('NPC collision blocks the player', col.contacts > 0 && col.minGap > 0.56, `contacts=${col.contacts} min centre gap=${col.minGap.toFixed(2)} reaction=${col.o}`);

@@ -129,6 +129,18 @@ export const DIALOGUES = {
     quest: { text: 'She\'s probably up by the old watchtower on the ridge. Walk close and she\'ll follow — she likes you better than me anyway.', options: [{ label: 'Leave it to me.', end: true }] },
     count: { text: 'Six. Seven with the runaway. Nine when I count after supper.', options: [{ label: 'Ha!', end: true }] },
   },
+  benjamin: {
+    root: {
+      text: (c) => (c.flags['healed.npc.benjamin'] ? 'Yeshua! Look — I can run! Well, jog. Well… walk very fast!' : ['Oh, my knee. Forty years at the olive press and it creaks like a cart.', 'Sit with an old man a moment. My knee won\'t let me stand long.']),
+      options: [
+        { label: 'Let me see that knee.', next: 'knee', if: (c) => !c.flags['healed.npc.benjamin'] },
+        { label: 'How are you feeling?', next: 'fine', if: (c) => !!c.flags['healed.npc.benjamin'] },
+        bye,
+      ],
+    },
+    knee: { text: 'You? You\'re a carpenter, not a physician. …Though they do say you have gifted hands.', options: [{ label: '(Use Healing Touch: select 5, aim, press Q or click)', end: true }] },
+    fine: { text: 'Like a young goat! I\'m telling everyone. EVERYONE.', options: [{ label: 'Go easy on that knee.', end: true }] },
+  },
   child: {
     root: {
       text: ['Yeshua! Yeshua! Do a miracle!', 'Can you jump onto the roof? Sami says you can\'t.', 'We\'re playing tag. You\'re IT!'],

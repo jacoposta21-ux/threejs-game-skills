@@ -96,6 +96,17 @@ export const NAMED = [
       evening: [{ go: 'point:-56,-4', act: 'idle', dur: [20, 30], carry: 'staff' }],
     },
   },
+  {
+    id: 'npc.benjamin', name: 'Benjamin', role: 'Bad knee since forever', voice: 0.78, dialogue: 'benjamin', injured: 'chronic',
+    look: { variant: 'elder', skin: SKIN[3], hair: '#cfc9bf', beard: '#dcd6cc', tunic: '#9c8a6a', tunicShade: '#7f6e52', headwear: { type: 'wrap', color: '#d9c7a2' }, carry: ['staff'] },
+    routine: {
+      day: [
+        { go: 'spot:synagogueSteps', act: 'idle', dur: [20, 30], carry: 'staff' },
+        { go: 'bench:6', act: 'sit', dur: [24, 34] },
+      ],
+      evening: [{ go: 'bench:6', act: 'sit', dur: [30, 40] }],
+    },
+  },
   { id: 'npc.sami', name: 'Sami', role: 'Village kid', voice: 1.7, dialogue: 'child', kid: 'tag', look: { variant: 'child', skin: SKIN[2], hair: HAIR[0], tunic: '#e0a12c', tunicShade: '#c98a1b', scale: 0.66 } },
   { id: 'npc.leah', name: 'Leah', role: 'Village kid', voice: 1.85, dialogue: 'child', kid: 'tag', look: { variant: 'child', skin: SKIN[3], hair: HAIR[2], hairStyle: 'long', tunic: '#c4567a', tunicShade: '#a8466a', scale: 0.62 } },
   {

@@ -108,13 +108,15 @@ export class AudioManager {
   }
 
   env(gainNode, t, attack, peak, decay) {
+    // exponential ramps reject 0: distant/silent sounds get a floor instead of throwing
+    peak = Math.max(0.0002, Number.isFinite(peak) ? peak : 0.0002);
     gainNode.gain.setValueAtTime(0.0001, t);
     gainNode.gain.exponentialRampToValueAtTime(peak, t + attack);
     gainNode.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
   }
 
   noiseBurst({ freq = 800, q = 1, gain = 0.3, decay = 0.12, type = 'bandpass', rate = 1, out }) {
-    if (!this.ctx) return;
+    if (!this.ctx || !(gain > 0.0005)) return;
     const c = this.ctx;
     const t = c.currentTime;
     const src = c.createBufferSource();
@@ -131,7 +133,7 @@ export class AudioManager {
   }
 
   tone({ freq, type = 'sine', gain = 0.2, attack = 0.01, decay = 0.4, when = 0, slideTo, out }) {
-    if (!this.ctx) return;
+    if (!this.ctx || !(gain > 0.0005)) return;
     const c = this.ctx;
     const t = c.currentTime + when;
     const o = c.createOscillator();
@@ -244,6 +246,75 @@ export class AudioManager {
     lfo.start(t);
     o.stop(t + 0.7);
     lfo.stop(t + 0.7);
+  }
+
+  // ---------------------------------------------------------------- miracles
+  push() {
+    if (!this.ctx) return;
+    this.noiseBurst({ freq: 900, q: 0.6, gain: 0.35, decay: 0.35, type: 'bandpass', rate: 0.7 });
+    this.noiseBurst({ freq: 180, q: 0.8, gain: 0.45, decay: 0.3, type: 'lowpass' });
+    this.tone({ freq: 110, slideTo: 55, type: 'sine', gain: 0.25, attack: 0.005, decay: 0.35 });
+    this.tone({ freq: 880, slideTo: 1320, type: 'sine', gain: 0.04, attack: 0.02, decay: 0.4 });
+  }
+
+  multiply() {
+    const base = 660 + Math.random() * 120;
+    [0, 4, 7].forEach((st, i) => this.tone({ freq: base * 2 ** (st / 12), type: 'triangle', gain: 0.05, attack: 0.004, decay: 0.18, when: i * 0.04 }));
+    this.noiseBurst({ freq: 3000, q: 2, gain: 0.06, decay: 0.05, type: 'bandpass' });
+  }
+
+  wine() {
+    for (let i = 0; i < 5; i += 1) this.tone({ freq: 200 + Math.random() * 120, slideTo: 120, type: 'sine', gain: 0.07, attack: 0.01, decay: 0.12, when: i * 0.11 });
+    [0, 4, 7, 11, 14].forEach((st, i) => this.tone({ freq: 392 * 2 ** (st / 12), type: 'sine', gain: 0.05, attack: 0.05, decay: 1.6, when: 0.4 + i * 0.07 }));
+  }
+
+  waterWalk() {
+    [0, 7, 12, 16].forEach((st) => {
+      this.tone({ freq: 220 * 2 ** (st / 12), type: 'sine', gain: 0.045, attack: 0.6, decay: 2.6 });
+      this.tone({ freq: 220 * 2 ** (st / 12) * 1.003, type: 'triangle', gain: 0.02, attack: 0.8, decay: 2.4 });
+    });
+  }
+
+  splash(gain = 0.5) {
+    this.noiseBurst({ freq: 1400, q: 0.7, gain: 0.25 * gain, decay: 0.25, type: 'bandpass', rate: 1.2 });
+    this.noiseBurst({ freq: 400, q: 0.9, gain: 0.2 * gain, decay: 0.2, type: 'lowpass' });
+  }
+
+  heal(healed) {
+    const notes = healed ? [0, 4, 7, 12, 16, 19] : [0, 7];
+    notes.forEach((st, i) => {
+      this.tone({ freq: 523.25 * 2 ** (st / 12), type: 'sine', gain: 0.06, attack: 0.01, decay: 1.8, when: i * 0.08 });
+      this.tone({ freq: 523.25 * 2 ** (st / 12) * 2.76, type: 'sine', gain: 0.012, attack: 0.01, decay: 0.9, when: i * 0.08 });
+    });
+  }
+
+  levitate(on) {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    if (on && !this.liftOsc) {
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(180, c.currentTime);
+      o.frequency.exponentialRampToValueAtTime(420, c.currentTime + 1.2);
+      g.gain.setValueAtTime(0.0001, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.05, c.currentTime + 0.4);
+      const lfo = c.createOscillator();
+      const lg = c.createGain();
+      lfo.frequency.value = 6;
+      lg.gain.value = 8;
+      lfo.connect(lg).connect(o.frequency);
+      o.connect(g).connect(this.sfx);
+      o.start();
+      lfo.start();
+      this.liftOsc = { o, g, lfo };
+    } else if (!on && this.liftOsc) {
+      const { o, g, lfo } = this.liftOsc;
+      g.gain.setTargetAtTime(0.0001, c.currentTime, 0.12);
+      o.stop(c.currentTime + 0.6);
+      lfo.stop(c.currentTime + 0.6);
+      this.liftOsc = null;
+    }
   }
 
   cricket() {

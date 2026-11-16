@@ -126,14 +126,15 @@ export class UI {
   openHowTo() {
     const k = (key, text) => `<div><kbd>${key}</kbd>${text}</div>`;
     this.openSheet('How to Play', `
-      <p>You are Jesus of Nazareth, back home and ready to explore. Wander the village, meet its landmarks and get to know every rooftop. Miracles, villagers, Romans and donkeys are on their way in future chapters.</p>
+      <p>You are Jesus of Nazareth, back home and ready to explore. Meet the villagers, discover the landmarks and the gifts hidden among them, then try them out — gently or not. Romans and donkeys are on their way in future chapters.</p>
       <div class="howto-grid">
         ${k('W A S D', 'Move')}${k('Mouse', 'Rotate camera')}${k('Shift', 'Sprint')}${k('Space', 'Jump')}
-        ${k('E', 'Interact')}${k('Wheel', 'Camera distance')}${k('RMB', 'Shoulder aim view')}${k('LMB', 'Use miracle')}
+        ${k('E', 'Talk / interact')}${k('Wheel', 'Camera distance')}${k('RMB', 'Shoulder aim view')}${k('LMB / Q', 'Use miracle (hold to keep lifting)')}
         ${k('1 – 6', 'Select miracle')}${k('F', 'Enter / exit vehicle')}${k('Tab', 'Open map')}${k('Esc', 'Pause menu')}
         ${k('← →', 'Turn camera (keys)')}
       </div>
-      <p class="note"><b>Chapter I:</b> discover all seven landmarks of Nazareth. Gold pins on the minimap point to places you have not visited yet. Climb the outdoor stairs to reach the rooftops.</p>`);
+      <p class="note"><b>Miracles:</b> each gift is revealed at a special place — the workshop, the market, the well, the synagogue, the highest rooftop and the shore of Galilee. Select one with 1–6, aim with the crosshair and click (or press Q).</p>
+      <p class="note"><b>Chapter I:</b> discover all eight landmarks of Nazareth and its shore. Gold pins on the minimap point to places you have not visited yet. Climb the outdoor stairs to reach the rooftops.</p>`);
   }
 
   // ---------------------------------------------------------------- HUD
@@ -162,6 +163,23 @@ export class UI {
     const m = MIRACLES[index];
     const ready = unlocked.includes(m.id);
     $('miracle-label').innerHTML = `${m.name} <em>· ${ready ? 'Ready' : 'Not yet revealed'}</em>`;
+  }
+
+  /** Per-frame hotbar: selection, locks, cooldown sweeps and the target/status line. */
+  setMiracleHud({ index, unlocked, cooldown, label }) {
+    this.slots.forEach((el, i) => {
+      const isSel = i === index;
+      if (el.classList.contains('selected') !== isSel) el.classList.toggle('selected', isSel);
+      const locked = !unlocked.includes(MIRACLES[i].id);
+      if (el.classList.contains('locked') !== locked) el.classList.toggle('locked', locked);
+      const p = Math.max(0, Math.min(1, cooldown[i] || 0));
+      const v = `${Math.round(p * 100)}%`;
+      if (el._cd !== v) { el._cd = v; el.querySelector('.cd').style.setProperty('--p', v); }
+    });
+    const m = MIRACLES[index];
+    const ready = unlocked.includes(m.id);
+    const text = ready ? `${m.name} <em>· ${label ?? ''}</em>` : `${m.name} <em>· Not yet revealed</em>`;
+    if (this._mlabel !== text) { this._mlabel = text; $('miracle-label').innerHTML = text; }
   }
 
   setObjective(kicker, title, detailHtml) {
@@ -402,7 +420,7 @@ export class UI {
         const ok = ctx.unlocked.includes(m.id);
         return `<div class="list-item ${ok ? '' : 'locked'}"><div class="ico">${MIRACLE_ICONS[m.id]}</div>
           <div><h4>${m.key}. ${m.name}</h4><p>${m.description}</p></div>
-          <span class="tag ${ok ? '' : 'muted'}">${ok ? 'REVEALED' : 'NOT YET REVEALED'}</span></div>`;
+          <span class="tag ${ok ? '' : 'muted'}">${ok ? 'REVEALED' : `FIND: ${m.revealAt.toUpperCase()}`}</span></div>`;
       }).join('')}</div>`;
     } else if (tab === 'stats') {
       const s = ctx.stats;

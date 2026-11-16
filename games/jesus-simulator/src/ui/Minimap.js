@@ -1,6 +1,6 @@
 import { WORLD_HALF, PLAY_RADIUS, LANDMARKS, REGIONS } from '../world/layout.js';
 
-const EXTENT = 140; // metres from origin covered by the map image
+const EXTENT = 175; // metres from origin covered by the map image (valley + lake shore)
 const BASE = 1024;
 const PX_PER_M = BASE / (EXTENT * 2);
 const toBase = (v) => (v + EXTENT) * PX_PER_M;

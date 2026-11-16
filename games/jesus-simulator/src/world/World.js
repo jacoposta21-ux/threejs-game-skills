@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { StaticBatcher } from './geometry.js';
 import { PropSystem } from './PropSystem.js';
+import { buildShore } from './Shore.js';
+
+const WATER_COLOR = new THREE.Color('#3f8fa6');
+const WINE_COLOR = new THREE.Color('#6b0f2e');
+const WINE_GLOW = new THREE.Color('#ff3070');
 import { getMaterials, PALETTE } from './materials.js';
 import { paintSplat, buildTerrain, buildLake } from './terrain.js';
 import { createSky, createClouds } from './Sky.js';
@@ -68,6 +73,16 @@ export class World {
     // anchors for NPC routines (doors, stalls, benches, named spots)
     this.anchors = { doors: village.doors, stalls: village.stalls, benches: village.benches, spots: village.spots };
     this.root.add(createSignBoard(['JOSEPH & SON', 'CARPENTRY'], village.workshop.sign));
+
+    yield 'Raising the Galilee shore';
+    const shoreBatch = new StaticBatcher();
+    const shore = buildShore(shoreBatch);
+    this.root.add(shoreBatch.build(materials, { name: 'shore' }));
+    this.physics.addStaticColliders(shore.colliders);
+    this.boat = shore.boat;
+    this.root.add(shore.boat);
+    this.shore = shore;
+    this.buildWaterTargets(village.spots);
 
     yield 'Planting olive trees';
     this.buildScatter(village.houses);
@@ -146,6 +161,33 @@ export class World {
     this.staticColliderCount += colliders.length;
   }
 
+  /** Water surfaces that miracles can act on (independent materials). */
+  buildWaterTargets(spots) {
+    const mk = (geo, x, y, z, id, name, radius) => {
+      const mat = new THREE.MeshStandardMaterial({ color: '#3f8fa6', roughness: 0.12, metalness: 0.05, emissive: '#000000' });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      mesh.receiveShadow = true;
+      this.root.add(mesh);
+      return { id, name, mesh, x, y, z, radius, wine: 0, target: 0, wineUntil: 0 };
+    };
+    const w = spots.wellWater;
+    const t = spots.troughWater;
+    this.waterTargets = [
+      mk(new THREE.CircleGeometry(w.r, 20).rotateX(-Math.PI / 2), w.x, w.y, w.z, 'water.well', 'The Town Well', 1.6),
+      mk(new THREE.BoxGeometry(t.w, 0.04, t.d), t.x, t.y, t.z, 'water.trough', 'Stone trough', 1.3),
+    ];
+    // walk-on-water surface: a thin fixed collider over the open lake strip, off until the miracle
+    const R = this.physics.RAPIER;
+    const body = this.physics.world.createRigidBody(R.RigidBodyDesc.fixed());
+    this.lakeCollider = this.physics.world.createCollider(R.ColliderDesc.cuboid(36, 0.1, 85).setTranslation(138, -0.08, LAKE.z).setFriction(0.9), body);
+    this.lakeCollider.setEnabled(false);
+  }
+
+  setWaterWalkable(on) {
+    this.lakeCollider.setEnabled(on);
+  }
+
   get props() {
     return this.propSystem.props;
   }
@@ -164,6 +206,16 @@ export class World {
 
   update(dt, elapsed, cameraPosition, far) {
     if (this.uniforms.lake) this.uniforms.lake.uTime.value = elapsed;
+    if (this.boat) {
+      this.boat.position.y = Math.sin(elapsed * 1.1) * 0.06;
+      this.boat.rotation.z = Math.sin(elapsed * 0.8) * 0.03;
+    }
+    // water <-> wine colour blend
+    for (const w of this.waterTargets || []) {
+      w.wine += (w.target - w.wine) * Math.min(1, dt * 1.6);
+      w.mesh.material.color.copy(WATER_COLOR).lerp(WINE_COLOR, w.wine);
+      w.mesh.material.emissive.copy(WINE_GLOW).multiplyScalar(w.wine * 0.25);
+    }
     this.sky.mesh.position.copy(cameraPosition);
     this.sky.mesh.scale.setScalar(far * 0.92);
     this.clouds.position.x = ((elapsed * 1.2) % 160) - 80;
