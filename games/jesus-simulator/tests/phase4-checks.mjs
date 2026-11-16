@@ -221,6 +221,7 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
   // 10. seized, then break free with Divine Push
   await calm();
   await setup(() => { const S = window.__JESUS_SIM__.session; S.player.teleport(0, 0, 12, Math.PI); S.cam.snap(S.playerState.position, 0); S.romans.markSeen(S.playerState.position); S.romans.grab = 0; });
+  await select(1);
   await placeSoldier('roman.brutus', 0, 11, 0, 'pursue');
   let grabbed = 0;
   let meterShown = false;
@@ -229,10 +230,10 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
     grabbed = (await diag()).romans.grab;
     meterShown = meterShown || (await page.getAttribute('#grab-meter', 'hidden')) === null;
   }
-  await page.screenshot({ path: `${out}/roman-grab.png` });
-  await select(1);
+  // push at once (a screenshot here costs enough frames for the meter to fill up)
   await castQ();
-  await waitFrames(12);
+  await page.screenshot({ path: `${out}/roman-grab.png` });
+  await waitFrames(10);
   d = await diag();
   check('seized: a Divine Push breaks free', grabbed >= 0.3 && meterShown && d.screen === 'playing' && d.romans.grab < grabbed && d.romans.ragdolls >= 1,
     `grab peaked ${grabbed.toFixed(2)}, after push ${d.romans.grab}, ragdolls=${d.romans.ragdolls}, meter=${meterShown}`);
