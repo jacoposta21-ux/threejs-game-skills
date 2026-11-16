@@ -1,0 +1,69 @@
+{
+  "url": "http://127.0.0.1:4188/",
+  "results": [
+    {
+      "name": "walk forward moves player",
+      "ok": true,
+      "detail": "moved=14.73m grounded=true"
+    },
+    {
+      "name": "landmark discovery triggers",
+      "ok": true,
+      "detail": "[\"landmark.workshop\"]"
+    },
+    {
+      "name": "wall blocks movement",
+      "ok": true,
+      "detail": "player local z=5.40 (wall at 5)"
+    },
+    {
+      "name": "climb stairs to rooftop",
+      "ok": true,
+      "detail": "landing y=8.79 roof y=8.79 local x=0.05"
+    },
+    {
+      "name": "rooftop lookout discovered",
+      "ok": true,
+      "detail": "[\"landmark.workshop\",\"landmark.lookout\"]"
+    },
+    {
+      "name": "jump leaves ground and lands",
+      "ok": true,
+      "detail": "airborne y=9.73 landed y=3.14 jumps=1"
+    },
+    {
+      "name": "interaction prompt + dialog",
+      "ok": true,
+      "detail": "Cool, clear water. Strangely, you feel it could become somet"
+    },
+    {
+      "name": "sprint faster than walk",
+      "ok": true,
+      "detail": "walk=4.60 sprint=8.20"
+    },
+    {
+      "name": "TAB map opens and closes",
+      "ok": true
+    },
+    {
+      "name": "ESC opens pause menu",
+      "ok": true
+    },
+    {
+      "name": "save & continue restores progress",
+      "ok": true,
+      "detail": "landmarks 3 -> 3"
+    },
+    {
+      "name": "corrupt save -> fresh start, no crash",
+      "ok": true,
+      "detail": "label=PLAY"
+    },
+    {
+      "name": "no console/page errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": []
+}

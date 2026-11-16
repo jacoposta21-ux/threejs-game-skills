@@ -1,0 +1,25 @@
+{
+  "name": "jesus-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs",
+    "test:play": "node tests/playtest.mjs http://127.0.0.1:4188/ artifacts/playtest",
+    "test:motion": "node tests/motion.mjs http://127.0.0.1:4188/ artifacts/motion",
+    "verify:visual": "node scripts/inspect-threejs-canvas.mjs --manifest artifacts/evidence.json --url http://127.0.0.1:4188/ --seed 42"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "pngjs": "^7.0.0",
+    "vite": "^8.3.8"
+  },
+  "description": "Jesus Simulator \u2014 a humorous Roblox-inspired open-world sandbox in first-century Galilee (Three.js + Rapier)."
+}

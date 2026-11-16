@@ -1,0 +1,149 @@
+import { LANDMARKS, PLAY_RADIUS } from '../world/layout.js';
+
+const SAVE_KEY = 'jesus-simulator.save.v1';
+const SETTINGS_KEY = 'jesus-simulator.settings.v1';
+const CORRUPT_KEY = 'jesus-simulator.save.corrupt';
+
+export const DEFAULT_SETTINGS = Object.freeze({
+  musicVolume: 0.5,
+  sfxVolume: 0.8,
+  sensitivity: 1,
+  invertY: false,
+  quality: 'high',
+  showFps: false,
+});
+
+const QUALITIES = ['low', 'medium', 'high'];
+const num = (v, min, max, fallback) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback);
+
+function storage() {
+  try {
+    const s = window.localStorage;
+    const probe = '__js_probe__';
+    s.setItem(probe, '1');
+    s.removeItem(probe);
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+/** LocalStorage persistence with validation. Never saves transient physics objects. */
+export class SaveManager {
+  constructor() {
+    this.store = storage();
+    this.lastError = null;
+  }
+
+  get available() {
+    return !!this.store;
+  }
+
+  loadSettings() {
+    const raw = this.readJson(SETTINGS_KEY);
+    const s = raw && typeof raw === 'object' ? raw : {};
+    return {
+      musicVolume: num(s.musicVolume, 0, 1, DEFAULT_SETTINGS.musicVolume),
+      sfxVolume: num(s.sfxVolume, 0, 1, DEFAULT_SETTINGS.sfxVolume),
+      sensitivity: num(s.sensitivity, 0.2, 3, DEFAULT_SETTINGS.sensitivity),
+      invertY: typeof s.invertY === 'boolean' ? s.invertY : DEFAULT_SETTINGS.invertY,
+      quality: QUALITIES.includes(s.quality) ? s.quality : DEFAULT_SETTINGS.quality,
+      showFps: typeof s.showFps === 'boolean' ? s.showFps : DEFAULT_SETTINGS.showFps,
+    };
+  }
+
+  saveSettings(settings) {
+    this.writeJson(SETTINGS_KEY, settings);
+  }
+
+  hasSave() {
+    return !!this.loadGame().data;
+  }
+
+  /** @returns {{data: object|null, corrupted: boolean}} */
+  loadGame() {
+    if (!this.store) return { data: null, corrupted: false };
+    const text = this.store.getItem(SAVE_KEY);
+    if (!text) return { data: null, corrupted: false };
+    let raw;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      this.quarantine(text);
+      return { data: null, corrupted: true };
+    }
+    const data = validateSave(raw);
+    if (!data) {
+      this.quarantine(text);
+      return { data: null, corrupted: true };
+    }
+    return { data, corrupted: false };
+  }
+
+  saveGame(snapshot) {
+    return this.writeJson(SAVE_KEY, { version: 1, savedAt: Date.now(), ...snapshot });
+  }
+
+  deleteGame() {
+    this.store?.removeItem(SAVE_KEY);
+  }
+
+  quarantine(text) {
+    try {
+      this.store.setItem(CORRUPT_KEY, text);
+      this.store.removeItem(SAVE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  readJson(key) {
+    if (!this.store) return null;
+    try {
+      return JSON.parse(this.store.getItem(key) || 'null');
+    } catch {
+      return null;
+    }
+  }
+
+  writeJson(key, value) {
+    if (!this.store) return false;
+    try {
+      this.store.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (error) {
+      this.lastError = error;
+      return false;
+    }
+  }
+}
+
+const LANDMARK_IDS = new Set(LANDMARKS.map((l) => l.id));
+
+export function validateSave(raw) {
+  if (!raw || typeof raw !== 'object' || raw.version !== 1) return null;
+  const p = raw.player;
+  if (!p || typeof p !== 'object') return null;
+  const x = num(p.x, -PLAY_RADIUS, PLAY_RADIUS, NaN);
+  const y = num(p.y, -5, 80, NaN);
+  const z = num(p.z, -PLAY_RADIUS, PLAY_RADIUS, NaN);
+  if (![x, y, z].every(Number.isFinite)) return null;
+  const stats = raw.stats && typeof raw.stats === 'object' ? raw.stats : {};
+  return {
+    version: 1,
+    player: { x, y, z, yaw: num(p.yaw, -10, 10, 0) },
+    discovered: Array.isArray(raw.discovered) ? raw.discovered.filter((id) => LANDMARK_IDS.has(id)) : [],
+    unlockedMiracles: Array.isArray(raw.unlockedMiracles) ? raw.unlockedMiracles.filter((id) => typeof id === 'string') : [],
+    missions: raw.missions && typeof raw.missions === 'object' ? raw.missions : {},
+    faith: num(raw.faith, 0, 1e6, 0),
+    chaos: num(raw.chaos, 0, 1e6, 0),
+    stats: {
+      distance: num(stats.distance, 0, 1e9, 0),
+      jumps: num(stats.jumps, 0, 1e9, 0),
+      playTime: num(stats.playTime, 0, 1e9, 0),
+      propsDisturbed: num(stats.propsDisturbed, 0, 1e9, 0),
+      conversations: num(stats.conversations, 0, 1e9, 0),
+    },
+    savedAt: num(raw.savedAt, 0, 1e15, 0),
+  };
+}

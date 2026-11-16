@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#2a1d12" />
+    <meta name="description" content="Jesus Simulator — a humorous, blocky open-world sandbox set in first-century Galilee." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f2c14e'/%3E%3Cpath d='M14 5h4v7h7v4h-7v11h-4V16H7v-4h7z' fill='%237a3b1d'/%3E%3C/svg%3E" />
+    <title>Jesus Simulator</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="game-canvas" aria-label="Jesus Simulator game view" tabindex="0"></canvas>
+
+      <section id="loading" class="screen">
+        <div class="loading-card">
+          <div class="cross-mark" aria-hidden="true">✝</div>
+          <h1 class="title small">JESUS SIMULATOR</h1>
+          <div class="progress"><div id="loading-bar"></div></div>
+          <p id="loading-text">Preparing Galilee…</p>
+        </div>
+      </section>
+
+      <section id="menu" class="screen" hidden>
+        <div class="menu-panel">
+          <div class="cross-mark" aria-hidden="true">✝</div>
+          <h1 class="title">JESUS<br />SIMULATOR</h1>
+          <p class="subtitle">THE HOLY OPEN WORLD EXPERIENCE</p>
+          <nav class="menu-buttons">
+            <button id="btn-play" class="btn btn-primary" type="button">PLAY</button>
+            <button id="btn-new" class="btn btn-link" type="button" hidden>Start a new game</button>
+            <button id="btn-multiplayer" class="btn btn-disabled" type="button" disabled aria-disabled="true">
+              MULTIPLAYER <span class="badge">COMING SOON</span>
+            </button>
+            <button id="btn-settings" class="btn" type="button">SETTINGS</button>
+            <button id="btn-howto" class="btn" type="button">HOW TO PLAY</button>
+          </nav>
+          <p class="menu-footer">Chapter I · Nazareth &nbsp;·&nbsp; v0.1 single-player</p>
+        </div>
+      </section>
+
+      <section id="hud" hidden>
+        <div class="hud-objective" id="hud-objective">
+          <div class="obj-kicker" id="obj-kicker">CURRENT MISSION</div>
+          <div class="obj-title" id="obj-title">Discover Nazareth</div>
+          <div class="obj-detail" id="obj-detail"></div>
+        </div>
+        <div class="hud-topright">
+          <div class="attention" id="attention" title="Roman Attention">
+            <span class="attention-label">ROMAN ATTENTION</span>
+            <span class="stars" id="stars"></span>
+          </div>
+          <div class="minimap-wrap">
+            <canvas id="minimap" width="200" height="200"></canvas>
+            <span class="minimap-n">N</span>
+          </div>
+          <div class="region-label" id="region-label">Nazareth</div>
+        </div>
+        <div class="hud-followers" id="hud-followers" title="Followers">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="9" r="2.6"/><path d="M3 19c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><path d="M14 19c.2-2.2 1.2-4 3-4.6 2.4.2 4 2.2 4 4.6z"/></svg>
+          <span id="follower-count">0</span>
+        </div>
+        <div class="hud-prompt" id="prompt" hidden><kbd>E</kbd><span id="prompt-text"></span></div>
+        <div class="hud-dialog" id="dialog" hidden>
+          <div class="dialog-name" id="dialog-name"></div>
+          <div class="dialog-text" id="dialog-text"></div>
+        </div>
+        <div class="hud-bottom">
+          <div class="miracle-label" id="miracle-label"></div>
+          <div class="hotbar" id="hotbar"></div>
+        </div>
+        <div class="toasts" id="toasts" aria-live="polite"></div>
+        <div class="banner" id="banner" hidden>
+          <div class="banner-kicker" id="banner-kicker">LANDMARK DISCOVERED</div>
+          <div class="banner-title" id="banner-title"></div>
+          <div class="banner-sub" id="banner-sub"></div>
+        </div>
+        <div class="crosshair" id="crosshair" hidden></div>
+        <div class="fps" id="fps" hidden></div>
+        <div class="lock-hint" id="lock-hint" hidden>Click to look around</div>
+      </section>
+
+      <section id="worldmap" class="screen overlay" hidden>
+        <div class="map-card">
+          <header><h2>Map of the Nazareth Valley</h2><span class="hint"><kbd>TAB</kbd> close</span></header>
+          <canvas id="worldmap-canvas" width="900" height="900"></canvas>
+        </div>
+      </section>
+
+      <section id="pause" class="screen overlay" hidden>
+        <div class="pause-card">
+          <aside class="pause-nav">
+            <h2>PAUSED</h2>
+            <button class="tab btn" data-tab="resume" type="button">Resume</button>
+            <button class="tab btn" data-tab="map" type="button">Map</button>
+            <button class="tab btn" data-tab="missions" type="button">Missions</button>
+            <button class="tab btn" data-tab="miracles" type="button">Miracles</button>
+            <button class="tab btn" data-tab="stats" type="button">Statistics</button>
+            <button class="tab btn" data-tab="settings" type="button">Settings</button>
+            <button class="tab btn btn-quit" data-tab="quit" type="button">Save &amp; Quit</button>
+          </aside>
+          <div class="pause-body" id="pause-body"></div>
+        </div>
+      </section>
+
+      <section id="sheet" class="screen overlay" hidden>
+        <div class="sheet-card">
+          <header><h2 id="sheet-title"></h2><button class="btn btn-close" id="sheet-close" type="button" aria-label="Close">✕</button></header>
+          <div id="sheet-body"></div>
+        </div>
+      </section>
+
+      <section id="error" class="screen overlay" hidden>
+        <div class="sheet-card">
+          <h2>Something went wrong</h2>
+          <p id="error-text"></p>
+          <button class="btn btn-primary" type="button" onclick="location.reload()">Reload</button>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

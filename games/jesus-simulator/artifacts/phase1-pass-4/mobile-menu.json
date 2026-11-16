@@ -1,0 +1,125 @@
+{
+  "url": "http://127.0.0.1:4188/",
+  "mode": "mobile",
+  "state": "menu",
+  "requestedState": "menu",
+  "appliedState": "menu",
+  "runId": "phase1-pass-4",
+  "seed": 42,
+  "screenshotPath": "artifacts/phase1-pass-4/mobile-menu.png",
+  "gpu": {
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "vendor": "Google Inc. (Google)",
+    "softwareRendered": true
+  },
+  "result": {
+    "ok": true,
+    "reason": "nonblank",
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 664
+    },
+    "drawingBuffer": {
+      "width": 780,
+      "height": 1328
+    },
+    "alphaPixels": 4111,
+    "variance": 254,
+    "colorBuckets": 221,
+    "metrics": {
+      "colorBuckets": 320,
+      "colorEntropyBits": 6.49,
+      "edgeDensity": 0.339,
+      "luminance": {
+        "mean": 154.8,
+        "p5": 56.5,
+        "p95": 239.3,
+        "contrast": 182.9
+      },
+      "dominantColorShare": 0.063,
+      "nonBackgroundShare": 0.937
+    },
+    "renderBudget": {
+      "tier": "mobile",
+      "note": "starting-point budget; adjust per game and document overrides",
+      "rows": [
+        {
+          "metric": "calls",
+          "actual": 23,
+          "limit": 150,
+          "ok": true
+        },
+        {
+          "metric": "triangles",
+          "actual": 333862,
+          "limit": 300000,
+          "ok": false
+        },
+        {
+          "metric": "geometries",
+          "actual": 61,
+          "limit": 200,
+          "ok": true
+        },
+        {
+          "metric": "textures",
+          "actual": 8,
+          "limit": 40,
+          "ok": true
+        }
+      ],
+      "withinBudget": false
+    },
+    "diagnostics": {
+      "frame": 7,
+      "screen": "menu",
+      "quality": "high",
+      "fps": 9.99999985098839,
+      "player": {
+        "position": {
+          "x": -21.5,
+          "y": 1.0170846112981673,
+          "z": 10.5
+        },
+        "speed": 0,
+        "grounded": false,
+        "yaw": 2
+      },
+      "camera": {
+        "yaw": 0,
+        "distance": 6
+      },
+      "discovered": [],
+      "stats": {
+        "distance": 0,
+        "jumps": 0,
+        "playTime": 0,
+        "propsDisturbed": 0,
+        "conversations": 0
+      },
+      "physics": {
+        "bodies": 42,
+        "colliders": 609,
+        "activeBodies": 0
+      },
+      "renderer": {
+        "calls": 23,
+        "triangles": 333862,
+        "geometries": 61,
+        "textures": 8
+      },
+      "canvas": {
+        "clientWidth": 390,
+        "clientHeight": 664,
+        "width": 780,
+        "height": 1328
+      }
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "consoleErrorCount": 0,
+  "pageErrorCount": 0
+}
