@@ -57,6 +57,8 @@ export async function phase2Checks({ page, check, diag, waitFrames, hold, out })
     s.npcs.place(n, 6, 1.2, 14);
     n.override = { type: 'look', t: 30, age: 0 };
     n.lookAt = null;
+    // stand still for the test (polite villagers otherwise sidestep a walking player)
+    n.anchored = { approach: null, seat: null };
     s.player.teleport(6, 0, 18.5, Math.PI);
     s.cam.snap(s.playerState.position, 0);
   });
@@ -84,6 +86,7 @@ export async function phase2Checks({ page, check, diag, waitFrames, hold, out })
   await setup(() => {
     const s = window.__JESUS_SIM__.session;
     const n = s.npcs.byId.get('npc.villager.1');
+    n.anchored = null;
     n.override = null;
     n.bumpCd = 0;
     s.npcs.place(n, 6, 1.2, 14);
