@@ -1,0 +1,25 @@
+// Dev runner: only the phase 4 checks (the full suite is tests/playtest.mjs).
+import { chromium } from '@playwright/test';
+import fs from 'node:fs';
+import { phase4Checks } from './phase4-checks.mjs';
+const url = process.argv[2] || 'http://127.0.0.1:4188/';
+const out = process.argv[3] || 'artifacts/p4-dev';
+fs.mkdirSync(out, { recursive: true });
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const errors = [];
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+page.on('pageerror', (e) => errors.push(e.stack || e.message));
+const results = [];
+const check = (name, ok, detail) => { results.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name} ${detail ?? ''}`); };
+const diag = () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__);
+const waitFrames = async (n) => { const start = (await diag()).frame; await page.waitForFunction((s) => window.__THREE_GAME_DIAGNOSTICS__.frame >= s, start + n, { timeout: 120000 }); };
+const hold = async (key, frames) => { await page.keyboard.down(key); await waitFrames(frames); await page.keyboard.up(key); };
+await page.goto(url);
+await page.waitForSelector('#menu:not([hidden])', { timeout: 120000 });
+await page.evaluate(() => localStorage.clear());
+await page.click('#btn-play');
+await waitFrames(10);
+await phase4Checks({ page, check, diag, waitFrames, hold, out });
+console.log('errors', errors);
+await browser.close();

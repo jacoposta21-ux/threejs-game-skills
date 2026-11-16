@@ -6,7 +6,7 @@ import { createRenderer, resizeRenderer, QUALITY_PRESETS } from '../core/Rendere
 import { createRng, damp } from '../core/rng.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { World } from '../world/World.js';
-import { SPAWN, MARKET, LANDMARKS, terrainHeight, lakeDistance } from '../world/layout.js';
+import { SPAWN, MARKET, LANDMARKS, CHECKPOINT, terrainHeight, lakeDistance, inRestrictedZone } from '../world/layout.js';
 import { PlayerState } from './PlayerState.js';
 import { WorldState } from './WorldState.js';
 import { MIRACLES } from './miracles.js';
@@ -23,6 +23,8 @@ import { DayCycle, DAY_LENGTH, clockLabel } from '../world/DayCycle.js';
 import { MiracleManager } from '../miracles/MiracleManager.js';
 import { Effects } from '../vfx/Effects.js';
 import { MIRACLE_REVEALS } from './miracles.js';
+import { RagdollSystem } from '../physics/Ragdoll.js';
+import { RomanManager } from '../roman/RomanManager.js';
 
 const AUTOSAVE_SECONDS = 30;
 
@@ -78,14 +80,20 @@ export class GameSession {
     }
     ui.setLoading(0.86, 'Waking up the villagers…');
     await new Promise((r) => setTimeout(r, 0));
-    this.npcs = new NPCManager({ scene: this.scene, physics: this.physics, bus: this.bus, rng: this.rng, anchors: this.world.anchors });
+    this.ragdolls = new RagdollSystem(this.physics, this.scene);
+    this.npcs = new NPCManager({ scene: this.scene, physics: this.physics, bus: this.bus, rng: this.rng, anchors: this.world.anchors, ragdolls: this.ragdolls });
     this.npcs.build();
+    ui.setLoading(0.9, 'Posting the Roman garrison…');
+    await new Promise((r) => setTimeout(r, 0));
+    this.romans = new RomanManager({ scene: this.scene, physics: this.physics, bus: this.bus, rng: this.rng, npcs: this.npcs, anchors: this.world.anchors, ragdolls: this.ragdolls });
+    this.romans.build();
     ui.setLoading(0.94, 'Dressing Jesus in his finest tunic…');
 
     this.createLights();
     this.dayCycle = new DayCycle({ sun: this.sunLight, hemi: this.hemi, sky: this.world.sky, fog: this.scene.fog, clouds: this.world.clouds, scene: this.scene });
     this.dialogue = new DialogueController({ bus: this.bus, ui: this.ui, rng: this.rng, getContext: () => this.dialogueContext() });
     this.playerState = new PlayerState();
+    this.romans.state = this.playerState;
     this.worldState = new WorldState(this.bus);
     // the sign interactable follows the generated workshop sign
     const sign = this.worldState.interactables.find((it) => it.id === 'sign.workshop');
@@ -99,7 +107,7 @@ export class GameSession {
     this.cam = new ThirdPersonCamera(this.camera);
     this.effects = new Effects(this.scene);
     this.miracles = new MiracleManager({
-      bus: this.bus, effects: this.effects, audio: this.audio, npcs: this.npcs, props: this.world.propSystem, world: this.world,
+      bus: this.bus, effects: this.effects, audio: this.audio, npcs: this.npcs, romans: this.romans, props: this.world.propSystem, world: this.world,
       player: this.player, state: this.playerState, model: this.model, camera: this.camera, rng: this.rng,
     });
 
@@ -261,7 +269,7 @@ export class GameSession {
       if (event) bus.emit(event, { npcId });
     });
     bus.on('dialogue:end', ({ npc }) => {
-      this.npcs.endTalk(npc);
+      (npc.owner || this.npcs).endTalk(npc);
       this.input.releaseAll();
     });
     bus.on('ui:dialogue-choice', ({ index }) => this.dialogue.choose(index));
@@ -300,6 +308,39 @@ export class GameSession {
       this.playerState.stats.miracles = (this.playerState.stats.miracles || 0) + 1;
       if (miracleId === 'miracle.multiplication' && crowd > 25) this.ui.toast('The street is filling up with bread…', 'crowd', 8);
     });
+
+    // ---- the Roman garrison
+    bus.on('roman:wanted', ({ stars, before, crime }) => {
+      const st = this.playerState;
+      st.stats.maxStars = Math.max(st.stats.maxStars || 0, stars);
+      this.ui.toast(`${crime}! Roman Attention ${'★'.repeat(stars)}`, `wanted-${stars}`, 1);
+      if (before === 0 && !this.flags['hint.wanted']) {
+        this.flags['hint.wanted'] = true;
+        this.ui.toast('The Romans are after you! Break their line of sight and stay hidden until they give up.', 'hint-wanted', 30);
+      }
+      this.audio.thud(0.8);
+    });
+    bus.on('roman:horn', () => this.audio.horn());
+    bus.on('roman:reinforcement', ({ active }) => { if (active === 1) this.ui.toast('Reinforcements are coming from the checkpoint!', 'reinforce', 20); });
+    bus.on('roman:lost', () => {
+      if (this.screen !== 'playing') return;
+      this.playerState.stats.escapes = (this.playerState.stats.escapes || 0) + 1;
+      this.ui.toast('You lost them. The legion goes back to counting goats.', 'lost', 4);
+      this.audio.escaped();
+    });
+    bus.on('roman:forgiven', ({ stars }) => this.ui.toast(stars > 0 ? `The legionary looks the other way. Roman Attention ${'★'.repeat(stars)}` : 'The legionary looks the other way. You are no longer wanted.', 'forgiven', 3));
+    bus.on('roman:warning', () => this.ui.toast('Restricted military area! Leave the compound before the guards act.', 'restricted', 10));
+    bus.on('roman:distracted', ({ count }) => this.ui.toast(count > 1 ? 'The soldiers wander off to "inspect" the wine.' : 'A soldier wanders off to "inspect" the wine.', 'distracted', 6));
+    bus.on('roman:ragdoll', () => {
+      this.playerState.stats.soldiersToppled = (this.playerState.stats.soldiersToppled || 0) + 1;
+      this.audio.clank(1);
+    });
+    bus.on('roman:getup', ({ entityId }) => {
+      const s = this.romans.byId.get(entityId);
+      if (s) this.audio.clank(this.audioGain(s.pos.x, s.pos.z) * 0.6);
+    });
+    bus.on('npc:ragdoll', () => this.audio.thud(1.2));
+    bus.on('roman:arrest', (e) => this.startArrest(e));
 
     document.addEventListener('keydown', (e) => {
       if (e.code !== 'Escape') return;
@@ -377,6 +418,10 @@ export class GameSession {
     this.miracles.reset();
     for (const id of this.worldState.discovered) if (MIRACLE_REVEALS[id]) this.miracles.unlock(MIRACLE_REVEALS[id], false);
     this.npcs.reset({ ...this.flags });
+    this.romans.reset();
+    this.ui.hideArrest();
+    this.arrest = null;
+    this.player.speedScale = 1;
     this.ui.hideMenu();
     this.ui.showHud();
     this.ui.setSelectedMiracle(this.playerState.selectedMiracle, this.playerState.unlockedMiracles);
@@ -504,7 +549,19 @@ export class GameSession {
         chaos: this.playerState.chaos, flags: { ...this.flags, ...this.npcs.flags },
       });
     }
+    // the garrison freezes while paused / arrested (no free ground gained during a pause)
+    if (this.screen === 'playing' || (this.screen === 'menu' && this.npcsInMenu)) {
+      const st = this.playerState;
+      this.camera.getWorldDirection(this.camDir || (this.camDir = new THREE.Vector3()));
+      this.romans.fixedUpdate(dt, {
+        playerPos: st.position, playerVel: st.velocity, playerOnWater: !!st.onWater || st.waterDepth > 0.6,
+        night: (this.night || 0) > 0.5, cameraDir: this.camDir, cameraPos: this.camera.position,
+        playing: this.screen === 'playing', chaos: st.chaos,
+      });
+      this.player.speedScale = this.screen === 'playing' ? 1 - 0.45 * Math.min(1, this.romans.grab * 2) : 1;
+    }
     if (this.screen === 'playing') this.miracles.fixedUpdate(dt, { castHeld: (this.testCastHeld || !!this.intent?.castHeld) && !this.dialogue.active });
+    this.ragdolls.fixedUpdate(dt);
     this.physics.step();
     this.simTime = (this.simTime || 0) + dt;
     this.world.propSystem.simTime = this.simTime;
@@ -534,6 +591,9 @@ export class GameSession {
         this.pending.jump = false;
       } else this.intent = raw;
       this.updatePlaying(dt, alpha, this.intent);
+    } else if (this.screen === 'arrested') {
+      this.intent = null;
+      this.updateArrest(dt, raw);
     } else {
       this.intent = null;
       if (this.screen === 'menu') {
@@ -551,14 +611,17 @@ export class GameSession {
     this.dialogue.tick(dt);
     this.effects.update(animDt);
     this.npcs.update(animDt, alpha, { cameraPos: this.camera.position, playerPos: renderPos });
+    this.romans.update(animDt, alpha, { cameraPos: this.camera.position, playerPos: renderPos, night: (this.night || 0) > 0.5 });
+    this.ragdolls.sync();
     const sky = this.dayCycle.apply(this.screen === 'menu' ? 0.18 : this.clock, this.camera.position, this.camera.far);
     this.sunDir = sky.lightDir;
     this.night = sky.night;
     this.updateSun();
     if (this.screen === 'playing' || this.screen === 'map') {
       const canvas = this.renderer.domElement;
-      this.ui.updateBubbles(this.npcs.bubbles(this.talkTarget), this.camera, canvas.clientWidth, canvas.clientHeight);
+      this.ui.updateBubbles(this.allBubbles(), this.camera, canvas.clientWidth, canvas.clientHeight);
     } else this.ui.updateBubbles([], this.camera, 1, 1);
+    this.audio.setPursuit(this.screen === 'playing' ? this.romans.attention.stars : 0);
     const p = st.position;
     const marketD = Math.hypot(p.x - 0, p.z + 27);
     this.audio.update(dt, { marketProximity: Math.max(0, 1 - marketD / 32), playing: this.screen === 'playing', night: this.night });
@@ -578,13 +641,18 @@ export class GameSession {
 
     // discovery + interaction
     this.worldState.checkDiscovery(st.id, st.position);
-    const talk = this.dialogue.active ? this.dialogue.npc : this.npcs.findTalkTarget(st.position, st.yaw);
+    let talk = this.dialogue.active ? this.dialogue.npc : this.npcs.findTalkTarget(st.position, st.yaw);
+    if (!this.dialogue.active) {
+      const soldier = this.romans.findTalkTarget(st.position, st.yaw);
+      if (soldier && (!talk || Math.hypot(soldier.pos.x - st.position.x, soldier.pos.z - st.position.z) < Math.hypot(talk.pos.x - st.position.x, talk.pos.z - st.position.z))) talk = soldier;
+    }
     this.talkTarget = talk;
+    this.romans.talkTarget = talk?.soldier ? talk : null;
     const it = talk ? null : this.worldState.nearestInteractable(st.position);
     this.ui.setPrompt(this.dialogue.active ? null : talk ? `Talk to ${talk.name}` : it ? it.label : null);
     if (intent.interact && !this.dialogue.active && talk) {
       this.ui.hideDialog();
-      this.npcs.beginTalk(talk);
+      (talk.owner || this.npcs).beginTalk(talk);
       this.met.add(talk.id);
       st.stats.conversations += 1;
       this.dialogue.open(talk);
@@ -652,15 +720,18 @@ export class GameSession {
     if (lakeDistance(st.position.x, st.position.z) < 1.15) region = 'Sea of Galilee';
     else if (Math.hypot(st.position.x - 64, st.position.z - 46) < 22) region = 'Olive Grove';
     else if (Math.hypot(st.position.x + 80, st.position.z + 62) < 24) region = 'Watchtower Ridge';
+    else if (inRestrictedZone(st.position.x, st.position.z)) region = 'Roman Camp (restricted)';
+    else if (Math.hypot(st.position.x - CHECKPOINT.x, st.position.z - CHECKPOINT.z) < 36) region = 'Roman Checkpoint';
     this.ui.setRegion(region);
     this.ui.setClock(clockLabel(this.clock), this.dayCycle.nightWeight(this.clock) > 0.5);
     this.ui.setFollowers(st.followers.length);
-    this.ui.setAttention(st.romanAttention);
+    const att = this.romans.attention;
+    this.ui.setAttention(att.stars, { searching: att.wanted && att.unseen > 0.6, search: att.searchProgress, grab: this.romans.grab });
 
     this.minimapTimer -= dt;
     if (this.minimapTimer <= 0) {
       const next = this.worldState.nextLandmark(st.position);
-      this.minimap.draw(renderPos, st.yaw, this.cam.yaw, this.worldState.discovered, next?.landmark.id, this.time, this.npcs.minimapDots());
+      this.minimap.draw(renderPos, st.yaw, this.cam.yaw, this.worldState.discovered, next?.landmark.id, this.time, [...this.npcs.minimapDots(), ...this.romans.minimapDots((this.night || 0) > 0.5)]);
       this.minimapTimer = 1 / 30;
     }
 
@@ -669,6 +740,75 @@ export class GameSession {
       this.saveGame();
       this.autosaveTimer = AUTOSAVE_SECONDS;
     }
+  }
+
+  allBubbles() {
+    const list = [...this.npcs.bubbles(this.talkTarget), ...this.romans.bubbles()];
+    list.sort((a, b) => a.d - b.d);
+    return list.slice(0, 6);
+  }
+
+  // ---------------------------------------------------------------- arrest
+  startArrest({ stars, peak }) {
+    if (this.screen !== 'playing' || this.arrest) return;
+    if (this.dialogue.active) this.dialogue.close();
+    if (this.miracles.water) this.miracles.endWaterWalk('arrested');
+    if (this.miracles.lift) this.miracles.releaseLift();
+    this.screen = 'arrested';
+    this.input.releaseAll();
+    const st = this.playerState;
+    const level = Math.max(stars || 0, peak || 0, 1);
+    const fine = Math.min(Math.floor(st.faith), 2 + level * 2);
+    this.arrest = { t: 0, fine, level };
+    const lines = [
+      'Jesus spent the night at the Roman checkpoint, explaining very patiently that he is a carpenter.',
+      'The centurion filled in four scrolls of paperwork about "the glowing one" and let him go at dawn.',
+      'Detained for disturbing the peace of Rome. Released for being far too polite to keep.',
+      'The legionaries confiscated nothing, because he owns nothing. Released with a stern warning.',
+    ];
+    this.ui.showArrest({
+      line: lines[(st.stats.arrests || 0) % lines.length],
+      facts: [
+        `Roman Attention at arrest: ${'★'.repeat(level)}`,
+        fine > 0 ? `Fined by the tax collector: −${fine} Faith` : 'Fine waived (you have no Faith to give… yet)',
+        'Released at the Roman checkpoint, a few hours later',
+      ],
+    });
+    this.audio.arrest();
+    this.audio.setPursuit(0);
+    this.bus.emit('player:arrested', { entityId: st.id, stars: level, fine });
+  }
+
+  updateArrest(dt, raw) {
+    const a = this.arrest;
+    if (!a) return;
+    a.t += dt;
+    if (a.t > 1.2 && (raw.interact || raw.jump || a.t > 12)) this.finishArrest();
+  }
+
+  finishArrest() {
+    const a = this.arrest;
+    const st = this.playerState;
+    st.faith = Math.max(0, st.faith - a.fine);
+    st.chaos *= 0.75;
+    st.stats.arrests = (st.stats.arrests || 0) + 1;
+    this.flags['roman.arrested'] = true;
+    this.clock = (this.clock + 3 / 24) % 1;
+    this.romans.resetDuty(true);
+    this.romans.syncState();
+    const r = CHECKPOINT.release;
+    this.player.teleport(r.x, terrainHeight(r.x, r.z), r.z, r.yaw);
+    this.cam.snap(this.playerState.position, r.yaw + Math.PI);
+    this.cam.pitch = 0.28;
+    this.player.speedScale = 1;
+    this.ui.hideArrest();
+    this.arrest = null;
+    this.screen = 'playing';
+    this.input.releaseAll();
+    this.input.requestLock();
+    this.ui.toast('Released at the Roman checkpoint. Nazareth is back down the road to the south.', 'released', 8);
+    this.saveGame();
+    this.bus.emit('player:released', { entityId: st.id });
   }
 
   handleDialogueInput(raw) {
@@ -869,6 +1009,80 @@ export class GameSession {
         this.testCastHeld = true;
         this.castForTest(5, 1.3);
       },
+      'roman-patrol': () => {
+        states['active-play']();
+        this.simulate(2);
+        // the north patrol pair on the square, watching Jesus walk by
+        const pair = [['roman.brutus', 3.2, 4.6], ['roman.sextus', 4.6, 6.2]];
+        const px = -3.6;
+        const pz = 11.5;
+        for (const [id, x, z] of pair) {
+          const s = this.romans.byId.get(id);
+          const yaw = Math.atan2(px - x, pz - z) - 0.25;
+          this.romans.place(s, x, terrainHeight(x, z), z);
+          s.post = { x, z, y: terrainHeight(x, z), yaw };
+          s.yaw = yaw;
+          this.romans.setMode(s, 'duty', { force: true });
+        }
+        this.player.teleport(px, 0, pz, 2.3);
+        const b = this.romans.byId.get('roman.brutus');
+        const look = Math.atan2(b.pos.x + 0.7 - px, b.pos.z + 0.8 - pz);
+        this.cam.snap(this.playerState.position, look + Math.PI + 0.3);
+        this.cam.pitch = 0.16;
+        this.cam.targetDistance = 5;
+        this.cam.currentDistance = 5;
+      },
+      'roman-checkpoint': () => {
+        states['active-play']();
+        this.simulate(1);
+        this.player.teleport(-6.5, 0, -88, Math.PI - 0.4);
+        this.cam.snap(this.playerState.position, -0.55);
+        this.cam.pitch = 0.16;
+        this.cam.targetDistance = 7;
+        this.cam.currentDistance = 7;
+      },
+      'roman-pursuit': () => {
+        states['active-play']();
+        this.unlockAllForTest();
+        this.simulate(1);
+        // three stars on the square: legionaries closing in from the market side
+        this.player.teleport(-1.5, 0, 8.5, Math.PI - 0.3);
+        this.romans.markSeen(this.playerState.position);
+        this.romans.attention.heat = 3.2;
+        this.romans.syncState();
+        const ids = ['roman.brutus', 'roman.sextus', 'roman.flavius', 'roman.quintus'];
+        const spots = [[-9, -4], [-5.5, -7], [5, -6], [8.5, -2]];
+        ids.forEach((id, i) => { const s = this.romans.byId.get(id); this.romans.place(s, spots[i][0], terrainHeight(spots[i][0], spots[i][1]), spots[i][1]); this.romans.setMode(s, 'pursue', { force: true }); });
+        this.simulate(0.7);
+        this.cam.snap(this.playerState.position, 0.25);
+        this.cam.pitch = 0.22;
+        this.cam.targetDistance = 6.5;
+        this.cam.currentDistance = 6.5;
+      },
+      'roman-ragdoll': () => {
+        states['active-play']();
+        this.unlockAllForTest();
+        this.simulate(1);
+        const s = this.romans.byId.get('roman.flavius');
+        this.romans.place(s, 3, terrainHeight(3, 8.6), 8.6);
+        this.romans.setMode(s, 'duty', { force: true });
+        s.yaw = 0;
+        this.player.teleport(3, 0, 11, Math.PI);
+        this.cam.snap(this.playerState.position, 0);
+        this.camera.position.set(3, 3, 15);
+        this.camera.lookAt(3, 1.5, 8);
+        this.castForTest(0, 0.3);
+        this.cam.snap(this.playerState.position, 0.95);
+        this.cam.pitch = 0.16;
+        this.cam.targetDistance = 6;
+        this.cam.currentDistance = 6;
+      },
+      'roman-arrest': () => {
+        states['active-play']();
+        this.playerState.faith = 12;
+        this.romans.attention.heat = 2.4;
+        this.startArrest({ stars: 2, peak: 2 });
+      },
       night: () => {
         states['active-play']();
         this.clock = 0.885;
@@ -911,14 +1125,19 @@ export class GameSession {
           for (let i = 0; i < 60; i += 1) this.model.update(1 / 60, { speed: 0, sprint: false, grounded: st.grounded, vy: 0, aiming: false });
           this.updatePlaying(0, 1, this.input.read());
         }
-        for (let i = 0; i < 30; i += 1) this.npcs.update(1 / 60, 1, { cameraPos: this.camera.position, playerPos: this.playerState.position });
+        for (let i = 0; i < 30; i += 1) {
+          const ctx = { cameraPos: this.camera.position, playerPos: this.playerState.position, night: (this.night || 0) > 0.5 };
+          this.npcs.update(1 / 60, 1, ctx);
+          this.romans.update(1 / 60, 1, ctx);
+        }
+        this.ragdolls.sync();
         const sky = this.dayCycle.apply(this.screen === 'menu' ? 0.18 : this.clock, this.camera.position, this.camera.far);
         this.sunDir = sky.lightDir;
         this.night = sky.night;
         this.updateSun();
         if (this.screen === 'playing' || this.screen === 'map') {
           const c = this.renderer.domElement;
-          this.ui.updateBubbles(this.npcs.bubbles(this.talkTarget), this.camera, c.clientWidth, c.clientHeight);
+          this.ui.updateBubbles(this.allBubbles(), this.camera, c.clientWidth, c.clientHeight);
         }
         this.render();
         this.publishDiagnostics();
@@ -970,7 +1189,10 @@ export class GameSession {
       this.clock = (this.clock + 1 / 60 / DAY_LENGTH) % 1;
     }
     this.intent = wasIntent;
-    this.npcs.update(1 / 60, 1, { cameraPos: this.camera.position, playerPos: this.playerState.position });
+    const ctx = { cameraPos: this.camera.position, playerPos: this.playerState.position, night: (this.night || 0) > 0.5 };
+    this.npcs.update(1 / 60, 1, ctx);
+    this.romans.update(1 / 60, 1, ctx);
+    this.ragdolls.sync();
   }
 
   publishDiagnostics() {
@@ -998,6 +1220,8 @@ export class GameSession {
       talkTarget: this.talkTarget?.id ?? null,
       npcs: this.npcs?.stats(),
       miracles: this.miracles?.stats(),
+      romans: this.romans?.stats(),
+      ragdolls: this.ragdolls?.stats(),
       unlocked: this.playerState?.unlockedMiracles,
       selected: this.playerState?.selectedMiracle,
       effects: this.effects?.stats(),

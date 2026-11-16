@@ -1,5 +1,6 @@
 import './styles.css';
 import { GameSession } from './game/GameSession.js';
+import { terrainHeight } from './world/layout.js';
 
 function fail(message) {
   const loading = document.getElementById('loading');
@@ -23,4 +24,4 @@ session.init().catch((error) => {
 });
 
 // Exposed for future platform SDK wiring (e.g. CrazyGames gameplayStart/Stop) — no SDK is loaded here.
-window.__JESUS_SIM__ = { session };
+window.__JESUS_SIM__ = { session, terrainHeight };

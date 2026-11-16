@@ -15,7 +15,7 @@ const euler = new THREE.Euler();
 const quat = new THREE.Quaternion();
 const v3 = new THREE.Vector3();
 
-class Builder {
+export class Builder {
   constructor(batcher, rng) {
     this.b = batcher;
     this.rng = rng;

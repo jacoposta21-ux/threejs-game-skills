@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { StaticBatcher } from './geometry.js';
 import { PropSystem } from './PropSystem.js';
 import { buildShore } from './Shore.js';
+import { buildCheckpoint } from './RomanCheckpoint.js';
 
 const WATER_COLOR = new THREE.Color('#3f8fa6');
 const WINE_COLOR = new THREE.Color('#6b0f2e');
@@ -14,8 +15,13 @@ import {
   oliveTreeGeometry, cypressGeometry, bushGeometry, rockGeometry, grassTuftGeometry, scatterInstanced,
 } from './vegetation.js';
 import {
-  terrainHeight, roadDistance, LAKE, PLAZA, MARKET, PLAY_RADIUS, WORLD_HALF,
+  terrainHeight, roadDistance, LAKE, PLAZA, MARKET, PLAY_RADIUS, WORLD_HALF, CHECKPOINT,
 } from './layout.js';
+
+const nearCheckpoint = (x, z, pad = 0) => {
+  const p = CHECKPOINT.pad;
+  return x > p.x0 - pad && x < p.x1 + pad && z > p.z0 - pad && z < p.z1 + pad;
+};
 
 const tmp = new THREE.Object3D();
 
@@ -84,6 +90,17 @@ export class World {
     this.shore = shore;
     this.buildWaterTargets(village.spots);
 
+    yield 'Pitching the Roman camp';
+    const campBatch = new StaticBatcher();
+    const camp = buildCheckpoint(campBatch, this.rng);
+    this.root.add(campBatch.build(materials, { name: 'checkpoint' }));
+    this.root.add(camp.extras);
+    this.physics.addStaticColliders(camp.colliders);
+    this.staticColliderCount += camp.colliders.length;
+    this.footprints.push(...camp.footprints);
+    this.checkpoint = camp;
+    this.anchors.romanPosts = camp.posts;
+
     yield 'Planting olive trees';
     this.buildScatter(village.houses);
 
@@ -105,6 +122,7 @@ export class World {
       if (ld < 1.12) continue;
       if (roadDistance(x, z) < clearance) continue;
       if (Math.hypot(x - 64, z - 46) < 22 || Math.hypot(x + 80, z + 62) < 11) continue;
+      if (nearCheckpoint(x, z, 2)) continue;
       if (extraReject && extraReject(x, z)) continue;
       pts.push({ x, z, y: terrainHeight(x, z) });
     }
@@ -219,6 +237,25 @@ export class World {
     this.sky.mesh.position.copy(cameraPosition);
     this.sky.mesh.scale.setScalar(far * 0.92);
     this.clouds.position.x = ((elapsed * 1.2) % 160) - 80;
+    if (this.checkpoint && dt > 0) {
+      const f = this.checkpoint.flame;
+      const k = 1 + Math.sin(elapsed * 17) * 0.12 + Math.sin(elapsed * 29 + 1) * 0.08;
+      f.scale.set(1 + Math.sin(elapsed * 13) * 0.08, k, 1 + Math.cos(elapsed * 11) * 0.08);
+      // banner ripple
+      const b = this.checkpoint.banner;
+      const pos = b.geometry.attributes.position;
+      const base = b.userData.base;
+      if (Math.hypot(cameraPosition.x - b.position.x, cameraPosition.z - b.position.z) < 70) {
+        for (let i = 0; i < pos.count; i += 1) {
+          const x = base[i * 3];
+          const y = base[i * 3 + 1];
+          const w = (0.95 - y) / 1.9;
+          pos.setZ(i, Math.sin(elapsed * 3 + x * 4 + y) * 0.09 * w);
+        }
+        pos.needsUpdate = true;
+        b.geometry.computeVertexNormals();
+      }
+    }
   }
 }
 

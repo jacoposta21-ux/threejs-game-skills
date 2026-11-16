@@ -1,7 +1,7 @@
 # Jesus Simulator — progress log
 
 ## Intent and constraints
-- Complete Jesus Simulator for CrazyGames, built incrementally phase by phase. This pass covers **Phase 1 only**.
+- Complete Jesus Simulator for CrazyGames, built incrementally phase by phase. Phases 1–4 are done; the current pass is Phase 4 (Roman system).
 - JavaScript ES modules (the user asked for JS, overriding the pack's TS default), Three.js, Rapier 3D, Vite, Web Audio, LocalStorage.
 - Single-player only; MULTIPLAYER is a visibly disabled "COMING SOON" button with no networking.
 - Tone: playful and absurd, never deliberately offensive. Roblox-inspired but original art; procedural geometry is acceptable for Phase 1.
@@ -70,9 +70,30 @@ Player **explores** to **discover the 7 landmarks of Nazareth**; the minimap and
   - Well-water spots were registered as nav anchors.
   - An NPC home was unreachable; homes are now reassigned to reachable doors.
 
-## Next actions (Phase 4 — Roman system)
-- **Soldier model:** a Roman soldier built on CharacterKit (helmet, scutum and armour parts) with patrol routes on the NavGraph around a north outpost. Open the north road strip, the same way the lake strip was opened.
-- **Perception:** ray-cast line of sight against static colliders, plus last-known-position tracking.
-- **Roman Attention:** feed from `npc:knocked`, `miracle:cast` (Push and Levitation on soldiers), restricted zones and stolen vehicles (Phase 5). The HUD stars already exist.
-- **Ragdolls:** replace the animated stumble with Rapier multi-body ragdolls for soldiers (the villager stumble can stay).
-- **Capture and respawn:** design to be decided.
+## Phase 4 — Roman system (completed)
+- **Roman checkpoint** (`src/world/RomanCheckpoint.js`): a palisade camp on the north road at (16, -108) on a flattened terrain pad. It has a gate, a lookout tower, tents, a command tent, a campfire with a flickering flame, a waving SPQR standard, a weapon rack, and a road barrier with a guard booth. The compound is a restricted zone (`inRestrictedZone`). It is shown on the minimap and the world map.
+- **Legionary look:** a CharacterKit extension adds a galea helmet with crest, lorica bands, pauldrons, a scutum, a pilum, pteruges and a gladius; the centurion gets a transverse crest, medals and a cape. All of it is merged into the existing part meshes, so a soldier still costs 7 draw calls. New actions: guard, grab, point, salute, drink, search, plus a soldier carry stance.
+- **RagdollSystem** (`src/physics/Ragdoll.js`): 7 dynamic boxes with spherical joints per character. Ragdoll parts use a collision group so they never collide with each other, only with the world, props and characters.
+  - The parts are re-parented to a scene container while simulating, and the hierarchy is restored exactly afterwards.
+  - It detects when a ragdoll has settled, and a stand-up spot finder places the character back on the ground or the nearest nav node.
+  - At most 8 ragdolls run at once. Used for soldiers (any Divine Push hit) and villagers (strong hits).
+- **RomanManager** (`src/roman/`): 8 garrison soldiers (two patrol routes plus a patrol pair, a road guard, a gate guard, a tower lookout and the centurion) and 6 reserves.
+  - **Perception:** a view cone with a head sweep, Rapier line-of-sight rays against fixed non-cylinder colliders, peripheral notice within 3.5 m, and reduced range at night.
+  - **Crimes:** only crimes a soldier witnessed count. Loud crimes nobody saw bring soldiers to investigate, and villagers may call the guard.
+  - **Pursuit:** soldiers lead the target, steer straight when a shape cast is clear and follow A* otherwise. They search around the last known position and stop at the waterline.
+  - **Escalation:** at 2★ the horn sounds and soldiers within 95 m join; reinforcements spawn out of view (2/4/6 at 3/4/5★); the centurion joins at 4★.
+  - **Seizing and arrest:** a grab meter slows the player and can be broken with a push. A full meter means arrest: an ARRESTED card, a Faith fine and release at the checkpoint 3 hours later.
+  - **Miracles on soldiers:** Heal gives −1★ once per hunt and makes the soldier friendly; Wine distracts nearby soldiers for 9 s; Levitate works on soldiers but is a crime.
+  - **Dialogue:** soldier and centurion dialogue trees, and Roman barks.
+- **RomanAttention:** a pure heat model with a crime table, `stars = floor(heat)`, and lose time of 6 s + 3 s per star. It is never saved; arrests, escapes, toppled soldiers and the highest star level are saved.
+- **HUD and audio:**
+  - The attention pill turns red when wanted, the stars flash while searching, and a search bar runs down.
+  - A SEIZED bar, red view cones on the minimap and "!" / "?" alert bubbles.
+  - Procedural cornu horn, armour clank, pursuit drums by star level, an arrest sting and an escape chord.
+- **Tests:** phase 1–3 checks run with the garrison off duty (`romans.setActive(false)`); `tests/phase4-checks.mjs` adds 14 real-input checks; `tests/roman-motion.mjs` produces a chase and ragdoll contact sheet.
+
+## Next actions (Phase 5 — world expansion and vehicles)
+- **Map:** open the countryside (west), the full lake, the Roman outpost region (north, beyond the checkpoint) and the desert (south). Grow PLAY_RADIUS or switch to region gates, and extend the NavGraph and the minimap extent.
+- **Vehicles:** donkey, horse, cart and chariot through a `VehicleManager` with `vehicle:enter` / `vehicle:exit` (F is already bound). Stealing a Roman chariot should be a Roman Attention crime (add it to `CRIMES`).
+- **Animals:** goats, camels, fish and birds; extend `Animals.js`.
+- **Performance:** keep an eye on draw calls (soldiers 7 each) and the shadow budget as the map grows.

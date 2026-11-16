@@ -169,6 +169,44 @@ export const DIALOGUES = {
     },
     why: { text: ['Taxes, my friend. Rome taxes the stall, the cloth, the shade over the cloth.', 'Everyone is saving for the Passover trip to Jerusalem.'], options: [{ label: 'I see.', end: true }] },
   },
+  soldier: {
+    root: {
+      text: (c) => (c.chaos >= 10 ? ['We\'ve heard about you, Galilean. Pots. Bread. Flying people.', 'You again. Keep your hands where I can see them. And your halo.'] : [
+        'Move along, citizen. Nothing to see here.',
+        'Another glorious day in the provinces. Glorious. Hot. Glorious.',
+        'Rome has the finest roads in the world, they said. My feet disagree.',
+        'Halt! …Sorry. Habit. Carry on.',
+      ]),
+      options: [
+        { label: 'What are you guarding?', next: 'guard' },
+        { label: 'What happens if I cause trouble?', next: 'trouble' },
+        { label: 'Peace be with you.', next: 'peace', effect: { faith: 1, flag: 'roman.peace' } },
+        { label: 'Carry on, soldier.', end: true },
+      ],
+    },
+    guard: { text: ['The road. The province. Mostly the road.', 'The checkpoint up north. Nobody goes inside the palisade. Nobody.'], options: [{ label: 'Understood.', end: true }] },
+    trouble: { text: 'You break things where I can see, we chase you. Push a legionary and the whole garrison chases you. Get caught and you spend the night at the checkpoint. Simple.', options: [{ label: 'And if I run?', next: 'run' }, { label: 'Very clear.', end: true }] },
+    run: { text: 'Then don\'t let us see you. Stay out of sight long enough and we\'ll forget your face. We forget a lot of faces. Bad pay.', options: [{ label: 'Good to know.', end: true }] },
+    peace: { text: ['…Peace? Nobody says that to us. Thanks, I suppose.', 'Huh. That\'s nice. Don\'t tell the centurion I said that.'], options: [{ label: '(nod)', end: true }] },
+  },
+  centurion: {
+    root: {
+      text: (c) => (c.flags['roman.arrested'] ? 'YOU. The one we released this morning. I have my eye on you, carpenter.' : [
+        'Centurion Gaius Grumpus, Tenth Legion. State your business. Quickly. I have reports to stamp.',
+        'Another Galilean. Let me guess: you want to complain about taxes.',
+      ]),
+      options: [
+        { label: 'What is this place?', next: 'place' },
+        { label: 'Why are you so grumpy?', next: 'grumpy' },
+        { label: 'Your men look tired.', next: 'tired', effect: { faith: 1, flag: 'roman.kind' } },
+        { label: 'Just passing through.', end: true },
+      ],
+    },
+    place: { text: 'A checkpoint. Inside the palisade is military ground — civilians who wander in get escorted out. Firmly.', options: [{ label: 'I\'ll stay outside.', end: true }] },
+    grumpy: { text: 'Twenty years of service, and they send me to watch goats and fishermen. Grumpy is the polite word.', options: [{ label: 'Perhaps the goats need you.', next: 'goats' }, { label: 'I\'m sorry.', end: true }] },
+    goats: { text: '…Was that a joke? Out. Before I start laughing and lose my reputation.', options: [{ label: '(leave)', end: true }] },
+    tired: { text: 'Tired? They\'re soldiers of Rome! …Yes. Yes they are. Thank you for noticing.', options: [{ label: 'Rest well.', end: true }] },
+  },
   villager: {
     root: {
       text: (c) => (c.night ? 'It\'s late, Yeshua. Shouldn\'t you be home?' : ['Shalom, Yeshua!', 'Isn\'t that Joseph\'s boy? All grown up!', 'Hot day. The well is the only cool place in town.', 'Did you hear? Romans are building another tower north of the valley.']),
@@ -197,5 +235,24 @@ export const BARKS = {
   wisdom: ['Listen, and be wise.', 'Shalom, children.'],
   sheep: ['Come on, come on…', 'One, two, three…'],
   travel: ['Long road…', 'Nazareth at last.'],
+  roman: {
+    idle: ['Move along.', 'Nothing to see here.', 'My feet hurt.', 'Is it lunch yet?', 'Keep the peace.', 'Halt! …Oh, it\'s a goat.', 'Glory to Rome. Mostly.'],
+    greet: ['Citizen.', 'Move along, citizen.', 'Keep your miracles to yourself.', 'Watching you, Galilean.'],
+    suspicious: ['Hmm?', 'You there!', 'What\'s that one up to?', 'Hold on…'],
+    warn: ['Halt! Military area!', 'No civilians past the gate!', 'Out! Now!', 'This is your only warning!'],
+    witness: ['HEY!', 'I saw that!', 'Vandal!', 'That\'s a crime, that is!'],
+    spot: ['HALT!', 'Stop in the name of Caesar!', 'After him!', 'Seize the bearded one!', 'There! The one with the glowing head!', 'STOP! …please?'],
+    chase: ['Halt!', 'Get back here!', 'You can\'t outrun Rome!', 'Cut him off!', 'He\'s fast for a carpenter!'],
+    lost: ['Where did he go?', 'He vanished! Like… a miracle.', 'Search the market!', 'Lost him. Again.', 'Nobody tell the centurion.'],
+    arrest: ['Got you!', 'You\'re coming with me!', 'In the name of Rome!'],
+    flying: ['AAAARGH!', 'MY ARMOUR!', 'I\'m reporting this!', 'Assault on a legionary!', 'Not again!'],
+    getup: ['Ow.', 'Did anyone see that?', 'Right. Now I\'m angry.', 'That was NOT regulation.'],
+    lifted: ['PUT ME DOWN! THAT\'S AN ORDER!', 'This is NOT in the regulations!', 'I\'m telling Pilate!'],
+    healed: ['My back hasn\'t felt this good since Gaul…', 'I… didn\'t see anything. Carry on.', 'Warm hands. Very warm. I\'m off duty.'],
+    wine: ['Is that… WINE?', 'Five minutes! Inspection!', 'For official tasting only.', 'Free wine?! Hold my spear.'],
+    water: ['Is he… walking on the WATER?!', 'Come back here! …How?!', 'Nobody said anything about water!'],
+    bread: ['Unlicensed bread distribution!', 'Who authorised this bread?!'],
+    horn: ['Sound the horn!', 'Reinforcements!', 'Call the garrison!'],
+  },
   chat: [['Shalom!', 'Shalom!'], ['How is your mother?', 'Still complaining!'], ['Hot today.', 'Hotter tomorrow.'], ['Seen the Romans?', 'Don\'t mention them.'], ['Bread price went up.', 'Again?!']],
 };

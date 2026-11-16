@@ -8,6 +8,24 @@ import { terrainHeight, PLAZA } from '../world/layout.js';
 import { clamp, damp, wrapAngle } from '../core/rng.js';
 
 const NIGHT_START = 0.86;
+
+/**
+ * A safe place to stand after a ragdoll: the ground under the hips (roofs and
+ * walls are fine to land on, but not to get stuck inside), else the nearest
+ * navigation node.
+ */
+export function findStandSpot(physics, nav, x, y, z) {
+  const R = physics.RAPIER;
+  const fixedOnly = (c) => { const b = c.parent(); return !b || b.isFixed(); };
+  const toi = physics.castRay(x, y + 1.2, z, 0, -1, 0, 6, undefined, fixedOnly);
+  const gy = terrainHeight(x, z);
+  let sy = toi !== null ? y + 1.2 - toi : gy;
+  if (sy < gy - 0.3) sy = gy;
+  const clear = !physics.world.castShape({ x, y: sy + 0.95, z }, { x: 0, y: 0, z: 0, w: 1 }, { x: 0, y: 1, z: 0 }, new R.Ball(0.3), 0, 0.001, true, undefined, undefined, undefined, undefined, fixedOnly);
+  if (clear && sy - gy < 1.6) return { x, y: sy, z };
+  const node = nav.nearestNode({ x, y: gy, z }, false);
+  return node ? { x: node.x, y: node.y, z: node.z } : { x, y: gy, z };
+}
 const EVENING_START = 0.78;
 const KCC_RANGE = 42;
 const ANIM_FULL_RANGE = 48;
@@ -21,7 +39,8 @@ const SHADOW_RANGE = 30;
  * (talk-player, chat, greet, startle, bumped, stumble, angry, cheer, tag).
  */
 export class NPCManager {
-  constructor({ scene, physics, bus, rng, anchors }) {
+  constructor({ scene, physics, bus, rng, anchors, ragdolls = null }) {
+    this.ragdolls = ragdolls;
     this.scene = scene;
     this.physics = physics;
     this.bus = bus;
@@ -180,7 +199,7 @@ export class NPCManager {
   bindEvents() {
     this.bus.on('player:contact', ({ handle, speed }) => {
       const npc = this.byHandle.get(handle);
-      if (!npc || npc.bumpCd > 0 || npc.hidden) return;
+      if (!npc || npc.bumpCd > 0 || npc.hidden || npc.ragdoll) return;
       npc.bumpCd = 2.5;
       if (npc.override?.type === 'talk-player') return;
       if (speed > 6.2) {
@@ -194,7 +213,7 @@ export class NPCManager {
     });
     const react = (x, z, radius, fn) => {
       for (const npc of this.npcs) {
-        if (npc.hidden || npc.override?.type === 'talk-player' || npc.override?.type === 'stumble') continue;
+        if (npc.hidden || npc.ragdoll || npc.override?.type === 'talk-player' || npc.override?.type === 'stumble') continue;
         if (Math.hypot(npc.pos.x - x, npc.pos.z - z) < radius) fn(npc);
       }
     };
@@ -415,6 +434,7 @@ export class NPCManager {
         }
       }
       if (npc.hidden) continue;
+      if (npc.ragdoll) { this.updateRagdoll(npc); continue; }
 
       let vx = 0;
       let vz = 0;
@@ -708,6 +728,7 @@ export class NPCManager {
       }
       if (npc.hidden) continue;
       npc.render.lerpVectors(npc.prev, npc.pos, clamp(alpha, 0, 1));
+      if (npc.ragdoll) { npc.distC = Math.hypot(npc.render.x - cam.x, npc.render.z - cam.z); npc.rig.setExpression('surprised'); continue; }
       const g = npc.rig.group;
       g.position.copy(npc.render);
       g.rotation.y = npc.yaw;
@@ -752,14 +773,25 @@ export class NPCManager {
   // ---------------------------------------------------------------- miracles
   /** Divine Push: knock back with falloff; strong hits topple and bruise. */
   push(npc, dirX, dirZ, strength) {
+    if (npc.ragdoll) {
+      this.ragdolls.impulse(npc.ragdoll, { x: dirX * (3 + strength * 8), y: 2 + strength * 3, z: dirZ * (3 + strength * 8) });
+      return 'stumble';
+    }
     if (npc.hidden || npc.override?.type === 'talk-player' || npc.override?.type === 'levitate') return 'none';
     if (npc.anchored) {
       this.setOverride(npc, 'startle', 1.2);
       this.say(npc, this.pickLine(['Hey! My stall!', 'Whoa!', 'Mind the counter!']), 1.8, 'surprised');
       return 'startle';
     }
-    npc.pushV = { x: dirX * (2 + strength * 7), z: dirZ * (2 + strength * 7) };
     npc.bumpCd = 1;
+    if (strength > 0.5 && this.ragdolls?.available) {
+      // a close, square hit sends them flying
+      this.startRagdoll(npc, { x: dirX * (4 + strength * 7), y: 3 + strength * 3.5, z: dirZ * (4 + strength * 7) });
+      this.say(npc, this.pickLine(BARKS.knocked), 2, 'surprised');
+      if (!npc.injured && this.rng() < 0.6) npc.injured = { kind: 'bruised', label: 'bruised' };
+      return 'stumble';
+    }
+    npc.pushV = { x: dirX * (2 + strength * 7), z: dirZ * (2 + strength * 7) };
     if (strength > 0.35) {
       this.setOverride(npc, 'stumble', 2.8);
       this.say(npc, this.pickLine(BARKS.knocked), 2, 'surprised');
@@ -769,6 +801,42 @@ export class NPCManager {
     this.setOverride(npc, 'startle', 1);
     this.say(npc, this.pickLine(['Whoa!', 'What a wind!', 'Hey!']), 1.6, 'surprised');
     return 'startle';
+  }
+
+  startRagdoll(npc, v) {
+    this.leaveAnchor(npc);
+    if (npc.seat) npc.seat = null;
+    for (const m of Object.values(npc.rig.carry)) m.visible = false;
+    npc.rig.group.position.copy(npc.pos);
+    npc.rig.group.rotation.y = npc.yaw;
+    const rd = this.ragdolls.spawn(npc.rig, v, { owner: npc.id });
+    if (!rd) return false;
+    npc.ragdoll = rd;
+    npc.override = { type: 'ragdoll', t: Infinity, age: 0 };
+    npc.pushV = null;
+    npc.collider.setEnabled(false);
+    this.bus.emit('npc:ragdoll', { entityId: npc.id });
+    return true;
+  }
+
+  updateRagdoll(npc) {
+    const rd = npc.ragdoll;
+    const p = this.ragdolls.restPose(rd);
+    npc.pos.set(p.x, Math.max(terrainHeight(p.x, p.z), p.y - 0.75), p.z);
+    npc.speed = 0;
+    if (!rd.done) return;
+    this.ragdolls.release(rd);
+    npc.ragdoll = null;
+    const spot = findStandSpot(this.physics, this.nav, p.x, p.y, p.z);
+    this.place(npc, spot.x, spot.y, spot.z);
+    npc.yaw = p.yaw;
+    npc.collider.setEnabled(true);
+    // get up: start from the fallen pose and rise
+    npc.anim.fall = 1;
+    npc.override = { type: 'stumble', t: 1.1, age: 1.75 };
+    this.say(npc, this.pickLine(['Ow…', 'What hit me?', 'My dignity…', 'I\'m fine! I\'m fine.']), 2, 'angry');
+    if (npc.phase === 'travel' && npc.step) npc.phase = 'none';
+    this.bus.emit('npc:getup', { entityId: npc.id });
   }
 
   heal(npc) {
@@ -807,7 +875,7 @@ export class NPCManager {
   witness(kind, x, z, radius, extra = {}) {
     let count = 0;
     for (const npc of this.npcs) {
-      if (npc.hidden || npc.override?.type === 'talk-player' || npc.override?.type === 'levitate' || npc.override?.type === 'stumble') continue;
+      if (npc.hidden || npc.ragdoll || npc.override?.type === 'talk-player' || npc.override?.type === 'levitate' || npc.override?.type === 'stumble') continue;
       const d = Math.hypot(npc.pos.x - x, npc.pos.z - z);
       if (d > radius) continue;
       count += 1;
@@ -852,7 +920,7 @@ export class NPCManager {
 
   /** Living NPCs a miracle can aim at. */
   targetables() {
-    return this.npcs.filter((n) => !n.hidden).map((n) => ({ kind: 'npc', type: n.injured ? 'injured' : 'person', ref: n, id: n.id, x: n.pos.x, y: n.pos.y + 1.2, z: n.pos.z, name: n.name }));
+    return this.npcs.filter((n) => !n.hidden && !n.ragdoll).map((n) => ({ kind: 'npc', type: n.injured ? 'injured' : 'person', ref: n, owner: this, id: n.id, x: n.pos.x, y: n.pos.y + 1.2, z: n.pos.z, name: n.name }));
   }
 
   // ---------------------------------------------------------------- player interaction
@@ -860,7 +928,7 @@ export class NPCManager {
     let best = null;
     let bestScore = Infinity;
     for (const npc of this.npcs) {
-      if (npc.hidden || npc.override?.type === 'stumble') continue;
+      if (npc.hidden || npc.ragdoll || npc.override?.type === 'stumble') continue;
       const d = Math.hypot(npc.pos.x - pos.x, npc.pos.z - pos.z);
       if (d > 2.8) continue;
       const ang = Math.abs(wrapAngle(Math.atan2(npc.pos.x - pos.x, npc.pos.z - pos.z) - yaw));
@@ -905,6 +973,14 @@ export class NPCManager {
   reset(flags) {
     this.flags = flags;
     for (const npc of this.npcs) {
+      if (npc.ragdoll) {
+        this.ragdolls.release(npc.ragdoll);
+        npc.ragdoll = null;
+        npc.collider.setEnabled(true);
+        npc.anim.fall = 0;
+      }
+    }
+    for (const npc of this.npcs) {
       const base = npc.def.injured ? { kind: npc.def.injured, label: 'injured' } : (npc.id === 'npc.villager.3' ? { kind: 'chronic', label: 'sprained ankle' } : null);
       npc.injured = flags[`healed.${npc.id}`] ? null : base;
       npc.pushV = null;
@@ -939,6 +1015,6 @@ export class NPCManager {
     }
     const bad = new Set(this.nav.unreachable);
     const homesReachable = this.npcs.every((n) => !n.home || !bad.has(this.doorKey(n.home)));
-    return { count: this.npcs.length, near, visible, hidden, states, nav: this.nav.stats(), homesReachable, animals: this.animals.list.length };
+    return { count: this.npcs.length, near, visible, hidden, states, nav: this.nav.stats(), homesReachable, animals: this.animals.list.length, ragdolls: this.npcs.filter((n) => n.ragdoll).length };
   }
 }

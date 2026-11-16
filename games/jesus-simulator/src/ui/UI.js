@@ -126,7 +126,7 @@ export class UI {
   openHowTo() {
     const k = (key, text) => `<div><kbd>${key}</kbd>${text}</div>`;
     this.openSheet('How to Play', `
-      <p>You are Jesus of Nazareth, back home and ready to explore. Meet the villagers, discover the landmarks and the gifts hidden among them, then try them out — gently or not. Romans and donkeys are on their way in future chapters.</p>
+      <p>You are Jesus of Nazareth, back home and ready to explore. Meet the villagers, discover the landmarks and the gifts hidden among them, then try them out — gently or not. Donkeys are on their way in a future chapter; the Romans are already here.</p>
       <div class="howto-grid">
         ${k('W A S D', 'Move')}${k('Mouse', 'Rotate camera')}${k('Shift', 'Sprint')}${k('Space', 'Jump')}
         ${k('E', 'Talk / interact')}${k('Wheel', 'Camera distance')}${k('RMB', 'Shoulder aim view')}${k('LMB / Q', 'Use miracle (hold to keep lifting)')}
@@ -134,6 +134,7 @@ export class UI {
         ${k('← →', 'Turn camera (keys)')}
       </div>
       <p class="note"><b>Miracles:</b> each gift is revealed at a special place — the workshop, the market, the well, the synagogue, the highest rooftop and the shore of Galilee. Select one with 1–6, aim with the crosshair and click (or press Q).</p>
+      <p class="note"><b>Roman Attention:</b> legionaries patrol the village and guard the checkpoint up the north road. Break things, blast people or shove a soldier where one can see you and the stars go up; at three stars reinforcements arrive. Red cones on the minimap show where soldiers are looking. Break their line of sight and stay hidden until the stars stop flashing, or heal a soldier you hurt — he may look the other way. Get seized and you can still push free; get caught and you spend a few hours at the checkpoint (and pay a fine in Faith). The palisade camp is off-limits.</p>
       <p class="note"><b>Chapter I:</b> discover all eight landmarks of Nazareth and its shore. Gold pins on the minimap point to places you have not visited yet. Climb the outdoor stairs to reach the rooftops.</p>`);
   }
 
@@ -191,8 +192,33 @@ export class UI {
     $('obj-detail').innerHTML = detailHtml;
   }
 
-  setAttention(level) {
-    [...$('stars').children].forEach((el, i) => el.classList.toggle('on', i < level));
+  setAttention(level, opts = {}) {
+    const el = $('attention');
+    if (this._stars !== level) {
+      if (level > (this._stars || 0)) { el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
+      this._stars = level;
+      [...$('stars').children].forEach((star, i) => star.classList.toggle('on', i < level));
+    }
+    el.classList.toggle('wanted', level > 0);
+    const searching = level > 0 && !!opts.searching;
+    el.classList.toggle('searching', searching);
+    if (searching) $('attention-search').style.setProperty('--p', String(1 - (opts.search || 0)));
+    const label = level === 0 ? 'ROMAN ATTENTION' : searching ? 'SEARCHING…' : 'WANTED';
+    if (this._attLabel !== label) { this._attLabel = label; $('attention-label').textContent = label; }
+    const grab = opts.grab || 0;
+    $('grab-meter').hidden = grab <= 0.02;
+    if (grab > 0.02) $('grab-fill').style.setProperty('--p', String(grab));
+  }
+
+  showArrest({ line, facts }) {
+    $('arrest-line').textContent = line;
+    $('arrest-facts').innerHTML = facts.map((f) => `<li>${f}</li>`).join('');
+    $('arrest-card').hidden = false;
+    $('grab-meter').hidden = true;
+  }
+
+  hideArrest() {
+    $('arrest-card').hidden = true;
   }
 
   setFollowers(n) {
@@ -272,10 +298,10 @@ export class UI {
       if (!b) { slot.el.style.display = 'none'; return; }
       v.set(b.x, b.y, b.z).project(camera);
       if (v.z > 1 || v.x < -1.2 || v.x > 1.2 || v.y < -1.2 || v.y > 1.2) { slot.el.style.display = 'none'; return; }
-      const key = `${b.kind}|${b.text}|${b.sub || ''}`;
+      const key = `${b.kind}|${b.text}|${b.sub || ''}|${b.roman ? 1 : 0}`;
       if (slot.key !== key) {
         slot.key = key;
-        slot.el.className = `bubble ${b.kind === 'name' ? 'name' : ''}`;
+        slot.el.className = `bubble ${b.kind === 'name' ? 'name' : b.kind === 'alert' ? `alert${b.text === '?' ? ' q' : ''}` : b.roman ? 'roman' : ''}`;
         slot.el.textContent = b.text;
         if (b.sub) { const sm = document.createElement('small'); sm.textContent = b.sub; slot.el.appendChild(sm); }
       }
@@ -437,6 +463,11 @@ export class UI {
           <div class="stat"><span>PEOPLE MET</span><strong>${ctx.met ?? 0}</strong></div>
           <div class="stat"><span>POTS BROKEN</span><strong>${s.potsBroken ?? 0}</strong></div>
           <div class="stat"><span>PEOPLE KNOCKED OVER</span><strong>${s.peopleKnocked ?? 0}</strong></div>
+          <div class="stat"><span>MIRACLES PERFORMED</span><strong>${s.miracles ?? 0}</strong></div>
+          <div class="stat"><span>LEGIONARIES TOPPLED</span><strong>${s.soldiersToppled ?? 0}</strong></div>
+          <div class="stat"><span>ESCAPES FROM ROME</span><strong>${s.escapes ?? 0}</strong></div>
+          <div class="stat"><span>ARRESTS</span><strong>${s.arrests ?? 0}</strong></div>
+          <div class="stat"><span>HIGHEST ATTENTION</span><strong>${'★'.repeat(s.maxStars ?? 0) || '—'}</strong></div>
           <div class="stat"><span>TIME IN GALILEE</span><strong>${fmtTime(s.playTime)}</strong></div>
           <div class="stat"><span>FOLLOWERS</span><strong>${ctx.followers}</strong></div>
         </div>`;

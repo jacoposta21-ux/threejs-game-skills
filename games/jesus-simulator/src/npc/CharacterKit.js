@@ -158,6 +158,37 @@ function mergeParts(parts) {
   return merged;
 }
 
+/**
+ * Body parts with identical specs (same shapes, colours and placement) share
+ * one merged geometry across characters: a squad of legionaries or a crowd
+ * of villagers in the same tunic costs no extra GPU buffers. Heads are never
+ * shared because expressions rewrite their face UVs.
+ */
+const sharedParts = new Map();
+function partKey(parts) {
+  return JSON.stringify(parts.map((p) => {
+    const pos = p.geo.attributes.position.array;
+    let sum = 0;
+    for (let i = 0; i < pos.length; i += 1) sum += pos[i] * ((i % 7) + 1);
+    return [p.geo.type, pos.length, +sum.toFixed(4), p.color, p.t || null];
+  }));
+}
+function mergeShared(parts) {
+  const key = partKey(parts);
+  const hit = sharedParts.get(key);
+  if (hit) {
+    for (const p of parts) p.geo.dispose();
+    return hit;
+  }
+  const g = mergeParts(parts);
+  g.userData.shared = true;
+  sharedParts.set(key, g);
+  return g;
+}
+export function sharedPartCount() {
+  return sharedParts.size;
+}
+
 function setFaceUV(geometry, cell, baseUV) {
   const { u0, u1, v0, v1 } = cellUV(cell);
   const uv = geometry.attributes.uv;
@@ -193,16 +224,22 @@ export function buildCharacter(c) {
   // hips + skirt
   const skirtGeo = new THREE.CylinderGeometry(0.38, 0.47, child ? 0.5 : 0.62, 8, 1);
   skirtGeo.scale(1, 1, 0.72);
-  const hips = mesh(mergeParts([
+  const hips = mesh(mergeShared([
     { geo: skirtGeo, color: c.tunic, t: { y: child ? 0.73 : 0.67 } },
     ...(c.hem ? [{ geo: (() => { const h = new THREE.CylinderGeometry(0.475, 0.48, 0.06, 8, 1, true); h.scale(1, 1, 0.72); return h; })(), color: c.hem, t: { y: child ? 0.49 : 0.37 } }] : []),
+    ...(c.armor ? [
+      // leather strips (pteruges) hanging from the belt, and a gladius on the right hip
+      ...[-0.27, -0.13, 0, 0.13, 0.27].map((x) => ({ geo: box(0.1, 0.36, 0.05, 0.02), color: c.armor.leather || '#5a3a22', t: { x, y: 0.72, z: 0.36 } })),
+      { geo: box(0.09, 0.5, 0.12, 0.03), color: '#4a2f1a', t: { x: 0.43, y: 0.72, z: 0.05, rz: 0.12 } },
+      { geo: box(0.16, 0.05, 0.16, 0.02), color: c.armor.trim || '#c99a4a', t: { x: 0.41, y: 0.98, z: 0.05 } },
+    ] : []),
   ]), material);
   body.add(hips);
 
   const legs = [-1, 1].map((side) => {
     const pivot = new THREE.Group();
     pivot.position.set(side * 0.15, 0.92, 0);
-    pivot.add(mesh(mergeParts([
+    pivot.add(mesh(mergeShared([
       { geo: box(0.23, 0.6, 0.25), color: shade, t: { y: -0.3 } },
       { geo: box(0.19, 0.36, 0.21), color: c.legs || c.skin, t: { y: -0.7 } },
       { geo: box(0.23, 0.07, 0.34, 0.03), color: '#6f4424', t: { y: -0.89, z: 0.04 } },
@@ -219,19 +256,47 @@ export function buildCharacter(c) {
     { geo: box(0.78, 0.11, 0.46, 0.04), color: c.belt || '#6b4a2e', t: { y: 0.05 } },
     { geo: new THREE.CylinderGeometry(0.11, 0.13, 0.12, 8), color: c.skin, t: { y: 0.77 } },
   ];
+  if (c.armor) {
+    // lorica segmentata: overlapping iron bands, brass buckles
+    const a = c.armor;
+    for (let i = 0; i < 4; i += 1) torsoParts.push({ geo: box(0.8 - i * 0.015, 0.16, 0.47, 0.06), color: i % 2 ? a.color : a.shade || a.color, t: { y: 0.15 + i * 0.15 } });
+    torsoParts.push({ geo: box(0.7, 0.16, 0.45, 0.07), color: a.color, t: { y: 0.68 } });
+    torsoParts.push({ geo: box(0.08, 0.5, 0.03, 0.01), color: a.trim || '#c99a4a', t: { y: 0.42, z: 0.24 } });
+    if (a.medals) for (const [x, y] of [[-0.17, 0.52], [0.17, 0.52], [0, 0.3]]) torsoParts.push({ geo: new THREE.CylinderGeometry(0.07, 0.07, 0.03, 10), color: '#e6e8ea', t: { x, y, z: 0.25, rx: Math.PI / 2 } });
+  }
+  if (c.cape) torsoParts.push({ geo: box(0.7, 0.95, 0.06, 0.03), color: c.cape, t: { y: 0.3, z: -0.25, rx: 0.08 } });
   if (c.mantle) {
     torsoParts.push({ geo: new THREE.BoxGeometry(0.3, 0.95, 0.45), color: c.mantle, t: { y: 0.36, x: 0.08, rz: -0.6 } });
     torsoParts.push({ geo: box(0.3, 0.3, 0.46, 0.06), color: c.mantle, t: { x: 0.26, y: 0.64 } });
   }
-  torso.add(mesh(mergeParts(torsoParts), material));
+  torso.add(mesh(mergeShared(torsoParts), material));
 
   const arms = [-1, 1].map((side) => {
     const pivot = new THREE.Group();
     pivot.position.set(side * 0.46, 0.65, 0);
-    pivot.add(mesh(mergeParts([
+    const armParts = [
       { geo: box(0.21, 0.5, 0.24, 0.07), color: c.sleeve || c.tunic, t: { x: side * 0.04, y: -0.22 } },
       { geo: box(0.17, 0.2, 0.19, 0.06), color: c.skin, t: { x: side * 0.05, y: -0.57 } },
-    ]), material));
+    ];
+    if (c.armor) {
+      for (let i = 0; i < 3; i += 1) armParts.push({ geo: box(0.3 - i * 0.02, 0.1, 0.3, 0.04), color: i % 2 ? c.armor.shade || c.armor.color : c.armor.color, t: { x: side * (0.05 + i * 0.012), y: 0.04 - i * 0.09, rz: side * (0.25 + i * 0.08) } });
+    }
+    if (c.shield && side === -1) {
+      // curved scutum faked with three panels, gold boss and trim
+      const sh = c.shield;
+      const cz = 0.2;
+      armParts.push({ geo: box(0.36, 1.08, 0.06, 0.02), color: sh.color, t: { x: -0.08, y: -0.5, z: cz } });
+      for (const k of [-1, 1]) armParts.push({ geo: box(0.24, 1.08, 0.06, 0.02), color: sh.color, t: { x: -0.08 + k * 0.28, y: -0.5, z: cz - 0.05, ry: -k * 0.42 } });
+      armParts.push({ geo: new THREE.SphereGeometry(0.1, 8, 6), color: sh.boss || '#d9a441', t: { x: -0.08, y: -0.5, z: cz + 0.04, sz: 0.6 } });
+      armParts.push({ geo: box(0.72, 0.05, 0.08, 0.02), color: sh.trim || '#e0b04a', t: { x: -0.08, y: -0.5, z: cz + 0.01 } });
+      armParts.push({ geo: box(0.05, 0.9, 0.08, 0.02), color: sh.trim || '#e0b04a', t: { x: -0.08, y: -0.5, z: cz + 0.01 } });
+    }
+    if (c.spear && side === 1) {
+      armParts.push({ geo: new THREE.CylinderGeometry(0.028, 0.03, 2.0, 5), color: '#7a5233', t: { x: 0.05, y: -0.45, z: 0.12 } });
+      armParts.push({ geo: new THREE.CylinderGeometry(0.014, 0.02, 0.55, 4), color: '#9aa3a8', t: { x: 0.05, y: 0.82, z: 0.12 } });
+      armParts.push({ geo: new THREE.ConeGeometry(0.045, 0.16, 4), color: '#c4cacd', t: { x: 0.05, y: 1.16, z: 0.12 } });
+    }
+    pivot.add(mesh(mergeShared(armParts), material));
     torso.add(pivot);
     return pivot;
   });
@@ -270,6 +335,18 @@ export function buildCharacter(c) {
     if (hw.band) headParts.push({ geo: box(0.62, 0.06, 0.6, 0.03), color: hw.band, t: { y: 0.6 } });
   } else if (hw?.type === 'cap') {
     headParts.push({ geo: new THREE.CylinderGeometry(0.26, 0.3, 0.16, 10), color: hw.color, t: { y: 0.62 } });
+  } else if (hw?.type === 'galea') {
+    // Roman helmet: dome, brow ridge, cheek guards, neck guard and a horsehair crest
+    headParts.push({ geo: new THREE.SphereGeometry(0.34, 12, 7, 0, Math.PI * 2, 0, Math.PI / 2), color: hw.color, t: { y: 0.5, sx: 0.92, sz: 0.92 } });
+    headParts.push({ geo: box(0.64, 0.07, 0.6, 0.03), color: hw.trim || '#c99a4a', t: { y: 0.52 } });
+    headParts.push({ geo: box(0.6, 0.06, 0.12, 0.02), color: hw.trim || '#c99a4a', t: { y: 0.6, z: 0.27, rx: -0.3 } });
+    for (const sd of [-1, 1]) headParts.push({ geo: box(0.05, 0.32, 0.24, 0.02), color: hw.color, t: { x: sd * 0.29, y: 0.3, z: 0.07 } });
+    headParts.push({ geo: box(0.58, 0.2, 0.08, 0.03), color: hw.color, t: { y: 0.38, z: -0.29, rx: 0.5 } });
+    if (hw.crest) {
+      if (hw.transverse) headParts.push({ geo: box(0.78, 0.26, 0.1, 0.04), color: hw.crest, t: { y: 0.9 } });
+      else headParts.push({ geo: box(0.1, 0.26, 0.66, 0.04), color: hw.crest, t: { y: 0.9, z: -0.03 } });
+      headParts.push({ geo: box(0.06, 0.1, 0.06, 0.02), color: hw.trim || '#c99a4a', t: { y: 0.8 } });
+    }
   }
   const headGeo = mergeParts(headParts);
   const faceBaseUV = [];
@@ -336,8 +413,20 @@ export function buildCharacter(c) {
   const meshes = [];
   group.traverse((o) => o.isMesh && meshes.push(o));
 
+  // ragdoll bodies: one box per rigid part, in the part's local frame
+  const ragdollParts = [
+    { name: 'hips', obj: hips, center: [0, child ? 0.73 : 0.7, 0], half: [0.36, 0.26, 0.26] },
+    { name: 'torso', obj: torso, center: [0, 0.38, 0], half: [0.36, 0.4, 0.21], parent: 'hips', joint: 'pivot' },
+    { name: 'head', obj: head, center: [0, 0.3, 0], half: [0.25, 0.27, 0.24], parent: 'torso', joint: 'pivot' },
+    { name: 'armL', obj: arms[0], center: [-0.04, -0.33, 0], half: [0.1, 0.33, 0.11], parent: 'torso', joint: 'pivot' },
+    { name: 'armR', obj: arms[1], center: [0.04, -0.33, 0], half: [0.1, 0.33, 0.11], parent: 'torso', joint: 'pivot' },
+    { name: 'legL', obj: legs[0], center: [0, -0.46, 0.02], half: [0.11, 0.44, 0.13], parent: 'hips', joint: 'pivot' },
+    { name: 'legR', obj: legs[1], center: [0, -0.46, 0.02], half: [0.11, 0.44, 0.13], parent: 'hips', joint: 'pivot' },
+  ];
+  for (const p of ragdollParts) p.rest = { parent: p.obj.parent, position: p.obj.position.clone(), scale: p.obj.scale.clone() };
+
   return {
-    group, root, body, torso, head, arms, legs, carry, meshes,
+    group, root, body, torso, head, arms, legs, carry, meshes, ragdollParts, hips,
     setExpression(expr) {
       if (this.expr === expr) return;
       this.expr = expr;
@@ -347,7 +436,7 @@ export function buildCharacter(c) {
       for (const m of meshes) m.castShadow = on;
     },
     dispose() {
-      for (const m of meshes) m.geometry.dispose();
+      for (const m of meshes) if (!m.geometry.userData.shared) m.geometry.dispose();
     },
   };
 }
@@ -390,7 +479,40 @@ export class CharacterAnimator {
     let bodyY = Math.abs(Math.cos(this.phase)) * 0.06 * amp + (1 - this.move) * Math.sin(t * 2) * 0.006;
     let fallTarget = 0;
 
+    if (s.soldier) {
+      // shield carried in front, spear kept upright: only a small swing
+      armL = -0.55 + sw * 0.15 * amp;
+      armLz = -0.15;
+      armR = -0.25 - sw * 0.25 * amp;
+      armRz = 0.05;
+    }
     switch (a) {
+      case 'guard':
+        armL = -0.75; armLz = -0.2; armR = -0.3; armRz = 0.05;
+        headX = Math.sin(t * 0.5) * 0.05;
+        break;
+      case 'grab':
+        armL = -1.45 + Math.sin(t * 14) * 0.08; armR = -1.6 - Math.sin(t * 14) * 0.08; armLz = 0.25; armRz = -0.25;
+        torsoX = 0.3;
+        break;
+      case 'point':
+        armR = -1.65; armRz = 0.1; armL = -0.8;
+        torsoX = 0.08;
+        headX = -0.05;
+        break;
+      case 'salute':
+        armR = -2.5; armRz = -0.2; armL = -0.7;
+        break;
+      case 'drink':
+        armR = -2.2 + Math.sin(t * 3) * 0.15; armRz = -0.55; armL = -0.5;
+        headX = -0.35;
+        torsoX = -0.12;
+        break;
+      case 'search':
+        armL = -0.6; armR = -0.3;
+        headX = 0.05;
+        torsoY = Math.sin(t * 1.4) * 0.35;
+        break;
       case 'talk':
         armL = -0.35 + Math.sin(t * 3.1) * 0.25;
         armR = -0.5 + Math.sin(t * 2.3 + 1) * 0.35;

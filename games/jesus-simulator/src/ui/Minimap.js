@@ -1,4 +1,4 @@
-import { WORLD_HALF, PLAY_RADIUS, LANDMARKS, REGIONS } from '../world/layout.js';
+import { WORLD_HALF, PLAY_RADIUS, LANDMARKS, REGIONS, CHECKPOINT } from '../world/layout.js';
 
 const EXTENT = 175; // metres from origin covered by the map image (valley + lake shore)
 const BASE = 1024;
@@ -25,7 +25,7 @@ export function buildMapBase(splatCanvas, footprints) {
     g.rotate(-f.ry);
     const w = f.w * PX_PER_M;
     const d = f.d * PX_PER_M;
-    g.fillStyle = f.kind === 'synagogue' ? '#fff6e2' : f.kind === 'workshop' ? '#d9a86a' : '#f3e6c8';
+    g.fillStyle = f.kind === 'synagogue' ? '#fff6e2' : f.kind === 'workshop' ? '#d9a86a' : f.kind === 'roman' ? 'rgba(176, 70, 48, 0.32)' : f.kind === 'roman-tower' ? '#a3241c' : '#f3e6c8';
     g.strokeStyle = 'rgba(90, 60, 30, 0.85)';
     g.lineWidth = 2;
     if (f.round) {
@@ -128,6 +128,26 @@ export class Minimap {
       const x = dx * c - dz * s;
       const y = dx * s + dz * c;
       if (Math.hypot(x, y) > half - 6) continue;
+      if (n.soldier) {
+        // view cone (shows where a legionary is looking), red dot that pulses when hunting
+        const a = n.yaw - cameraYaw;
+        const fwd = Math.atan2(Math.cos(a), Math.sin(a));
+        const r = n.range * PX_PER_M * scale;
+        g.fillStyle = n.alert ? 'rgba(220, 40, 30, 0.28)' : 'rgba(200, 60, 40, 0.14)';
+        g.beginPath();
+        g.moveTo(half + x, half + y);
+        g.arc(half + x, half + y, r, fwd - n.fov, fwd + n.fov);
+        g.closePath();
+        g.fill();
+        g.fillStyle = n.alert && Math.sin(time * 10) > 0 ? '#ff5a3c' : '#b3261e';
+        g.strokeStyle = '#fff';
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.rect(half + x - 3.4, half + y - 3.4, 6.8, 6.8);
+        g.fill();
+        g.stroke();
+        continue;
+      }
       g.fillStyle = n.named ? '#2f6fb0' : '#5f7f9a';
       g.strokeStyle = '#fff';
       g.lineWidth = 1.5;
@@ -183,6 +203,27 @@ export function drawWorldMap(canvas, base, pos, playerYaw, discovered, nextId) {
     g.fillText(label, x, y + 5);
   }
 
+  {
+    // the Roman checkpoint (a point of interest, not a landmark)
+    const x = toMap(CHECKPOINT.x);
+    const y = toMap(CHECKPOINT.z);
+    g.fillStyle = '#a3241c';
+    g.strokeStyle = '#fff3d6';
+    g.lineWidth = 2.5;
+    g.beginPath();
+    g.moveTo(x, y - 11); g.lineTo(x + 9, y); g.lineTo(x, y + 11); g.lineTo(x - 9, y); g.closePath();
+    g.fill();
+    g.stroke();
+    g.font = '700 14px Trebuchet MS, sans-serif';
+    const label = 'Roman Checkpoint';
+    const w = g.measureText(label).width + 14;
+    g.fillStyle = 'rgba(120, 28, 20, 0.85)';
+    g.beginPath();
+    g.roundRect(x - w / 2, y + 14, w, 22, 8);
+    g.fill();
+    g.fillStyle = '#fff3d6';
+    g.fillText(label, x, y + 30);
+  }
   for (const l of LANDMARKS) {
     const x = toMap(l.x);
     const y = toMap(l.z);

@@ -7,6 +7,7 @@ import { chromium } from '@playwright/test';
 import fs from 'node:fs';
 import { phase2Checks } from './phase2-checks.mjs';
 import { phase3Checks } from './phase3-checks.mjs';
+import { phase4Checks } from './phase4-checks.mjs';
 
 const url = process.argv[2] || 'http://127.0.0.1:4188/';
 const out = process.argv[3] || 'artifacts/playtest';
@@ -30,8 +31,13 @@ const waitFrames = async (n) => {
 const hold = async (key, frames) => { await page.keyboard.down(key); await waitFrames(frames); await page.keyboard.up(key); };
 const setup = (fn, arg) => page.evaluate(fn, arg);
 
+// Phases 1-3 run with the Roman garrison off duty so a patrol can't interfere
+// with those checks (e.g. arrest Jesus mid-test); phase 4 turns it back on.
+const offDuty = () => page.evaluate(() => window.__JESUS_SIM__.session.romans.setActive(false));
+
 await page.goto(url);
 await page.waitForSelector('#menu:not([hidden])', { timeout: 60000 });
+await offDuty();
 await page.evaluate(() => localStorage.clear());
 await page.click('#btn-play');
 await waitFrames(10);
@@ -169,6 +175,7 @@ await waitFrames(3);
 await page.evaluate(() => localStorage.setItem('jesus-simulator.save.v1', '{not json'));
 await page.reload();
 await page.waitForSelector('#menu:not([hidden])', { timeout: 60000 });
+await offDuty();
 const playLabel = await page.textContent('#btn-play');
 await page.click('#btn-play');
 await waitFrames(5);
@@ -180,6 +187,9 @@ await phase2Checks({ page, check, diag, waitFrames, hold, out });
 
 // Phase 3 — miracles
 await phase3Checks({ page, check, diag, waitFrames, hold, out });
+
+// Phase 4 — the Roman system
+await phase4Checks({ page, check, diag, waitFrames, hold, out });
 
 check('no console/page errors', errors.length === 0, errors.slice(0, 5).join(' | '));
 fs.writeFileSync(`${out}/results.json`, JSON.stringify({ url, results, errors }, null, 2));

@@ -1,71 +1,82 @@
 {
   "version": 1,
-  "runId": "phase3-pass-1",
+  "runId": "phase4-pass-1",
   "captures": [
     {
       "mode": "desktop",
       "state": "menu",
-      "report": "artifacts/phase3-pass-1/desktop-menu.json"
+      "report": "artifacts/phase4-pass-1/desktop-menu.json"
     },
     {
       "mode": "desktop",
       "state": "active-play",
-      "report": "artifacts/phase3-pass-1/desktop-active-play.json"
+      "report": "artifacts/phase4-pass-1/desktop-active-play.json"
     },
     {
       "mode": "desktop",
       "state": "plaza-life",
-      "report": "artifacts/phase3-pass-1/desktop-plaza-life.json"
+      "report": "artifacts/phase4-pass-1/desktop-plaza-life.json"
     },
     {
       "mode": "desktop",
       "state": "npc-dialogue",
-      "report": "artifacts/phase3-pass-1/desktop-npc-dialogue.json"
-    },
-    {
-      "mode": "desktop",
-      "state": "miracle-push",
-      "report": "artifacts/phase3-pass-1/desktop-miracle-push.json"
-    },
-    {
-      "mode": "desktop",
-      "state": "miracle-multiply",
-      "report": "artifacts/phase3-pass-1/desktop-miracle-multiply.json"
-    },
-    {
-      "mode": "desktop",
-      "state": "miracle-wine",
-      "report": "artifacts/phase3-pass-1/desktop-miracle-wine.json"
-    },
-    {
-      "mode": "desktop",
-      "state": "miracle-water",
-      "report": "artifacts/phase3-pass-1/desktop-miracle-water.json"
-    },
-    {
-      "mode": "desktop",
-      "state": "miracle-heal",
-      "report": "artifacts/phase3-pass-1/desktop-miracle-heal.json"
-    },
-    {
-      "mode": "desktop",
-      "state": "miracle-levitate",
-      "report": "artifacts/phase3-pass-1/desktop-miracle-levitate.json"
+      "report": "artifacts/phase4-pass-1/desktop-npc-dialogue.json"
     },
     {
       "mode": "desktop",
       "state": "pause",
-      "report": "artifacts/phase3-pass-1/desktop-pause.json"
+      "report": "artifacts/phase4-pass-1/desktop-pause.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "miracle-push",
+      "report": "artifacts/phase4-pass-1/desktop-miracle-push.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "miracle-levitate",
+      "report": "artifacts/phase4-pass-1/desktop-miracle-levitate.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "roman-patrol",
+      "report": "artifacts/phase4-pass-1/desktop-roman-patrol.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "roman-checkpoint",
+      "report": "artifacts/phase4-pass-1/desktop-roman-checkpoint.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "roman-pursuit",
+      "report": "artifacts/phase4-pass-1/desktop-roman-pursuit.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "roman-ragdoll",
+      "report": "artifacts/phase4-pass-1/desktop-roman-ragdoll.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "roman-arrest",
+      "report": "artifacts/phase4-pass-1/desktop-roman-arrest.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "night",
+      "report": "artifacts/phase4-pass-1/desktop-night.json"
     },
     {
       "mode": "mobile",
-      "state": "miracle-multiply",
-      "report": "artifacts/phase3-pass-1/mobile-miracle-multiply.json"
+      "state": "roman-pursuit",
+      "report": "artifacts/phase4-pass-1/mobile-roman-pursuit.json"
     }
   ],
   "artifacts": [
-    "artifacts/phase3-pass-1/playtest/results.json",
-    "artifacts/phase3-pass-1/motion/motion-sheet.png",
-    "artifacts/phase3-pass-1/motion/npc-motion-sheet.png"
+    "artifacts/phase4-pass-1/playtest/results.json",
+    "artifacts/phase4-pass-1/motion/motion-sheet.png",
+    "artifacts/phase4-pass-1/motion/npc-motion-sheet.png",
+    "artifacts/phase4-pass-1/motion/roman-motion-sheet.png"
   ]
 }

@@ -38,6 +38,25 @@ export const ROADS = [
 ];
 
 export const PLAZA = { x: 0, z: 0, r: 13 };
+
+/**
+ * Roman checkpoint on the north road (Phase 4). The compound east of the road
+ * is a restricted military area; the road barrier is where Jesus is released
+ * after an arrest. `pad` flattens the terrain under the camp.
+ */
+export const CHECKPOINT = {
+  x: 16, z: -108,
+  pad: { x0: -5, x1: 31, z0: -122, z1: -94, y: -0.6, blend: 7 },
+  compound: { x0: 6, x1: 28, z0: -119, z1: -97 },
+  gateZ: -108,
+  release: { x: -1.5, z: -95, yaw: Math.PI },
+};
+
+/** Inside the palisade (restricted military area)? */
+export function inRestrictedZone(x, z) {
+  const c = CHECKPOINT.compound;
+  return x > c.x0 + 0.3 && x < c.x1 - 0.3 && z > c.z0 + 0.3 && z < c.z1 - 0.3;
+}
 export const MARKET = { x0: -16, x1: 16, z0: -38, z1: -16 };
 
 export const LANDMARKS = [
@@ -108,6 +127,10 @@ export function terrainHeight(x, z) {
   h += (1 - smoothstep(6, 34, wt)) * 4.5;
   const ld = Math.hypot((x - LAKE.x) / LAKE.rx, (z - LAKE.z) / LAKE.rz);
   h = lerp(-4.5, h, smoothstep(0.72, 1.12, ld));
+  // Roman checkpoint pad
+  const pad = CHECKPOINT.pad;
+  const out = Math.max(pad.x0 - x, x - pad.x1, pad.z0 - z, z - pad.z1, 0);
+  if (out < pad.blend) h = lerp(pad.y, h, smoothstep(0, pad.blend, out));
   const edge = Math.max(Math.abs(x), Math.abs(z));
   h += smoothstep(195, 250, edge) * 30;
   return h;

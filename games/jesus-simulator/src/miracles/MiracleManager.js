@@ -20,8 +20,8 @@ const RULES = {
  * effects. Publishes `miracle:cast` / `miracle:reveal` / `miracle:end` on the bus.
  */
 export class MiracleManager {
-  constructor({ bus, effects, audio, npcs, props, world, player, state, model, camera, rng }) {
-    Object.assign(this, { bus, effects, audio, npcs, props, world, player, state, model, camera, rng });
+  constructor({ bus, effects, audio, npcs, romans, props, world, player, state, model, camera, rng }) {
+    Object.assign(this, { bus, effects, audio, npcs, romans, props, world, player, state, model, camera, rng });
     this.cooldowns = new Map();
     this.time = 0;
     this.water = null; // active walk-on-water
@@ -56,7 +56,7 @@ export class MiracleManager {
 
   // ---------------------------------------------------------------- targeting
   candidates() {
-    const list = [...this.props.targetables(), ...this.npcs.targetables()];
+    const list = [...this.props.targetables(), ...this.npcs.targetables(), ...(this.romans ? this.romans.targetables() : [])];
     for (const w of this.world.waterTargets) list.push({ kind: 'water', type: 'water', ref: w, id: w.id, x: w.x, y: w.y, z: w.z, name: w.name, radius: w.radius });
     return list;
   }
@@ -170,6 +170,18 @@ export class MiracleManager {
       if (this.npcs.push(npc, ox / d, oz / d, strength) === 'stumble') knocked += 1;
       pushed.add(npc);
     }
+    let soldiers = 0;
+    for (const s of this.romans && !this.romans.disabled ? this.romans.soldiers : []) {
+      if (s.hidden) continue;
+      const ox = s.pos.x - p.x;
+      const oz = s.pos.z - p.z;
+      const d = Math.hypot(ox, oz);
+      if (d > range || d < 0.01) continue;
+      const ang = Math.acos(Math.max(-1, Math.min(1, (ox * dx + oz * dz) / d)));
+      if (ang > half) continue;
+      const strength = (1 - d / range) * (1 - (ang / half) * 0.4);
+      if (this.romans.push(s, ox / d, oz / d, strength) !== 'none') soldiers += 1;
+    }
     for (const t of this.props.targetables()) {
       const ox = t.x - p.x;
       const oz = t.z - p.z;
@@ -200,7 +212,7 @@ export class MiracleManager {
     this.audio.push?.();
     // bystanders react (the pushed ones are already tumbling and are skipped)
     if (knocked + pushed.size > 0) this.npcs.witness('push', p.x + dx * 3, p.z + dz * 3, 12);
-    return { ok: true, event: { knocked, pushed: pushed.size, props: hitProps }, chaos: knocked * 0.6 + pushed.size * 0.2 + hitProps * 0.1 };
+    return { ok: true, event: { knocked, pushed: pushed.size, soldiers, props: hitProps }, chaos: knocked * 0.6 + pushed.size * 0.2 + soldiers * 0.8 + hitProps * 0.1 };
   }
 
   castMultiply(target) {
@@ -245,7 +257,7 @@ export class MiracleManager {
     this.effects.ring({ x: target.x, y: target.y + 0.05, z: target.z, color: '#ff5c8a', from: 0.3, to: 2.6, life: 0.9 });
     this.audio.wine?.();
     const witnesses = this.witness('wine', target.x, target.z, 16);
-    return { ok: true, event: { target: target.id, witnesses }, faith: first ? 2 + Math.min(2, witnesses * 0.5) : 0.5 };
+    return { ok: true, event: { target: target.id, witnesses, tx: target.x, tz: target.z }, faith: first ? 2 + Math.min(2, witnesses * 0.5) : 0.5 };
   }
 
   castWaterWalk() {
@@ -289,7 +301,7 @@ export class MiracleManager {
     this.face(npc.pos.x, npc.pos.z);
     this.model.cast('touch', 1);
     const was = npc.injured;
-    const healed = this.npcs.heal(npc);
+    const healed = (target.owner || this.npcs).heal(npc);
     const y = npc.pos.y;
     this.effects.burst({ x: npc.pos.x, y: y + 0.2, z: npc.pos.z, count: healed ? 70 : 20, color: '#fff3b0', color2: '#ffc94a', speed: 1.6, up: 1.8, life: 1.8, gravity: 0.6, size: 0.28, radius: 0.5 });
     this.effects.ring({ x: npc.pos.x, y: y + 0.08, z: npc.pos.z, color: '#ffe08a', from: 0.2, to: 2, life: 1.2 });
@@ -307,7 +319,7 @@ export class MiracleManager {
     const dist = Math.hypot(target.x - cam.x, target.y - cam.y, target.z - cam.z);
     const start = { x: target.x, y: target.y, z: target.z };
     if (target.kind === 'npc') {
-      this.npcs.beginLevitate(target.ref);
+      (target.owner || this.npcs).beginLevitate(target.ref);
       start.y = target.ref.pos.y;
     } else this.props.setHeld(target.ref, true);
     this.lift = { target, start, dist, t: 0, releasing: 0, pos: { ...start } };
@@ -315,7 +327,7 @@ export class MiracleManager {
     this.audio.levitate?.(true);
     this.witness('levitate', target.x, target.z, 14, { minGap: 3 });
     this.effects.ring({ x: start.x, y: terrainHeight(start.x, start.z) + 0.05, z: start.z, color: '#ffe8a0', from: 0.3, to: 1.6, life: 0.8 });
-    return { ok: true, event: { target: target.id, kind: target.kind }, chaos: target.kind === 'npc' ? 0.5 : 0, cooldown: 0.3 };
+    return { ok: true, event: { target: target.id, kind: target.kind, soldier: !!target.soldier }, chaos: target.kind === 'npc' ? 0.5 : 0, cooldown: 0.3 };
   }
 
   releaseLift() {
@@ -352,7 +364,7 @@ export class MiracleManager {
       y = L.pos.y + ((ground + (isNpc ? 0 : 0.45)) - L.pos.y) * Math.min(1, dt * 4);
       const done = L.releasing > 0.9 || y - ground < (isNpc ? 0.05 : 0.55);
       if (done) {
-        if (isNpc) this.npcs.endLevitate(L.target.ref);
+        if (isNpc) (L.target.owner || this.npcs).endLevitate(L.target.ref);
         else {
           L.target.ref.body.setNextKinematicTranslation({ x, y, z });
           this.props.setHeld(L.target.ref, false);
@@ -366,7 +378,7 @@ export class MiracleManager {
       }
     }
     L.pos = { x, y, z };
-    if (isNpc) this.npcs.holdAt(L.target.ref, x, y, z);
+    if (isNpc) (L.target.owner || this.npcs).holdAt(L.target.ref, x, y, z);
     else {
       const body = L.target.ref.body;
       body.setNextKinematicTranslation({ x, y, z });
@@ -415,7 +427,7 @@ export class MiracleManager {
   reset() {
     if (this.water) this.endWaterWalk('reset');
     if (this.lift) {
-      if (this.lift.target.kind === 'npc') this.npcs.endLevitate(this.lift.target.ref);
+      if (this.lift.target.kind === 'npc') (this.lift.target.owner || this.npcs).endLevitate(this.lift.target.ref);
       else this.props.setHeld(this.lift.target.ref, false);
       this.lift = null;
     }

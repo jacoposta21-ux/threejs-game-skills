@@ -2,7 +2,7 @@
 
 A humorous, Roblox-inspired, GTA-style open-world sandbox set in first-century Galilee. Built with Three.js, Rapier 3D and Vite as plain JavaScript ES modules. **This release is single-player only.**
 
-> Status: **Phases 1–3 are complete**: playable foundation, living world and miracles. Later phases (Romans, world expansion, missions, polish) are not implemented yet. See [Roadmap](#roadmap).
+> Status: **Phases 1–4 are complete**: playable foundation, living world, miracles and the Roman system. Later phases (world expansion and vehicles, missions, polish) are not implemented yet. See [Roadmap](#roadmap).
 
 ## Run it
 
@@ -21,8 +21,10 @@ npm run preview    # http://127.0.0.1:4188
 Checks (need the preview server running):
 
 ```bash
-npm run test:play      # real-input playtest: Phase 1 (movement, walls, stairs, discovery, pause, saves) + Phase 2 (NPCs, talk, collisions, knock-overs, pots, fruit, sheep errand, night)
+npm run test:play      # real-input playtest: Phases 1-4 (movement, saves, NPCs, miracles, Romans: patrols, sight, wanted level, ragdolls, escape, arrest)
 npm run test:motion    # locomotion video + contact sheet
+npm run test:npc-motion    # villager life contact sheet
+npm run test:roman-motion  # legionaries chasing + a Divine Push ragdoll, contact sheet
 npm run verify:visual  # canvas inspector over the states in artifacts/evidence.json
 ```
 
@@ -42,9 +44,48 @@ If Playwright can't find a browser, point it at an installed Chromium with `CHRO
 | Right mouse | Shoulder aim view |
 | 1–6 | Select a miracle |
 | Left mouse **or Q** | Cast the selected miracle (hold to keep lifting with Levitation; hold to keep multiplying) |
+| E (near a legionary, when not wanted) | Talk to the Romans |
 | F | Enter/exit vehicle (none yet) |
 | Tab | Map |
 | Esc | Pause menu |
+
+## What Phase 4 adds — the Roman system
+
+A `RomanManager` (`src/roman/`) owns the garrison, their perception, the **Roman Attention** wanted level, pursuit, search, arrests and reinforcements. A generic `RagdollSystem` (`src/physics/Ragdoll.js`) turns any CharacterKit rig into a Rapier ragdoll. Everything talks through the event bus (`roman:crime`, `roman:wanted`, `roman:lost`, `roman:arrest`, `roman:ragdoll`, `player:arrested`, …).
+
+- **The Roman checkpoint** on the north road (≈110 m from the square): a palisade camp with a gate, a lookout tower, tents, a campfire, a command tent, the legion standard, a weapon rack, a road barrier and a guard booth. The compound is a **restricted military area**. It shows on the minimap and the world map.
+- **The garrison — 8 legionaries plus 6 in reserve.** They're built on the villagers' CharacterKit with a galea helmet and crest, lorica segmentata, a scutum and a pilum; Centurion Gaius Grumpus gets a transverse crest, medals and a cape.
+  - **Patrols:** a pair walks the north road into the square, one soldier loops the east lanes and one the west lanes.
+  - **Posts:** guards stand at the road barrier and the camp gate, a lookout watches from the tower, and the centurion holds the camp.
+  - **Talking:** soldiers greet Jesus, grumble about their feet and can be talked to (E).
+- **Perception:**
+  - Each soldier has a view cone (115°, 24 m by day, 62 % of that at night; the tower lookout sees 46 m) and slowly sweeps it while on post.
+  - Line of sight is a Rapier ray against architecture and terrain, so houses and hills hide you; trunks don't.
+  - Within 3.5 m they notice you regardless of where they're looking.
+  - The red cones on the minimap show where each soldier is looking.
+- **Roman Attention (0–5 stars).** Only crimes a soldier saw (or a crime against a soldier) count. They include:
+  - knocking people over, smashing pots and blasting citizens with Divine Push;
+  - levitating people ("suspicious sorcery") and unlicensed bread distribution;
+  - jostling, shoving, pushing or levitating a legionary;
+  - trespassing in the camp — after a shouted warning.
+
+  Loud crimes nobody saw bring soldiers to investigate, and a villager may shout "GUARDS!".
+- **Pursuit:** the soldiers who saw it give chase, running faster as the stars rise.
+  - **They cut you off:** they lead the target, use straight lines when the way is clear and the navigation graph otherwise.
+  - **2 stars:** the horn sounds and every soldier within ~95 m joins in.
+  - **3 stars:** reinforcements arrive out of view, ahead of you, from 2 up to 6. At 4 stars the centurion joins.
+  - **Around them:** villagers react as the chase passes, and the kids cheer "RUN, YESHUA!". Pursuit drums replace the lyre.
+- **Escaping:** break line of sight and stay out of sight. The stars flash and a bar runs down (6 s + 3 s per star) until the search is called off. Soldiers search around your last known position, then go back to duty.
+- **Using miracles:**
+  - **Divine Push** sends legionaries flying as **real Rapier ragdolls** (7 bodies, spherical joints) that land, settle and get back up angrier and bruised. Villagers hit hard by the Push ragdoll too.
+  - **Healing Touch** on a soldier makes him look the other way: −1 star, once per hunt.
+  - **Water to Wine** lures nearby soldiers off for a "tasting".
+  - **Levitation** works on soldiers ("PUT ME DOWN, THAT'S AN ORDER!"), but it's a crime.
+  - **Romans don't swim:** they stop at the waterline.
+- **Seized and arrested:**
+  - **Seized:** a soldier within reach grabs you. A "SEIZED!" bar fills and you slow down; run, or push them off, to break free.
+  - **Arrested:** if the bar fills you are arrested. An ARRESTED card shows the stars and a fine in Faith; then a few hours pass and you are released at the checkpoint barrier.
+  - **What carries over:** the save keeps arrests, escapes, legionaries toppled and the highest attention reached. The wanted level itself does not survive a reload.
 
 ## What Phase 3 adds — miracles
 
@@ -114,7 +155,7 @@ Supporting changes:
   - **Outskirts:** the Rooftop Lookout, an olive grove with a stone press, and the old watchtower on the ridge.
   - **Living details:** about 40 dynamic barrels, crates and pots you can bump around. Countryside scatter is instanced (olives, cypress, bushes, rocks, grass); drifting stylised clouds, a gradient sky with sun glow and an animated lake complete the scene.
 - **Playable loop — "Chapter I: Discover Nazareth":** find 7 landmarks, guided by minimap pins and an objective card with distance. Each one triggers a discovery banner and chime and autosaves; finding all seven completes the chapter.
-- **HUD:** objective card with progress pips, Roman Attention stars (always 0 for now), a rotating minimap, region label, follower count, a 6-slot miracle hotbar (locked, with tooltips), interaction prompts and dialog, toasts, and an optional FPS counter.
+- **HUD:** objective card with progress pips, Roman Attention stars, a rotating minimap, region label, follower count, a 6-slot miracle hotbar (locked, with tooltips), interaction prompts and dialog, toasts, and an optional FPS counter.
 - **Pause menu:** Resume · Map · Missions · Miracles · Statistics (Faith, Chaos, distance, jumps, props knocked over, time played) · Settings · Save & Quit. **TAB** opens the full valley map.
 - **Audio:** all procedural Web Audio, with no audio files. Footsteps differ on sand and stone; there are jump and land sounds, a wind bed, market chatter that rises near the stalls, birdsong, a soft lyre-and-drone music loop, a discovery arpeggio, and UI sounds. Music and SFX volumes are separate.
 - **Save:** LocalStorage stores position, discovered landmarks, Faith/Chaos, stats, unlocked miracles, missions and settings. Saves are validated on load; a corrupted save is quarantined and the player starts fresh with a notice.
@@ -136,10 +177,15 @@ src/
   physics/PhysicsWorld.js Rapier world, static/dynamic bodies, ray casts
   world/                  layout (authoritative positions), terrain, Nazareth builder, vegetation, Sky, World, materials, textures, geometry batcher
   ui/                     UI (menus, HUD, pause, sheets, conversation, speech bubbles), Minimap + world map, icons
-  npc/                    CharacterKit (NPC models + animator), NavGraph (A*), NPCManager (routines, reactions, LOD), roster, dialogue, Animals
+  npc/                    CharacterKit (NPC + legionary models, animator, ragdoll part boxes), NavGraph (A*), NPCManager (routines, reactions, LOD, villager ragdolls), roster, dialogue, Animals
+  roman/                  RomanManager (garrison AI, perception, pursuit, arrests), RomanAttention (wanted level), legion (roster, routes, sight/speed tuning)
+  physics/Ragdoll.js      Rapier ragdolls for CharacterKit rigs
+  miracles/               MiracleManager
+  vfx/                    Effects (pooled particles + rings)
+  world/RomanCheckpoint.js the north-road camp
   audio/AudioManager.js   procedural Web Audio
   save/SaveManager.js     LocalStorage + validation
-tests/                    playtest.mjs, motion.mjs (Playwright, real input)
+tests/                    playtest.mjs + phase2/3/4 checks, motion.mjs, npc-motion.mjs, roman-motion.mjs (Playwright, real input)
 scripts/                  inspect-threejs-canvas.mjs (canvas/pixel/budget inspector)
 artifacts/                evidence manifest, captures, playtest results, final-evidence.md
 ```
@@ -152,25 +198,25 @@ artifacts/                evidence manifest, captures, playtest results, final-e
 - **Intent-driven input:** systems read intents, never DOM events, so input could come from a network or a replay.
 - **Session-owned systems:** `GameSession` owns the systems and their update order, so it can later host more than one `PlayerState`.
 
-## Known limitations (Phase 1)
+## Known limitations
 
-- **Content not built yet:** no Roman AI, vehicles, followers or the full mission framework. Their HUD slots and menu entries say plainly that they're not yet revealed or coming in a later chapter, and nothing fakes them. The lost-sheep errand is a single scripted good deed, not the Phase 6 mission system.
-- **Knock-overs are animated, not simulated:** a toppled villager falls over and gets back up through the animation rig. True ragdolls arrive with Phase 4.
+- **Content not built yet:** no vehicles, followers or the full mission framework. Their HUD slots and menu entries say plainly that they're not yet revealed or coming in a later chapter, and nothing fakes them. The lost-sheep errand is a single scripted good deed, not the Phase 6 mission system.
+- **Ragdolls only for big hits:** legionaries always ragdoll under Divine Push and villagers do on close, strong hits (up to 8 ragdolls at once). Being bumped or sprinted into still plays the animated stumble. Ragdoll limbs don't collide with each other.
+- **Simple stealth:** there is no crouching or hiding spot; you lose the Romans by breaking line of sight and waiting. The wanted level is not saved, so reloading clears it.
 - **Night is brief:** about 84 seconds. Villagers vanish indoors rather than performing evening activities inside houses.
 - **Partial map:** only the Nazareth valley (radius 135 m) and the near strip of the lake are playable. The outpost, desert, countryside and the far lake are scenery beyond a soft boundary.
 - **No miracle upgrades yet:** upgrades and follower recruitment from healing are planned for Phase 6. Healed villagers are already recorded in the save.
 - **Large Rapier bundle:** about 1.7 MB gzipped, because the `-compat` build inlines its WASM. Switching to the non-compat package with a separate `.wasm` file would cut this.
 - **Performance unmeasured on a real GPU:** all automated captures ran on a software renderer, so FPS numbers from them aren't meaningful. Desktop render budgets pass; the mobile triangle budget is exceeded (≈340k vs 300k), and mobile is not a target for this release.
 - **Camera passes through foliage:** the camera ignores tree trunks for collision, so it can pass through canopies. Occluder fading is planned for the polish phase.
-- **No real ragdolls yet:** props are rigid bodies; character ragdolls come with Phase 4.
 
 ## Roadmap
 
 1. ~~Phase 1 — Playable foundation~~ ✅
 2. ~~Phase 2 — Living world~~ ✅
 3. ~~Phase 3 — Miracles~~ ✅
-4. **Phase 4 — Roman system** *(next)*: patrols, line of sight, Roman Attention, capture/respawn, ragdolls.
-5. Phase 5 — World expansion (countryside, lake, outpost, desert, vehicles, animals).
+4. ~~Phase 4 — Roman system~~ ✅
+5. **Phase 5 — World expansion** *(next)*: countryside, lake, outpost, desert, vehicles (donkey, horse, cart, chariot), animals.
 6. Phase 6 — Missions, Faith/Chaos, followers, full save.
 7. Phase 7 — Polish, audio, optimisation, CrazyGames SDK integration.
 

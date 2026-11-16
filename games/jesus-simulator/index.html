@@ -47,8 +47,9 @@
         </div>
         <div class="hud-topright">
           <div class="attention" id="attention" title="Roman Attention">
-            <span class="attention-label">ROMAN ATTENTION</span>
+            <span class="attention-label" id="attention-label">ROMAN ATTENTION</span>
             <span class="stars" id="stars"></span>
+            <span class="attention-search" id="attention-search"><i></i></span>
           </div>
           <div class="minimap-wrap">
             <canvas id="minimap" width="200" height="200"></canvas>
@@ -75,6 +76,19 @@
         <div class="hud-bottom">
           <div class="miracle-label" id="miracle-label"></div>
           <div class="hotbar" id="hotbar"></div>
+        </div>
+        <div class="grab-meter" id="grab-meter" hidden>
+          <div class="grab-text">SEIZED! <b>RUN</b> or <b>PUSH</b> to break free</div>
+          <div class="grab-bar"><i id="grab-fill"></i></div>
+        </div>
+        <div class="arrest-card" id="arrest-card" hidden>
+          <div class="arrest-inner">
+            <div class="arrest-kicker">IN THE NAME OF ROME</div>
+            <h2 class="arrest-title">ARRESTED</h2>
+            <p class="arrest-line" id="arrest-line"></p>
+            <ul class="arrest-facts" id="arrest-facts"></ul>
+            <p class="arrest-hint"><kbd>E</kbd> / <kbd>Space</kbd> continue</p>
+          </div>
         </div>
         <div class="toasts" id="toasts" aria-live="polite"></div>
         <div class="banner" id="banner" hidden>

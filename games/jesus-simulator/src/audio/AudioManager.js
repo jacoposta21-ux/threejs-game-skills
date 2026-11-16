@@ -330,6 +330,59 @@ export class AudioManager {
     }
   }
 
+  // ---------------------------------------------------------------- Romans
+  /** Cornu call: two brassy notes when the garrison is alerted. */
+  horn() {
+    if (!this.ctx) return;
+    for (const [f, when, dur] of [[196, 0, 0.45], [262, 0.42, 0.95]]) {
+      this.tone({ freq: f, type: 'sawtooth', gain: 0.045, attack: 0.06, decay: dur, when });
+      this.tone({ freq: f * 1.005, type: 'sawtooth', gain: 0.03, attack: 0.08, decay: dur, when });
+      this.tone({ freq: f * 2, type: 'square', gain: 0.012, attack: 0.09, decay: dur * 0.8, when });
+    }
+  }
+
+  /** Armour clatter (ragdolls landing, soldiers getting up). */
+  clank(gain = 1) {
+    if (!this.ctx || gain < 0.03) return;
+    this.noiseBurst({ freq: 3400, q: 5, gain: 0.14 * gain, decay: 0.14, type: 'bandpass', rate: 1.4 });
+    this.tone({ freq: 1250 * (0.9 + Math.random() * 0.25), type: 'square', gain: 0.018 * gain, decay: 0.09 });
+    this.tone({ freq: 2310 * (0.9 + Math.random() * 0.2), type: 'triangle', gain: 0.02 * gain, decay: 0.2, when: 0.05 });
+  }
+
+  /** "Busted" sting. */
+  arrest() {
+    if (!this.ctx) return;
+    [392, 330, 262, 196].forEach((f, i) => this.tone({ freq: f, type: 'triangle', gain: 0.07, attack: 0.01, decay: 0.32, when: i * 0.16 }));
+    this.tone({ freq: 70, slideTo: 40, type: 'sine', gain: 0.22, attack: 0.005, decay: 0.5, when: 0.64 });
+  }
+
+  /** Relief chord when the Romans give up the search. */
+  escaped() {
+    if (!this.ctx) return;
+    [294, 370, 440, 587].forEach((f, i) => this.pluck(f, i * 0.07, 0.06));
+  }
+
+  /** Pursuit drums: tempo and layers follow the star level (0 = silent). */
+  setPursuit(level) {
+    this.pursuit = level;
+  }
+
+  drums(dt) {
+    if (!this.pursuit) { this.drumTimer = 0; return; }
+    this.drumTimer = (this.drumTimer || 0) - dt;
+    if (this.drumTimer > 0) return;
+    const lvl = this.pursuit;
+    const beat = 0.42 / (1 + lvl * 0.07);
+    this.drumStep = ((this.drumStep || 0) + 1) % 8;
+    const st = this.drumStep;
+    const out = this.music;
+    if (st % 2 === 0) this.tone({ freq: 92, slideTo: 48, type: 'sine', gain: 0.16 + lvl * 0.015, attack: 0.004, decay: 0.28, out });
+    if (st === 3 || st === 7 || (lvl >= 3 && st === 5)) this.noiseBurst({ freq: 1800, q: 0.8, gain: 0.05 + lvl * 0.008, decay: 0.1, type: 'bandpass', out });
+    if (lvl >= 2 && st % 4 === 1) this.tone({ freq: 140, slideTo: 90, type: 'triangle', gain: 0.06, attack: 0.004, decay: 0.16, out });
+    if (lvl >= 4 && st === 0) this.tone({ freq: 196, type: 'sawtooth', gain: 0.018, attack: 0.05, decay: beat * 3, out });
+    this.drumTimer = beat;
+  }
+
   pluck(freq, when, gain = 0.07) {
     this.tone({ freq, type: 'triangle', gain, attack: 0.005, decay: 1.4, when, out: this.music });
     this.tone({ freq: freq * 2, type: 'sine', gain: gain * 0.3, attack: 0.005, decay: 0.6, when, out: this.music });
@@ -351,7 +404,9 @@ export class AudioManager {
         this.birdTimer = 2.5 + Math.random() * 6;
       }
     }
+    this.drums(dt);
     this.musicTimer -= dt;
+    if (this.pursuit) this.musicTimer = Math.max(this.musicTimer, 2);
     if (this.musicTimer <= 0 && this.settings.musicVolume > 0) {
       const root = 196 * (Math.random() < 0.5 ? 1 : 2 ** (5 / 12));
       const notes = 4 + Math.floor(Math.random() * 4);
