@@ -194,6 +194,8 @@ export interface Theme {
   fireflies?: boolean;
   /** Falling snow / drifting sand motes. */
   weather?: 'snow' | 'dust';
+  /** Glass walls and roof ribs around the course (the greenhouse). */
+  glasshouse?: boolean;
   /** Night track: bright emissive props get a bloom pass. */
   bloom?: boolean;
 }

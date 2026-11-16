@@ -788,6 +788,36 @@ export function buildBackyard(quality: number): BackyardResult {
   };
   arch(START_S, track.halfWidth(START_S) + 0.9, 'FINISH', '#ffd23a', '#1f2430', true, 0xffc21a);
   const boingRoot = buildBoingMushroom(group);
+
+  // --- the greenhouse: tall glass walls on slender green frames either side of the course
+  if (track.def.theme.glasshouse) {
+    const panes: Placement[] = [];
+    const posts: Placement[] = [];
+    const beams: Placement[] = [];
+    for (let s = 0; s < track.length; s += 22) {
+      const hw = track.halfWidth(s);
+      for (const side of [-1, 1]) {
+        const d = side * (hw + 30);
+        if (crowded(s, d, 12)) continue;
+        const yaw = Math.PI / 2 - track.heading(s);
+        panes.push({ s, d, scale: 1, yaw, color: new THREE.Color(0xffffff), lift: -0.5 });
+        posts.push({ s, d, scale: 1, yaw, color: new THREE.Color(0x2f6a46), lift: -0.5 });
+        beams.push({ s, d, scale: 1, yaw, color: new THREE.Color(0x2f6a46), lift: -0.5 });
+      }
+    }
+    const pane = new THREE.PlaneGeometry(22.6, 30, 1, 1).translate(0, 15, 0);
+    const glass = new THREE.MeshStandardMaterial({ color: 0xdff6ff, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 1.6 });
+    instanced(group, pane, glass, panes);
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.3 });
+    instanced(group, new THREE.BoxGeometry(0.5, 30, 0.5).translate(-11.2, 15, 0), frameMat, posts, { cast: true });
+    // Horizontal glazing bars and a sloping roof rib leaning over the course.
+    const bars = mergeGeometries([
+      new THREE.BoxGeometry(22.6, 0.35, 0.35).translate(0, 10, 0),
+      new THREE.BoxGeometry(22.6, 0.35, 0.35).translate(0, 20, 0),
+      new THREE.BoxGeometry(22.6, 0.45, 0.45).translate(0, 30, 0),
+    ])!;
+    instanced(group, bars, frameMat, beams);
+  }
   let squash = 0;
   let squashVel = 0;
 

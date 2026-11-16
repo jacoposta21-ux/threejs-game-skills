@@ -1509,6 +1509,8 @@ export class Game {
       'frost-play': () => raceTo(240, undefined, 'frost'),
       'frost-pond': () => raceTo(560, undefined, 'frost'),
       'glow-play': () => raceTo(230, undefined, 'glow'),
+      'greenhouse-play': () => raceTo(330, undefined, 'greenhouse'),
+      'greenhouse-slalom': () => raceTo(470, undefined, 'greenhouse'),
       'glow-hollow': () => raceTo(430, undefined, 'glow'),
       'glow-jump': kicker('glow'),
       tracks: () => {
