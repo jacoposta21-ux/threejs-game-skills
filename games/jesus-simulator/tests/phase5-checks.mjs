@@ -39,7 +39,7 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
     S.romans.setActive(true);
     S.unlockAllForTest();
     window.__p5events = [];
-    for (const name of ['vehicle:enter', 'vehicle:exit', 'vehicle:hit', 'vehicle:refuse', 'circuit:lap', 'circuit:start', 'landmark:discover', 'mission:complete', 'roman:crime', 'npc:trampled', 'fish:jump', 'player:boundary']) {
+    for (const name of ['vehicle:enter', 'vehicle:exit', 'vehicle:hit', 'vehicle:refuse', 'circuit:lap', 'circuit:start', 'landmark:discover', 'mission:complete', 'roman:crime', 'npc:trampled', 'fish:jump', 'player:boundary', 'animal:flee']) {
       S.bus.on(name, (e) => window.__p5events.push({ name, ...JSON.parse(JSON.stringify({ ...e, copy: undefined })) }));
     }
   });
@@ -224,9 +224,10 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
   await camBehind();
   await holdSim(['KeyW', 'ShiftLeft'], 1.5);
   const pig = (await diag()).wildlife.pigeonsFlying;
-  await teleport(-158, -64, Math.PI);
-  await holdSim(['KeyW', 'ShiftLeft'], 1.2);
-  const goats = (await diag()).wildlife.goats.filter((g) => g[2]).length;
+  await teleport(-174, -72, Math.PI / 2);
+  await events();
+  await holdSim(['KeyW', 'ShiftLeft'], 3.5);
+  const goats = new Set((await events()).filter((e) => e.name === 'animal:flee' && e.kind === 'goat').map((e) => e.entityId)).size;
   await teleport(166, -82, Math.PI, 1.2);
   await events();
   await sim(14);
