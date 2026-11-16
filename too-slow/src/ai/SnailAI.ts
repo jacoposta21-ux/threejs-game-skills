@@ -87,7 +87,11 @@ export class SnailAI {
   /** The profile adjusted for the chosen difficulty. */
   private eff: RacerProfile;
 
-  reset(rng: () => number, difficulty = 1): void {
+  /** A nemesis drives a little harder and goes after the player with its items. */
+  nemesis = false;
+
+  reset(rng: () => number, difficulty = 1, nemesis = false): void {
+    this.nemesis = nemesis;
     const b = this.profile;
     const easy = difficulty === 0;
     const hard = difficulty === 2;
@@ -99,7 +103,11 @@ export class SnailAI {
       slideAt: easy ? Math.min(0.95, b.slideAt + 0.25) : b.slideAt,
       boostDelay: easy ? b.boostDelay + 2 : hard ? b.boostDelay * 0.5 : b.boostDelay,
     };
-    this.pace = easy ? 0.86 : hard ? 1.06 : 1;
+    this.pace = (easy ? 0.86 : hard ? 1.06 : 1) * (nemesis ? 1.03 : 1);
+    if (nemesis) {
+      this.eff.aggression = Math.min(1, this.eff.aggression + 0.3);
+      this.eff.boostDelay *= 0.6;
+    }
     const p = this.eff;
     this.routes = {};
     for (const g of track.gates) {

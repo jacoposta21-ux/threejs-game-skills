@@ -66,6 +66,8 @@ export interface ItemEvent {
   racer: number;
   kind: ItemKind | null;
   pos: THREE.Vector3;
+  /** Who threw / dropped it, for hits. */
+  by: number;
 }
 
 export const ITEM_NAMES: Record<ItemKind, string> = {
@@ -101,6 +103,8 @@ export class ItemSystem {
   readonly puddles: Puddle[] = [];
   readonly events: ItemEvent[] = [];
   enabled = true;
+  /** The player's nemesis aims its acorns at the player. */
+  nemesis = -1;
 
   reset(): void {
     this.boxes.length = 0;
@@ -121,8 +125,8 @@ export class ItemSystem {
     }
   }
 
-  private emit(type: ItemEventType, racer: number, kind: ItemKind | null, pos: THREE.Vector3): void {
-    if (this.events.length < 32) this.events.push({ type, racer, kind, pos: pos.clone() });
+  private emit(type: ItemEventType, racer: number, kind: ItemKind | null, pos: THREE.Vector3, by = -1): void {
+    if (this.events.length < 32) this.events.push({ type, racer, kind, pos: pos.clone(), by });
   }
 
   /** Roulette countdowns and item use. Runs before physics so a mushroom fires this step. */
@@ -207,6 +211,7 @@ export class ItemSystem {
         // Aim at the snail directly ahead in the standings.
         let target = -1;
         for (let k = 0; k < racers.length; k += 1) if (rank[k] === rank[i] - 1 && !racers[k].finished) target = k;
+        if (i === this.nemesis && rank[0] < rank[i] && !racers[0].finished) target = 0;
         const fwd = Math.max(0, r.vel.x * Math.sin(track.heading(r.s)) - r.vel.z * Math.cos(track.heading(r.s)));
         if (this.acorns.length >= MAX_ACORNS) this.acorns.shift();
         this.acorns.push({ pos: r.pos.clone(), s: r.s + 1.4, d: r.d, vs: Math.max(30, fwd + 18), owner: i, age: 0, target });
@@ -238,7 +243,7 @@ export class ItemSystem {
         if (ban.owner === i && ban.age < 0.6) continue;
         if (r.pos.distanceToSquared(ban.pos) < (ban.kind === 'web' ? 1.6 : 1.0)) {
           const hit = ban.kind === 'web' ? r.catchWeb() : r.hitBy('banana');
-          this.emit(hit ? 'hit' : 'blocked', i, ban.kind, ban.pos);
+          this.emit(hit ? 'hit' : 'blocked', i, ban.kind, ban.pos, ban.owner);
           this.bananas.splice(k, 1);
         }
       }
@@ -249,7 +254,7 @@ export class ItemSystem {
         const dx = r.pos.x - pd.pos.x;
         const dz = r.pos.z - pd.pos.z;
         if (dx * dx + dz * dz < HONEY_R * HONEY_R && r.airTime < 0.1) {
-          if (r.sticky <= 0) this.emit('hit', i, 'honey', r.pos);
+          if (r.sticky <= 0) this.emit('hit', i, 'honey', r.pos, pd.owner);
           r.sticky = 0.15;
         }
       }
@@ -276,7 +281,7 @@ export class ItemSystem {
         lb.pos.y = Math.max(lb.pos.y + 2.2 * Math.min(1, Math.abs(gap) / 12), t.pos.y - 0.2) + 0.4;
         if (Math.abs(gap) < 2.5 && t.pos.distanceToSquared(lb.pos) < 6) {
           const hit = t.hitBy('ladybug');
-          this.emit(hit ? 'hit' : 'blocked', lb.target, 'ladybug', t.pos);
+          this.emit(hit ? 'hit' : 'blocked', lb.target, 'ladybug', t.pos, lb.owner);
           dead = true;
         }
       }
@@ -317,7 +322,7 @@ export class ItemSystem {
           if ((i === a.owner && a.age < 0.5) || r.finished) continue;
           if (r.pos.distanceToSquared(a.pos) < (TUNE.radius + 0.6) ** 2) {
             const hit = r.hitBy('acorn');
-            this.emit(hit ? 'hit' : 'blocked', i, 'acorn', a.pos);
+            this.emit(hit ? 'hit' : 'blocked', i, 'acorn', a.pos, a.owner);
             dead = true;
             break;
           }

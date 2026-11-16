@@ -38,6 +38,8 @@ export class RaceManager {
   /** Racer indices driven by humans. */
   humans: number[] = [0];
   mode: RaceMode = 'race';
+  /** The rival out to get the player this race (-1: none). */
+  nemesis = -1;
   difficulty: Difficulty = 1;
   /** When true the player's snail is driven by an AI (attract mode / bot playtests). */
   autopilot = false;
@@ -118,7 +120,7 @@ export class RaceManager {
       r.dist = -10 - row * 5;
       r.checkpointDist = r.dist;
       this.lapOf[i] = 1;
-      this.ais[i]?.reset(rng, this.difficulty);
+      this.ais[i]?.reset(rng, this.difficulty, i === this.nemesis && this.mode !== 'tt' && this.mode !== 'tutorial');
       r.inactive = !this.isActive(i);
       if (r.inactive) {
         // Parked far below the world: no collisions, no rank.
@@ -138,6 +140,7 @@ export class RaceManager {
     this.finishedCount = 0;
     this.events.length = 0;
     this.items.reset();
+    this.items.nemesis = this.mode === 'tt' || this.mode === 'tutorial' ? -1 : this.nemesis;
     this.critters.reset();
     this.laps = this.lapsOverride || track.def.laps;
     this.lapTimes.length = 0;

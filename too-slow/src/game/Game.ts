@@ -15,6 +15,7 @@ import { addFame, addStats, COSMETICS, earnedCosmetics, GP_POINTS, TRAILS, loadG
 import { Hud2 } from '../ui/Hud2';
 import { GhostRunner } from './GhostRunner';
 import { Tutorial } from './Tutorial';
+import { line, loadNemesis, saveNemesis, type Moment } from '../racing/Personality';
 import { formatTime, Hud, ordinal } from '../ui/Hud';
 import { loadBest, loadRaceCount, loadUnlocked, Menus, saveBest, saveRaceCount, unlockAfter, type PlayerLook, type Settings } from '../ui/Menus';
 import { TRACKS } from '../world/tracks';
@@ -121,6 +122,10 @@ export class Game {
   private rivalNames: string[] = [];
   private readonly ttPanel = document.getElementById('tt-panel');
   private readonly windChip = document.getElementById('wind-chip');
+  private readonly chatterEl = document.getElementById('chatter');
+  private chatterTimer = 0;
+  private lastChatter = -99;
+  private readonly prevRank: number[] = [];
   private readonly windArrow = document.getElementById('wind-arrow');
   private readonly camDir = new THREE.Vector3();
   private readonly ttMedal = document.getElementById('tt-medal');
@@ -511,6 +516,12 @@ export class Game {
     this.rng = createSeededRandom(this.seed);
     const mode = this.mode;
     this.race.configure(mode, this.menus.settings.difficulty as Difficulty);
+    // A nemesis: whoever beat you last time, or a random rival on the first race.
+    this.race.nemesis = mode === 'tt' || mode === 'tutorial' ? -1 : loadNemesis() || 1 + Math.floor(this.rng() * 5);
+    if (mode === 'duo' && this.race.nemesis === 1) this.race.nemesis = 2;
+    this.chatterEl?.classList.add('hidden');
+    this.chatterTimer = 0;
+    this.lastChatter = -99;
     this.race.items.enabled = this.menus.settings.items && mode !== 'tt';
     this.setDuo(mode === 'duo');
     this.race.reset(this.rng);
@@ -634,6 +645,7 @@ export class Game {
       if (steps === MAX_STEPS_PER_FRAME) this.accumulator = 0;
       this.alpha = this.accumulator / FIXED_DT;
       this.updateModes(delta);
+      this.watchRivals(delta);
       this.handleEvents();
       this.updateRaceUi(delta);
     } else {
@@ -911,6 +923,8 @@ export class Game {
           if (me && e.kind && e.kind !== 'mushroom') this.hud.toast(ITEM_NAMES[e.kind].toUpperCase(), 'info');
           break;
         case 'hit':
+          if (e.racer === 0 && e.by > 0) this.say(e.by, 'hitYou');
+          else if (e.by === 0 && e.racer > 0) this.say(e.racer, 'hitBy');
           this.particles.burst(e.pos, 10, e.kind === 'acorn' ? COLORS.acorn : COLORS.peel, 4, 0.22, 0.5, 8, 1, this.fxRng);
           if (!me && this.race.items.events.some((x) => x.type === 'use' && x.racer === 0)) this.hud.toast('HIT!', 'great');
           break;
@@ -942,6 +956,10 @@ export class Game {
           this.audio.play('count');
           break;
         case 'go':
+          if (this.race.nemesis > 0) {
+            this.hud.toast(`NEMESIS: ${this.race.profiles[this.race.nemesis].name.toUpperCase()}`, 'bad', 'beat them!');
+            this.say(this.race.nemesis, 'nemesis', true);
+          }
           this.hud.countdown('GO!', true);
           this.audio.play('go');
           break;
@@ -973,6 +991,7 @@ export class Game {
           this.audio.play('overtaken');
           break;
         case 'aiFinish':
+          if (e.value === 1) this.say(e.racer, 'win', true);
           if (!this.race.player.finished && this.mode !== 'duo') this.hud.toast(`${this.race.profiles[e.racer].name} finished`, 'info', `${e.value}${ordinal(e.value)}`);
           break;
         case 'finish':
@@ -1025,6 +1044,7 @@ export class Game {
       rolling: p.itemRoulette > 0,
       itemsEnabled: race.items.enabled,
       field: race.field,
+      nemesis: race.nemesis > 0 ? race.nemesis : undefined,
       p2: this.mode === 'duo' ? 1 : undefined,
     });
     if (p.itemRoulette > 0 && this.frame % 4 === 0) this.audio.play('roulette');
@@ -1124,6 +1144,13 @@ export class Game {
       gp = { rows, race: this.gp.index + 1, of: this.gp.tracks.length, last: this.gp.index >= this.gp.tracks.length - 1 };
     }
     if (mode === 'tutorial') setTutorialDone();
+    // Next race's nemesis: the rival who finished just ahead of you (or just behind, if you won).
+    if (mode === 'race' || mode === 'gp') {
+      const k = race.order.indexOf(0);
+      const rival = race.order[k === 0 ? 1 : k - 1];
+      if (rival > 0) saveNemesis(rival);
+    }
+    this.chatterEl?.classList.add('hidden');
 
     this.hud.show(false);
     this.hud2.show(false);
@@ -1362,6 +1389,48 @@ export class Game {
     r.setViewport(0, 0, w, h);
   }
 
+  /** A rival speaks up (rate-limited so the bubble stays readable). */
+  private say(racer: number, moment: Moment, force = false): void {
+    if (racer <= 0 || this.mode === 'duo' || !this.chatterEl) return;
+    if (!force && this.time - this.lastChatter < 5) return;
+    const text = line(this.race.profiles[racer].name, moment, this.fxRng);
+    if (!text) return;
+    this.lastChatter = this.time;
+    this.chatterTimer = 3.2;
+    const p = this.race.profiles[racer];
+    (document.getElementById('chatter-dot') as HTMLElement).style.background = `#${p.shell.toString(16).padStart(6, '0')}`;
+    (document.getElementById('chatter-name') as HTMLElement).textContent = (racer === this.race.nemesis ? '😠 ' : '') + p.name;
+    (document.getElementById('chatter-text') as HTMLElement).textContent = `“${text}”`;
+    this.chatterEl.classList.remove('hidden');
+    // Restart the pop-in animation.
+    this.chatterEl.style.animation = 'none';
+    void this.chatterEl.offsetWidth;
+    this.chatterEl.style.animation = '';
+  }
+
+  /** Who passed whom since last frame: rivals react to the player. */
+  private watchRivals(delta: number): void {
+    const race = this.race;
+    if (this.chatterTimer > 0) {
+      this.chatterTimer -= delta;
+      if (this.chatterTimer <= 0) this.chatterEl?.classList.add('hidden');
+    }
+    if (race.phase !== 'racing' || race.time < 4) {
+      for (let i = 0; i < RACER_COUNT; i += 1) this.prevRank[i] = race.rank[i];
+      return;
+    }
+    const me = race.rank[0];
+    const before = this.prevRank[0];
+    for (let i = 1; i < RACER_COUNT; i += 1) {
+      const r = race.racers[i];
+      if (r.inactive || Math.abs(r.dist - race.player.dist) > 25) continue;
+      const was = this.prevRank[i];
+      if (was > before && race.rank[i] < me) this.say(i, 'passYou', i === race.nemesis);
+      else if (was < before && race.rank[i] > me) this.say(i, 'passedBy', i === race.nemesis);
+    }
+    for (let i = 0; i < RACER_COUNT; i += 1) this.prevRank[i] = race.rank[i];
+  }
+
   /** Rain, gloom, gust sounds and the wind arrow follow the race's weather. */
   private updateWeather(delta: number): void {
     const race = this.race;
@@ -1594,6 +1663,13 @@ export class Game {
       'wind-play': () => {
         this.race.forceWeather = 'wind';
         raceTo(240, undefined, 'sandbox');
+      },
+      chatter: () => {
+        raceTo(236);
+        this.say(this.race.nemesis > 0 ? this.race.nemesis : 1, 'passYou', true);
+        this.updateRaceUi(1 / 60);
+        this.render();
+        this.pausedForScreenshot = true;
       },
       fame: () => {
         this.toMenu(true);

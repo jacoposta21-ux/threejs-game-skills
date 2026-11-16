@@ -70,6 +70,8 @@ export interface HudState {
   field: number;
   /** Second human racer (split-screen), highlighted like the player. */
   p2?: number;
+  /** The rival marked as the player's nemesis. */
+  nemesis?: number;
 }
 
 const GAUGE_LEN = 227;
@@ -225,7 +227,7 @@ export class Hud {
       const p = Math.round(Math.min(1, Math.max(0, s.progress[i])) * 500) / 5;
       if (this.set(`dot${i}`, p)) this.dots[i].style.left = `${p}%`;
     }
-    const orderKey = s.order.join('');
+    const orderKey = s.order.join('') + (s.nemesis ?? '');
     if (this.set('order', orderKey)) {
       s.order.forEach((racer, place) => {
         const row = this.rows[place];
@@ -233,7 +235,7 @@ export class Hud {
         row.hidden = place >= s.field;
         (row.children[0] as HTMLElement).textContent = String(place + 1);
         (row.children[1] as HTMLElement).style.background = hex(this.profiles[racer].shell);
-        (row.children[2] as HTMLElement).textContent = this.profiles[racer].name;
+        (row.children[2] as HTMLElement).textContent = (racer === s.nemesis ? '😠 ' : '') + this.profiles[racer].name;
       });
     }
     if (this.set('itemsOn', s.itemsEnabled)) this.itemSlot.classList.toggle('hidden', !s.itemsEnabled);
