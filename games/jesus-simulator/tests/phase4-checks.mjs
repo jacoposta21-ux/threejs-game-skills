@@ -174,7 +174,7 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
   await setup(() => { const S = window.__JESUS_SIM__.session; S.romans.crime('assault', { victim: S.romans.byId.get('roman.quintus') }); });
   d = await diag();
   const starsBefore = d.romans.stars;
-  await clearVillagers(4, 32, 14);
+  await clearVillagers(4, 34, 20);
   await setup(() => {
     const S = window.__JESUS_SIM__.session;
     window.__lost = [];
@@ -183,8 +183,12 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
     S.player.teleport(3, 0, 22, 0.05);
     S.cam.snap(S.playerState.position, Math.PI + 0.05);
   });
+  // real keys held, a fixed 1.5 s of simulated sprint (frame-rate independent)
   await page.keyboard.down('ShiftLeft');
-  await hold('KeyW', 30);
+  await page.keyboard.down('KeyW');
+  await waitFrames(2);
+  await sim(1.5);
+  await page.keyboard.up('KeyW');
   await page.keyboard.up('ShiftLeft');
   await setup(() => { const S = window.__JESUS_SIM__.session; S.player.teleport(66, 0, 58, 0); });
   const searching = await setup(async () => {
