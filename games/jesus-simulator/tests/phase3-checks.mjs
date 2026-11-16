@@ -23,10 +23,15 @@ export async function phase3Checks({ page, check, diag, waitFrames, hold, out })
   await waitFrames(6);
 
   // 1. locked miracles refuse to cast
+  // toasts last ~3 s, a handful of software-rendered frames: watch for them rather than read them late
+  await setup(() => {
+    window.__toastLog = '';
+    new MutationObserver(() => { window.__toastLog += document.getElementById('toasts').textContent; }).observe(document.getElementById('toasts'), { childList: true, subtree: true, characterData: true });
+  });
   await select(2);
   await castQ();
   let d = await diag();
-  const lockedOk = d.unlocked.length === 0 && (d.props.copies || 0) === 0 && (await page.textContent('#toasts')).includes('not yet been revealed');
+  const lockedOk = d.unlocked.length === 0 && (d.props.copies || 0) === 0 && (await setup(() => window.__toastLog)).includes('not yet been revealed');
   check('locked miracles cannot be cast', lockedOk, `unlocked=${JSON.stringify(d.unlocked)}`);
 
   // 2. discovering the workshop reveals Divine Push
