@@ -39,7 +39,7 @@ for (let i = 0; i < 12; i += 1) {
 const cells = frames.map((f) => `<figure><img src="data:image/png;base64,${fs.readFileSync(path.join(out, f.file)).toString('base64')}"><figcaption>t+${f.t}s</figcaption></figure>`).join('');
 const sheet = await browser.newPage({ viewport: { width: 1320, height: 700 } });
 await sheet.setContent(`<style>body{margin:0;background:#2b1b10;font:600 13px sans-serif;color:#f7ecd4;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px}figure{margin:0}img{width:100%;display:block;border-radius:6px}figcaption{text-align:center;padding:3px}</style>${cells}`);
-await sheet.screenshot({ path: path.join(out, 'npc-motion-sheet.png'), fullPage: true });
+await sheet.screenshot({ path: path.join(out, 'npc-motion-sheet.png'), fullPage: true, timeout: 120000 });
 fs.writeFileSync(path.join(out, 'npc-motion.json'), JSON.stringify(frames, null, 2));
 await browser.close();
 console.log(`npc motion sheet: ${frames.length} frames`);
