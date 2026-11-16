@@ -235,6 +235,17 @@ export class SnailAI {
           dT = c;
         }
       }
+      // Honey puddles: steer round the sticky patch.
+      for (const pd of items.puddles) {
+        const ab = track.rel(pd.s, me.s);
+        if (ab < -2 || ab > look + 8 || me.giant > 0) continue;
+        if (Math.abs(pd.d - dT) < 3.2) {
+          const side = me.d >= pd.d ? 1 : -1;
+          let c = pd.d + side * 3.4;
+          if (c > g1 || c < g0 || Math.abs(c) > hw - 1) c = pd.d - side * 3.4;
+          dT = c;
+        }
+      }
       // Without an item, drift toward the nearest box in a row coming up.
       if (!me.item && me.itemRoulette <= 0) {
         let best = Infinity;
@@ -336,9 +347,11 @@ export class SnailAI {
       const hold = this.itemHold;
       let fire = false;
       if (me.item === 'mushroom') fire = hold > 0.6 + (1 - p.risk) && Math.abs(err) < 0.2 && Math.abs(kAhead) < 0.008 && !gateSoon;
-      else if (me.item === 'banana') fire = hold > 8 || all.some((o) => o !== me && me.dist - o.dist > 1 && me.dist - o.dist < 14 && Math.abs(o.d - me.d) < 4);
+      else if (me.item === 'banana' || me.item === 'web' || me.item === 'honey') fire = hold > 8 || all.some((o) => o !== me && me.dist - o.dist > 1 && me.dist - o.dist < 14 && Math.abs(o.d - me.d) < 4);
       else if (me.item === 'acorn') fire = hold > 10 || all.some((o) => o !== me && !o.finished && o.dist - me.dist > 4 && o.dist - me.dist < 40 && Math.abs(o.d - me.d) < 5);
       else if (me.item === 'slime') fire = hold > 0.5 && (SURFACES[me.surface].roll > 0.05 || (me.mode !== 'crawl' && speed < 14)) || hold > 12;
+      else if (me.item === 'giant') fire = hold > 0.6 + (1 - p.aggression) * 2 && (all.some((o) => o !== me && Math.abs(o.dist - me.dist) < 12) || hold > 6);
+      else if (me.item === 'ladybug') fire = hold > 1.5;
       else fire = hold > 0.8;
       if (fire) {
         it.useItem = true;

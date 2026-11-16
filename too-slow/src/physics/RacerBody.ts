@@ -22,7 +22,7 @@ export interface Intent {
 }
 
 /** Kart-style pickups from item boxes. */
-export type ItemKind = 'mushroom' | 'banana' | 'acorn' | 'slime' | 'shield';
+export type ItemKind = 'mushroom' | 'banana' | 'acorn' | 'slime' | 'shield' | 'giant' | 'web' | 'ladybug' | 'honey';
 
 export function emptyIntent(): Intent {
   return { steer: 0, throttle: 0, toggleRoll: false, slide: false, boost: false, spin: 0, useItem: false };
@@ -53,7 +53,9 @@ export type RacerEventType =
   | 'shieldBlock'
   | 'cannon'
   | 'critter'
-  | 'draft';
+  | 'draft'
+  | 'webbed'
+  | 'giant';
 
 export interface RacerEvent {
   type: RacerEventType;
@@ -171,6 +173,12 @@ export class RacerBody {
   superSlime = 0;
   /** Seconds left of the acorn-shell shield. */
   shield = 0;
+  /** Giant Snail: seconds left of being huge, heavy and immune. */
+  giant = 0;
+  /** Caught in a spider web. */
+  webbed = 0;
+  /** Standing in honey (refreshed every step while inside). */
+  sticky = 0;
   /** Race progress in metres from the start line, unwrapped across laps (negative on the grid). */
   dist = 0;
   /** Unwrapped progress of the last checkpoint passed, restored on respawn. */
@@ -234,6 +242,9 @@ export class RacerBody {
     this.itemRoulette = 0;
     this.superSlime = 0;
     this.shield = 0;
+    this.giant = 0;
+    this.webbed = 0;
+    this.sticky = 0;
     this.events.length = 0;
   }
 
@@ -266,6 +277,9 @@ export class RacerBody {
     const sBefore = this.s;
     if (this.superSlime > 0) this.superSlime -= dt;
     if (this.shield > 0) this.shield -= dt;
+    if (this.giant > 0) this.giant -= dt;
+    if (this.webbed > 0) this.webbed -= dt;
+    if (this.sticky > 0) this.sticky -= dt;
     if (this.spinOut > 0) {
       // Spinning out: hands off the controls while the shell skids and twirls.
       this.spinOut -= dt;
@@ -295,6 +309,12 @@ export class RacerBody {
       else if (this.mode === 'roll') this.rollForces(dt, surf.roll, surf.grip, intent.throttle < -0.1);
       else this.slideForces(dt, surf.roll, surf.grip);
       if (intent.boost && this.boost >= 1 && this.mode !== 'crawl') this.fireBoost();
+      // Spider web and honey: heavy, gluey drag on the ground (the Giant Snail tears through).
+      if ((this.webbed > 0 || this.sticky > 0) && this.giant <= 0) {
+        const k = Math.exp(-((this.webbed > 0 ? 2.4 : 0) + (this.sticky > 0 ? 1.5 : 0)) * dt);
+        vel.x *= k;
+        vel.z *= k;
+      }
     } else {
       this.airForces(dt, intent);
     }
@@ -395,7 +415,7 @@ export class RacerBody {
     const boosting = this.boostTimer > 0;
     // S drags the shell's lip along the ground: the only brake a rolling snail has.
     // Slipstream: half the air drag and the boost meter fills faster.
-    const drag = TUNE.airDrag * sp * sp * (boosting ? 0.45 : 1) * (this.draft ? 0.5 : 1);
+    const drag = TUNE.airDrag * sp * sp * (boosting ? 0.45 : 1) * (this.draft ? 0.5 : 1) * (this.giant > 0 ? 0.8 : 1);
     if (this.draft) this.boost = Math.min(1, this.boost + 0.05 * dt);
     const resist = roll * TUNE.gravity + drag + (braking ? TUNE.rollBrake : 0);
     // Steering is a lateral force: it rotates momentum, it never creates it.
@@ -482,26 +502,42 @@ export class RacerBody {
   }
 
   /** Banana or acorn hit. Returns false if a shield soaked it up. */
-  hitBy(kind: 'banana' | 'acorn' | 'ant' | 'bug'): boolean {
-    if (this.cannon > 0) return false;
+  hitBy(kind: 'banana' | 'acorn' | 'ant' | 'bug' | 'ladybug' | 'giant'): boolean {
+    if (this.cannon > 0 || this.giant > 0) return false;
     if (this.shield > 0) {
       this.shield = 0;
       this.emit('shieldBlock', 0);
       return false;
     }
     if (this.spinOut > 0 || this.finished) return false;
-    const acorn = kind === 'acorn';
-    const keep = kind === 'acorn' ? 0.35 : kind === 'banana' ? 0.5 : kind === 'bug' ? 0.55 : 0.75;
-    this.spinOutDur = kind === 'acorn' ? 1.3 : kind === 'banana' ? 1.05 : kind === 'bug' ? 0.9 : 0.5;
+    const acorn = kind === 'acorn' || kind === 'ladybug';
+    const keep = kind === 'ladybug' ? 0.25 : kind === 'acorn' ? 0.35 : kind === 'banana' || kind === 'giant' ? 0.5 : kind === 'bug' ? 0.55 : 0.75;
+    this.spinOutDur = kind === 'ladybug' ? 1.5 : kind === 'acorn' ? 1.3 : kind === 'banana' || kind === 'giant' ? 1.05 : kind === 'bug' ? 0.9 : 0.5;
     this.spinOut = this.spinOutDur;
     this.vel.x *= keep;
     this.vel.z *= keep;
-    if (acorn || kind === 'bug') this.vel.y += kind === 'bug' ? 3 : 4;
+    if (acorn || kind === 'bug') this.vel.y += kind === 'bug' ? 3 : kind === 'ladybug' ? 6 : 4;
     this.boostTimer = 0;
     this.driftCharge = 0;
     this.driftLevel = 0;
     if (this.mode === 'slide') this.mode = 'roll';
-    this.emit('spinout', acorn ? 2 : kind === 'bug' ? 3 : kind === 'ant' ? 4 : 1);
+    this.emit('spinout', kind === 'ladybug' ? 5 : kind === 'giant' ? 6 : acorn ? 2 : kind === 'bug' ? 3 : kind === 'ant' ? 4 : 1);
+    return true;
+  }
+
+  /** Ran into a spider web: a shield breaks it, a Giant Snail tears through. */
+  catchWeb(): boolean {
+    if (this.cannon > 0 || this.giant > 0 || this.finished) return false;
+    if (this.shield > 0) {
+      this.shield = 0;
+      this.emit('shieldBlock', 0);
+      return false;
+    }
+    this.webbed = 1.3;
+    this.vel.x *= 0.45;
+    this.vel.z *= 0.45;
+    this.boostTimer = 0;
+    this.emit('webbed', 0);
     return true;
   }
 
@@ -731,9 +767,13 @@ export function stepWorld(racers: RacerBody[], intents: Intent[], dt: number): v
       const b = racers[j];
       delta.copy(b.pos).sub(a.pos);
       const dist = delta.length();
-      if (dist >= min || dist < 1e-5) continue;
+      // A Giant Snail is bigger and flattens whoever it touches.
+      const reach = min + (a.giant > 0 || b.giant > 0 ? 0.7 : 0);
+      if (dist >= reach || dist < 1e-5) continue;
       delta.multiplyScalar(1 / dist);
-      const push = (min - dist) * 0.5;
+      if (a.giant > 0 && b.giant <= 0 && !b.frozen) b.hitBy('giant');
+      if (b.giant > 0 && a.giant <= 0 && !a.frozen) a.hitBy('giant');
+      const push = (reach - dist) * 0.5;
       if (!a.frozen) a.pos.addScaledVector(delta, -push);
       if (!b.frozen) b.pos.addScaledVector(delta, push);
       const rel = b.vel.dot(delta) - a.vel.dot(delta);

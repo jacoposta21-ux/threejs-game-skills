@@ -11,3 +11,6 @@ scripts/_*.mjs
 promo/frames/
 .single.mjs
 .phone.mjs
+.dbg.mjs
+.dbg2.mjs
+.dbg3.mjs

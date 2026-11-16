@@ -15,8 +15,16 @@ export const ITEM_ICONS: Record<ItemKind, string> = {
     '<svg viewBox="0 0 64 64"><path d="M32 6c10 14 18 22 18 34a18 18 0 0 1-36 0C14 28 22 20 32 6z" fill="#9cf05a" stroke="#23331a" stroke-width="3" stroke-linejoin="round"/><path d="M24 40a8 8 0 0 0 8 8" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/><path d="M44 8l3 6 6 3-6 3-3 6-3-6-6-3 6-3z" fill="#fff07a" stroke="#23331a" stroke-width="2"/></svg>',
   shield:
     '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="#bfe8ff" stroke="#23331a" stroke-width="3"/><path d="M32 32m-14 0a14 14 0 1 0 28 0a10 10 0 1 0-20 0a6 6 0 1 0 12 0" fill="none" stroke="#3a7fd0" stroke-width="4" stroke-linecap="round"/><path d="M18 20a18 18 0 0 1 12-8" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/></svg>',
+  giant:
+    '<svg viewBox="0 0 64 64"><circle cx="30" cy="36" r="22" fill="#ff7a2f" stroke="#23331a" stroke-width="3"/><path d="M30 36m-12 0a12 12 0 1 0 24 0a8 8 0 1 0-16 0a4 4 0 1 0 8 0" fill="none" stroke="#b8431a" stroke-width="4" stroke-linecap="round"/><path d="M50 4l8 12h-5v10h-6V16h-5z" fill="#ffd23a" stroke="#23331a" stroke-width="2.5" stroke-linejoin="round"/></svg>',
+  web:
+    '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="#eef2f8" stroke="#23331a" stroke-width="3"/><g stroke="#4a5268" stroke-width="2" fill="none"><path d="M32 5v54M5 32h54M13 13l38 38M51 13L13 51"/><circle cx="32" cy="32" r="8"/><circle cx="32" cy="32" r="15"/><circle cx="32" cy="32" r="22"/></g><circle cx="44" cy="22" r="5" fill="#23331a"/></svg>',
+  ladybug:
+    '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="36" rx="22" ry="20" fill="#e5382e" stroke="#23331a" stroke-width="3"/><path d="M32 16v40" stroke="#23331a" stroke-width="3"/><circle cx="32" cy="14" r="9" fill="#23331a"/><circle cx="22" cy="30" r="4" fill="#23331a"/><circle cx="42" cy="30" r="4" fill="#23331a"/><circle cx="20" cy="44" r="3.5" fill="#23331a"/><circle cx="44" cy="44" r="3.5" fill="#23331a"/><circle cx="28" cy="12" r="2" fill="#fff"/><circle cx="36" cy="12" r="2" fill="#fff"/></svg>',
+  honey:
+    '<svg viewBox="0 0 64 64"><path d="M32 6c9 14 18 22 18 34a18 18 0 0 1-36 0C14 28 23 20 32 6z" fill="#f4a81c" stroke="#23331a" stroke-width="3" stroke-linejoin="round"/><path d="M24 40a8 8 0 0 0 8 8" stroke="#ffe08a" stroke-width="4" stroke-linecap="round" fill="none"/><path d="M8 58h48" stroke="#c97a10" stroke-width="5" stroke-linecap="round"/></svg>',
 };
-const ROULETTE_ORDER: ItemKind[] = ['mushroom', 'banana', 'acorn', 'slime', 'shield'];
+const ROULETTE_ORDER: ItemKind[] = ['mushroom', 'banana', 'acorn', 'slime', 'shield', 'giant', 'web', 'ladybug', 'honey'];
 
 function el<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);

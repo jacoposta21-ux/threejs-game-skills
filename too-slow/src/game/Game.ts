@@ -835,8 +835,24 @@ export class Game {
             this.sfxFor(i, 'spinout');
             if (me) {
               this.rig.addShake(e.value === 4 ? 0.2 : 0.5);
-              const label = e.value === 2 ? 'BONK!' : e.value === 3 ? 'BUG BUMP!' : e.value === 4 ? 'ANT TRAFFIC!' : 'WHOOPS!';
+              const label = e.value === 2 ? 'BONK!' : e.value === 3 ? 'BUG BUMP!' : e.value === 4 ? 'ANT TRAFFIC!' : e.value === 5 ? 'LADYBUG STRIKE!' : e.value === 6 ? 'SQUASHED!' : 'WHOOPS!';
               this.hud.toast(label, 'bad', e.value === 4 ? 'stumbled' : 'spun out');
+            }
+            break;
+          case 'webbed':
+            this.particles.burst(r.pos, 14, COLORS.white, 3, 0.18, 0.6, 2, 1, this.fxRng);
+            this.sfxFor(i, 'web');
+            if (me) {
+              this.hud.toast('STUCK IN A WEB!', 'bad', 'slowed down');
+              this.rig.addShake(0.2);
+            }
+            break;
+          case 'giant':
+            this.sfxFor(i, 'giant');
+            this.particles.burst(r.pos, 24, COLORS.star, 7, 0.3, 0.8, 3, 1, this.fxRng);
+            if (me) {
+              this.hud.toast('GIANT SNAIL!', 'great', 'flatten them!');
+              this.rig.addShake(0.4);
             }
             break;
           case 'shieldBlock':
@@ -883,6 +899,8 @@ export class Game {
           if (e.kind === 'banana') this.sfxFor(e.racer, 'drop');
           else if (e.kind === 'acorn') this.sfxFor(e.racer, 'throw');
           else if (e.kind === 'shield') this.sfxFor(e.racer, 'shield');
+          else if (e.kind === 'web' || e.kind === 'honey') this.sfxFor(e.racer, 'drop');
+          else if (e.kind === 'ladybug') this.sfxFor(e.racer, 'throw');
           else if (e.kind === 'slime') {
             this.sfxFor(e.racer, 'slimeUp');
             this.particles.burst(e.pos, 16, COLORS.slime, 4, 0.22, 0.6, 4, 1, this.fxRng);
@@ -1164,6 +1182,10 @@ export class Game {
       this.mat.makeBasis(this.basisX, view.up, fz);
       view.model.root.quaternion.setFromRotationMatrix(this.mat);
       view.model.root.position.copy(view.pos).addScaledVector(view.up, -R);
+      // Giant Snail: grow fast, shrink back with a wobble at the end.
+      const giantTarget = r.giant > 0 ? 1.8 : 1;
+      const sc = view.model.root.scale.x;
+      if (Math.abs(sc - giantTarget) > 0.002) view.model.root.scale.setScalar(sc + (giantTarget - sc) * Math.min(1, delta * (r.giant > 0 ? 6 : 3)));
 
       const speed = r.speed;
       pose.mode = r.mode;
@@ -1502,6 +1524,27 @@ export class Game {
         settle();
         this.render();
       },
+      items: () => {
+        // Showcase: a web and a honey puddle ahead, a ladybug in flight, a Giant Snail rival.
+        raceTo(236);
+        const p = this.race.player;
+        const it = this.race.items;
+        const at = (ds: number, dd: number) => {
+          const v = track.toWorld(p.s + ds, p.d + dd, new THREE.Vector3());
+          return { pos: v.setY(v.y + 0.12), s: track.wrap(p.s + ds), d: p.d + dd };
+        };
+        it.bananas.push({ kind: 'web', ...at(9, -2), owner: 3, age: 2, yaw: 0.4 });
+        it.puddles.push({ ...at(12, -3.5), owner: 3, age: 2 });
+        const lb = at(4, 1.5);
+        it.ladybugs.push({ pos: lb.pos.setY(lb.pos.y + 2.4), s: lb.s, d: lb.d, owner: 4, target: 1, age: 1 });
+        const rival = this.race.racers[2];
+        rival.giant = 6;
+        for (let i = 0; i < 40; i += 1) this.syncVisuals(1 / 60);
+        this.itemView.update(it, this.time);
+        this.render();
+        // Freeze right here so the showcase is not driven past before the capture.
+        this.pausedForScreenshot = true;
+      },
       fame: () => {
         this.toMenu(true);
         (document.getElementById('btn-fame') as HTMLButtonElement).click();
@@ -1606,6 +1649,7 @@ export class Game {
       slime: p.slime,
       boost: p.boost,
       fps: this.fps,
+      items: { puddles: race.items.puddles.map((p) => [p.pos.x, p.pos.y, p.pos.z, p.age]), ladybugs: race.items.ladybugs.length, webs: race.items.bananas.filter((b) => b.kind === 'web').length },
       racers: race.racers.map((r, i) => ({ name: race.profiles[i].name, s: r.s, d: r.d, finished: r.finished, time: r.finishTime, mode: r.mode })),
       player: {
         position: { x: p.pos.x, y: p.pos.y, z: p.pos.z },

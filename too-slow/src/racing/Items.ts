@@ -17,6 +17,8 @@ export interface ItemBox {
 }
 
 export interface Banana {
+  /** Peels spin you out; webs hold you back. */
+  kind: 'banana' | 'web';
   pos: THREE.Vector3;
   s: number;
   d: number;
@@ -35,6 +37,28 @@ export interface Acorn {
   target: number;
 }
 
+/** A ladybug flying along the course after the leader. */
+export interface Ladybug {
+  pos: THREE.Vector3;
+  s: number;
+  d: number;
+  owner: number;
+  target: number;
+  age: number;
+}
+
+/** A honey puddle: sticky for a while, then it soaks away. */
+export interface Puddle {
+  pos: THREE.Vector3;
+  s: number;
+  d: number;
+  owner: number;
+  age: number;
+}
+
+export const HONEY_LIFE = 14;
+export const HONEY_R = 2.4;
+
 export type ItemEventType = 'pickup' | 'got' | 'use' | 'hit' | 'blocked' | 'acornBreak';
 
 export interface ItemEvent {
@@ -50,14 +74,18 @@ export const ITEM_NAMES: Record<ItemKind, string> = {
   acorn: 'Acorn',
   slime: 'Super Slime',
   shield: 'Shell Shield',
+  giant: 'Giant Snail',
+  web: 'Spider Web',
+  ladybug: 'Ladybug',
+  honey: 'Honey Drop',
 };
 
-const KINDS: ItemKind[] = ['mushroom', 'banana', 'acorn', 'slime', 'shield'];
+const KINDS: ItemKind[] = ['mushroom', 'banana', 'acorn', 'slime', 'shield', 'giant', 'web', 'ladybug', 'honey'];
 /** Weights per item (same order as KINDS) by race position band: leader, chasers, back of the pack. */
 const ODDS: number[][] = [
-  [0, 50, 10, 15, 25],
-  [20, 25, 30, 15, 10],
-  [40, 5, 30, 20, 5],
+  [0, 40, 8, 12, 22, 0, 12, 0, 6],
+  [16, 18, 24, 12, 8, 6, 8, 2, 6],
+  [30, 4, 22, 14, 4, 12, 4, 8, 2],
 ];
 
 const ROULETTE = 1.1;
@@ -69,6 +97,8 @@ export class ItemSystem {
   readonly boxes: ItemBox[] = [];
   readonly bananas: Banana[] = [];
   readonly acorns: Acorn[] = [];
+  readonly ladybugs: Ladybug[] = [];
+  readonly puddles: Puddle[] = [];
   readonly events: ItemEvent[] = [];
   enabled = true;
 
@@ -76,6 +106,8 @@ export class ItemSystem {
     this.boxes.length = 0;
     this.bananas.length = 0;
     this.acorns.length = 0;
+    this.ladybugs.length = 0;
+    this.puddles.length = 0;
     this.events.length = 0;
     if (!this.enabled) return;
     for (const s of track.itemRows) {
@@ -140,7 +172,20 @@ export class ItemSystem {
       case 'shield':
         r.shield = 10;
         break;
-      case 'banana': {
+      case 'giant':
+        r.giant = 6;
+        r.emit('giant', 0);
+        break;
+      case 'ladybug': {
+        // Flies after the leader (or the snail in second if you lead).
+        let target = -1;
+        for (let k = 0; k < racers.length; k += 1) if (k !== i && !racers[k].finished && !racers[k].inactive && rank[k] === (rank[i] === 0 ? 1 : 0)) target = k;
+        if (target >= 0) this.ladybugs.push({ pos: r.pos.clone(), s: r.s, d: r.d, owner: i, target, age: 0 });
+        break;
+      }
+      case 'banana':
+      case 'web':
+      case 'honey': {
         const phi = track.heading(r.s);
         const sp = r.speed;
         const bx = sp > 1 ? r.vel.x / sp : Math.sin(phi);
@@ -149,8 +194,13 @@ export class ItemSystem {
         const pr = { s: 0, d: 0 };
         track.project(pos.x, pos.z, -1, pr);
         pos.y = track.height(pr.s, pr.d) + 0.12;
+        if (kind === 'honey') {
+          if (this.puddles.length >= 6) this.puddles.shift();
+          this.puddles.push({ pos, s: pr.s, d: pr.d, owner: i, age: 0 });
+          break;
+        }
         if (this.bananas.length >= MAX_BANANAS) this.bananas.shift();
-        this.bananas.push({ pos, s: pr.s, d: pr.d, owner: i, age: 0, yaw: r.heading });
+        this.bananas.push({ kind, pos, s: pr.s, d: pr.d, owner: i, age: 0, yaw: r.heading });
         break;
       }
       case 'acorn': {
@@ -186,14 +236,52 @@ export class ItemSystem {
         const ban = this.bananas[k];
         if (Math.abs(track.rel(ban.s, r.s)) > 3) continue;
         if (ban.owner === i && ban.age < 0.6) continue;
-        if (r.pos.distanceToSquared(ban.pos) < 1.0) {
-          const hit = r.hitBy('banana');
-          this.emit(hit ? 'hit' : 'blocked', i, 'banana', ban.pos);
+        if (r.pos.distanceToSquared(ban.pos) < (ban.kind === 'web' ? 1.6 : 1.0)) {
+          const hit = ban.kind === 'web' ? r.catchWeb() : r.hitBy('banana');
+          this.emit(hit ? 'hit' : 'blocked', i, ban.kind, ban.pos);
           this.bananas.splice(k, 1);
+        }
+      }
+      // Honey puddles.
+      for (const pd of this.puddles) {
+        if (pd.owner === i && pd.age < 1) continue;
+        if (Math.abs(track.rel(pd.s, r.s)) > HONEY_R + 1) continue;
+        const dx = r.pos.x - pd.pos.x;
+        const dz = r.pos.z - pd.pos.z;
+        if (dx * dx + dz * dz < HONEY_R * HONEY_R && r.airTime < 0.1) {
+          if (r.sticky <= 0) this.emit('hit', i, 'honey', r.pos);
+          r.sticky = 0.15;
         }
       }
     }
     for (const ban of this.bananas) ban.age += dt;
+    for (let k = this.puddles.length - 1; k >= 0; k -= 1) {
+      this.puddles[k].age += dt;
+      if (this.puddles[k].age > HONEY_LIFE) this.puddles.splice(k, 1);
+    }
+
+    // Ladybugs fly along the course above the track until they catch their target.
+    for (let k = this.ladybugs.length - 1; k >= 0; k -= 1) {
+      const lb = this.ladybugs[k];
+      lb.age += dt;
+      const t = racers[lb.target];
+      let dead = lb.age > 14 || !t || t.finished;
+      if (!dead) {
+        const gap = track.rel(t.s, lb.s);
+        const speed = Math.max(42, t.speed + 14);
+        lb.s = track.wrap(lb.s + Math.min(Math.max(gap, -2), speed * dt));
+        lb.d += Math.max(-10 * dt, Math.min(10 * dt, t.d - lb.d));
+        track.toWorld(lb.s, lb.d, lb.pos);
+        // Hover above the ground, swoop down when close.
+        lb.pos.y = Math.max(lb.pos.y + 2.2 * Math.min(1, Math.abs(gap) / 12), t.pos.y - 0.2) + 0.4;
+        if (Math.abs(gap) < 2.5 && t.pos.distanceToSquared(lb.pos) < 6) {
+          const hit = t.hitBy('ladybug');
+          this.emit(hit ? 'hit' : 'blocked', lb.target, 'ladybug', t.pos);
+          dead = true;
+        }
+      }
+      if (dead) this.ladybugs.splice(k, 1);
+    }
 
     // Acorns roll along the course, home gently on their target, break on whatever they hit.
     for (let k = this.acorns.length - 1; k >= 0; k -= 1) {

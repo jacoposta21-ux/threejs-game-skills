@@ -85,7 +85,7 @@ export const POND: TrackDef = {
     b.add('mushroom', 720, -6.5, 1.0, 1.25, 2);
     b.add('pebble', 780, 6.2, 1.0, 0.5, 2);
     b.critter('pillbug', 770, 0.5);
-    b.basin(830, 852, 1.0, 10, 0.45);
+    b.basin(832, 850, 2.5, 10, 0.45);
     b.pad(838, -4.5);
     b.pad(862, 0);
   },

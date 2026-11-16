@@ -11,6 +11,8 @@ export type Sfx =
   | 'hit'
   | 'boing'
   | 'draft'
+  | 'web'
+  | 'giant'
   | 'bump'
   | 'land'
   | 'hardLand'
@@ -383,6 +385,14 @@ export class AudioManager {
       case 'bump':
         this.tone(300, 0.12, 'triangle', 0.35 * v, 140);
         this.burst(0.06, 'bandpass', 1800, 0.2 * v);
+        break;
+      case 'web':
+        this.burst(0.35, 'highpass', 2500, 0.25, 6000, 0, 2);
+        this.tone(900, 0.4, 'sine', 0.12, 300);
+        break;
+      case 'giant':
+        for (const [k, f] of [130, 165, 196, 262].entries()) this.tone(f, 0.35, 'square', 0.12, f * 0.98, k * 0.07);
+        this.tone(55, 0.8, 'sine', 0.5, 45, 0.1);
         break;
       case 'draft':
         this.burst(0.6, 'bandpass', 500, 0.22, 2400, 0, 1.4);
