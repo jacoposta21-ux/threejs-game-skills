@@ -1277,18 +1277,18 @@ export class GameSession {
       },
       'region-lake': () => {
         states['active-play']();
-        this.player.teleport(HAMLET.jettyX - 0.4, 1.1, -82, Math.PI);
+        this.player.teleport(HAMLET.jettyX - 0.4, 1.1, -82, 0.35);
         this.simulate(2.5);
-        this.cam.snap(this.playerState.position, -0.65);
+        this.cam.snap(this.playerState.position, Math.PI + 0.55);
         this.cam.pitch = 0.18;
         this.cam.targetDistance = 7;
         this.cam.currentDistance = 7;
       },
       'region-outpost': () => {
         states['active-play']();
-        this.player.teleport(4, 0, -170, -Math.PI / 2 + 0.3);
+        this.player.teleport(4, 0, -170, Math.PI / 2 - 0.3);
         this.simulate(0.5);
-        this.cam.snap(this.playerState.position, Math.PI / 2 + 0.55);
+        this.cam.snap(this.playerState.position, -Math.PI / 2 - 0.35);
         this.cam.pitch = 0.3;
         this.cam.targetDistance = 9;
         this.cam.currentDistance = 9;
@@ -1341,7 +1341,8 @@ export class GameSession {
           const ride = this.vehicles.ridden;
           this.cam.mount = ride ? { yaw: ride.renderYaw, speed: ride.speed, extra: ride.k.cam, lift: ride.model.standing ? 0.4 : 0.15 } : null;
           if (!this.keepTestCamera) for (let i = 0; i < 30; i += 1) this.cam.update(1 / 60, { lookX: 0, lookY: 0, zoom: 0, aim: false }, pos, this.settings, this.physics, ride ? ride.collider : this.player.collider);
-          // let the animation rig settle into its pose (idle, or riding)
+          // let the animation rig settle into its pose (idle, or riding); rides culled from the final camera
+          for (let i = 0; i < 5; i += 1) this.vehicles.update(1 / 60, 1, this.camera.position);
           for (let i = 0; i < 60; i += 1) this.syncModel(1 / 60, 1);
           this.updatePlaying(0, 1, this.input.read());
         }

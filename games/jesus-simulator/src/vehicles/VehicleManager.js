@@ -154,8 +154,8 @@ export class VehicleManager {
   }
 
   promptFor(v) {
-    if (v.roman) return `Steal the ${this.displayName(v)}`;
-    return `${v.k.verb} ${this.displayName(v, true)}`;
+    if (v.roman) return `Steal ${this.displayName(v)}`;
+    return `${v.k.verb} ${this.displayName(v)}`;
   }
 
   /** "the farm donkey" / "Joseph's donkey" / "the Roman chariot". */

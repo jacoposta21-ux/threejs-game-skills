@@ -188,6 +188,14 @@ export class Animals {
         } else if (a.caravan === 0) {
           const [wx, wz] = CARAVAN[a.wp];
           if (Math.hypot(wx - a.x, wz - a.z) < 1.5) a.wp = (a.wp + 1) % CARAVAN.length;
+          // never stall: if the leader makes no progress for 4 s, head for the next waypoint
+          a.stuckT = (a.stuckT || 0) + dt;
+          if (a.stuckT > 4) {
+            if (Math.hypot(a.x - (a.stuckX ?? a.x + 9), a.z - (a.stuckZ ?? a.z)) < 1) a.wp = (a.wp + 1) % CARAVAN.length;
+            a.stuckT = 0;
+            a.stuckX = a.x;
+            a.stuckZ = a.z;
+          }
           tx = wx; tz = wz; speed = dP < 4 ? 0.4 : 1.5;
           a.trail.push({ x: a.x, z: a.z });
           if (a.trail.length > 400) a.trail.shift();

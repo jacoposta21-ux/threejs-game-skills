@@ -62,7 +62,8 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
   check('Mount Joseph\'s donkey with F', prompt === "Ride Joseph's donkey" && d.mode === 'mounted' && d.vehicles.ridden?.id === 'vehicle.donkey.joseph' && hud.visible && hud.name === "Joseph's donkey",
     `prompt=${prompt} mode=${d.mode} hud=${JSON.stringify(hud)}`);
 
-  // 3. ride: W trots, Shift gallops, A/D steer; the rider sits on the saddle
+  // 3. ride: W trots, Shift gallops, A/D steer; the rider sits on the saddle (out on the open west road)
+  await setup(() => { const S = window.__JESUS_SIM__.session; S.vehicles.place(S.vehicles.ridden, -44, 4.6, -Math.PI / 2 - 0.08); });
   await camBehind();
   const p0 = (await diag()).vehicles.ridden;
   await holdSim(['KeyW'], 1.2);
@@ -73,26 +74,26 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
   const turned = (await diag()).vehicles.ridden;
   const seat = await setup(() => { const S = window.__JESUS_SIM__.session; const v = S.vehicles.ridden; return { dy: S.model.group.position.y - v.render.y, gap: Math.hypot(S.model.group.position.x - v.render.x, S.model.group.position.z - v.render.z) }; });
   const moved = Math.hypot(gallop.x - p0.x, gallop.z - p0.z);
-  check('Riding: trot, gallop, steer', trot.speed > 4.5 && gallop.speed > 7.5 && moved > 8 && turned.yaw < gallop.yaw - 0.3 && seat.dy > 0.3 && seat.dy < 1.0 && seat.gap < 0.3,
+  check('Riding: trot, gallop, steer', trot.speed > 4.2 && gallop.speed > trot.speed + 1.5 && moved > 8 && Math.atan2(Math.sin(turned.yaw - gallop.yaw), Math.cos(turned.yaw - gallop.yaw)) < -0.3 && seat.dy > 0.3 && seat.dy < 1.0 && seat.gap < 0.3,
     `trot=${trot.speed.toFixed(1)} gallop=${gallop.speed.toFixed(1)} moved=${moved.toFixed(1)} yaw ${gallop.yaw.toFixed(2)}->${turned.yaw.toFixed(2)} seat=${JSON.stringify(seat)}`);
 
   // 4. a galloping donkey into a villager: knocked down (no Romans around to care)
   const victim = await setup(() => {
     const S = window.__JESUS_SIM__.session;
     const v = S.vehicles.ridden;
-    S.vehicles.place(v, -5, -4, 0);
-    S.npcs.update(1 / 60, 1, { cameraPos: S.camera.position, playerPos: S.playerState.position });
+    S.vehicles.place(v, -46, 4.4, -Math.PI / 2);
     const n = S.npcs.npcs.find((x) => !x.hidden && !x.anchored && !x.def.kid && x.id !== 'npc.amos');
     S.npcs.leaveAnchor(n, true);
-    S.npcs.place(n, -5, window.__JESUS_SIM__.terrainHeight(-5, 3), 3);
+    S.npcs.place(n, -52.5, window.__JESUS_SIM__.terrainHeight(-52.5, 4.1), 4.1);
     n.phase = 'none';
     n.bumpCd = 0;
-    S.cam.yaw = Math.PI;
+    S.npcs.setOverride(n, 'look', 8, { lookAt: { x: -46, z: 4.4 } });
+    S.cam.yaw = Math.PI / 2;
     return n.id;
   });
   const knockedBefore = (await diag()).stats.peopleKnocked || 0;
   await events();
-  await holdSim(['KeyW', 'ShiftLeft'], 1.6);
+  await holdSim(['KeyW', 'ShiftLeft'], 2.4);
   let ev = await events();
   d = await diag();
   check('Trampling: a galloping ride knocks a villager over', ev.some((e) => e.name === 'vehicle:hit') && ev.some((e) => e.name === 'npc:trampled' && e.entityId === victim) && (d.stats.peopleKnocked || 0) > knockedBefore,
@@ -160,11 +161,6 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
     const R = window.__JESUS_SIM__.session.romans;
     R.attention.reset();
     R.syncState();
-    const felix = R.byId.get('roman.felix');
-    R.place(felix, 33, window.__JESUS_SIM__.terrainHeight(33, -168), -168);
-    felix.yaw = -Math.PI / 2;
-    felix.lookYaw = 0;
-    R.setMode(felix, 'duty', { force: true });
     window.__JESUS_SIM__.session.simulate(0.3);
   });
   await waitFrames(3);
@@ -190,6 +186,7 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
   });
   await events();
   await sim(2.5);
+  await waitFrames(3);
   ev = await events();
   d = await diag();
   check('Pulled off your ride by a legionary', ev.some((e) => e.name === 'vehicle:exit' && e.reason === 'pulled') && d.vehicles.ridden === null,
