@@ -1,12 +1,12 @@
 {
   "url": "http://127.0.0.1:4188/",
   "mode": "desktop",
-  "state": "menu",
-  "requestedState": "menu",
-  "appliedState": "menu",
-  "runId": "phase3-pass-1",
+  "state": "pause",
+  "requestedState": "pause",
+  "appliedState": "pause",
+  "runId": "phase4-pass-1",
   "seed": 42,
-  "screenshotPath": "artifacts/phase3-pass-1/desktop-menu.png",
+  "screenshotPath": "artifacts/phase4-pass-1/desktop-pause.png",
   "gpu": {
     "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
     "vendor": "Google Inc. (Google)",
@@ -26,20 +26,20 @@
       "height": 720
     },
     "alphaPixels": 4096,
-    "variance": 255,
-    "colorBuckets": 252,
+    "variance": 250,
+    "colorBuckets": 100,
     "metrics": {
-      "colorBuckets": 346,
-      "colorEntropyBits": 6.4,
-      "edgeDensity": 0.318,
+      "colorBuckets": 123,
+      "colorEntropyBits": 4.08,
+      "edgeDensity": 0.263,
       "luminance": {
-        "mean": 148.8,
-        "p5": 61.2,
-        "p95": 226.5,
-        "contrast": 165.3
+        "mean": 160.1,
+        "p5": 33.4,
+        "p95": 247.2,
+        "contrast": 213.8
       },
-      "dominantColorShare": 0.055,
-      "nonBackgroundShare": 0.945
+      "dominantColorShare": 0.332,
+      "nonBackgroundShare": 0.668
     },
     "renderBudget": {
       "tier": "desktop",
@@ -47,25 +47,25 @@
       "rows": [
         {
           "metric": "calls",
-          "actual": 196,
+          "actual": 219,
           "limit": 300,
           "ok": true
         },
         {
           "metric": "triangles",
-          "actual": 421702,
+          "actual": 446352,
           "limit": 750000,
           "ok": true
         },
         {
           "metric": "geometries",
-          "actual": 240,
+          "actual": 209,
           "limit": 300,
           "ok": true
         },
         {
           "metric": "textures",
-          "actual": 12,
+          "actual": 11,
           "limit": 60,
           "ok": true
         }
@@ -73,14 +73,14 @@
       "withinBudget": true
     },
     "diagnostics": {
-      "frame": 5,
-      "screen": "menu",
+      "frame": 2,
+      "screen": "paused",
       "quality": "high",
       "fps": 9.99999985098839,
       "player": {
         "position": {
           "x": -21.5,
-          "y": 1.0170846112981673,
+          "y": 1.0670846112981673,
           "z": 10.5
         },
         "speed": 0,
@@ -88,7 +88,7 @@
         "yaw": 2
       },
       "camera": {
-        "yaw": 0,
+        "yaw": 5.141592653589793,
         "distance": 6
       },
       "discovered": [],
@@ -101,8 +101,8 @@
       "talkTarget": null,
       "npcs": {
         "count": 28,
-        "near": 14,
-        "visible": 27,
+        "near": 12,
+        "visible": 28,
         "hidden": 0,
         "states": {
           "travel": 16,
@@ -110,19 +110,42 @@
           "none": 2
         },
         "nav": {
-          "nodes": 272,
-          "edges": 574,
-          "casts": 779,
-          "unreachable": 1
+          "nodes": 300,
+          "edges": 661,
+          "casts": 853,
+          "unreachable": 0
         },
         "homesReachable": true,
-        "animals": 16
+        "animals": 16,
+        "ragdolls": 0
       },
       "miracles": {
         "cooldowns": {},
         "water": null,
         "lifting": null,
         "wine": []
+      },
+      "romans": {
+        "count": 8,
+        "active": 8,
+        "reserves": 0,
+        "modes": {
+          "duty": 8
+        },
+        "visible": 6,
+        "seeing": 0,
+        "stars": 0,
+        "heat": 0,
+        "search": 0,
+        "grab": 0,
+        "ragdolls": 0,
+        "disabled": false,
+        "arrestPending": false
+      },
+      "ragdolls": {
+        "active": 0,
+        "spawned": 0,
+        "bodies": 0
       },
       "unlocked": [],
       "selected": 0,
@@ -136,7 +159,7 @@
       },
       "props": {
         "total": 79,
-        "awake": 31,
+        "awake": 30,
         "broken": 0,
         "shards": 0,
         "copies": 0
@@ -149,15 +172,15 @@
         "conversations": 0
       },
       "physics": {
-        "bodies": 321,
-        "colliders": 904,
-        "activeBodies": 60
+        "bodies": 330,
+        "colliders": 934,
+        "activeBodies": 67
       },
       "renderer": {
-        "calls": 196,
-        "triangles": 421702,
-        "geometries": 240,
-        "textures": 12
+        "calls": 219,
+        "triangles": 446352,
+        "geometries": 209,
+        "textures": 11
       },
       "canvas": {
         "clientWidth": 1280,

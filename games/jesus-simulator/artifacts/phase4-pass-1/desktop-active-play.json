@@ -1,12 +1,12 @@
 {
   "url": "http://127.0.0.1:4188/",
   "mode": "desktop",
-  "state": "miracle-water",
-  "requestedState": "miracle-water",
-  "appliedState": "miracle-water",
-  "runId": "phase3-pass-1",
+  "state": "active-play",
+  "requestedState": "active-play",
+  "appliedState": "active-play",
+  "runId": "phase4-pass-1",
   "seed": 42,
-  "screenshotPath": "artifacts/phase3-pass-1/desktop-miracle-water.png",
+  "screenshotPath": "artifacts/phase4-pass-1/desktop-active-play.png",
   "gpu": {
     "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
     "vendor": "Google Inc. (Google)",
@@ -27,19 +27,19 @@
     },
     "alphaPixels": 4096,
     "variance": 255,
-    "colorBuckets": 165,
+    "colorBuckets": 180,
     "metrics": {
-      "colorBuckets": 225,
-      "colorEntropyBits": 5.29,
-      "edgeDensity": 0.156,
+      "colorBuckets": 264,
+      "colorEntropyBits": 5.28,
+      "edgeDensity": 0.288,
       "luminance": {
-        "mean": 124.6,
-        "p5": 41,
-        "p95": 225.8,
-        "contrast": 184.8
+        "mean": 120.7,
+        "p5": 44.8,
+        "p95": 200.2,
+        "contrast": 155.4
       },
-      "dominantColorShare": 0.211,
-      "nonBackgroundShare": 0.789
+      "dominantColorShare": 0.145,
+      "nonBackgroundShare": 0.855
     },
     "renderBudget": {
       "tier": "desktop",
@@ -47,25 +47,25 @@
       "rows": [
         {
           "metric": "calls",
-          "actual": 73,
+          "actual": 219,
           "limit": 300,
           "ok": true
         },
         {
           "metric": "triangles",
-          "actual": 254520,
+          "actual": 446352,
           "limit": 750000,
           "ok": true
         },
         {
           "metric": "geometries",
-          "actual": 224,
+          "actual": 209,
           "limit": 300,
           "ok": true
         },
         {
           "metric": "textures",
-          "actual": 12,
+          "actual": 11,
           "limit": 60,
           "ok": true
         }
@@ -73,102 +73,114 @@
       "withinBudget": true
     },
     "diagnostics": {
-      "frame": 5,
+      "frame": 3,
       "screen": "playing",
       "quality": "high",
       "fps": 9.99999985098839,
       "player": {
         "position": {
-          "x": 133,
-          "y": 0.05888267287955384,
-          "z": -15.999988555908203
+          "x": -21.50000025267704,
+          "y": 1.0578594299164252,
+          "z": 10.499982138855103
         },
         "speed": 0,
         "grounded": true,
-        "yaw": 1.9
+        "yaw": 2
       },
       "camera": {
-        "yaw": 4.641592653589793,
-        "distance": 7
+        "yaw": 5.141592653589793,
+        "distance": 6
       },
       "discovered": [],
-      "clock": 0.1021666666666668,
+      "clock": 0.1,
       "night": 0,
       "flags": {},
       "faith": 0,
-      "chaos": 1.7999999999999998,
+      "chaos": 0,
       "dialogue": null,
       "talkTarget": null,
       "npcs": {
         "count": 28,
-        "near": 0,
-        "visible": 11,
+        "near": 12,
+        "visible": 28,
         "hidden": 0,
         "states": {
           "travel": 16,
-          "look": 3,
-          "act": 7,
+          "act": 10,
           "none": 2
         },
         "nav": {
-          "nodes": 272,
-          "edges": 574,
-          "casts": 779,
-          "unreachable": 1
+          "nodes": 300,
+          "edges": 661,
+          "casts": 854,
+          "unreachable": 0
         },
         "homesReachable": true,
-        "animals": 16
+        "animals": 16,
+        "ragdolls": 0
       },
       "miracles": {
-        "cooldowns": {
-          "miracle.walk-on-water": 4.37
-        },
-        "water": 23.4,
+        "cooldowns": {},
+        "water": null,
         "lifting": null,
         "wine": []
       },
-      "unlocked": [
-        "miracle.divine-push",
-        "miracle.multiplication",
-        "miracle.water-to-wine",
-        "miracle.walk-on-water",
-        "miracle.healing-touch",
-        "miracle.holy-levitation"
-      ],
-      "selected": 3,
+      "romans": {
+        "count": 8,
+        "active": 8,
+        "reserves": 0,
+        "modes": {
+          "duty": 8
+        },
+        "visible": 6,
+        "seeing": 0,
+        "stars": 0,
+        "heat": 0,
+        "search": 0,
+        "grab": 0,
+        "ragdolls": 0,
+        "disabled": false,
+        "arrestPending": false
+      },
+      "ragdolls": {
+        "active": 0,
+        "spawned": 0,
+        "bodies": 0
+      },
+      "unlocked": [],
+      "selected": 0,
       "effects": {
-        "particles": 40,
-        "rings": 1
+        "particles": 0,
+        "rings": 0
       },
       "water": {
-        "depth": 4.5,
-        "onWater": true
+        "depth": 0,
+        "onWater": false
       },
       "props": {
         "total": 79,
-        "awake": 14,
+        "awake": 30,
         "broken": 0,
         "shards": 0,
         "copies": 0
       },
       "stats": {
-        "distance": 0.00014546809683330667,
+        "distance": 0.000012844045323428973,
         "jumps": 0,
         "playTime": 0,
-        "propsDisturbed": 9,
-        "conversations": 0,
-        "miracles": 1
+        "propsDisturbed": 0,
+        "conversations": 0
       },
       "physics": {
-        "bodies": 321,
-        "colliders": 904,
-        "activeBodies": 33
+        "bodies": 330,
+        "colliders": 934,
+        "activeBodies": 67
       },
       "renderer": {
-        "calls": 73,
-        "triangles": 254520,
-        "geometries": 224,
-        "textures": 12
+        "calls": 219,
+        "triangles": 446352,
+        "geometries": 209,
+        "textures": 11
       },
       "canvas": {
         "clientWidth": 1280,

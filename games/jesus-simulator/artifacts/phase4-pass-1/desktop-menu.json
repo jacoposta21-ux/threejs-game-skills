@@ -1,12 +1,12 @@
 {
   "url": "http://127.0.0.1:4188/",
   "mode": "desktop",
-  "state": "miracle-levitate",
-  "requestedState": "miracle-levitate",
-  "appliedState": "miracle-levitate",
-  "runId": "phase3-pass-1",
+  "state": "menu",
+  "requestedState": "menu",
+  "appliedState": "menu",
+  "runId": "phase4-pass-1",
   "seed": 42,
-  "screenshotPath": "artifacts/phase3-pass-1/desktop-miracle-levitate.png",
+  "screenshotPath": "artifacts/phase4-pass-1/desktop-menu.png",
   "gpu": {
     "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
     "vendor": "Google Inc. (Google)",
@@ -27,19 +27,19 @@
     },
     "alphaPixels": 4096,
     "variance": 255,
-    "colorBuckets": 275,
+    "colorBuckets": 262,
     "metrics": {
-      "colorBuckets": 394,
-      "colorEntropyBits": 6.24,
-      "edgeDensity": 0.366,
+      "colorBuckets": 358,
+      "colorEntropyBits": 6.42,
+      "edgeDensity": 0.324,
       "luminance": {
-        "mean": 142.9,
-        "p5": 45.9,
-        "p95": 206.3,
-        "contrast": 160.4
+        "mean": 148.1,
+        "p5": 59.6,
+        "p95": 226.5,
+        "contrast": 166.9
       },
-      "dominantColorShare": 0.077,
-      "nonBackgroundShare": 0.923
+      "dominantColorShare": 0.055,
+      "nonBackgroundShare": 0.945
     },
     "renderBudget": {
       "tier": "desktop",
@@ -47,25 +47,25 @@
       "rows": [
         {
           "metric": "calls",
-          "actual": 203,
+          "actual": 277,
           "limit": 300,
           "ok": true
         },
         {
           "metric": "triangles",
-          "actual": 424300,
+          "actual": 480078,
           "limit": 750000,
           "ok": true
         },
         {
           "metric": "geometries",
-          "actual": 245,
+          "actual": 248,
           "limit": 300,
           "ok": true
         },
         {
           "metric": "textures",
-          "actual": 12,
+          "actual": 14,
           "limit": 60,
           "ok": true
         }
@@ -73,69 +73,82 @@
       "withinBudget": true
     },
     "diagnostics": {
-      "frame": 5,
-      "screen": "playing",
+      "frame": 3,
+      "screen": "menu",
       "quality": "high",
       "fps": 9.99999985098839,
       "player": {
         "position": {
-          "x": 1.999895587039532,
-          "y": 1.2613313685520553,
-          "z": 12.599999420444671
+          "x": -21.5,
+          "y": 1.0170846112981673,
+          "z": 10.5
         },
         "speed": 0,
-        "grounded": true,
-        "yaw": 3.141592653589793
+        "grounded": false,
+        "yaw": 2
       },
       "camera": {
-        "yaw": 0.6,
+        "yaw": 0,
         "distance": 6
       },
       "discovered": [],
-      "clock": 0.10883333333333384,
+      "clock": 0.1,
       "night": 0,
       "flags": {},
       "faith": 0,
-      "chaos": 3.7000000000000006,
+      "chaos": 0,
       "dialogue": null,
       "talkTarget": null,
       "npcs": {
         "count": 28,
-        "near": 18,
+        "near": 12,
         "visible": 28,
         "hidden": 0,
         "states": {
-          "travel": 17,
-          "act": 8,
-          "look": 2,
-          "levitate": 1
+          "travel": 16,
+          "act": 10,
+          "none": 2
         },
         "nav": {
-          "nodes": 272,
-          "edges": 574,
-          "casts": 779,
-          "unreachable": 1
+          "nodes": 300,
+          "edges": 661,
+          "casts": 854,
+          "unreachable": 0
         },
         "homesReachable": true,
-        "animals": 16
+        "animals": 16,
+        "ragdolls": 0
       },
       "miracles": {
-        "cooldowns": {
-          "miracle.holy-levitation": 0
-        },
+        "cooldowns": {},
         "water": null,
-        "lifting": "npc.villager.1",
+        "lifting": null,
         "wine": []
       },
-      "unlocked": [
-        "miracle.divine-push",
-        "miracle.multiplication",
-        "miracle.water-to-wine",
-        "miracle.walk-on-water",
-        "miracle.healing-touch",
-        "miracle.holy-levitation"
-      ],
-      "selected": 5,
+      "romans": {
+        "count": 8,
+        "active": 8,
+        "reserves": 0,
+        "modes": {
+          "duty": 8
+        },
+        "visible": 7,
+        "seeing": 0,
+        "stars": 0,
+        "heat": 0,
+        "search": 0,
+        "grab": 0,
+        "ragdolls": 0,
+        "disabled": false,
+        "arrestPending": false
+      },
+      "ragdolls": {
+        "active": 0,
+        "spawned": 0,
+        "bodies": 0
+      },
+      "unlocked": [],
+      "selected": 0,
       "effects": {
         "particles": 0,
         "rings": 0
@@ -146,29 +159,28 @@
       },
       "props": {
         "total": 79,
-        "awake": 11,
+        "awake": 30,
         "broken": 0,
         "shards": 0,
         "copies": 0
       },
       "stats": {
-        "distance": 0.00026406224756893353,
+        "distance": 0,
         "jumps": 0,
         "playTime": 0,
-        "propsDisturbed": 16,
-        "conversations": 0,
-        "miracles": 1
+        "propsDisturbed": 0,
+        "conversations": 0
       },
       "physics": {
-        "bodies": 321,
-        "colliders": 904,
-        "activeBodies": 32
+        "bodies": 330,
+        "colliders": 934,
+        "activeBodies": 67
       },
       "renderer": {
-        "calls": 203,
-        "triangles": 424300,
-        "geometries": 245,
-        "textures": 12
+        "calls": 277,
+        "triangles": 480078,
+        "geometries": 248,
+        "textures": 14
       },
       "canvas": {
         "clientWidth": 1280,

@@ -4,7 +4,7 @@
     {
       "name": "walk forward moves player",
       "ok": true,
-      "detail": "moved=14.50m grounded=true"
+      "detail": "moved=14.73m grounded=true"
     },
     {
       "name": "landmark discovery triggers",
@@ -19,7 +19,7 @@
     {
       "name": "climb stairs to rooftop",
       "ok": true,
-      "detail": "landing y=8.79 roof y=8.79 local x=0.11"
+      "detail": "landing y=8.80 roof y=8.79 local x=0.10"
     },
     {
       "name": "rooftop lookout discovered",
@@ -29,7 +29,7 @@
     {
       "name": "jump leaves ground and lands",
       "ok": true,
-      "detail": "airborne y=9.73 landed y=3.00 jumps=1"
+      "detail": "airborne y=9.73 landed y=3.06 jumps=1"
     },
     {
       "name": "interaction prompt + dialog",
@@ -62,32 +62,32 @@
     {
       "name": "NPCs spawn and follow routines",
       "ok": true,
-      "detail": "count=28 moved>2m=20 states={\"greet\":1,\"travel\":14,\"act\":9,\"none\":2,\"chat\":2} nav={\"nodes\":272,\"edges\":574,\"casts\":796,\"unreachable\":1}"
+      "detail": "count=28 moved>2m=19 states={\"chat\":2,\"act\":9,\"travel\":15,\"none\":2} nav={\"nodes\":300,\"edges\":661,\"casts\":874,\"unreachable\":0}"
     },
     {
       "name": "talk to NPC (E, choose 1, Esc)",
       "ok": true,
-      "detail": "prompt=\"Talk to Eli\" options=3 \"Business has been terrible lately.\" -> \"Rome taxes the flour, the oven and the s\""
+      "detail": "prompt=\"Talk to Eli\" options=3 \"Fresh bread! Well — this morning's bread\" -> \"Rome taxes the flour, the oven and the s\""
     },
     {
       "name": "NPC collision blocks the player",
       "ok": true,
-      "detail": "contacts=248 min centre gap=0.70 reaction=greet"
+      "detail": "contacts=208 min centre gap=0.70 reaction=bumped"
     },
     {
       "name": "sprinting into a villager knocks them over (+Chaos)",
       "ok": true,
-      "detail": "reaction=stumble chaos 2.4 -> 3.4"
+      "detail": "reaction=stumble chaos 1.7999999999999998 -> 2.8"
     },
     {
       "name": "pottery breaks on hard impact",
       "ok": true,
-      "detail": "broken=1 shards=6 chaos=5.4"
+      "detail": "broken=1 shards=6 chaos=4.8"
     },
     {
       "name": "fruit pile scatters when walked into",
       "ok": true,
-      "detail": "propsDisturbed 14 -> 17"
+      "detail": "propsDisturbed 11 -> 15"
     },
     {
       "name": "lost-sheep errand (Amos)",
@@ -112,12 +112,12 @@
     {
       "name": "landmark reveals a miracle (workshop -> Divine Push)",
       "ok": true,
-      "detail": "unlocked=[\"miracle.divine-push\"] banner=\"\n          GOOD DEED\n          The Lost Sheep\n          Amos\""
+      "detail": "unlocked=[\"miracle.divine-push\"] banner=\"\n          CHAPTER I\n          Nazareth\n          Explore yo\""
     },
     {
       "name": "Divine Push shoves villagers (cooldown blocks spam)",
       "ok": true,
-      "detail": "npc moved 1.84 m, casts=1"
+      "detail": "npc moved 7.56 m, casts=1"
     },
     {
       "name": "Multiplication: Q copies bread, holding repeats, capped at 80",
@@ -132,7 +132,7 @@
     {
       "name": "Healing Touch cures an injured villager (+Faith)",
       "ok": true,
-      "detail": "healed=true faith 4 -> 9"
+      "detail": "healed=true faith 4 -> 10"
     },
     {
       "name": "Holy Levitation lifts while Q is held, sets down on release",
@@ -142,12 +142,82 @@
     {
       "name": "Walk on Water: wading stops at depth, the miracle lets you walk out, expiry sinks you to the dock",
       "ok": true,
-      "detail": "wade depth=1.33 on water=true y=0.04 after expiry x=106.0"
+      "detail": "wade depth=1.33 on water=true y=0.05 after expiry x=106.0"
     },
     {
       "name": "revealed miracles persist",
       "ok": true,
       "detail": "[\"miracle.divine-push\",\"miracle.multiplication\",\"miracle.water-to-wine\",\"miracle.healing-touch\",\"miracle.holy-levitation\",\"miracle.walk-on-water\"]"
+    },
+    {
+      "name": "Roman garrison patrols and guards",
+      "ok": true,
+      "detail": "active=8 walking=roman.brutus,roman.sextus,roman.flavius,roman.quintus nav={\"nodes\":300,\"edges\":661,\"casts\":1258,\"unreachable\":0}"
+    },
+    {
+      "name": "talk to a legionary (E, answer, Esc)",
+      "ok": true,
+      "detail": "prompt=\"Talk to Legionary Flavius\" name=\"Legionary Flavius\" text=\"You break things where I can see, we chase you. Pu…\""
+    },
+    {
+      "name": "legionaries need line of sight (house blocks the view)",
+      "ok": true,
+      "detail": "in the open=true behind the house=false"
+    },
+    {
+      "name": "witnessed crime raises Roman Attention and starts a chase",
+      "ok": true,
+      "detail": "stars=1 heat=1.1 flavius=pursue villager ragdolls=2"
+    },
+    {
+      "name": "ragdolled villagers stand back up",
+      "ok": true,
+      "detail": "[{\"ragdoll\":false,\"collider\":true,\"ok\":true,\"y\":1.2225347483422642},{\"ragdoll\":false,\"collider\":true,\"ok\":true,\"y\":1.210906126712601}]"
+    },
+    {
+      "name": "Divine Push ragdolls a legionary; he gets up angrier",
+      "ok": true,
+      "detail": "flew 4.2 m, stars 1 -> 2, after: {\"ragdoll\":false,\"mode\":\"search\",\"collider\":true,\"bruised\":true}"
+    },
+    {
+      "name": "Healing Touch on a legionary lowers Roman Attention",
+      "ok": true,
+      "detail": "stars 2 -> 1, flavius=friendly"
+    },
+    {
+      "name": "break line of sight and the Romans give up",
+      "ok": true,
+      "detail": "stars 1 -> 0, escapes=1"
+    },
+    {
+      "name": "3 stars: reinforcements join the hunt",
+      "ok": true,
+      "detail": "stars=3 reinforcements=[{\"mode\":\"pursue\",\"d\":38.9},{\"mode\":\"pursue\",\"d\":27.4}] modes={\"pursue\":6,\"duty\":4}"
+    },
+    {
+      "name": "seized: a Divine Push breaks free",
+      "ok": true,
+      "detail": "grab peaked 0.31, after push 0, ragdolls=1, meter=true"
+    },
+    {
+      "name": "Water to Wine distracts the legionaries",
+      "ok": true,
+      "detail": "brutus=distracted"
+    },
+    {
+      "name": "arrest: card, fine, release at the checkpoint",
+      "ok": true,
+      "detail": "screen=arrested card=true after=playing pos=-1.5,-95.0 arrests=1 faith=0"
+    },
+    {
+      "name": "trespassing in the Roman camp: warning, then wanted",
+      "ok": true,
+      "detail": "inside=true x=13.7 warnings=1 toast=false stars=1 modes={\"pursue\":5,\"duty\":3} seeing=2"
+    },
+    {
+      "name": "Roman record persists; wanted level resets on load",
+      "ok": true,
+      "detail": "arrests=1 escapes=1 maxStars=5 stars=0"
     },
     {
       "name": "no console/page errors",

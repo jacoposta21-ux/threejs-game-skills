@@ -1,66 +1,72 @@
-# Evidence — Phase 3 (miracles)
+# Evidence — Phase 4 (Roman system)
 
 Screenshots and videos are kept out of git (the repo ignores `artifacts/`). This report, the manifest, the JSON reports and the motion sheets are committed. Regenerate the rest with:
 - `npm run verify:visual`
 - `npm run test:play`
 - `npm run test:motion`
 - `npm run test:npc-motion`
+- `npm run test:roman-motion`
 
-All runs used the production build (`npm run build` + `vite preview` on :4188) in headless Chromium with **software rendering (SwiftShader)**. In this container session SwiftShader renders at about 2 FPS. I verified this by comparing against the committed Phase 2 build on the same machine: both ran at 1.75 FPS, and without rendering the game runs at 36–39 FPS (about 25 ms of JavaScript per frame). FPS numbers here are therefore not meaningful; pixel, budget and gameplay checks are. Simulation-heavy checks fast-forward the fixed 60 Hz step in-page, but every player action uses real key input: number keys to select, **Q** to cast and hold.
+All runs used the final production build (`npm run build` + `vite preview` on :4188) in headless Chromium with **software rendering (SwiftShader)**, so FPS numbers are not meaningful (about 2 FPS in this container, the same as the Phase 2 and 3 builds). Pixel, budget and gameplay checks are meaningful. Simulation-heavy checks fast-forward the fixed 60 Hz step in-page; every player action uses real key input: W/Shift, E, number keys and Q.
 
-Phase 1 and 2 evidence remains in git history.
+Phase 1–3 evidence remains in git history.
 
-## Canvas inspector — run `phase3-pass-1`
-Manifest: [evidence.json](evidence.json). `check_evidence.py --manifest` → **passed, 15 artifacts confirmed.**
+## Canvas inspector — run `phase4-pass-1`
+Manifest: [evidence.json](evidence.json). `check_evidence.py --manifest` → **passed, 18 artifacts confirmed.** **14/14 captures PASS.**
 
-| Viewport / state | Result | Budget |
-| --- | --- | --- |
-| desktop / menu, active-play, plaza-life, npc-dialogue, pause | PASS | ok |
-| desktop / miracle-push | PASS | ok |
-| desktop / miracle-multiply | PASS | ok |
-| desktop / miracle-wine | PASS | ok |
-| desktop / miracle-water | PASS | ok |
-| desktop / miracle-heal | PASS | ok |
-| desktop / miracle-levitate | PASS | ok |
-| mobile / miracle-multiply | PASS | over: triangles 402k > 300k, geometries 238 > 200 (mobile is not a target) |
+| Viewport / state | Draw calls | Triangles | Geometries | Budget |
+| --- | --- | --- | --- | --- |
+| desktop / active-play | 219 | 446k | 209 | ok |
+| desktop / plaza-life | 262 | 471k | 244 | ok |
+| desktop / roman-pursuit (3★, legionaries closing in) | 256 | 474k | 224 | ok |
+| desktop / roman-ragdoll | 214 | 442k | 180 | ok |
+| desktop / menu, npc-dialogue, pause, miracle-push, miracle-levitate, roman-patrol, roman-checkpoint, roman-arrest, night | — | — | — | ok |
+| mobile / roman-pursuit | 171 > 150 | 432k > 300k | 180 | over (mobile is not a target) |
 
-## Real-input playtest — run `phase3-pass-1`
-[results.json](phase3-pass-1/playtest/results.json) — **31/31 PASS**: 12 Phase 1 regressions, 10 Phase 2 checks, and 9 Phase 3 checks:
+## Real-input playtest — run `phase4-pass-1`
+[results.json](phase4-pass-1/playtest/results.json) — **45/45 PASS** and no console or page errors.
 
-- **Locked miracles:** pressing 2 then Q before any reveal does nothing and shows a "not yet revealed" toast.
-- **Reveal:** reaching the workshop reveals Divine Push (banner, slot auto-selected).
-- **Divine Push:** Q shoves a villager 1.84 m; an immediate second Q is refused by the cooldown (exactly 1 cast).
-- **Multiplication:** Q on Eli's bread gives 2 copies; holding Q gives 22; 70 forced casts stay **capped at 80**.
-- **Water to Wine:** the well turns to wine and Faith goes 0 → 4.
-- **Healing Touch:** Benjamin's chronic knee is cured and Faith goes 4 → 9.
-- **Holy Levitation:** holding Q lifts a villager to y = 3.70; releasing sets them down at y = 1.28 (ground ≈ 1.2).
-- **Walk on Water:**
-  - Wading stops at 1.33 m depth.
-  - After casting, Jesus walks out onto the lake (`onWater` = true, y = 0.04).
-  - When the miracle expires over deep water, Jesus sinks and is placed on the dock (x = 106).
-- **Persistence:** all 6 revealed miracles survive Save & Quit → Continue.
-- **Errors:** no console or page errors.
+The suite has 12 Phase 1, 10 Phase 2 and 9 Phase 3 regression checks; those run with the garrison off duty (`romans.setActive(false)`) so a patrol can't interfere with them. It adds 14 new Phase 4 checks:
+
+1. **Garrison:** 8 soldiers on duty, the 4 patrol soldiers walk their routes, and all navigation anchors are reachable.
+2. **Talk (E):** "Talk to Legionary Flavius", answer 2 (an explanation of how chases work), Esc leaves.
+3. **Line of sight:** a soldier sees Jesus in the open, but not when Jesus is behind the lookout house.
+4. **Witnessed crime:** with Q, Divine Push blasts two villagers in front of a legionary. They become ragdolls, the attention goes to 1★, the soldier gives chase and the HUD turns red.
+5. **Villager recovery:** ragdolled villagers stand back up (collider back on, sane height).
+6. **Ragdolled legionary:** Q on a legionary makes him a ragdoll; he flies 4.3 m and attention goes 1★ → 2★. He gets up bruised and goes back to searching.
+7. **Healing Touch on him:** attention drops 2★ → 1★ and he turns friendly.
+8. **Escape:** Jesus sprints away down the south road and stays out of sight. The search runs out, the stars drop to 0, an escape is counted and the "You lost them" toast shows.
+9. **3★ escalation:** reinforcements spawn 15–26 m away and pursue, with 6 soldiers on the hunt.
+10. **Seized:** the grab bar shows (it peaked at 0.33). Q (Push) breaks free: the grabber ragdolls and the bar drains.
+11. **Water to Wine:** the pursuing legionary becomes `distracted`.
+12. **Arrest:** Jesus stands still next to two pursuers. The ARRESTED card appears, E continues, he is released at the checkpoint barrier with the stars at 0, the arrest counted and the Faith fine applied.
+13. **Trespass:** Jesus walks through the camp gate. A warning event fires, then the attention goes to 1★.
+14. **Persistence:** after Save & Quit and Continue, arrests (1), escapes (1) and the highest attention (5★) persist, and the wanted level resets to 0.
 
 ## Motion
-- **Player locomotion:** [motion-sheet.png](phase3-pass-1/motion/motion-sheet.png).
-- **NPC life:** [npc-motion-sheet.png](phase3-pass-1/motion/npc-motion-sheet.png) — a regression check that kids greet Jesus, play tag and villagers chat.
+- **Player locomotion:** [motion-sheet.png](phase4-pass-1/motion/motion-sheet.png).
+- **NPC life:** [npc-motion-sheet.png](phase4-pass-1/motion/npc-motion-sheet.png).
+- **Romans:** [roman-motion-sheet.png](phase4-pass-1/motion/roman-motion-sheet.png).
+  - Six chase frames: legionaries with "!" converge on Jesus, a kid shouts "RUN, YESHUA!", and the last frame is the grab ("Got you!").
+  - Six ragdoll frames: launch, tumble, landing and getting back up (t = 0.08 → 2.2 s).
 
-## Defects found by the tests and fixed in this pass
-- **Audio exception:** the Web Audio envelope threw on zero-gain sounds (distance attenuation to 0). Because it was inside an event handler, a distant pot shattering could throw mid-frame. Envelopes are now floored and silent sounds skipped.
-- **Wading leak:** wading only slowed you in deep water, so you could creep ever deeper. Deeper motion is now cancelled past 1.3 m, with a drift back to shore past 1.5 m.
-- **Submerged cast:** casting Walk on Water while submerged left Jesus on the lake bed under the walkable surface. Casting now lifts him onto the water.
-- **Dawn crash:** a stale NPC `travel` phase at dawn caused a re-path to a null step (crash). Phases are reset on block change and null steps guarded.
-- **Bad anchors:** the well-water and trough-water spots were registered as NPC destinations inside colliders. Only standing spots become anchors.
-- **Unreachable home:** one villager's home door was unreachable. Homes are now reassigned to reachable doors.
-- **Wine targeting:** the fallback measured to a target's centre, not its edge, so you couldn't target the well from its rim.
+## Defects found during this pass and fixed
+- **Stale ragdoll start:** a ragdoll launched from the last *rendered* rig position instead of the soldier's simulated position, so a soldier placed or moved in the same frame flew from the wrong spot. The rig is now synced before spawning.
+- **Exploding ragdolls:** overlapping limb boxes pushed each other apart at launch. A collision group now keeps ragdoll parts from colliding with each other.
+- **Overly harsh escalation:** one Push into a crowd near a soldier jumped straight to 3★. The "blasting citizens" heat now counts at most two victims per cast.
+- **Free ground during pause:** soldiers kept moving while the game was paused or the arrest card was up; the garrison now freezes.
+- **Geometry over budget:** the desktop geometry count was over budget (323–354 of 300). Identical body parts are now shared across characters, and reserves are built only when first needed. It is now 180–244.
+- **Test hooks too late:** the hooks appeared only after the world finished loading, so the inspector failed every capture. They now exist from the first frame and wait for initialisation.
+- **Test-state rendering (only affected captures):** the states didn't re-render soldiers at their new positions and left the sky dome behind for far-away states (black sky at the checkpoint).
 
 ## Budgets
-- **Effects:** 900 particles (one draw call) plus 14 rings.
-- **Bodies:** 80 multiplied copies per kind are pre-created and disabled until used; shards stay at 48.
-- **Pre-created colliders:** the lake surface collider is created once and toggled with `setEnabled`.
-- **Totals and cost:** about 321 bodies and 904 colliders in total; the desktop gameplay view uses about 207 draw calls and about 420k triangles (within the desktop budget).
+- **Physics:**
+  - Each ragdoll is 7 dynamic bodies and 6 spherical joints, with at most 8 ragdolls at once.
+  - Soldier capsules are kinematic and share the villagers' character controller.
+  - Line-of-sight checks are about 8 Hz per soldier and 1–2 rays each.
+- **Draw calls:** about 7 per soldier, the same as a villager. The checkpoint adds one static batch per material, plus the banner, the sign and the flame.
 
 ## Not verified
-- Real-GPU frame rate.
-- Audio in a headed browser.
-- Long play sessions with heavy miracle use beyond the tested caps.
+- Real-GPU frame rate and audio in a headed browser (pursuit drums, horn).
+- Long sessions with repeated 5★ chases across the whole valley.
+- Mobile/touch input (not a target).

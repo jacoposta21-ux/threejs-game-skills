@@ -1,0 +1,146 @@
+[
+  {
+    "file": "chase-0.png",
+    "label": "chase t+0.35s",
+    "info": {
+      "modes": {
+        "pursue": 5,
+        "duty": 4
+      },
+      "grab": 0,
+      "ragdolls": 0
+    }
+  },
+  {
+    "file": "chase-1.png",
+    "label": "chase t+0.70s",
+    "info": {
+      "modes": {
+        "pursue": 5,
+        "duty": 4
+      },
+      "grab": 0,
+      "ragdolls": 0
+    }
+  },
+  {
+    "file": "chase-2.png",
+    "label": "chase t+1.05s",
+    "info": {
+      "modes": {
+        "pursue": 5,
+        "duty": 4
+      },
+      "grab": 0,
+      "ragdolls": 0
+    }
+  },
+  {
+    "file": "chase-3.png",
+    "label": "chase t+1.40s",
+    "info": {
+      "modes": {
+        "pursue": 6,
+        "duty": 4
+      },
+      "grab": 0,
+      "ragdolls": 0
+    }
+  },
+  {
+    "file": "chase-4.png",
+    "label": "chase t+1.75s",
+    "info": {
+      "modes": {
+        "pursue": 6,
+        "duty": 4
+      },
+      "grab": 0.17,
+      "ragdolls": 0
+    }
+  },
+  {
+    "file": "chase-5.png",
+    "label": "chase t+2.10s",
+    "info": {
+      "modes": {
+        "pursue": 6,
+        "duty": 4
+      },
+      "grab": 0.58,
+      "ragdolls": 0
+    }
+  },
+  {
+    "file": "ragdoll-0.png",
+    "label": "ragdoll t+0.08s",
+    "info": {
+      "modes": {
+        "duty": 7,
+        "down": 1
+      },
+      "grab": 0,
+      "ragdolls": 1
+    }
+  },
+  {
+    "file": "ragdoll-1.png",
+    "label": "ragdoll t+0.20s",
+    "info": {
+      "modes": {
+        "duty": 7,
+        "down": 1
+      },
+      "grab": 0,
+      "ragdolls": 1
+    }
+  },
+  {
+    "file": "ragdoll-2.png",
+    "label": "ragdoll t+0.35s",
+    "info": {
+      "modes": {
+        "duty": 7,
+        "down": 1
+      },
+      "grab": 0,
+      "ragdolls": 1
+    }
+  },
+  {
+    "file": "ragdoll-3.png",
+    "label": "ragdoll t+0.55s",
+    "info": {
+      "modes": {
+        "duty": 7,
+        "down": 1
+      },
+      "grab": 0,
+      "ragdolls": 1
+    }
+  },
+  {
+    "file": "ragdoll-4.png",
+    "label": "ragdoll t+0.90s",
+    "info": {
+      "modes": {
+        "duty": 7,
+        "down": 1
+      },
+      "grab": 0,
+      "ragdolls": 1
+    }
+  },
+  {
+    "file": "ragdoll-5.png",
+    "label": "ragdoll t+2.20s",
+    "info": {
+      "modes": {
+        "duty": 7,
+        "getup": 1
+      },
+      "grab": 0,
+      "ragdolls": 0
+    }
+  }
+]
