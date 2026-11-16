@@ -1277,12 +1277,13 @@ export class GameSession {
       },
       'region-lake': () => {
         states['active-play']();
-        this.player.teleport(HAMLET.jettyX - 0.4, 1.1, -82, 0.35);
+        // on the hamlet beach, looking down the jetty to the open lake
+        this.player.teleport(HAMLET.jettyX - 4.5, 0, -99, 0.25);
         this.simulate(2.5);
-        this.cam.snap(this.playerState.position, Math.PI + 0.55);
-        this.cam.pitch = 0.18;
-        this.cam.targetDistance = 7;
-        this.cam.currentDistance = 7;
+        this.cam.snap(this.playerState.position, Math.PI + 0.25);
+        this.cam.pitch = 0.26;
+        this.cam.targetDistance = 8;
+        this.cam.currentDistance = 8;
       },
       'region-outpost': () => {
         states['active-play']();
