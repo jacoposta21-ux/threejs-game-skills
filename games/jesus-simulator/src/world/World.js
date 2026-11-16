@@ -162,7 +162,7 @@ export class World {
     // wheat: chunked instancing so off-screen fields are culled
     const wheat = wheatFields(rng);
     const wheatGeo = mergeColored(wheat.parts.map((geometry, i) => ({ geometry, color: i % 2 ? '#e7c766' : '#d6b153' })));
-    for (const m of this.chunked(wheatGeo, materials.grass, wheat.placements, 40, { castShadow: false, tintJitter: 0.12 })) this.root.add(m);
+    for (const m of this.chunked(wheatGeo, materials.grass, wheat.placements, 120, { castShadow: false, tintJitter: 0.12 })) this.root.add(m);
 
     // the oasis pond is a miracle water target (water to wine)
     const w = oasis.water;
@@ -260,7 +260,7 @@ export class World {
     // the green west: extra grass in the countryside
     grass.push(...this.scatterPoints(2600, 120, 300, 0.6, (x, z) => x > -110 || desert(x, z) || !inPlayArea(x, z)));
     const grassGeo = grassTuftGeometry();
-    for (const gm of this.chunked(grassGeo, m.grass, grass.map((p) => ({ ...p, s: rng.range(0.7, 1.5) })), 60, { castShadow: false, tintJitter: 0.15 })) {
+    for (const gm of this.chunked(grassGeo, m.grass, grass.map((p) => ({ ...p, s: rng.range(0.7, 1.5) })), 140, { castShadow: false, tintJitter: 0.15 })) {
       gm.userData.fullCount = gm.count;
       this.grassMeshes.push(gm);
       this.root.add(gm);
@@ -329,6 +329,11 @@ export class World {
     this.sky.mesh.position.copy(cameraPosition);
     this.sky.mesh.scale.setScalar(far * 0.92);
     this.clouds.position.x = ((elapsed * 1.2) % 160) - 80;
+    // grass is tiny from afar: skip chunks whose bounds are well beyond the camera
+    for (const g of this.grassMeshes) {
+      const bs = g.boundingSphere;
+      if (bs) g.visible = Math.hypot(cameraPosition.x - bs.center.x, cameraPosition.z - bs.center.z) - bs.radius < 110;
+    }
     for (const m of this.regionMeshes || []) {
       const site = m.userData.site;
       m.visible = Math.hypot(cameraPosition.x - site.x, cameraPosition.z - site.z) < 330;

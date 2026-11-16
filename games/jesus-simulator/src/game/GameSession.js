@@ -1334,6 +1334,12 @@ export class GameSession {
         fn();
         // settle physics/camera for a few steps so the frame is representative
         if (this.screen === 'playing') this.intent = this.input.read();
+        // overlays (pause, map, arrest) sit on top of a settled gameplay camera, as they do in play
+        if (['paused', 'map', 'arrested'].includes(this.screen)) {
+          const pos = this.player.interpolate(1);
+          for (let i = 0; i < 30; i += 1) this.cam.update(1 / 60, { lookX: 0, lookY: 0, zoom: 0, aim: false }, pos, this.settings, this.physics, this.player.collider);
+          this.vehicles.update(0, 1, this.camera.position);
+        }
         for (let i = 0; i < 20; i += 1) this.fixedUpdate(1 / 60);
         if (this.screen === 'playing') {
           for (let i = 0; i < 20; i += 1) this.vehicles.update(1 / 60, 1, this.camera.position);
@@ -1352,6 +1358,7 @@ export class GameSession {
           this.romans.update(1 / 60, 1, ctx);
         }
         this.ragdolls.sync();
+        this.vehicles.update(0, 1, this.camera.position);
         this.world.update(0, this.simTime || 0, this.camera.position, this.camera.far);
         const sky = this.dayCycle.apply(this.screen === 'menu' ? 0.18 : this.clock, this.camera.position, this.camera.far);
         this.sunDir = sky.lightDir;
