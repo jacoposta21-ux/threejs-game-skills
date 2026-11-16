@@ -149,10 +149,14 @@ export class PlayerController {
     // blocked horizontally -> drop stored velocity so we don't "stick" then shoot off
     // Remove velocity pushing into steep obstacles (walls, props) so it isn't
     // stored up; walkable slopes keep full speed so stairs/ramps climb smoothly.
+    const impactSpeed = Math.hypot(v.x, v.z);
     for (let i = 0, n = c.controller.numComputedCollisions(); i < n; i += 1) {
       const hit = c.controller.computedCollision(i);
       const nrm = hit?.normal1;
       if (!nrm) continue;
+      // bumping into another character (kinematic capsule): let the NPC layer react
+      const other = hit.collider;
+      if (other && other.parent()?.isKinematic()) this.bus.emit('player:contact', { entityId: st.id, handle: other.handle, speed: impactSpeed });
       if (nrm.y < 0.45 && nrm.y > -0.45) {
         const hl = Math.hypot(nrm.x, nrm.z) || 1;
         const nx = nrm.x / hl;

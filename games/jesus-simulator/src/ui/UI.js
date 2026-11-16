@@ -187,7 +187,7 @@ export class UI {
 
   setPrompt(text) {
     const el = $('prompt');
-    if (!text || !$('dialog').hidden) {
+    if (!text || !$('dialog').hidden || !$('conversation').hidden) {
       el.hidden = true;
       return;
     }
@@ -210,6 +210,68 @@ export class UI {
 
   get dialogOpen() {
     return !$('dialog').hidden;
+  }
+
+  // ---------------------------------------------------------------- conversation
+  showConversation({ name, role, text, options }) {
+    $('conv-name').textContent = name;
+    $('conv-role').textContent = role;
+    $('conv-text').textContent = text;
+    const box = $('conv-options');
+    box.innerHTML = '';
+    options.forEach((label, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'conv-opt';
+      b.innerHTML = `<kbd>${i + 1}</kbd><span></span>`;
+      b.querySelector('span').textContent = label;
+      b.addEventListener('click', () => this.bus.emit('ui:dialogue-choice', { index: i }));
+      box.appendChild(b);
+    });
+    $('conv-hint').textContent = options.length ? `PRESS 1–${options.length} TO ANSWER · ESC TO LEAVE` : 'PRESS E TO CONTINUE';
+    $('conversation').hidden = false;
+    $('prompt').hidden = true;
+    this.hideDialog();
+  }
+
+  hideConversation() {
+    $('conversation').hidden = true;
+  }
+
+  /** Project world-space bubbles to screen; pooled DOM nodes. */
+  updateBubbles(list, camera, width, height) {
+    const box = $('bubbles');
+    if (!this.bubblePool) this.bubblePool = [];
+    while (this.bubblePool.length < list.length) {
+      const el = document.createElement('div');
+      el.className = 'bubble';
+      box.appendChild(el);
+      this.bubblePool.push({ el, key: '' });
+    }
+    const v = this._v || (this._v = camera.position.clone());
+    this.bubblePool.forEach((slot, i) => {
+      const b = list[i];
+      if (!b) { slot.el.style.display = 'none'; return; }
+      v.set(b.x, b.y, b.z).project(camera);
+      if (v.z > 1 || v.x < -1.2 || v.x > 1.2 || v.y < -1.2 || v.y > 1.2) { slot.el.style.display = 'none'; return; }
+      const key = `${b.kind}|${b.text}|${b.sub || ''}`;
+      if (slot.key !== key) {
+        slot.key = key;
+        slot.el.className = `bubble ${b.kind === 'name' ? 'name' : ''}`;
+        slot.el.textContent = b.text;
+        if (b.sub) { const sm = document.createElement('small'); sm.textContent = b.sub; slot.el.appendChild(sm); }
+      }
+      const x = (v.x * 0.5 + 0.5) * width;
+      const y = (-v.y * 0.5 + 0.5) * height;
+      slot.el.style.display = 'block';
+      slot.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%) scale(${Math.max(0.7, Math.min(1, 9 / Math.max(b.d, 1)))})`;
+    });
+  }
+
+  setClock(text, night) {
+    const el = $('clock');
+    const label = `${night ? '☾' : '☀'} ${text}`;
+    if (el.textContent !== label) el.textContent = label;
   }
 
   setAiming(aiming) {
@@ -354,6 +416,9 @@ export class UI {
           <div class="stat"><span>JUMPS</span><strong>${s.jumps}</strong></div>
           <div class="stat"><span>PROPS KNOCKED OVER</span><strong>${s.propsDisturbed}</strong></div>
           <div class="stat"><span>THINGS INSPECTED</span><strong>${s.conversations}</strong></div>
+          <div class="stat"><span>PEOPLE MET</span><strong>${ctx.met ?? 0}</strong></div>
+          <div class="stat"><span>POTS BROKEN</span><strong>${s.potsBroken ?? 0}</strong></div>
+          <div class="stat"><span>PEOPLE KNOCKED OVER</span><strong>${s.peopleKnocked ?? 0}</strong></div>
           <div class="stat"><span>TIME IN GALILEE</span><strong>${fmtTime(s.playTime)}</strong></div>
           <div class="stat"><span>FOLLOWERS</span><strong>${ctx.followers}</strong></div>
         </div>`;

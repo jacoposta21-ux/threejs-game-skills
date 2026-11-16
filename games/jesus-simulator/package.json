@@ -10,7 +10,8 @@
     "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs",
     "test:play": "node tests/playtest.mjs http://127.0.0.1:4188/ artifacts/playtest",
     "test:motion": "node tests/motion.mjs http://127.0.0.1:4188/ artifacts/motion",
-    "verify:visual": "node scripts/inspect-threejs-canvas.mjs --manifest artifacts/evidence.json --url http://127.0.0.1:4188/ --seed 42"
+    "verify:visual": "node scripts/inspect-threejs-canvas.mjs --manifest artifacts/evidence.json --url http://127.0.0.1:4188/ --seed 42",
+    "test:npc-motion": "node tests/npc-motion.mjs http://127.0.0.1:4188/ artifacts/motion"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

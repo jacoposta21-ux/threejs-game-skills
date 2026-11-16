@@ -1,0 +1,114 @@
+{
+  "url": "http://127.0.0.1:4188/",
+  "results": [
+    {
+      "name": "walk forward moves player",
+      "ok": true,
+      "detail": "moved=13.74m grounded=true"
+    },
+    {
+      "name": "landmark discovery triggers",
+      "ok": true,
+      "detail": "[\"landmark.workshop\"]"
+    },
+    {
+      "name": "wall blocks movement",
+      "ok": true,
+      "detail": "player local z=5.40 (wall at 5)"
+    },
+    {
+      "name": "climb stairs to rooftop",
+      "ok": true,
+      "detail": "landing y=8.79 roof y=8.79 local x=0.04"
+    },
+    {
+      "name": "rooftop lookout discovered",
+      "ok": true,
+      "detail": "[\"landmark.workshop\",\"landmark.lookout\"]"
+    },
+    {
+      "name": "jump leaves ground and lands",
+      "ok": true,
+      "detail": "airborne y=9.73 landed y=3.06 jumps=1"
+    },
+    {
+      "name": "interaction prompt + dialog",
+      "ok": true,
+      "detail": "Cool, clear water. Strangely, you feel it could become somet"
+    },
+    {
+      "name": "sprint faster than walk",
+      "ok": true,
+      "detail": "walk=4.60 sprint=8.20"
+    },
+    {
+      "name": "TAB map opens and closes",
+      "ok": true
+    },
+    {
+      "name": "ESC opens pause menu",
+      "ok": true
+    },
+    {
+      "name": "save & continue restores progress",
+      "ok": true,
+      "detail": "landmarks 3 -> 3"
+    },
+    {
+      "name": "corrupt save -> fresh start, no crash",
+      "ok": true,
+      "detail": "label=PLAY"
+    },
+    {
+      "name": "NPCs spawn and follow routines",
+      "ok": true,
+      "detail": "count=27 moved>2m=19 states={\"chat\":4,\"act\":8,\"travel\":13,\"none\":2} nav={\"nodes\":272,\"edges\":576,\"casts\":784,\"unreachable\":0}"
+    },
+    {
+      "name": "talk to NPC (E, choose 1, Esc)",
+      "ok": true,
+      "detail": "prompt=\"Talk to Eli\" options=3 \"Fresh bread! Well — this morning's bread\" -> \"Rome taxes the flour, the oven and the s\""
+    },
+    {
+      "name": "NPC collision blocks the player",
+      "ok": true,
+      "detail": "contacts=263 min centre gap=0.70 reaction=undefined"
+    },
+    {
+      "name": "sprinting into a villager knocks them over (+Chaos)",
+      "ok": true,
+      "detail": "reaction=stumble chaos 1.5999999999999999 -> 2.6"
+    },
+    {
+      "name": "pottery breaks on hard impact",
+      "ok": true,
+      "detail": "broken=1 shards=6 chaos=4.6"
+    },
+    {
+      "name": "fruit pile scatters when walked into",
+      "ok": true,
+      "detail": "propsDisturbed 12 -> 18"
+    },
+    {
+      "name": "lost-sheep errand (Amos)",
+      "ok": true,
+      "detail": "following=true joined=true faith=5"
+    },
+    {
+      "name": "villagers go home at night, return at dawn",
+      "ok": true,
+      "detail": "{\"atNight\":27,\"morning\":0,\"total\":27}"
+    },
+    {
+      "name": "dialogue flags + people met persist",
+      "ok": true,
+      "detail": "{\"met\":2,\"sheep\":true,\"stray\":true}"
+    },
+    {
+      "name": "no console/page errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": []
+}

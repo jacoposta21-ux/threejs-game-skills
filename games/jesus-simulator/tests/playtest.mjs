@@ -5,6 +5,7 @@
  */
 import { chromium } from '@playwright/test';
 import fs from 'node:fs';
+import { phase2Checks } from './phase2-checks.mjs';
 
 const url = process.argv[2] || 'http://127.0.0.1:4188/';
 const out = process.argv[3] || 'artifacts/playtest';
@@ -172,6 +173,9 @@ await page.click('#btn-play');
 await waitFrames(5);
 d = await diag();
 check('corrupt save -> fresh start, no crash', d.screen === 'playing' && d.discovered.length === 0 && playLabel.trim() === 'PLAY', `label=${playLabel.trim()}`);
+
+// Phase 2 — living world
+await phase2Checks({ page, check, diag, waitFrames, hold, out });
 
 check('no console/page errors', errors.length === 0, errors.slice(0, 5).join(' | '));
 fs.writeFileSync(`${out}/results.json`, JSON.stringify({ url, results, errors }, null, 2));

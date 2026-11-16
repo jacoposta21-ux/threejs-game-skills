@@ -197,6 +197,60 @@ export class AudioManager {
     this.tone({ freq: 1175, gain: 0.05, decay: 0.8, when: 0.08 });
   }
 
+  /** Gibberish "voice" for NPC speech: short formant-ish blips at the NPC's pitch. */
+  babble(voice = 1, length = 12, gain = 1) {
+    if (!this.ctx || gain < 0.03) return;
+    const syllables = Math.max(2, Math.min(9, Math.round(length / 4)));
+    const base = 170 * voice;
+    for (let i = 0; i < syllables; i += 1) {
+      const f = base * (0.85 + Math.random() * 0.5);
+      const when = i * (0.075 + Math.random() * 0.03);
+      this.tone({ freq: f, slideTo: f * (0.85 + Math.random() * 0.3), type: 'square', gain: 0.018 * gain, attack: 0.006, decay: 0.06, when });
+      this.tone({ freq: f * 2.02, type: 'sine', gain: 0.02 * gain, attack: 0.006, decay: 0.05, when });
+    }
+  }
+
+  crash(gain = 1) {
+    this.noiseBurst({ freq: 2600, q: 0.8, gain: 0.35 * gain, decay: 0.18, type: 'highpass', rate: 1.4 });
+    this.noiseBurst({ freq: 900, q: 1.5, gain: 0.25 * gain, decay: 0.12 });
+    for (let i = 0; i < 4; i += 1) this.tone({ freq: 1800 + Math.random() * 1600, type: 'triangle', gain: 0.03 * gain, decay: 0.08, when: 0.03 + i * 0.05 });
+  }
+
+  cluck(gain = 1) {
+    for (let i = 0; i < 3; i += 1) this.tone({ freq: 620 + Math.random() * 180, slideTo: 420, type: 'square', gain: 0.025 * gain, attack: 0.004, decay: 0.07, when: i * 0.09 });
+  }
+
+  baa(gain = 1) {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    const t = c.currentTime;
+    const o = c.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(310, t);
+    o.frequency.linearRampToValueAtTime(280, t + 0.6);
+    const lfo = c.createOscillator();
+    const lg = c.createGain();
+    lfo.frequency.value = 22;
+    lg.gain.value = 18;
+    lfo.connect(lg).connect(o.frequency);
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 900;
+    f.Q.value = 2;
+    const g = c.createGain();
+    this.env(g, t, 0.05, 0.05 * gain, 0.55);
+    o.connect(f).connect(g).connect(this.sfx);
+    o.start(t);
+    lfo.start(t);
+    o.stop(t + 0.7);
+    lfo.stop(t + 0.7);
+  }
+
+  cricket() {
+    const f = 4200 + Math.random() * 600;
+    for (let i = 0; i < 3; i += 1) this.tone({ freq: f, type: 'sine', gain: 0.012, attack: 0.003, decay: 0.03, when: i * 0.05, out: this.amb });
+  }
+
   bird() {
     const f = 2200 + Math.random() * 1600;
     const n = 2 + Math.floor(Math.random() * 3);
@@ -211,15 +265,20 @@ export class AudioManager {
   }
 
   /** Per-frame: ambience mixing by location, gentle lyre phrases, birdsong. */
-  update(dt, { marketProximity = 0, playing = false }) {
+  update(dt, { marketProximity = 0, playing = false, night = 0 }) {
     if (!this.ctx || this.ctx.state !== 'running' || !this.started) return;
     const t = this.ctx.currentTime;
-    this.marketGain.gain.setTargetAtTime(playing ? marketProximity * 0.06 : 0, t, 0.4);
+    this.marketGain.gain.setTargetAtTime(playing ? marketProximity * 0.06 * (1 - night) : 0, t, 0.4);
     this.windGain.gain.setTargetAtTime(playing ? 0.045 : 0.02, t, 0.6);
     this.birdTimer -= dt;
     if (this.birdTimer <= 0) {
-      this.bird();
-      this.birdTimer = 2.5 + Math.random() * 6;
+      if (night > 0.5) {
+        this.cricket();
+        this.birdTimer = 0.4 + Math.random() * 1.2;
+      } else {
+        this.bird();
+        this.birdTimer = 2.5 + Math.random() * 6;
+      }
     }
     this.musicTimer -= dt;
     if (this.musicTimer <= 0 && this.settings.musicVolume > 0) {

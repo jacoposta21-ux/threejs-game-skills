@@ -100,7 +100,7 @@ export class Minimap {
     this.radiusM = 48;
   }
 
-  draw(pos, playerYaw, cameraYaw, discovered, nextId, time) {
+  draw(pos, playerYaw, cameraYaw, discovered, nextId, time, dots) {
     const g = this.g;
     const size = this.canvas.width;
     const half = size / 2;
@@ -121,6 +121,21 @@ export class Minimap {
     // landmarks (clamped to the rim when off-map)
     const c = Math.cos(cameraYaw);
     const s = Math.sin(cameraYaw);
+    // villagers
+    for (const n of dots || []) {
+      const dx = (n.x - pos.x) * PX_PER_M * scale;
+      const dz = (n.z - pos.z) * PX_PER_M * scale;
+      const x = dx * c - dz * s;
+      const y = dx * s + dz * c;
+      if (Math.hypot(x, y) > half - 6) continue;
+      g.fillStyle = n.named ? '#2f6fb0' : '#5f7f9a';
+      g.strokeStyle = '#fff';
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.arc(half + x, half + y, n.named ? 3.6 : 2.8, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+    }
     for (const l of LANDMARKS) {
       const dx = (l.x - pos.x) * PX_PER_M * scale;
       const dz = (l.z - pos.z) * PX_PER_M * scale;

@@ -31,6 +31,18 @@ export class ThirdPersonCamera {
     const sens = 0.0022 * settings.sensitivity;
     this.yaw -= intent.lookX * sens;
     this.pitch += intent.lookY * sens * (settings.invertY ? -1 : 1);
+    // conversation: over-the-shoulder shot of the NPC's face (blended over the orbit camera)
+    const talk = this.dialogueTarget;
+    this.talkBlend = (this.talkBlend || 0) + ((talk ? 1 : 0) - (this.talkBlend || 0)) * damp(4, dt);
+    if (!talk) this.talkSide = null;
+    if (talk) {
+      // keep the orbit yaw behind the player so leaving the conversation feels continuous
+      const behind = Math.atan2(target.x - talk.x, target.z - talk.z);
+      let dy = behind - this.yaw;
+      while (dy > Math.PI) dy -= Math.PI * 2;
+      while (dy < -Math.PI) dy += Math.PI * 2;
+      this.yaw += dy * damp(3, dt);
+    }
     this.pitch = clamp(this.pitch, -0.5, 1.25);
     if (intent.zoom) this.targetDistance = clamp(this.targetDistance + intent.zoom * 0.7, 2.6, 11);
 
@@ -64,7 +76,38 @@ export class ThirdPersonCamera {
     cam.set(ox + this.dir.x * d, oy + this.dir.y * d, oz + this.dir.z * d);
     const floor = terrainHeight(cam.x, cam.z) + 0.45;
     if (cam.y < floor) cam.y = floor;
-    this.camera.lookAt(ox, oy + 0.05, oz);
+    let lx = ox;
+    let ly = oy + 0.05;
+    let lz = oz;
+    const b = this.talkBlend || 0;
+    if (talk && b > 0.001) {
+      const dx = talk.x - target.x;
+      const dz = talk.z - target.z;
+      const L = Math.hypot(dx, dz) || 1;
+      const fx = dx / L;
+      const fz = dz / L;
+      if (this.talkSide == null) {
+        // pick the shoulder whose camera spot is clear of walls and stall cloth
+        const clear = (side) => {
+          const px = -fx * 2.3 + fz * side * 1.0;
+          const pz = -fz * 2.3 - fx * side * 1.0;
+          const len = Math.hypot(px, 0.3, pz);
+          const hit = physics.castRay(target.x, target.y + 1.65, target.z, px / len, 0.3 / len, pz / len, len + 0.3, excludeCollider, physics.isCameraBlocker);
+          return hit === null ? 99 : hit;
+        };
+        this.talkSide = clear(1) >= clear(-1) ? 1 : -1;
+      }
+      const side = this.talkSide;
+      const tx = target.x - fx * 2.3 + fz * side * 1.0;
+      const tz = target.z - fz * 2.3 - fx * side * 1.0;
+      const ty = target.y + 1.95;
+      cam.set(cam.x + (tx - cam.x) * b, cam.y + (ty - cam.y) * b, cam.z + (tz - cam.z) * b);
+      // aim a little below the NPC's face so faces sit above the dialogue panel
+      lx += (talk.x - lx) * b;
+      ly += (talk.y + 1.15 - ly) * b;
+      lz += (talk.z - lz) * b;
+    }
+    this.camera.lookAt(lx, ly, lz);
 
     const fov = lerp(this.baseFov, 50, a) + (intent.sprinting ? 4 : 0);
     if (Math.abs(this.camera.fov - fov) > 0.05) {

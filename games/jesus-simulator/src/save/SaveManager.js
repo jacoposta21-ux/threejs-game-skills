@@ -143,7 +143,21 @@ export function validateSave(raw) {
       playTime: num(stats.playTime, 0, 1e9, 0),
       propsDisturbed: num(stats.propsDisturbed, 0, 1e9, 0),
       conversations: num(stats.conversations, 0, 1e9, 0),
+      potsBroken: num(stats.potsBroken, 0, 1e9, 0),
+      peopleKnocked: num(stats.peopleKnocked, 0, 1e9, 0),
     },
+    flags: validFlags(raw.flags),
+    met: Array.isArray(raw.met) ? raw.met.filter((id) => typeof id === 'string' && id.startsWith('npc.')).slice(0, 200) : [],
+    clock: num(raw.clock, 0, 0.9999, 0.1),
     savedAt: num(raw.savedAt, 0, 1e15, 0),
   };
+}
+
+function validFlags(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof k === 'string' && k.length < 64 && /^[a-z0-9.-]+$/i.test(k) && v === true) out[k] = true;
+  }
+  return out;
 }

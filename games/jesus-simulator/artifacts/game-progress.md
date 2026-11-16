@@ -44,9 +44,23 @@ Player **explores** to **discover the 7 landmarks of Nazareth**; the minimap and
 - The menu title was clipped; the hotbar overflowed at phone width.
 - Vegetation triangle cost was cut from ~520k to ~280k per frame.
 
-## Next actions (Phase 2 — Living world)
-- NPC rig based on the Jesus model kit, with villager, merchant, child and traveler variants.
-- NPCManager with lightweight state machines: idle, walk route, work at stall, react, talk.
-- E-to-talk dialogue with a dialogue box (it reuses the `object:interact` path).
-- Market props that react (pottery breakable later), plus collision for NPCs.
-- Keep `PlayerState` and `WorldState` free of scene references.
+## Phase 2 — Living world (completed)
+- **NPC kit:** a CharacterKit with merged parts, a face atlas and 6 expressions, plus a procedural animator (walk, talk, wave, hammer, sell, sweep, draw water, pray, sit, cheer, startle, angry, stumble).
+- **Cast:** a roster of 27 people (13 named characters, 10 villagers, 2 extra merchants) with homes and daily routines on a 10-minute day/night clock.
+- **Navigation:** a NavGraph built from roads, the square, the aisle and every anchor, with shape-cast-verified edges and A* paths.
+- **Movement:** NPCs use Rapier's KCC near the player and cheap path-following further away, and unstick themselves when blocked.
+- **Reactions:** greeting, head tracking, bumping, knock-overs, startle and anger at broken pots, pair chats, kids playing tag and cheering for Jesus.
+- **Conversations:** branching dialogue with numbered options, flags and one-time Faith rewards, landmark hints with compass directions, and an over-the-shoulder camera.
+- **Errand:** the "lost sheep" errand (Amos) — a scripted good deed, not the Phase 6 mission framework.
+- **Animals:** sheep (a flock and a stray) and chickens.
+- **Props:** a PropSystem with breakable pots, a shard pool, rollable fruit piles and quiet restocking.
+- **World and progression:** a DayCycle drives sun/moon, sky, fog and stars, with crickets at night. Faith and Chaos now move, and saves include flags, people met and the clock.
+- **Evidence:** `phase2-pass-3` — inspector 8/8, playtest 22/22, motion sheets for the player and NPCs.
+
+## Next actions (Phase 3 — Miracles)
+- **MiracleManager:** cooldowns, targeting, events (`miracle:cast`) and HUD hooks — the hotbar slots already exist.
+- **Divine Push:** use NPCs' stumble state and PropSystem bodies.
+- **Multiplication:** pooled bread/fish bodies reuse the shard-pool pattern.
+- **Water to Wine:** target the well, trough and jars (`spot:well`, `spot:trough` anchors exist).
+- **Healing Touch and Levitation:** need NPC "injured" states and a lift constraint.
+- **Walk on Water:** needs the lake region opened.

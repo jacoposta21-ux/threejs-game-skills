@@ -1,0 +1,152 @@
+{
+  "url": "http://127.0.0.1:4188/",
+  "mode": "desktop",
+  "state": "night",
+  "requestedState": "night",
+  "appliedState": "night",
+  "runId": "phase2-pass-3",
+  "seed": 42,
+  "screenshotPath": "artifacts/phase2-pass-3/desktop-night.png",
+  "gpu": {
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "vendor": "Google Inc. (Google)",
+    "softwareRendered": true
+  },
+  "result": {
+    "ok": true,
+    "reason": "nonblank",
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "drawingBuffer": {
+      "width": 1280,
+      "height": 720
+    },
+    "alphaPixels": 4096,
+    "variance": 255,
+    "colorBuckets": 100,
+    "metrics": {
+      "colorBuckets": 152,
+      "colorEntropyBits": 4.13,
+      "edgeDensity": 0.237,
+      "luminance": {
+        "mean": 45.2,
+        "p5": 0.3,
+        "p95": 66.3,
+        "contrast": 66
+      },
+      "dominantColorShare": 0.2,
+      "nonBackgroundShare": 0.8
+    },
+    "renderBudget": {
+      "tier": "desktop",
+      "note": "starting-point budget; adjust per game and document overrides",
+      "rows": [
+        {
+          "metric": "calls",
+          "actual": 69,
+          "limit": 300,
+          "ok": true
+        },
+        {
+          "metric": "triangles",
+          "actual": 354664,
+          "limit": 750000,
+          "ok": true
+        },
+        {
+          "metric": "geometries",
+          "actual": 203,
+          "limit": 300,
+          "ok": true
+        },
+        {
+          "metric": "textures",
+          "actual": 11,
+          "limit": 60,
+          "ok": true
+        }
+      ],
+      "withinBudget": true
+    },
+    "diagnostics": {
+      "frame": 6,
+      "screen": "playing",
+      "quality": "high",
+      "fps": 9.99999985098839,
+      "player": {
+        "position": {
+          "x": -3.0000163419767887,
+          "y": 1.204140827403171,
+          "z": 8.00001558212307
+        },
+        "speed": 0,
+        "grounded": true,
+        "yaw": 3.141592653589793
+      },
+      "camera": {
+        "yaw": 0.3,
+        "distance": 6
+      },
+      "discovered": [],
+      "clock": 0.9349999999999279,
+      "night": 1,
+      "flags": {},
+      "faith": 0,
+      "chaos": 1.5999999999999999,
+      "dialogue": null,
+      "talkTarget": null,
+      "npcs": {
+        "count": 27,
+        "near": 0,
+        "visible": 0,
+        "hidden": 27,
+        "states": {},
+        "nav": {
+          "nodes": 272,
+          "edges": 576,
+          "casts": 806,
+          "unreachable": 0
+        },
+        "animals": 16
+      },
+      "props": {
+        "total": 70,
+        "awake": 0,
+        "broken": 0,
+        "shards": 0
+      },
+      "stats": {
+        "distance": 0.0012430095571198197,
+        "jumps": 0,
+        "playTime": 0,
+        "propsDisturbed": 11,
+        "conversations": 0
+      },
+      "physics": {
+        "bodies": 149,
+        "colliders": 730,
+        "activeBodies": 1
+      },
+      "renderer": {
+        "calls": 69,
+        "triangles": 354664,
+        "geometries": 203,
+        "textures": 11
+      },
+      "canvas": {
+        "clientWidth": 1280,
+        "clientHeight": 720,
+        "width": 1280,
+        "height": 720
+      }
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "consoleErrorCount": 0,
+  "pageErrorCount": 0
+}

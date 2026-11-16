@@ -1,56 +1,51 @@
 {
   "version": 1,
-  "runId": "phase1-pass-4",
+  "runId": "phase2-pass-3",
   "captures": [
     {
       "mode": "desktop",
       "state": "menu",
-      "report": "artifacts/phase1-pass-4/desktop-menu.json"
+      "report": "artifacts/phase2-pass-3/desktop-menu.json"
     },
     {
       "mode": "desktop",
       "state": "active-play",
-      "report": "artifacts/phase1-pass-4/desktop-active-play.json"
+      "report": "artifacts/phase2-pass-3/desktop-active-play.json"
     },
     {
       "mode": "desktop",
-      "state": "portrait",
-      "report": "artifacts/phase1-pass-4/desktop-portrait.json"
+      "state": "plaza-life",
+      "report": "artifacts/phase2-pass-3/desktop-plaza-life.json"
     },
     {
       "mode": "desktop",
-      "state": "market",
-      "report": "artifacts/phase1-pass-4/desktop-market.json"
+      "state": "market-life",
+      "report": "artifacts/phase2-pass-3/desktop-market-life.json"
     },
     {
       "mode": "desktop",
-      "state": "rooftop",
-      "report": "artifacts/phase1-pass-4/desktop-rooftop.json"
+      "state": "npc-dialogue",
+      "report": "artifacts/phase2-pass-3/desktop-npc-dialogue.json"
     },
     {
       "mode": "desktop",
-      "state": "map",
-      "report": "artifacts/phase1-pass-4/desktop-map.json"
+      "state": "night",
+      "report": "artifacts/phase2-pass-3/desktop-night.json"
     },
     {
       "mode": "desktop",
       "state": "pause",
-      "report": "artifacts/phase1-pass-4/desktop-pause.json"
+      "report": "artifacts/phase2-pass-3/desktop-pause.json"
     },
     {
       "mode": "mobile",
-      "state": "menu",
-      "report": "artifacts/phase1-pass-4/mobile-menu.json"
-    },
-    {
-      "mode": "mobile",
-      "state": "active-play",
-      "report": "artifacts/phase1-pass-4/mobile-active-play.json"
+      "state": "plaza-life",
+      "report": "artifacts/phase2-pass-3/mobile-plaza-life.json"
     }
   ],
   "artifacts": [
-    "artifacts/phase1-pass-3/playtest/results.json",
-    "artifacts/phase1-pass-3/motion/locomotion.webm",
-    "artifacts/phase1-pass-3/motion/motion-sheet.png"
+    "artifacts/phase2-pass-3/playtest/results.json",
+    "artifacts/phase2-pass-3/motion/motion-sheet.png",
+    "artifacts/phase2-pass-3/motion/npc-motion-sheet.png"
   ]
 }

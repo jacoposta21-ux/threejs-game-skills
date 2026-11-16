@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { StaticBatcher, mergeColored, potGeometry } from './geometry.js';
+import { StaticBatcher } from './geometry.js';
+import { PropSystem } from './PropSystem.js';
 import { getMaterials, PALETTE } from './materials.js';
 import { paintSplat, buildTerrain, buildLake } from './terrain.js';
 import { createSky, createClouds } from './Sky.js';
@@ -19,15 +20,14 @@ const tmp = new THREE.Object3D();
  * meshes directly; it reads `footprints`, `props` and layout data.
  */
 export class World {
-  constructor(scene, physics, rng) {
+  constructor(scene, physics, rng, bus) {
+    this.bus = bus;
     this.scene = scene;
     this.physics = physics;
     this.rng = rng;
     this.root = new THREE.Group();
     this.root.name = 'world';
     scene.add(this.root);
-    this.props = [];
-    this.propMeshes = {};
     this.footprints = [];
     this.uniforms = {};
     this.grassMeshes = [];
@@ -65,13 +65,16 @@ export class World {
     this.physics.addStaticColliders(village.colliders);
     this.staticColliderCount = village.colliders.length;
     this.workshopSign = village.workshop.sign;
+    // anchors for NPC routines (doors, stalls, benches, named spots)
+    this.anchors = { doors: village.doors, stalls: village.stalls, benches: village.benches, spots: village.spots };
     this.root.add(createSignBoard(['JOSEPH & SON', 'CARPENTRY'], village.workshop.sign));
 
     yield 'Planting olive trees';
     this.buildScatter(village.houses);
 
     yield 'Stacking barrels and pottery';
-    this.buildProps();
+    this.propSystem = new PropSystem(this.root, this.physics, this.rng, materials, this.bus);
+    this.propSystem.build(village.houses, village.stalls);
   }
 
   scatterPoints(count, minR, maxR, clearance, extraReject) {
@@ -143,123 +146,16 @@ export class World {
     this.staticColliderCount += colliders.length;
   }
 
-  buildProps() {
-    const rng = this.rng;
-    const templates = {
-      barrel: {
-        geometry: mergeColored([
-          { geometry: new THREE.CylinderGeometry(0.36, 0.36, 0.96, 12), color: '#9c6b40' },
-          { geometry: new THREE.CylinderGeometry(0.39, 0.39, 0.07, 12), color: '#4a3a2c', t: { y: 0.3 } },
-          { geometry: new THREE.CylinderGeometry(0.39, 0.39, 0.07, 12), color: '#4a3a2c', t: { y: -0.3 } },
-        ]),
-        material: this.materials.wood,
-        phys: { shape: 'cyl', r: 0.38, hh: 0.48, density: 0.6, restitution: 0.25 },
-      },
-      crate: {
-        geometry: mergeColored([
-          { geometry: new THREE.BoxGeometry(0.8, 0.8, 0.8), color: '#b5844f' },
-          { geometry: new THREE.BoxGeometry(0.84, 0.1, 0.84), color: '#6b4a2e', t: { y: 0.35 } },
-          { geometry: new THREE.BoxGeometry(0.84, 0.1, 0.84), color: '#6b4a2e', t: { y: -0.35 } },
-        ]),
-        material: this.materials.wood,
-        phys: { shape: 'box', hx: 0.4, hy: 0.4, hz: 0.4, density: 0.5, restitution: 0.15 },
-      },
-      pot: {
-        geometry: (() => {
-          const g = mergeColored([{ geometry: potGeometry(0.7, 0.3, 10), color: '#c0703f', t: { y: -0.35 } }]);
-          return g;
-        })(),
-        material: this.materials.clay,
-        phys: { shape: 'cyl', r: 0.28, hh: 0.35, density: 0.9, restitution: 0.1 },
-      },
-    };
-
-    const spots = [];
-    const push = (type, x, z) => spots.push({ type, x, z });
-    // market edges and aisle ends
-    for (let i = 0; i < 6; i += 1) push(i % 2 ? 'crate' : 'barrel', -15 + i * 6, -16.8);
-    for (let i = 0; i < 5; i += 1) push(i % 2 ? 'pot' : 'barrel', -17.5, -36 + i * 4.5);
-    for (let i = 0; i < 4; i += 1) push('pot', 17.5, -34 + i * 4);
-    push('crate', -9, -27.4); push('pot', 3.1, -26.6); push('barrel', 9.2, -27.8);
-    // square
-    for (let i = 0; i < 6; i += 1) {
-      const a = (i / 6) * Math.PI * 2 + 0.55;
-      push(i % 3 === 0 ? 'barrel' : 'pot', Math.cos(a) * 4.2, Math.sin(a) * 4.2);
-    }
-    // workshop yard
-    push('crate', -23.5, 18.5); push('crate', -22.8, 19.6); push('barrel', -36.5, 10); push('barrel', -36.2, 11.2);
-    // a few by houses
-    for (let i = 0; i < 10 && i < this.houses.length; i += 1) {
-      const h = this.houses[i * 3 % this.houses.length];
-      const a = Math.atan2(-h.x, -h.z);
-      push(rng.pick(['barrel', 'crate', 'pot']), h.x + Math.sin(a) * (h.r + 0.9) + 1.2, h.z + Math.cos(a) * (h.r + 0.9));
-    }
-
-    for (const type of Object.keys(templates)) {
-      const list = spots.filter((s) => s.type === type);
-      const t = templates[type];
-      const mesh = new THREE.InstancedMesh(t.geometry, t.material, list.length);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.name = `props:${type}`;
-      mesh.frustumCulled = false;
-      this.root.add(mesh);
-      this.propMeshes[type] = mesh;
-      list.forEach((s, i) => {
-        const halfH = t.phys.hy ?? t.phys.hh;
-        const y = terrainHeight(s.x, s.z) + halfH + 0.05;
-        const ry = rng() * Math.PI * 2;
-        const { body } = this.physics.createDynamic({ ...t.phys, x: s.x, y, z: s.z, ry });
-        const id = `prop.${type}.${String(i).padStart(2, '0')}`;
-        this.props.push({ id, type, index: i, body, mesh, home: { x: s.x, y, z: s.z, ry }, disturbed: false });
-      });
-    }
-    this.syncProps(true);
+  get props() {
+    return this.propSystem.props;
   }
 
-  /** Copy awake prop bodies into instance matrices; returns ids newly disturbed. */
-  syncProps(force = false) {
-    const disturbed = [];
-    const dirty = new Set();
-    for (const p of this.props) {
-      if (!force && p.body.isSleeping()) continue;
-      const t = p.body.translation();
-      if (t.y < -20 || Math.hypot(t.x, t.z) > PLAY_RADIUS + 20) {
-        this.resetProp(p);
-        continue;
-      }
-      const r = p.body.rotation();
-      tmp.position.set(t.x, t.y, t.z);
-      tmp.quaternion.set(r.x, r.y, r.z, r.w);
-      tmp.scale.setScalar(1);
-      tmp.updateMatrix();
-      p.mesh.setMatrixAt(p.index, tmp.matrix);
-      dirty.add(p.mesh);
-      if (!force && !p.disturbed) {
-        const v = p.body.linvel();
-        if (v.x * v.x + v.y * v.y + v.z * v.z > 2.5) {
-          p.disturbed = true;
-          disturbed.push(p.id);
-        }
-      }
-    }
-    for (const m of dirty) m.instanceMatrix.needsUpdate = true;
-    return disturbed;
-  }
-
-  resetProp(p) {
-    const { x, y, z, ry } = p.home;
-    p.body.setTranslation({ x, y, z }, true);
-    p.body.setRotation({ x: 0, y: Math.sin(ry / 2), z: 0, w: Math.cos(ry / 2) }, true);
-    p.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    p.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    p.body.sleep();
-    p.disturbed = false;
+  syncProps(time = 0, force = false) {
+    return this.propSystem.sync(time, force);
   }
 
   resetAllProps() {
-    for (const p of this.props) this.resetProp(p);
-    this.syncProps(true);
+    this.propSystem.resetAll();
   }
 
   setGrassDensity(fraction) {

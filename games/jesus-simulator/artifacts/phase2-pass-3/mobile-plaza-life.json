@@ -1,0 +1,157 @@
+{
+  "url": "http://127.0.0.1:4188/",
+  "mode": "mobile",
+  "state": "plaza-life",
+  "requestedState": "plaza-life",
+  "appliedState": "plaza-life",
+  "runId": "phase2-pass-3",
+  "seed": 42,
+  "screenshotPath": "artifacts/phase2-pass-3/mobile-plaza-life.png",
+  "gpu": {
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "vendor": "Google Inc. (Google)",
+    "softwareRendered": true
+  },
+  "result": {
+    "ok": true,
+    "reason": "nonblank",
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 664
+    },
+    "drawingBuffer": {
+      "width": 780,
+      "height": 1328
+    },
+    "alphaPixels": 4111,
+    "variance": 255,
+    "colorBuckets": 282,
+    "metrics": {
+      "colorBuckets": 412,
+      "colorEntropyBits": 5.82,
+      "edgeDensity": 0.45,
+      "luminance": {
+        "mean": 149,
+        "p5": 45,
+        "p95": 209.3,
+        "contrast": 164.3
+      },
+      "dominantColorShare": 0.155,
+      "nonBackgroundShare": 0.845
+    },
+    "renderBudget": {
+      "tier": "mobile",
+      "note": "starting-point budget; adjust per game and document overrides",
+      "rows": [
+        {
+          "metric": "calls",
+          "actual": 174,
+          "limit": 150,
+          "ok": false
+        },
+        {
+          "metric": "triangles",
+          "actual": 391826,
+          "limit": 300000,
+          "ok": false
+        },
+        {
+          "metric": "geometries",
+          "actual": 234,
+          "limit": 200,
+          "ok": false
+        },
+        {
+          "metric": "textures",
+          "actual": 10,
+          "limit": 40,
+          "ok": true
+        }
+      ],
+      "withinBudget": false
+    },
+    "diagnostics": {
+      "frame": 6,
+      "screen": "playing",
+      "quality": "high",
+      "fps": 9.99999985098839,
+      "player": {
+        "position": {
+          "x": -2.5000220948154492,
+          "y": 1.211612607324787,
+          "z": 10.499998916117406
+        },
+        "speed": 0,
+        "grounded": true,
+        "yaw": 3.141592653589793
+      },
+      "camera": {
+        "yaw": 0.15,
+        "distance": 7
+      },
+      "discovered": [],
+      "clock": 0.16666666666664962,
+      "night": 0,
+      "flags": {},
+      "faith": 0,
+      "chaos": 1.5999999999999999,
+      "dialogue": null,
+      "talkTarget": "npc.leah",
+      "npcs": {
+        "count": 27,
+        "near": 21,
+        "visible": 27,
+        "hidden": 0,
+        "states": {
+          "act": 13,
+          "travel": 11,
+          "cheer": 2,
+          "greet": 1
+        },
+        "nav": {
+          "nodes": 272,
+          "edges": 576,
+          "casts": 811,
+          "unreachable": 0
+        },
+        "animals": 16
+      },
+      "props": {
+        "total": 70,
+        "awake": 0,
+        "broken": 0,
+        "shards": 0
+      },
+      "stats": {
+        "distance": 0.0016283286330051017,
+        "jumps": 0,
+        "playTime": 0,
+        "propsDisturbed": 13,
+        "conversations": 0
+      },
+      "physics": {
+        "bodies": 149,
+        "colliders": 730,
+        "activeBodies": 19
+      },
+      "renderer": {
+        "calls": 174,
+        "triangles": 391826,
+        "geometries": 234,
+        "textures": 10
+      },
+      "canvas": {
+        "clientWidth": 390,
+        "clientHeight": 664,
+        "width": 780,
+        "height": 1328
+      }
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "consoleErrorCount": 0,
+  "pageErrorCount": 0
+}

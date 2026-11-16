@@ -17,6 +17,9 @@ import { AudioManager } from '../audio/AudioManager.js';
 import { SaveManager } from '../save/SaveManager.js';
 import { UI } from '../ui/UI.js';
 import { Minimap, buildMapBase } from '../ui/Minimap.js';
+import { NPCManager } from '../npc/NPCManager.js';
+import { DialogueController } from './DialogueController.js';
+import { DayCycle, DAY_LENGTH, clockLabel } from '../world/DayCycle.js';
 
 const AUTOSAVE_SECONDS = 30;
 
@@ -47,6 +50,11 @@ export class GameSession {
     this.pending = { jump: false };
     this.intent = null;
     this.time = 0;
+    this.clock = 0.1; // 07:38
+    this.flags = {};
+    this.met = new Set();
+    this.talkTarget = null;
+    this.npcsInMenu = true; // the village keeps living behind the main menu
   }
 
   async init() {
@@ -57,7 +65,7 @@ export class GameSession {
     this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 520);
     this.physics = await PhysicsWorld.create();
 
-    this.world = new World(this.scene, this.physics, this.rng);
+    this.world = new World(this.scene, this.physics, this.rng, this.bus);
     const steps = this.world.buildSteps();
     let i = 0;
     for (let step = steps.next(); !step.done; step = steps.next()) {
@@ -65,9 +73,15 @@ export class GameSession {
       i += 1;
       await new Promise((r) => setTimeout(r, 0));
     }
-    ui.setLoading(0.92, 'Dressing Jesus in his finest tunic…');
+    ui.setLoading(0.86, 'Waking up the villagers…');
+    await new Promise((r) => setTimeout(r, 0));
+    this.npcs = new NPCManager({ scene: this.scene, physics: this.physics, bus: this.bus, rng: this.rng, anchors: this.world.anchors });
+    this.npcs.build();
+    ui.setLoading(0.94, 'Dressing Jesus in his finest tunic…');
 
     this.createLights();
+    this.dayCycle = new DayCycle({ sun: this.sunLight, hemi: this.hemi, sky: this.world.sky, fog: this.scene.fog, clouds: this.world.clouds, scene: this.scene });
+    this.dialogue = new DialogueController({ bus: this.bus, ui: this.ui, rng: this.rng, getContext: () => this.dialogueContext() });
     this.playerState = new PlayerState();
     this.worldState = new WorldState(this.bus);
     // the sign interactable follows the generated workshop sign
@@ -188,12 +202,64 @@ export class GameSession {
       this.ui.banner('CHAPTER I COMPLETE', 'Nazareth Explored', 'You know every corner of home. The wider road to Galilee opens in the next chapter.');
       this.saveGame();
     });
-    bus.on('prop:disturbed', () => this.audio.thud(1));
+    bus.on('prop:disturbed', ({ type }) => {
+      if (this.screen !== 'playing') return;
+      this.playerState.stats.propsDisturbed += 1;
+      if (type === 'fruit') this.addChaos(0.2);
+      this.audio.thud(type === 'fruit' ? 0.4 : 1);
+    });
+    bus.on('prop:broken', ({ x, z }) => {
+      if (this.screen !== 'playing') return;
+      this.playerState.stats.potsBroken = (this.playerState.stats.potsBroken || 0) + 1;
+      this.addChaos(2);
+      this.audio.crash(this.audioGain(x, z));
+    });
+    bus.on('npc:knocked', () => {
+      this.playerState.stats.peopleKnocked = (this.playerState.stats.peopleKnocked || 0) + 1;
+      this.addChaos(1);
+      this.audio.thud(1.4);
+    });
+    bus.on('npc:bark', ({ voice, x, z, length, dialogue }) => {
+      if (this.screen !== 'playing') return;
+      this.audio.babble(voice, length, dialogue ? 1 : this.audioGain(x, z));
+    });
+    bus.on('animal:flee', ({ kind, x, z }) => kind === 'chicken' && this.audio.cluck(this.audioGain(x, z)));
+    bus.on('sheep:asked', () => this.ui.toast('Amos lost a sheep near the Old Watchtower (north-west).', 'sheep-asked', 6));
+    bus.on('sheep:following', () => {
+      this.audio.baa(1);
+      this.ui.toast('The runaway sheep is following you. Lead her back to Amos.', 'sheep-follow', 6);
+    });
+    bus.on('sheep:returned', () => {
+      this.flags['sheep.returned'] = true;
+      this.addFaith(5);
+      this.audio.baa(1);
+      this.audio.discovery();
+      this.ui.banner('GOOD DEED', 'The Lost Sheep', 'Amos\'s runaway is back with the flock. Faith +5');
+      const amos = this.npcs.byId.get('npc.amos');
+      if (amos) this.npcs.say(amos, 'You found her! Bless you, Yeshua!', 3, 'smile');
+      this.saveGame();
+    });
+    bus.on('dialogue:effect', ({ npcId, faith, chaos, flag, event }) => {
+      const first = !flag || !this.flags[flag];
+      if (flag) this.flags[flag] = true;
+      if (faith && first) this.addFaith(faith);
+      if (chaos) this.addChaos(chaos);
+      if (event) bus.emit(event, { npcId });
+    });
+    bus.on('dialogue:end', ({ npc }) => {
+      this.npcs.endTalk(npc);
+      this.input.releaseAll();
+    });
+    bus.on('ui:dialogue-choice', ({ index }) => this.dialogue.choose(index));
 
     document.addEventListener('keydown', (e) => {
       if (e.code !== 'Escape') return;
       if (this.ui.sheetOpen) {
         this.ui.closeSheet();
+        return;
+      }
+      if (this.screen === 'playing' && this.dialogue.active) {
+        this.dialogue.close();
         return;
       }
       if (this.screen === 'playing') this.pause();
@@ -245,12 +311,21 @@ export class GameSession {
       this.playerState.chaos = data.chaos;
       this.playerState.unlockedMiracles = data.unlockedMiracles.filter((id) => MIRACLES.some((m) => m.id === id));
       this.player.teleport(data.player.x, data.player.y, data.player.z, data.player.yaw);
+      this.flags = { ...data.flags };
+      this.met = new Set(data.met);
+      this.clock = data.clock;
     } else {
       this.worldState.reset([]);
+      this.flags = {};
+      this.met = new Set();
+      this.clock = 0.1;
       this.player.teleport(SPAWN.x, terrainHeight(SPAWN.x, SPAWN.z), SPAWN.z, SPAWN.yaw);
     }
     this.cam.snap(this.playerState.position, this.playerState.yaw + Math.PI);
     this.cam.pitch = 0.3;
+    if (this.dialogue.active) this.dialogue.close();
+    this.cam.dialogueTarget = null;
+    this.npcs.reset({ ...this.flags });
     this.ui.hideMenu();
     this.ui.showHud();
     this.ui.setSelectedMiracle(this.playerState.selectedMiracle, this.playerState.unlockedMiracles);
@@ -271,6 +346,7 @@ export class GameSession {
     this.input.releaseAll();
     this.input.exitLock();
     this.ui.hideDialog();
+    if (this.dialogue.active) this.dialogue.close();
     this.ui.openPause(this.pauseContext());
     this.bus.emit('session:pause');
   }
@@ -314,6 +390,32 @@ export class GameSession {
       faith: this.playerState.faith,
       chaos: this.playerState.chaos,
       followers: this.playerState.followers.length,
+      met: this.met.size,
+    };
+  }
+
+  addFaith(n) {
+    this.playerState.faith += n;
+    this.ui.toast(`Faith +${n}`, `faith-${this.frame}`, 0.5);
+  }
+
+  addChaos(n) {
+    const before = Math.floor(this.playerState.chaos);
+    this.playerState.chaos += n;
+    if (Math.floor(this.playerState.chaos) > before && Math.floor(this.playerState.chaos) % 5 === 0) this.ui.toast(`Chaos rising: ${Math.floor(this.playerState.chaos)}`, 'chaos', 3);
+  }
+
+  audioGain(x, z) {
+    const p = this.playerState.position;
+    return Math.max(0, 1 - Math.hypot(x - p.x, z - p.z) / 30);
+  }
+
+  dialogueContext() {
+    const next = this.worldState.nextLandmark(this.playerState.position);
+    return {
+      flags: { ...this.flags, ...this.npcs.flags }, chaos: this.playerState.chaos, faith: this.playerState.faith,
+      hour: clockLabel(this.clock), night: this.dayCycle.nightWeight(this.clock) > 0.5,
+      next, discovered: this.worldState.discovered.size, total: LANDMARKS.length,
     };
   }
 
@@ -327,6 +429,9 @@ export class GameSession {
       faith: p.faith,
       chaos: p.chaos,
       stats: p.stats,
+      flags: { ...this.flags, ...(this.npcs.flags['pots.broken'] ? { 'pots.broken': true } : {}) },
+      met: [...this.met],
+      clock: this.clock,
     });
     if (!ok && this.saves.available) this.ui.toast('Could not save progress (storage full?).', 'save-failed', 10);
     this.bus.emit('session:saved', { ok });
@@ -342,12 +447,16 @@ export class GameSession {
       this.pending.jump = false;
       this.player.fixedUpdate(dt, intent, this.cam.yaw);
     }
-    this.physics.step();
-    const disturbed = this.world.syncProps();
-    if (disturbed.length && this.screen === 'playing') {
-      this.playerState.stats.propsDisturbed += disturbed.length;
-      for (const id of disturbed) this.bus.emit('prop:disturbed', { entityId: id, by: this.playerState.id });
+    if (this.screen !== 'menu' || this.npcsInMenu) {
+      this.npcs.fixedUpdate(dt, {
+        playerPos: this.playerState.position, playerSpeed: this.playerState.speed, clock: this.clock,
+        chaos: this.playerState.chaos, flags: { ...this.flags, ...this.npcs.flags },
+      });
     }
+    this.physics.step();
+    this.simTime = (this.simTime || 0) + dt;
+    this.world.propSystem.playerPos.copy(this.playerState.position);
+    this.world.syncProps(this.simTime);
   }
 
   update(dt, alpha, elapsed) {
@@ -364,8 +473,14 @@ export class GameSession {
     const animDt = this.reducedMotion ? 0 : dt;
 
     if (this.screen === 'playing') {
-      this.intent = raw;
-      this.updatePlaying(dt, alpha, raw);
+      if (!this.reducedMotion) this.clock = (this.clock + dt / DAY_LENGTH) % 1;
+      if (this.dialogue.active) {
+        // conversation mode: no walking, keys pick answers
+        this.handleDialogueInput(raw);
+        this.intent = { ...raw, moveX: 0, moveY: 0, jump: false, sprint: false };
+        this.pending.jump = false;
+      } else this.intent = raw;
+      this.updatePlaying(dt, alpha, this.intent);
     } else {
       this.intent = null;
       if (this.screen === 'menu') {
@@ -380,10 +495,19 @@ export class GameSession {
     this.model.update(animDt, { speed: st.speed, sprint: st.sprinting, grounded: st.grounded, vy: st.velocity.y, aiming: st.aiming && this.screen === 'playing' });
 
     this.world.update(animDt, this.reducedMotion ? 0 : elapsed, this.camera.position, this.camera.far);
+    this.dialogue.tick(dt);
+    this.npcs.update(animDt, alpha, { cameraPos: this.camera.position, playerPos: renderPos });
+    const sky = this.dayCycle.apply(this.screen === 'menu' ? 0.18 : this.clock, this.camera.position, this.camera.far);
+    this.sunDir = sky.lightDir;
+    this.night = sky.night;
     this.updateSun();
+    if (this.screen === 'playing' || this.screen === 'map') {
+      const canvas = this.renderer.domElement;
+      this.ui.updateBubbles(this.npcs.bubbles(this.talkTarget), this.camera, canvas.clientWidth, canvas.clientHeight);
+    } else this.ui.updateBubbles([], this.camera, 1, 1);
     const p = st.position;
     const marketD = Math.hypot(p.x - 0, p.z + 27);
-    this.audio.update(dt, { marketProximity: Math.max(0, 1 - marketD / 32), playing: this.screen === 'playing' });
+    this.audio.update(dt, { marketProximity: Math.max(0, 1 - marketD / 32), playing: this.screen === 'playing', night: this.night });
     this.monitorPerformance(dt);
     this.publishDiagnostics();
   }
@@ -394,15 +518,24 @@ export class GameSession {
     st.aiming = intent.aim;
     intent.sprinting = st.sprinting;
     const renderPos = this.player.interpolate(alpha);
+    this.cam.dialogueTarget = this.dialogue.active ? this.dialogue.npc.render : null;
     this.cam.update(dt, intent, renderPos, this.settings, this.physics, this.player.collider);
     this.ui.setAiming(intent.aim);
     this.ui.setLockHint(!this.input.pointerLocked && !this.hideDebugUi);
 
     // discovery + interaction
     this.worldState.checkDiscovery(st.id, st.position);
-    const it = this.worldState.nearestInteractable(st.position);
-    this.ui.setPrompt(it ? it.label : null);
-    if (intent.interact) {
+    const talk = this.dialogue.active ? this.dialogue.npc : this.npcs.findTalkTarget(st.position, st.yaw);
+    this.talkTarget = talk;
+    const it = talk ? null : this.worldState.nearestInteractable(st.position);
+    this.ui.setPrompt(this.dialogue.active ? null : talk ? `Talk to ${talk.name}` : it ? it.label : null);
+    if (intent.interact && !this.dialogue.active && talk) {
+      this.ui.hideDialog();
+      this.npcs.beginTalk(talk);
+      this.met.add(talk.id);
+      st.stats.conversations += 1;
+      this.dialogue.open(talk);
+    } else if (intent.interact && !this.dialogue.active) {
       if (this.ui.dialogOpen) this.ui.hideDialog();
       else if (it) {
         st.stats.conversations += 1;
@@ -449,13 +582,14 @@ export class GameSession {
     if (Math.hypot(st.position.x - 64, st.position.z - 46) < 22) region = 'Olive Grove';
     else if (Math.hypot(st.position.x + 80, st.position.z + 62) < 24) region = 'Watchtower Ridge';
     this.ui.setRegion(region);
+    this.ui.setClock(clockLabel(this.clock), this.dayCycle.nightWeight(this.clock) > 0.5);
     this.ui.setFollowers(st.followers.length);
     this.ui.setAttention(st.romanAttention);
 
     this.minimapTimer -= dt;
     if (this.minimapTimer <= 0) {
       const next = this.worldState.nextLandmark(st.position);
-      this.minimap.draw(renderPos, st.yaw, this.cam.yaw, this.worldState.discovered, next?.landmark.id, this.time);
+      this.minimap.draw(renderPos, st.yaw, this.cam.yaw, this.worldState.discovered, next?.landmark.id, this.time, this.npcs.minimapDots());
       this.minimapTimer = 1 / 30;
     }
 
@@ -464,6 +598,18 @@ export class GameSession {
       this.saveGame();
       this.autosaveTimer = AUTOSAVE_SECONDS;
     }
+  }
+
+  handleDialogueInput(raw) {
+    if (raw.slot !== null && raw.slot < this.dialogue.options.length) {
+      this.audio.uiClick();
+      this.dialogue.choose(raw.slot);
+    } else if (raw.interact || raw.jump) {
+      this.dialogue.advance();
+    }
+    // walking away is not possible mid-conversation; ESC leaves (handled on keydown)
+    raw.slot = null;
+    raw.interact = false;
   }
 
   placeMenuCamera(t) {
@@ -543,6 +689,49 @@ export class GameSession {
         this.cam.targetDistance = 3.2;
         this.cam.currentDistance = 3.2;
       },
+      'plaza-life': () => {
+        states['active-play']();
+        this.simulate(40);
+        this.player.teleport(-2.5, 0, 10.5, Math.PI);
+        this.cam.snap(this.playerState.position, 0.15);
+        this.cam.pitch = 0.32;
+        this.cam.targetDistance = 7;
+        this.cam.currentDistance = 7;
+      },
+      'market-life': () => {
+        states['active-play']();
+        this.simulate(40);
+        this.player.teleport(-15, 0, -27, Math.PI / 2);
+        this.cam.snap(this.playerState.position, -Math.PI / 2 - 0.12);
+        this.cam.pitch = 0.2;
+        this.cam.targetDistance = 5;
+        this.cam.currentDistance = 5;
+      },
+      'npc-dialogue': () => {
+        states['active-play']();
+        this.simulate(5);
+        const eli = this.npcs.byId.get('npc.eli');
+        const f = this.world.anchors.stalls[eli.def.stall].front;
+        this.player.teleport(f.x, 0, f.z, f.yaw);
+        this.cam.snap(this.playerState.position, f.yaw + Math.PI - 0.5);
+        this.cam.pitch = 0.18;
+        this.cam.targetDistance = 4;
+        this.cam.currentDistance = 4;
+        this.npcs.beginTalk(eli);
+        this.met.add(eli.id);
+        this.dialogue.open(eli);
+        this.npcs.update(1 / 60, 1, { cameraPos: this.camera.position, playerPos: this.playerState.position });
+        this.cam.dialogueTarget = eli.render;
+        for (let i = 0; i < 120; i += 1) this.cam.update(1 / 60, { lookX: 0, lookY: 0, zoom: 0, aim: false }, this.playerState.position, this.settings, this.physics, this.player.collider);
+      },
+      night: () => {
+        states['active-play']();
+        this.clock = 0.885;
+        this.simulate(30);
+        this.player.teleport(-3, 0, 8, Math.PI);
+        this.cam.snap(this.playerState.position, 0.3);
+        this.cam.pitch = 0.3;
+      },
       map: () => {
         states['active-play']();
         this.worldState.reset(['landmark.town-well', 'landmark.workshop']);
@@ -576,7 +765,15 @@ export class GameSession {
           for (let i = 0; i < 60; i += 1) this.model.update(1 / 60, { speed: 0, sprint: false, grounded: st.grounded, vy: 0, aiming: false });
           this.updatePlaying(0, 1, this.input.read());
         }
+        for (let i = 0; i < 30; i += 1) this.npcs.update(1 / 60, 1, { cameraPos: this.camera.position, playerPos: this.playerState.position });
+        const sky = this.dayCycle.apply(this.screen === 'menu' ? 0.18 : this.clock, this.camera.position, this.camera.far);
+        this.sunDir = sky.lightDir;
+        this.night = sky.night;
         this.updateSun();
+        if (this.screen === 'playing' || this.screen === 'map') {
+          const c = this.renderer.domElement;
+          this.ui.updateBubbles(this.npcs.bubbles(this.talkTarget), this.camera, c.clientWidth, c.clientHeight);
+        }
         this.render();
         this.publishDiagnostics();
         return { state: name };
@@ -596,6 +793,19 @@ export class GameSession {
     };
   }
 
+  /** Advance the simulation (NPCs, animals, props, clock) without rendering — used by test hooks. */
+  simulate(seconds) {
+    const steps = Math.round(seconds * 60);
+    const wasIntent = this.intent;
+    this.intent = this.input.read();
+    for (let i = 0; i < steps; i += 1) {
+      this.fixedUpdate(1 / 60);
+      this.clock = (this.clock + 1 / 60 / DAY_LENGTH) % 1;
+    }
+    this.intent = wasIntent;
+    this.npcs.update(1 / 60, 1, { cameraPos: this.camera.position, playerPos: this.playerState.position });
+  }
+
   publishDiagnostics() {
     const info = this.renderer.info;
     const p = this.playerState?.position;
@@ -612,6 +822,15 @@ export class GameSession {
       },
       camera: { yaw: this.cam?.yaw, distance: this.cam?.currentDistance },
       discovered: this.worldState ? [...this.worldState.discovered] : [],
+      clock: this.clock,
+      night: this.night,
+      flags: this.flags,
+      faith: this.playerState?.faith,
+      chaos: this.playerState?.chaos,
+      dialogue: this.dialogue?.active ? { npc: this.dialogue.npc.id, options: this.dialogue.options.length } : null,
+      talkTarget: this.talkTarget?.id ?? null,
+      npcs: this.npcs?.stats(),
+      props: this.world?.propSystem?.stats(),
       stats: this.playerState?.stats,
       physics: this.physics?.stats(),
       renderer: {

@@ -21,6 +21,11 @@ class Builder {
     this.rng = rng;
     this.colliders = [];
     this.footprints = [];
+    // NPC anchor points: { x, z, y, yaw } in world space
+    this.doors = [];
+    this.stalls = [];
+    this.benches = [];
+    this.spots = {};
     this.frame = { x: 0, y: 0, z: 0, ry: 0 };
   }
 
@@ -35,6 +40,12 @@ class Builder {
     const c = Math.cos(ry);
     const s = Math.sin(ry);
     return { x: x + lx * c + lz * s, y: y + ly, z: z - lx * s + lz * c };
+  }
+
+  /** World-space anchor at a local point; yaw is a local facing angle. */
+  anchor(lx, ly, lz, localYaw = 0) {
+    const p = this.world(lx, ly, lz);
+    return { x: p.x, y: p.y, z: p.z, yaw: this.frame.ry + localYaw };
   }
 
   /** Place geometry in local frame. */
@@ -261,7 +272,12 @@ export function buildHouse(B, o) {
   }
 
   B.footprints.push({ x, z, w, d, ry, kind: o.kind || 'house' });
-  return { top: roofY, g };
+  B.at(x, 0, z, ry);
+  const door = B.anchor(doorX, g, d / 2 + 1.3, 0);
+  door.inside = B.anchor(doorX, g, d / 2 + 0.25, Math.PI);
+  door.kind = o.kind || 'house';
+  B.doors.push(door);
+  return { top: roofY, g, door };
 }
 
 // ---------------------------------------------------------------- landmarks
@@ -284,6 +300,9 @@ function buildWell(B) {
   B.cyl('plain', '#d6c08c', 0.015, 0.015, 1.1, 0.2, g + 1.75, 0, {}, 4);
   B.cyl('wood', '#8f6235', 0.16, 0.13, 0.26, 0.2, g + 1.15, 0, {}, 8);
   B.colCyl(1.42, 0.6, 0, g + 0.5, 0);
+  B.spots.well = { x: 2.35, y: g, z: -0.6, yaw: -Math.PI / 2 - 0.25 };
+  B.spots.well2 = { x: -2.35, y: g, z: 0.5, yaw: Math.PI / 2 - 0.2 };
+  B.spots.trough = { x: 0.3, y: g, z: -4.3, yaw: 0 };
   B.colBox(0.1, 1.2, 0.1, -1.25, g + 1.2, 0);
   B.colBox(0.1, 1.2, 0.1, 1.25, g + 1.2, 0);
   // jars, trough
@@ -314,6 +333,7 @@ function buildSquare(B) {
     if (Math.abs(Math.sin(a)) < 0.25 || Math.abs(Math.cos(a)) < 0.25) continue;
     const r = 7.2;
     bench(B, Math.cos(a) * r, g, Math.sin(a) * r, -a + Math.PI / 2);
+    B.benches.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, y: g + 0.55, yaw: Math.atan2(-Math.cos(a), -Math.sin(a)), approach: { x: Math.cos(a) * (r - 1.3), z: Math.sin(a) * (r - 1.3), y: g } });
     B.colBox(1.1, 0.3, 0.3, Math.cos(a) * r, g + 0.3, Math.sin(a) * r, { ry: -a + Math.PI / 2 });
   }
   // flower planters
@@ -370,17 +390,25 @@ function buildMarket(B) {
       B.at(sx, 0, row.z, ry);
       const fabric = PALETTE.fabrics[(k * 3) % PALETTE.fabrics.length];
       for (const [px, pz] of [[-1.55, -0.95], [1.55, -0.95], [-1.55, 0.95], [1.55, 0.95]]) {
-        const h = pz > 0 ? 2.2 : 2.7;
+        const h = pz > 0 ? 2.85 : 3.3; // tall enough that merchants' faces show under the valance
         B.box('wood', PALETTE.woodDark, 0.13, h, 0.13, px, g + h / 2, pz, {}, 1);
       }
-      B.box('cloth', fabric, 3.5, 0.05, 2.5, 0, g + 2.5, 0, { rx: 0.22 }, 1);
-      B.box('cloth', fabric, 3.5, 0.32, 0.03, 0, g + 2.12, 1.26, {}, 1);
+      B.box('cloth', fabric, 3.5, 0.05, 2.5, 0, g + 3.12, 0, { rx: 0.22 }, 1);
+      B.box('cloth', fabric, 3.5, 0.3, 0.03, 0, g + 2.76, 1.26, {}, 1);
       B.box('wood', PALETTE.woodMid, 3.0, 0.9, 1.0, 0, g + 0.45, 0.35, {}, 1);
       B.box('wood', PALETTE.woodLight, 3.15, 0.06, 1.12, 0, g + 0.92, 0.35, {}, 1);
       B.colBox(1.55, 0.48, 0.55, 0, g + 0.48, 0.35);
       B.colBox(1.6, 1.2, 0.15, 0, g + 1.2, -0.95);
       B.box('cloth', '#e8dcc0', 3.2, 2.1, 0.04, 0, g + 1.05, -1.0, {}, 1);
       B.at(sx, 0, row.z, ry);
+      B.stalls.push({
+        id: `stall.${k}`,
+        goods: GOODS[k % GOODS.length],
+        stand: B.anchor(0, g, -0.42, 0),
+        side: B.anchor(2.35, g, -0.35, 0),
+        front: B.anchor(0, g, 2.1, Math.PI),
+        fruitSpot: B.anchor(-2.45, g, 0.8, 0),
+      });
       stallGoods(B, GOODS[k % GOODS.length], g);
       // crates/sacks behind and beside
       crate(B, -1.9, g, -0.6, 0.7, rng.range(-0.3, 0.3));
@@ -466,6 +494,9 @@ function buildWorkshop(B) {
   // sign board on the front posts
   B.box('wood', PALETTE.woodDark, 0.12, 0.9, 0.12, -w / 2 - 0.8, g + 0.45, d / 2 + 0.9, {}, 1);
   B.footprints.push({ x, z, w, d, ry, kind: 'workshop' });
+  B.at(x, 0, z, ry);
+  B.spots.workbench = B.anchor(-1.4, g + 0.06, -0.3, Math.PI);
+  B.spots.workshopYard = B.anchor(1.5, g, d / 2 + 2.2, 0);
   const sign = B.world(-w / 2 - 0.8, 0, d / 2 + 0.9);
   return { x, z, ry, g, w, d, sign: { x: sign.x, z: sign.z, y: g + 0.9, ry } };
 }
@@ -516,6 +547,9 @@ function buildSynagogue(B) {
     B.colCyl(0.4, 2, sx, terrainHeight(p.x, p.z) + 2, d / 2 + 1);
   }
   B.footprints.push({ x, z, w, d: d + pd, ry, kind: 'synagogue' });
+  B.at(x, 0, z, ry);
+  B.spots.portico = B.anchor(0, g, d / 2 + 1.4, 0);
+  B.spots.synagogueSteps = B.anchor(-2.5, g - 0.6, d / 2 + pd + 2.2, 0);
 }
 
 function buildWatchtower(B) {
@@ -683,5 +717,8 @@ export function buildNazareth(batcher, rng) {
     trees += 1;
   }
 
-  return { colliders: B.colliders, footprints: B.footprints, workshop, houses: placed };
+  return {
+    colliders: B.colliders, footprints: B.footprints, workshop, houses: placed,
+    doors: B.doors, stalls: B.stalls, benches: B.benches, spots: B.spots,
+  };
 }

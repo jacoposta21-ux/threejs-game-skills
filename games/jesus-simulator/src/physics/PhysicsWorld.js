@@ -90,7 +90,7 @@ export class PhysicsWorld {
   isCameraBlocker = (collider) => {
     if (collider.shape.type === RAPIER.ShapeType.Cylinder) return false;
     const body = collider.parent();
-    return !(body && body.isDynamic());
+    return !body || body.isFixed(); // NPC capsules and loose props never push the camera
   };
 
   step() {

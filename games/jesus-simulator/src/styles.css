@@ -143,7 +143,8 @@ kbd {
 .minimap-wrap { position: relative; width: 184px; height: 184px; border-radius: 50%; padding: 5px; background: linear-gradient(180deg, #f6dea0, #b5822f); box-shadow: 0 8px 20px rgba(0,0,0,.35); }
 #minimap { width: 100%; height: 100%; border-radius: 50%; display: block; background: #c9b27e; }
 .minimap-n { position: absolute; top: -4px; left: 50%; transform: translateX(-50%); width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--sash); color: #fff; font-size: 11px; font-weight: 800; box-shadow: 0 2px 0 #6e1215; }
-.region-label { font: 700 15px var(--display); letter-spacing: 0.08em; padding: 4px 12px; border-radius: 999px; background: var(--panel); }
+.region-label { display: flex; gap: 8px; align-items: center; font: 700 15px var(--display); letter-spacing: 0.08em; padding: 4px 12px; border-radius: 999px; background: var(--panel); }
+.clock { font: 800 12px var(--ui); letter-spacing: 0.06em; color: var(--gold); padding-left: 8px; border-left: 1px solid rgba(255,255,255,.25); }
 
 .hud-followers { position: absolute; left: 18px; bottom: 22px; display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--panel-edge); font: 800 18px var(--ui); }
 .hud-followers svg { width: 26px; height: 26px; fill: var(--gold); }
@@ -201,3 +202,29 @@ kbd {
   .pause-nav .btn { flex: 1 1 30%; min-height: 36px; }
   .pause-nav .btn-quit { margin-top: 0; }
 }
+
+/* ---------- conversation + speech bubbles ---------- */
+.conversation {
+  position: absolute; left: 50%; bottom: 132px; transform: translateX(-50%); width: min(620px, 92vw); pointer-events: auto;
+  padding: 16px 20px 14px; border-radius: 18px; color: var(--ink); background: linear-gradient(180deg, #fbf2dc, #efdcb4);
+  box-shadow: 0 0 0 3px rgba(255, 236, 190, 0.75), 0 16px 34px rgba(0,0,0,.45); animation: pop 0.18s ease both;
+}
+.conv-head { display: flex; align-items: baseline; gap: 10px; }
+.conv-name { font: 700 22px var(--display); color: #5a2c0c; }
+.conv-role { font: 800 11px var(--ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--sash); }
+.conv-text { font: 600 17px/1.45 var(--ui); margin: 6px 0 10px; min-height: 2.9em; }
+.conv-options { display: grid; gap: 6px; }
+.conv-opt { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; padding: 8px 12px; border: 0; border-radius: 10px; cursor: pointer; font: 700 15px var(--ui); color: var(--ink); background: rgba(255,255,255,.6); box-shadow: 0 2px 0 rgba(90,44,12,.15); }
+.conv-opt:hover { background: #fff; }
+.conv-opt kbd { min-width: 1.6em; }
+.conv-hint { margin-top: 8px; font: 700 11px var(--ui); letter-spacing: 0.08em; color: #8a6a4a; text-align: right; }
+.bubbles { position: absolute; inset: 0; overflow: hidden; }
+.bubble {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); padding: 6px 11px; border-radius: 12px; white-space: nowrap;
+  font: 700 14px var(--ui); color: var(--ink); background: #fff8ea; box-shadow: 0 3px 0 rgba(90,44,12,.25), 0 6px 14px rgba(0,0,0,.25);
+  will-change: transform; transition: opacity .15s;
+}
+.bubble::after { content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff8ea; }
+.bubble.name { background: rgba(36, 24, 15, 0.82); color: var(--text); font-size: 13px; padding: 4px 10px; }
+.bubble.name::after { border-top-color: rgba(36, 24, 15, 0.82); }
+.bubble.name small { display: block; font-size: 10px; letter-spacing: .1em; color: var(--gold); text-transform: uppercase; }

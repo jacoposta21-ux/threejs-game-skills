@@ -1,59 +1,67 @@
-# Phase 1 evidence
+# Evidence — Phase 2 (living world)
 
-Screenshots and the video are kept out of git (the repo ignores `artifacts/`); this report, the manifest, the JSON reports and the motion sheet are committed. Regenerate the captures with `npm run verify:visual`, `npm run test:play` and `npm run test:motion`.
+Screenshots and videos are kept out of git (the repo ignores `artifacts/`). This report, the manifest, the JSON reports and the motion sheets are committed. Regenerate the rest with:
+- `npm run verify:visual`
+- `npm run test:play`
+- `npm run test:motion`
+- `npm run test:npc-motion`
 
-All runs were against the production build (`npm run build` + `vite preview` on :4188) in headless Chromium. **Rendering was software (SwiftShader):** pixel, budget and gameplay checks are valid, but FPS and frame-time numbers are not.
+All runs used the production build (`npm run build` + `vite preview` on :4188) in headless Chromium. **Rendering was software (SwiftShader):** pixel, budget and gameplay checks are valid, but FPS numbers are not. Simulation-heavy checks fast-forward the fixed 60 Hz step in-page (`session.simulate`), because the software GPU renders too slowly for minutes of real time. All player actions still use real key input.
 
-## Build
-`npm run build` → success; three chunks: app 100 KB, three 524 KB, rapier 4.3 MB (1.67 MB gzip, inlined WASM).
+Phase 1 evidence (run `phase1-pass-4`, plus playtest/motion `phase1-pass-3`) remains in git history.
 
-## Canvas inspector — run `phase1-pass-4`
-Manifest: [evidence.json](evidence.json). `check_evidence.py --manifest` → **passed, 12 artifacts confirmed.**
+## Canvas inspector — run `phase2-pass-3`
+Manifest: [evidence.json](evidence.json). `check_evidence.py --manifest` → **passed, 11 artifacts confirmed.**
 
-| Viewport / state | Result | Budget | Screenshot |
-| --- | --- | --- | --- |
-| desktop / menu | PASS | ok | [png](phase1-pass-4/desktop-menu.png) |
-| desktop / active-play | PASS | ok | [png](phase1-pass-4/desktop-active-play.png) |
-| desktop / portrait | PASS | ok | [png](phase1-pass-4/desktop-portrait.png) |
-| desktop / market | PASS | ok | [png](phase1-pass-4/desktop-market.png) |
-| desktop / rooftop | PASS | ok | [png](phase1-pass-4/desktop-rooftop.png) |
-| desktop / map | PASS | ok | [png](phase1-pass-4/desktop-map.png) |
-| desktop / pause | PASS | ok | [png](phase1-pass-4/desktop-pause.png) |
-| mobile / menu | PASS | triangles 334k > 300k | [png](phase1-pass-4/mobile-menu.png) |
-| mobile / active-play | PASS | triangles 343k > 300k | [png](phase1-pass-4/mobile-active-play.png) |
+| Viewport / state | Result | Budget |
+| --- | --- | --- |
+| desktop / menu (village simulating behind it) | PASS | ok |
+| desktop / active-play | PASS | ok |
+| desktop / plaza-life (after 40 s simulated) | PASS | ok — 203 calls, 403k tris, 255 geometries |
+| desktop / market-life | PASS | ok |
+| desktop / npc-dialogue (Eli the baker) | PASS | ok |
+| desktop / night (all villagers indoors) | PASS | ok |
+| desktop / pause | PASS | ok |
+| mobile / plaza-life | PASS | over: calls 174 > 150, triangles 392k > 300k, geometries 234 > 200 |
 
-The mobile triangle overage is accepted for this release, which targets desktop. The Low preset reduces grass and draw distance.
+Mobile is not a target for this release; the overage is recorded, not hidden.
 
-## Real-input playtest — `tests/playtest.mjs` (run `phase1-pass-3`, gameplay code unchanged since)
-[results.json](phase1-pass-3/playtest/results.json) — **13/13 PASS**:
-- **Walk:** moved 14.7 m and stayed grounded.
-- **Discovery:** the workshop landmark triggers.
-- **Wall collision:** the player stops 0.40 m from the house wall (capsule radius 0.36).
-- **Stairs:** outdoor stairs climbed to the roof at y = 8.79, using only W, then A through the parapet gap.
-- **Rooftop:** the Rooftop Lookout landmark (minY 6) is discovered.
-- **Jump:** jumping from the roof leaves the ground and lands.
-- **Interaction:** at the well, the E prompt and dialog appear.
-- **Sprint:** 8.2 m/s against 4.6 m/s walking.
-- **Map:** TAB opens and closes it.
-- **Pause:** ESC opens the pause menu.
-- **Save & continue:** Save & Quit, then continue, restores the landmarks.
-- **Corrupt save:** an unparseable save is quarantined; the game starts fresh with a PLAY label and no crash.
+## Real-input playtest — run `phase2-pass-3`
+[results.json](phase2-pass-3/playtest/results.json) — **22/22 PASS** (12 Phase 1 regressions + 10 Phase 2 checks):
+
+- **Routines:** 27 NPCs; 19 moved more than 2 m over 20 simulated seconds. Nav graph: 272 nodes, 576 edges, 0 unreachable anchors.
+- **Conversation:** "Talk to Eli" prompt → **E** opens the conversation (3 options) → **1** advances to a new node → **W** does nothing during the conversation → **Esc** closes it.
+- **NPC collision:** the player is blocked by an NPC (263 contact events; capsule centres never closer than 0.70 m).
+- **Knock-over:** sprinting into a villager makes them stumble and fall; Chaos goes 1.6 → 2.6.
+- **Pottery:** a pot dropped from 4 m shatters (6 shards, Chaos +2, the merchant reacts).
+- **Fruit:** walking into a fruit pile scatters it (props disturbed 12 → 18).
+- **Lost sheep:** Amos gives the errand (E, 1), the stray follows the player, rejoins the flock, and the reward is Faith +5.
+- **Night:** at night 27/27 villagers are indoors; at dawn 0 are hidden.
+- **Persistence:** people met, dialogue flags and the returned sheep survive Save & Quit → Continue.
 - **Errors:** no console or page errors.
 
-## Motion — `tests/motion.mjs` (run `phase1-pass-3`)
-[motion-sheet.png](phase1-pass-3/motion/motion-sheet.png) shows idle → walk ×4 → sprint ×3 → jump rise / apex → fall → land → idle, driven by real keys. The `locomotion.webm` recording is produced locally and git-ignored because of its size.
+Stability: the playtest also passed 22/22 on two earlier consecutive runs of the build before the final camera and awning changes.
 
-The sheet shows leg and arm swing scaling with speed, forward lean on sprint, an airborne pose, a return to idle, and hair/sash sway.
+## Motion
+- **Player locomotion:** [motion-sheet.png](phase2-pass-3/motion/motion-sheet.png) — idle → walk → sprint → jump → land.
+- **NPC life:** [npc-motion-sheet.png](phase2-pass-3/motion/npc-motion-sheet.png) — a fixed camera over the square, 12 frames, 0.4 s of simulation apart.
+  - **Visible:** walk cycles, the kids running up cheering then going back to tag ("Tag! You're it!" / "No fair!"), two pairs of passers-by chatting, and greetings.
 
-## Physics
-- **Engine:** Rapier 3D (compat) with a fixed 60 Hz step and an accumulator clamped at 0.1 s.
-- **Static colliders:** a terrain trimesh (200 × 200 cells) plus about 550 primitive colliders — cuboids for buildings, stalls and ramps; cylinders for trunks, columns and the well.
-- **Dynamic props:** about 40 bodies (cylinders and cuboids) that sleep until disturbed.
-- **Player:** kinematic capsule (r 0.36, half-height 0.54) driven by the KinematicCharacterController. Settings: autostep 0.42 m, max climb 48°, snap 0.45 m, pushes dynamic bodies.
+## Defects found and fixed in this pass
+- **Lanes through the workshop:** two village lanes started inside the carpentry workshop, putting nav nodes inside its walls (Mary and Joseph stuck). The lanes were moved.
+- **Nodes inside the well:** road nodes sat inside the well collider (an unstuck teleport landed a villager inside the well). Nodes are now rejected with a penetration test.
+- **Overlapping spawns:** villagers sharing a home spawned in the same spot and locked each other's capsules. Spawns are now offset, with a direct overlap nudge.
+- **Restless fruit:** fruit pyramids never slept (balls creep on balls; 22 bodies awake forever). Slow props are now put to sleep, leaving 0–1 awake at rest.
+- **Camera pushed by NPCs:** NPC capsules pushed the camera into villagers' heads. The camera now collides only with fixed architecture.
+- **Hidden merchant faces:** stall valances hung at merchant head height. The awnings were raised; the over-the-shoulder conversation camera now frames the NPC's face above the panel.
+- **Shoppers scattering fruit:** fruit piles sat in the shoppers' path and were permanently scattered. They were moved beside the stalls.
 
-## Renderer (desktop, High, gameplay view)
-About 70 draw calls; about 280k triangles in the main meshes (terrain 80k, grass 50k, village batches about 110k). There is one shadow-casting directional light, snapped to the texel grid, with a 2048 map.
+## Physics and AI budget
+- **NPCs:** 27 kinematic capsules. Those within 42 m move with Rapier's KinematicCharacterController (one shared controller); the rest follow paths directly. Animation runs at full rate within 48 m and every third frame beyond; shadows within 30 m; hidden beyond 125 m.
+- **Props:** 70 dynamic bodies plus a pool of 48 shards; bodies sleep until touched. Animals are 16 kinematic agents with no physics bodies.
+- **Navigation:** about 800 shape casts at build time; paths are computed with A* on demand.
 
 ## Not verified
-- Real-GPU FPS. The auto-downgrade path was exercised (it fired on the software renderer), but 60 FPS on target hardware has not been measured.
-- Audio playback in a headed browser. All audio is procedural and runs without errors headless.
+- Real-GPU frame rate with 27 NPCs.
+- Audio in a headed browser (the procedural voices run without errors headless).
+- Long sessions beyond a few simulated in-game hours.
