@@ -6,7 +6,8 @@
  */
 export async function phase4Checks({ page, check, diag, waitFrames, hold, out }) {
   const setup = (fn, arg) => page.evaluate(fn, arg);
-  const sim = (seconds) => page.evaluate((s) => window.__JESUS_SIM__.session.simulate(s), seconds);
+  // fast-forward, then let a frame publish fresh diagnostics
+  const sim = async (seconds) => { await page.evaluate((s) => window.__JESUS_SIM__.session.simulate(s), seconds); await waitFrames(2); };
   const select = async (n) => { await page.keyboard.press(`Digit${n}`); await waitFrames(2); };
   const castQ = async () => { await page.keyboard.press('KeyQ'); await waitFrames(3); };
   /** Put a soldier somewhere, optionally pinned to a temporary post. */
@@ -213,6 +214,7 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
     for (let i = 0; i < 3; i += 1) S.romans.crime('assault', { victim: q });
   });
   await sim(5);
+  await waitFrames(2); // diagnostics are published per rendered frame
   d = await diag();
   const reinf = await setup(() => {
     const S = window.__JESUS_SIM__.session;

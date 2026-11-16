@@ -7,7 +7,8 @@
  */
 export async function phase5Checks({ page, check, diag, waitFrames, out }) {
   const setup = (fn, arg) => page.evaluate(fn, arg);
-  const sim = (seconds) => page.evaluate((s) => window.__JESUS_SIM__.session.simulate(s), seconds);
+  // fast-forward, then let a frame publish fresh diagnostics
+  const sim = async (seconds) => { await page.evaluate((s) => window.__JESUS_SIM__.session.simulate(s), seconds); await waitFrames(2); };
   /** Teleport and put the camera behind the player (so W walks/rides "forward"). */
   const teleport = (x, z, yaw, y = 0) => setup(([px, pz, pyaw, py]) => {
     const S = window.__JESUS_SIM__.session;
