@@ -67,6 +67,7 @@ await grab('idle again');
 
 // contact sheet
 const cells = frames.map((f) => `<figure><img src="data:image/png;base64,${fs.readFileSync(path.join(out, f.file)).toString('base64')}"><figcaption>${f.label}<br><small>v=${f.speed} y=${f.y} ${f.grounded ? 'grounded' : 'air'}</small></figcaption></figure>`).join('');
+await page.close(); // free the GPU before composing the sheet
 const sheet = await browser.newPage({ viewport: { width: 1320, height: 900 } });
 await sheet.setContent(`<style>body{margin:0;background:#2b1b10;font:600 14px sans-serif;color:#f7ecd4;display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:8px}figure{margin:0}img{width:100%;display:block;border-radius:6px}figcaption{text-align:center;padding:4px}</style>${cells}`);
 await sheet.screenshot({ path: path.join(out, 'motion-sheet.png'), fullPage: true });

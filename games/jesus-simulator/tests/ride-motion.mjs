@@ -96,6 +96,7 @@ for (const dt of [0.05, 0.4, 0.4, 0.5, 0.6, 0.8]) {
 await page.keyboard.up('KeyW');
 
 const cells = frames.map((f) => `<figure><img src="data:image/png;base64,${fs.readFileSync(path.join(out, f.file)).toString('base64')}"><figcaption>${f.label}</figcaption></figure>`).join('');
+await page.close(); // free the GPU before composing the sheet
 const sheet = await browser.newPage({ viewport: { width: 1320, height: 700 } });
 await sheet.setContent(`<style>body{margin:0;background:#2b1b10;font:600 13px sans-serif;color:#f7ecd4;display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:8px}figure{margin:0}img{width:100%;display:block;border-radius:6px}figcaption{text-align:center;padding:3px}</style>${cells}`);
 await sheet.screenshot({ path: path.join(out, 'ride-motion-sheet.png'), fullPage: true });
