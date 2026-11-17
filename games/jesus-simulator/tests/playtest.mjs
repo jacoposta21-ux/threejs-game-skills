@@ -123,7 +123,12 @@ d = await diag();
 check('jump leaves ground and lands', !air.player.grounded && d.player.grounded && d.stats.jumps >= 1, `airborne y=${air.player.position.y.toFixed(2)} landed y=${d.player.position.y.toFixed(2)} jumps=${d.stats.jumps}`);
 
 // 6. interaction prompt + dialog at the well
-await setup(() => { const s = window.__JESUS_SIM__.session; s.player.teleport(3.1, 0, 0.4, -Math.PI / 2); });
+await setup(() => {
+  const s = window.__JESUS_SIM__.session;
+  // a villager next to the well would take the E key (talk wins over objects)
+  for (const n of s.npcs.npcs) if (!n.hidden && Math.hypot(n.pos.x - 3, n.pos.z) < 7) { s.npcs.leaveAnchor(n, true); s.npcs.place(n, -40, 1.2, 30); n.phase = 'none'; }
+  s.player.teleport(3.1, 0, 0.4, -Math.PI / 2);
+});
 await waitFrames(5);
 const prompt = await page.isVisible('#prompt');
 await page.keyboard.press('KeyE');
