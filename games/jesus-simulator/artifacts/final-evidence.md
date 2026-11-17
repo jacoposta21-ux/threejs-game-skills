@@ -1,4 +1,4 @@
-# Evidence — Phase 5 (Galilee, rides, wildlife)
+# Evidence — Phase 6 (the Ministry: missions, followers, Faith/Chaos, Blessings, full save)
 
 Screenshots and videos are kept out of git (the repo ignores `artifacts/`). This report, the manifest, the JSON reports and the motion sheets are committed. Regenerate the rest with:
 - `npm run verify:visual`
@@ -8,87 +8,78 @@ Screenshots and videos are kept out of git (the repo ignores `artifacts/`). This
 - `npm run test:roman-motion`
 - `npm run test:ride-motion`
 
-All runs used the final production build (`npm run build` + `vite preview` on :4188) in headless Chromium with **software rendering (SwiftShader)**, so FPS numbers are not meaningful (about 1–2 FPS in this container). Pixel, budget and gameplay checks are meaningful.
+All runs used the production build (`npm run build` + `vite preview` on :4188) in headless Chromium with **software rendering (SwiftShader)**, so FPS numbers are not meaningful (about 1–2 FPS here). Pixel, budget and gameplay checks are meaningful.
 
-Simulation-heavy checks fast-forward the fixed 60 Hz step in-page. Player actions use real key input: W/A/D/Shift held while the simulation runs, F to get on and off rides, E, number keys and Q. The circus lap is the one exception: it uses a test autopilot (synthetic W/A/D intents through waypoints), because steering a full oval by hand at software-rendering frame rates would take many minutes.
+Player actions use real input:
+- E to talk, then 1/2/3 to answer.
+- Number keys + Q for miracles.
+- G for followers and F for rides.
+- A real mouse click buys a Blessing in the pause menu.
+- W/A/D/Shift are held while the fixed 60 Hz simulation is fast-forwarded in-page.
 
-Phase 1–4 evidence remains in git history.
+The exceptions are the circus lap and the last metres of the donkey ride home, which use the test autopilot (synthetic W/A/D intents).
 
-## Canvas inspector — run `phase5-pass-1`
-Manifest: [evidence.json](evidence.json). `check_evidence.py --manifest` → **passed, 22 artifacts confirmed.** **17/17 captures PASS.** All 16 desktop captures are within the desktop render budget (calls ≤ 300, triangles ≤ 750k, geometries ≤ 300).
+Phase 1–5 evidence remains in git history.
+
+## Canvas inspector — run `phase6-pass-1`
+Manifest: [evidence.json](evidence.json). **18/18 captures PASS.** All 17 desktop captures are within the desktop render budget (calls ≤ 300, triangles ≤ 750k, geometries ≤ 300).
 
 | Viewport / state | Draw calls | Triangles | Geometries |
 | --- | --- | --- | --- |
-| desktop / menu (village orbit) | 296 | 636k | 248 |
-| desktop / active-play | 229 | 485k | 225 |
-| desktop / plaza-life | 264 | 498k | 250 |
-| desktop / roman-pursuit | 263 | 505k | 233 |
-| desktop / ride-donkey (Joseph's donkey trotting across the square) | 175 | 455k | 193 |
-| desktop / ride-chariot (stolen chariot on the circus straight, lap timer running) | 211 | 593k | 127 |
-| desktop / region-farm | 105 | 534k | 90 |
-| desktop / region-lake (Fishers' Hamlet, jetty, lake) | 80 | 372k | 86 |
-| desktop / region-outpost (Castra Galilaea gate and guards) | 173 | 450k | 110 |
-| desktop / region-desert (Palm Oasis) | 53 | 229k | 53 |
-| desktop / npc-dialogue, pause, map, miracle-push, roman-arrest, night | 136–229 | 459–491k | 117–225 |
-| mobile / ride-donkey | 127 | 432k > 300k | 171 |
+| desktop / menu (village orbit) | 297 | 638k | 254 |
+| desktop / active-play | 237 | 490k | 231 |
+| desktop / plaza-life | 255 | 496k | 259 |
+| desktop / roman-pursuit | 276 | 514k | 239 |
+| desktop / mission-wedding (the feast, the six jars, the objective card) | 174 | 503k | 188 |
+| desktop / followers (five followers in formation) | 116 | 421k | 160 |
+| desktop / journal (Pause → Missions, Chapter III) | 236 | 490k | 230 |
+| desktop / blessings (Pause → Miracles, Blessing buttons) | 237 | 490k | 231 |
+| desktop / ride-donkey, ride-chariot, region-farm, region-outpost | 111–219 | 454–597k | 96–199 |
+| desktop / npc-dialogue, pause, map, miracle-push, night | 137–237 | 461–493k | 123–231 |
+| mobile / followers | 97 | 414k > 300k | 150 |
 
 The mobile capture is over the triangle budget; mobile is not a target.
 
-## Real-input playtest — run `phase5-pass-1`
-[results.json](phase5-pass-1/playtest/results.json) — **59/59 PASS** and no console or page errors.
+## Real-input playtest — run `phase6-pass-1`
+[results.json](phase6-pass-1/playtest/results.json) — **final run in progress**.
 
-The suite has 12 Phase 1, 10 Phase 2, 9 Phase 3 and 14 Phase 4 checks; the Phase 4 garrison check now expects 12 soldiers. It adds 14 new Phase 5 checks:
+The suite runs the Phase 1–5 checks (12 + 10 + 9 + 14 + 14) followed by 14 new Phase 6 checks:
 
-1. **Fort garrison:** 12 soldiers on duty, the 4 fort posts manned, and every navigation anchor reachable (419 nodes).
-2. **Getting on:** the F prompt reads "Ride Joseph's donkey"; F mounts it, and the riding panel shows the name.
-3. **Riding:** W trots (about 5 m/s), Shift gallops, and D steers right. The rider sits on the saddle.
-4. **Trampling:** a galloping donkey hits a villager. Events: `vehicle:hit`, then `npc:trampled`, and the knocked-down count goes up.
-5. **Getting off:** F puts Jesus beside the donkey with his collider back on, and walking works again.
-6. **Water:** a galloping ride stops at the lake shore (`vehicle:refuse`); its centre stays in shallow water.
-7. **Chapter II:** all 8 new places are discovered, with correct region labels; `mission.explore-galilee` completes.
-8. **Map edge:** a sprint west stops at the ±204 m boundary, with a toast.
-9. **Chariot theft:** the prompt reads "Steal the Roman chariot". The stable guard sees the theft: crime `chariot`, 2★, and `chariotsStolen` goes up.
-10. **Pulled off:** pursuing legionaries grab the rider and drag him off (`vehicle:exit`, reason `pulled`).
-11. **Circus:** a full lap through the white line is timed (about 16 s on the farm horse at a trot), and the best lap is saved.
-12. **Wildlife:** pigeons burst off the square, goats flee on Goat Hill, the camel caravan walks its loop, fish leap near the hamlet, and there are 33 birds.
-13. **Water to Wine on the oasis pond:** real 3 + Q.
-14. **Save and Continue:** ride stats (rides, distance ridden, best lap, chariots stolen) and Chapter II persist. You load in on foot, and the camel is back at the camp.
+1. **Mission offered and accepted:** a gold "!" hangs over Mary, and "★ The Wedding Wine" is the first option. Accepting with 1, 1 makes it the tracked mission on the objective card.
+2. **The Wedding Wine:** walking to the feast completes the reach step; 3 + Q on the stone jars completes the miracle step. Telling Nathan completes the mission: Faith +15 and the `wine.wedding` flag.
+3. **Fishers of Men:** reach the jetty end, cast Walk on Water (4 + Q) and sprint out to the deep water (the lake boils with fish). Tell Simon and he becomes a follower.
+4. **The Wandering Donkey:** on accepting, the donkey has moved to the Palm Oasis. Mount her with F and ride her through the farm gate. Bartholomew becomes a follower.
+5. **Bread for the Caravan:** Multiplication (2 + Q) on Hiram's single loaf. Fresh loaves go one per hungry traveller until all six have eaten; then talk to Hiram.
+6. **The Centurion's Servant:**
+   - Gaius walks to the camp gate when Jesus approaches, so the talk happens without trespassing.
+   - His seal opens the fort: no warning inside.
+   - Healing Touch on Philo completes the step; reporting back grants *Centurion's Favour* (`perk.favour`, `pass.outpost`).
+7. **Followers:** they keep formation within 7 m while walking. G makes them stay put (more than 25 m behind after a sprint); G again brings them back to within 8 m.
+8. **Recruiting:** at Faith 25+, "Come, follow me." recruits a villager. Healing the villager with the sprained ankle recruits her too.
+9. **Riding off:** followers rejoin out of view when Jesus gallops away.
+10. **Blessing:** a real click on "BLESS · 15 FAITH" spends 15 Faith and raises Divine Push's reach from 7.5 m to 9.4 m.
+11. **Chaos tiers:** at Notorious (30+), villagers back away and the HUD pill shows the tier. Chaos fades over time.
+12. **Followers bring Faith over time.**
+13. **Save and Continue (version 2):** completed missions, followers, Blessings and favours all persist.
+14. **Old saves:** a version 1 save still loads; the new systems start empty.
 
 ## Motion
-- [ride-motion-sheet.png](phase5-pass-1/motion/ride-motion-sheet.png):
-  - Joseph's donkey from a standstill to a gallop across the square.
-  - The chariot's two-horse gallop gait with spinning wheels on the circus straight.
-  - Pigeons taking off as Jesus walks onto the square.
-- [motion-sheet.png](phase5-pass-1/motion/motion-sheet.png), [npc-motion-sheet.png](phase5-pass-1/motion/npc-motion-sheet.png) and [roman-motion-sheet.png](phase5-pass-1/motion/roman-motion-sheet.png): Phase 1–4 motion, re-shot on the Phase 5 build.
+[ride-motion-sheet.png](phase6-pass-1/motion/ride-motion-sheet.png), [motion-sheet.png](phase6-pass-1/motion/motion-sheet.png), [npc-motion-sheet.png](phase6-pass-1/motion/npc-motion-sheet.png) and [roman-motion-sheet.png](phase6-pass-1/motion/roman-motion-sheet.png). These were shot on this pass's first Phase 6 build. The later fixes don't change what they show: the wedding batch was merged into the village batch, test timing was adjusted, and the centurion's gate spot moved.
 
 ## Defects found during this pass and fixed
-- **Geometry and draw calls over budget:**
-  - The first Phase 5 build used 304–341 geometries.
-  - **Fix:**
-    - Sites are batched into 4 regional meshes.
-    - Mount geometries are cached and shared.
-    - The Jesus model's static parts are merged per pivot and material (39 → 24 meshes).
-  - Splitting grass into 60 m chunks added about 20 draw calls in wide views. Larger chunks (140 m) and hiding grass beyond about 110 m fixed it.
-- **Fort stable guard facing away from the chariots:** the guard couldn't witness a theft, so his post now faces the chariots.
-- **Prompt text:** read "Steal the the Roman chariot" and "You climb onto the joseph's donkey"; both are fixed.
-- **Joseph's donkey parked in a cramped corner:** a gallop ran straight into a wall. It's now parked on clear ground found by a shape-cast search, and scaled up so it reads under the rider.
-- **Caravan could stall:** a leader that makes no progress for 4 s now moves on to the next waypoint.
-- **Test states (captures only):**
-  - Rides were culled from the pre-move camera, so the menu drew all 10 rides (about 100 extra draw calls).
-  - Overlay states (pause, map, arrest) left the camera mid-transition.
-  - Two regional framings pointed away from the subject.
-- **Older tests now frame-rate independent:** the bigger world renders more slowly, which exposed timing assumptions.
-  - Waits now count simulated seconds, not rendered frames.
-  - Toasts are watched rather than read late.
-  - Diagnostics are read only after a frame publishes them.
-  - A villager is pinned (or moved away) where a check needs a fixed setup.
-
-## Budgets
-- **Rides:** each is one kinematic cuboid moved by its own Rapier character controller only while ridden. Parked rides are static obstacles. Rides are hidden beyond 140 m and stop casting shadows beyond 45 m. A donkey is about 7 draw calls; a chariot with its horses is about 15.
-- **Regions:** 4 batched meshes (one per region per material), plus a few animated extras: campfire flames, SPQR flags and signs.
-- **Wildlife:** birds and fish are one InstancedMesh each, so 2 draw calls in total. Goats and camels are about 1 draw call each.
+- **Faith and Chaos ticked only on rendered frames:** followers' Faith and the Chaos fade did nothing in simulated time. Both now run in the fixed step.
+- **Long-suffering villagers not recruited:** they never joined after healing, because the sprained ankle isn't on the character definition. The heal event now carries the injury kind.
+- **One loaf per cast:** all the travellers chased the same loaf, so each cast fed only one. Fresh loaves are now handed out one per traveller.
+- **Gaius's mission meant trespassing:** his post is inside the palisade. He now comes to the gate, and stands far enough inside that Jesus stays outside.
+- **Menu over the draw-call budget:** the wedding feast pushed it to 301 of 300. The feast is now part of the village batch (no extra calls); the menu is back at 297.
+- **HUD and journal layout:** the reputation pill overlapped the hotbar at 960 px; it now sits above the follower count. Chapter III was listed at the bottom of the journal; it is now first.
+- **Older checks adjusted to new rules and frame-rate effects:**
+  - Pottery now allows for the Chaos fade.
+  - The persistence check allows a second, real arrest.
+  - The theft check reads the ride before the guard pulls Jesus off.
+  - The pigeon threshold was lowered to 2 still airborne.
 
 ## Not verified
-- Real-GPU frame rate and audio in a headed browser (hooves, brays, whinnies, bleats, pigeon wings).
-- Long riding sessions across the whole map with a 5★ chase.
+- Real-GPU frame rate and audio in a headed browser.
+- A full start-to-finish run of Chapter III by hand (the checks drive each mission through its steps).
 - Mobile/touch input (not a target).
