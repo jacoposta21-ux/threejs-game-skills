@@ -4,6 +4,19 @@
  */
 const PENTA = [0, 2, 4, 7, 9, 12, 14, 16];
 
+/**
+ * Phase 7: each region has its own musical colour (scale, register, voice,
+ * pacing) and wind level. The procedural loop picks the style of the region
+ * Yeshua is in and crossfades by simply changing the next phrase.
+ */
+export const MUSIC_STYLES = {
+  nazareth: { scale: PENTA, roots: [196, 196 * 2 ** (5 / 12)], voice: 'lyre', gap: [3, 8], drone: 0.035, wind: 0.045 },
+  countryside: { scale: [0, 2, 4, 7, 9, 12, 14, 16, 19], roots: [262, 294], voice: 'flute', gap: [2.5, 6], drone: 0.02, wind: 0.05 },
+  galilee: { scale: [0, 4, 7, 11, 12, 16, 19], roots: [174.6, 220], voice: 'bell', gap: [4, 9], drone: 0.03, wind: 0.035 },
+  outpost: { scale: [0, 3, 5, 7, 10, 12], roots: [146.8, 164.8], voice: 'horn', gap: [3, 7], drone: 0.04, wind: 0.05, drum: true },
+  desert: { scale: [0, 1, 4, 5, 7, 8, 10, 12], roots: [146.8, 196], voice: 'oud', gap: [3, 7], drone: 0.05, wind: 0.08 },
+};
+
 export class AudioManager {
   constructor() {
     this.ctx = null;
@@ -13,6 +26,20 @@ export class AudioManager {
     this.birdTimer = 2;
     this.started = false;
     this.suspendedByGame = false;
+    this.region = 'nazareth';
+    this.platformMuted = false; // the host (e.g. CrazyGames' mute setting) or an ad silences everything
+    this.phrases = 0;
+  }
+
+  /** Region for the music style ('nazareth', 'countryside', 'galilee', 'outpost', 'desert'). */
+  setRegion(region) {
+    if (MUSIC_STYLES[region]) this.region = region;
+  }
+
+  /** Host-level mute (platform setting or an ad playing). */
+  setPlatformMuted(muted) {
+    this.platformMuted = !!muted;
+    if (this.ctx) this.master.gain.setTargetAtTime(muted ? 0 : 1, this.ctx.currentTime, 0.05);
   }
 
   /** Must be called from a user gesture. */
@@ -23,6 +50,7 @@ export class AudioManager {
       this.ctx = new AC();
       const c = this.ctx;
       this.master = c.createGain();
+      this.master.gain.value = this.platformMuted ? 0 : 1;
       this.master.connect(c.destination);
       this.sfx = c.createGain();
       this.music = c.createGain();
@@ -442,6 +470,23 @@ export class AudioManager {
     this.drumTimer = beat;
   }
 
+  /** One melodic note in a region's voice. */
+  note(voice, freq, when, gain) {
+    if (voice === 'flute') {
+      this.tone({ freq, type: 'sine', gain: gain * 0.9, attack: 0.08, decay: 0.9, when, out: this.music });
+      this.tone({ freq: freq * 2, type: 'sine', gain: gain * 0.12, attack: 0.1, decay: 0.6, when, out: this.music });
+    } else if (voice === 'bell') {
+      this.tone({ freq, type: 'sine', gain, attack: 0.003, decay: 2.4, when, out: this.music });
+      this.tone({ freq: freq * 2.76, type: 'sine', gain: gain * 0.18, attack: 0.003, decay: 0.8, when, out: this.music });
+    } else if (voice === 'horn') {
+      this.tone({ freq, type: 'sawtooth', gain: gain * 0.35, attack: 0.06, decay: 0.7, when, out: this.music });
+      this.tone({ freq, type: 'triangle', gain: gain * 0.6, attack: 0.04, decay: 0.8, when, out: this.music });
+    } else if (voice === 'oud') {
+      this.tone({ freq, type: 'sawtooth', gain: gain * 0.4, attack: 0.004, decay: 0.9, when, slideTo: freq * 0.995, out: this.music });
+      this.tone({ freq: freq * 2, type: 'triangle', gain: gain * 0.25, attack: 0.004, decay: 0.4, when, out: this.music });
+    } else this.pluck(freq, when, gain);
+  }
+
   pluck(freq, when, gain = 0.07) {
     this.tone({ freq, type: 'triangle', gain, attack: 0.005, decay: 1.4, when, out: this.music });
     this.tone({ freq: freq * 2, type: 'sine', gain: gain * 0.3, attack: 0.005, decay: 0.6, when, out: this.music });
@@ -452,7 +497,8 @@ export class AudioManager {
     if (!this.ctx || this.ctx.state !== 'running' || !this.started) return;
     const t = this.ctx.currentTime;
     this.marketGain.gain.setTargetAtTime(playing ? marketProximity * 0.06 * (1 - night) : 0, t, 0.4);
-    this.windGain.gain.setTargetAtTime(playing ? 0.045 : 0.02, t, 0.6);
+    const style = MUSIC_STYLES[playing ? this.region : 'nazareth'];
+    this.windGain.gain.setTargetAtTime(playing ? style.wind : 0.02, t, 0.6);
     this.birdTimer -= dt;
     if (this.birdTimer <= 0) {
       if (night > 0.5) {
@@ -467,16 +513,19 @@ export class AudioManager {
     this.musicTimer -= dt;
     if (this.pursuit) this.musicTimer = Math.max(this.musicTimer, 2);
     if (this.musicTimer <= 0 && this.settings.musicVolume > 0) {
-      const root = 196 * (Math.random() < 0.5 ? 1 : 2 ** (5 / 12));
+      const root = style.roots[Math.floor(Math.random() * style.roots.length)];
       const notes = 4 + Math.floor(Math.random() * 4);
       let when = 0;
       for (let i = 0; i < notes; i += 1) {
-        const st = PENTA[Math.floor(Math.random() * PENTA.length)];
-        this.pluck(root * 2 ** (st / 12), when, 0.05 + Math.random() * 0.03);
-        when += Math.random() < 0.3 ? 0.6 : 0.3;
+        const st = style.scale[Math.floor(Math.random() * style.scale.length)];
+        this.note(style.voice, root * 2 ** (st / 12), when, 0.05 + Math.random() * 0.03);
+        when += style.voice === 'flute' ? (Math.random() < 0.4 ? 0.7 : 0.35) : Math.random() < 0.3 ? 0.6 : 0.3;
       }
-      this.tone({ freq: root / 2, type: 'sine', gain: 0.035, attack: 0.8, decay: 3.5, out: this.music });
-      this.musicTimer = when + 3 + Math.random() * 5;
+      this.tone({ freq: root / 2, type: 'sine', gain: style.drone, attack: 0.8, decay: 3.5, out: this.music });
+      if (style.drum) for (let k = 0; k < 4; k += 1) this.tone({ freq: 70, slideTo: 45, type: 'sine', gain: 0.05, attack: 0.005, decay: 0.25, when: k * 0.5, out: this.music });
+      this.musicTimer = when + style.gap[0] + Math.random() * (style.gap[1] - style.gap[0]);
+      this.phrases += 1;
+      this.lastStyle = this.region;
     }
   }
 }

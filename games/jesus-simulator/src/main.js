@@ -1,6 +1,7 @@
 import './styles.css';
 import { GameSession } from './game/GameSession.js';
 import { terrainHeight, waterDepth } from './world/layout.js';
+import { createPlatform } from './platform/Platform.js';
 
 function fail(message) {
   const loading = document.getElementById('loading');
@@ -19,7 +20,10 @@ window.addEventListener('unhandledrejection', (e) => {
 
 const canvas = document.getElementById('game-canvas');
 const session = new GameSession(canvas);
-const ready = session.init();
+// the host platform first (CrazyGames SDK when hosted there, a no-op otherwise), then the game
+const ready = createPlatform()
+  .catch(() => null)
+  .then((platform) => session.init(platform));
 ready.catch((error) => {
   fail(error?.message || 'The game could not start. Please reload the page.');
 });
@@ -34,5 +38,5 @@ if (!window.__THREE_GAME_TEST_HOOKS__) {
   }]));
 }
 
-// Exposed for future platform SDK wiring (e.g. CrazyGames gameplayStart/Stop) — no SDK is loaded here.
+// Debug/test access (the platform layer lives in src/platform/Platform.js).
 window.__JESUS_SIM__ = { session, terrainHeight, waterDepth };

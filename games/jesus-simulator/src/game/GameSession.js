@@ -71,8 +71,19 @@ export class GameSession {
     this.npcsInMenu = true; // the village keeps living behind the main menu
   }
 
-  async init() {
+  async init(platform = null) {
     const ui = this.ui;
+    // ---- host platform (Phase 7): loading events, gameplay state, mute, storage, ads at natural breaks
+    this.platform = platform || { loadingStart() {}, loadingStop() {}, gameplayStart() {}, gameplayStop() {}, happytime() {}, ad: async () => 'unavailable', storage: () => null, supportsAds: false, stats: () => ({ name: 'none' }) };
+    this.platform.loadingStart();
+    if (this.saves.attachStore(this.platform.storage())) {
+      this.settings = this.saves.loadSettings();
+      this.audio.setVolumes(this.settings);
+      this.ui.settings = this.settings;
+    }
+    this.audio.setPlatformMuted(!!this.platform.muted);
+    this.platform.onMuteChange = () => this.audio.setPlatformMuted(this.platform.muted || this.platform.adPlaying);
+    this.playSinceAd = 0;
     ui.setLoading(0.05, 'Waking up the physics engine…');
     this.renderer = createRenderer(this.canvas);
     this.scene = new THREE.Scene();
@@ -83,7 +94,7 @@ export class GameSession {
     const steps = this.world.buildSteps();
     let i = 0;
     for (let step = steps.next(); !step.done; step = steps.next()) {
-      ui.setLoading(0.12 + i * 0.16, `${step.value}…`);
+      ui.setLoading(Math.min(0.84, 0.12 + i * 0.09), `${step.value}…`);
       i += 1;
       await new Promise((r) => setTimeout(r, 0));
     }
@@ -152,6 +163,7 @@ export class GameSession {
     this.loop.start();
     this.goToMenu();
     ui.hideLoading();
+    this.platform.loadingStop();
   }
 
   createLights() {
@@ -204,6 +216,7 @@ export class GameSession {
     bus.on('ui:play', ({ newGame }) => this.startPlay(newGame));
     bus.on('ui:resume', () => this.resume());
     bus.on('ui:bless', ({ miracleId }) => this.buyBlessing(miracleId));
+    bus.on('ui:rewarded', () => this.rewardedFaith());
     bus.on('ui:save-quit', () => {
       this.saveGame();
       this.ui.closePause();
@@ -242,6 +255,7 @@ export class GameSession {
       this.saveGame();
     });
     bus.on('mission:complete', ({ missionId }) => {
+      this.platform.happytime();
       if (missionId === 'mission.explore-galilee') {
         this.addFaith(10);
         this.ui.banner('CHAPTER II COMPLETE', 'Galilee Explored', 'Farm, lake, fort and desert: you have walked (and ridden) all of it. Faith +10');
@@ -273,6 +287,7 @@ export class GameSession {
     });
     bus.on('mission:progress', ({ missionId, progress, count }) => this.ui.toast(`Fed ${progress}/${count}`, `mprog-${missionId}`, 0.5));
     bus.on('mission:done', ({ missionId, title, reward }) => {
+      this.platform.happytime();
       this.audio.discovery();
       this.ui.banner('MISSION COMPLETE', title, reward?.text || '');
       if (reward?.faith) this.addFaith(reward.faith);
@@ -332,6 +347,7 @@ export class GameSession {
     bus.on('circuit:start', () => this.ui.toast('Lap started! Go once around the spina and back through the white line.', 'lap-start', 10));
     bus.on('circuit:abort', () => this.ui.toast('You left the track. Lap cancelled.', 'lap-abort', 3));
     bus.on('circuit:lap', ({ time, record, laps }) => {
+      if (record) this.platform.happytime();
       this.audio.discovery();
       this.ui.banner(record ? 'NEW CIRCUS RECORD' : 'LAP COMPLETE', `${time.toFixed(2)} s`, record ? 'The crowd (two bored legionaries) goes wild.' : `Lap ${laps}. The record stands at ${this.playerState.stats.bestLap.toFixed(2)} s.`);
       if (laps === 1 || record) this.addFaith(record && laps > 1 ? 3 : 5);
@@ -570,6 +586,7 @@ export class GameSession {
     else this.ui.toast('Welcome back to Galilee.');
     this.ui.setRideHud(null);
     this.bus.emit('session:start', { entityId: this.playerState.id, newGame: !data });
+    if (!newGame) this.maybeMidgame('continue');
   }
 
   pause() {
@@ -630,6 +647,7 @@ export class GameSession {
       tier: chaosTier(this.playerState.chaos),
       perks: Object.keys(this.flags).filter((k) => k.startsWith('perk.')),
       markers: this.missionDots(),
+      rewardedAds: !!this.platform?.supportsAds,
       met: this.met.size,
     };
   }
@@ -773,6 +791,13 @@ export class GameSession {
       this.ui.updateBubbles(this.allBubbles(), this.camera, canvas.clientWidth, canvas.clientHeight);
     } else this.ui.updateBubbles([], this.camera, 1, 1);
     this.audio.setPursuit(this.screen === 'playing' ? this.romans.attention.stars : 0);
+    // tell the host whether the player is actually playing (menus, pause, map, arrest card and ads are not)
+    if (this.screen === 'playing' && !this.pausedForScreenshot) {
+      this.platform.gameplayStart();
+      this.playSinceAd += dt;
+      const p0 = this.playerState.position;
+      this.audio.setRegion(regionAt(p0.x, p0.z));
+    } else this.platform.gameplayStop();
     const p = this.playerState.position;
     const marketD = Math.hypot(p.x - 0, p.z + 27);
     this.audio.update(dt, { marketProximity: Math.max(0, 1 - marketD / 32), playing: this.screen === 'playing', night: this.night });
@@ -923,6 +948,52 @@ export class GameSession {
       this.saveGame();
       this.autosaveTimer = AUTOSAVE_SECONDS;
     }
+  }
+
+  // ---------------------------------------------------------------- Phase 7: host platform
+  /**
+   * A midgame video ad at a natural break (released after an arrest, coming
+   * back from the menu), at most once per 3 minutes of actual play, never in
+   * the first 3 minutes. Only the host SDK ever shows an ad.
+   */
+  async maybeMidgame(reason) {
+    if (!this.platform.supportsAds || this.playSinceAd < 180 || this.screen === 'ad') return 'not-now';
+    return this.runAd('midgame', reason);
+  }
+
+  /** Rewarded ad from the pause menu: Faith +10 once it has played. */
+  async rewardedFaith() {
+    if (!this.platform.supportsAds || this.screen === 'ad') return 'unavailable';
+    const res = await this.runAd('rewarded', 'faith');
+    if (res === 'shown') {
+      this.addFaith(10);
+      this.flags['ad.rewarded'] = true;
+      this.ui.toast('A sign from above: Faith +10', 'rewarded', 2);
+      if (this.screen === 'paused') this.ui.openPause(this.pauseContext(), 'miracles');
+    } else this.ui.toast('No sign this time. Try again later.', 'rewarded-none', 3);
+    return res;
+  }
+
+  async runAd(type, reason) {
+    const before = this.screen;
+    const res = await this.platform.ad(type, {
+      onStart: () => {
+        this.adReturn = this.screen;
+        this.screen = 'ad';
+        this.input.releaseAll();
+        this.input.exitLock();
+        this.audio.setPlatformMuted(true);
+        this.bus.emit('platform:ad', { type, reason, state: 'start' });
+      },
+      onEnd: () => {
+        this.screen = this.adReturn || before;
+        this.audio.setPlatformMuted(!!this.platform.muted);
+        if (this.screen === 'playing') this.input.requestLock();
+        this.bus.emit('platform:ad', { type, reason, state: 'end' });
+      },
+    });
+    if (res === 'shown') this.playSinceAd = 0;
+    return res;
   }
 
   // ---------------------------------------------------------------- Phase 6
@@ -1274,6 +1345,7 @@ export class GameSession {
     this.input.releaseAll();
     this.input.requestLock();
     this.ui.toast('Released at the Roman checkpoint. Nazareth is back down the road to the south.', 'released', 8);
+    this.maybeMidgame('arrest');
     this.saveGame();
     this.bus.emit('player:released', { entityId: st.id });
   }
@@ -1849,6 +1921,8 @@ export class GameSession {
       miracles: this.miracles?.stats(),
       romans: this.romans?.stats(),
       vehicles: this.vehicles?.stats(),
+      platform: this.platform?.stats?.(),
+      music: this.audio ? { region: this.audio.region, phrases: this.audio.phrases, muted: this.audio.platformMuted } : null,
       wildlife: this.npcs?.animals?.wildlife ? {
         ...this.npcs.animals.wildlife.stats(),
         goats: this.npcs.animals.list.filter((a) => a.kind === 'goat').map((a) => [Math.round(a.x * 10) / 10, Math.round(a.z * 10) / 10, a.flee > 0]),

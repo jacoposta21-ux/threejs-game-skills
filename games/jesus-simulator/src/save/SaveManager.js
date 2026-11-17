@@ -18,6 +18,15 @@ export const DEFAULT_SETTINGS = Object.freeze({
 const QUALITIES = ['low', 'medium', 'high'];
 const num = (v, min, max, fallback) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback);
 
+/** First launch: phones and tablets start on medium (the automatic downgrade handles weak desktops). */
+function defaultQuality() {
+  try {
+    const touch = (navigator.maxTouchPoints || 0) > 1 && window.matchMedia?.('(pointer: coarse)').matches;
+    if (touch && Math.min(window.innerWidth, window.innerHeight) < 900) return 'medium';
+  } catch { /* fall through */ }
+  return DEFAULT_SETTINGS.quality;
+}
+
 function storage() {
   try {
     const s = window.localStorage;
@@ -49,7 +58,7 @@ export class SaveManager {
       sfxVolume: num(s.sfxVolume, 0, 1, DEFAULT_SETTINGS.sfxVolume),
       sensitivity: num(s.sensitivity, 0.2, 3, DEFAULT_SETTINGS.sensitivity),
       invertY: typeof s.invertY === 'boolean' ? s.invertY : DEFAULT_SETTINGS.invertY,
-      quality: QUALITIES.includes(s.quality) ? s.quality : DEFAULT_SETTINGS.quality,
+      quality: QUALITIES.includes(s.quality) ? s.quality : defaultQuality(),
       showFps: typeof s.showFps === 'boolean' ? s.showFps : DEFAULT_SETTINGS.showFps,
     };
   }
@@ -96,6 +105,27 @@ export class SaveManager {
       this.store.removeItem(SAVE_KEY);
     } catch {
       /* ignore */
+    }
+  }
+
+  /**
+   * Use the host's storage (e.g. the CrazyGames data module) instead of
+   * localStorage. A save that only exists locally is carried over once.
+   */
+  attachStore(store) {
+    if (!store) return false;
+    try {
+      const local = this.store;
+      for (const key of [SAVE_KEY, SETTINGS_KEY]) {
+        const there = store.getItem(key);
+        const here = local?.getItem(key);
+        if (!there && here) store.setItem(key, here);
+      }
+      this.store = store;
+      this.hostStore = true;
+      return true;
+    } catch {
+      return false;
     }
   }
 

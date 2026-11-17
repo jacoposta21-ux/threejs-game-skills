@@ -42,6 +42,7 @@ export class UI {
   setLoading(progress, text) {
     $('loading-bar').style.width = `${Math.round(progress * 100)}%`;
     if (text) $('loading-text').textContent = text;
+    if (!this.tipShown) { this.tipShown = true; this.setLoadingTip(); }
   }
 
   hideLoading() {
@@ -65,6 +66,7 @@ export class UI {
     click('btn-new', () => this.bus.emit('ui:play', { newGame: true }));
     click('btn-settings', () => this.openSettings());
     click('btn-howto', () => this.openHowTo());
+    click('btn-about', () => this.openAbout());
     $('btn-multiplayer').addEventListener('click', (e) => e.preventDefault());
   }
 
@@ -122,6 +124,29 @@ export class UI {
       $(id).addEventListener('input', emit);
       $(id).addEventListener('change', emit);
     }
+  }
+
+  /** A rotating tip under the loading bar. */
+  setLoadingTip() {
+    const tips = [
+      'Tip: people with a gold ! need your help — talk to them with E.',
+      'Tip: press F next to a donkey, a horse or a camel to ride it.',
+      'Tip: the Romans only care about what they see. Break their line of sight.',
+      'Tip: spend Faith on Blessings in Pause → Miracles.',
+      'Tip: G tells your followers to wait — or to come along.',
+      'Tip: you can walk on the lake. The soldiers can\'t.',
+      'Tip: Chaos fades over time. Pots do not un-break.',
+    ];
+    const el = $('loading-tip');
+    if (el) el.textContent = tips[Math.floor(Math.random() * tips.length)];
+  }
+
+  openAbout() {
+    this.openSheet('About', `
+      <p><b>Jesus Simulator — The Holy Open World Experience</b>, version 1.0. A playful open-world sandbox set in a blocky, sun-baked Galilee: explore, help people, work (gentle) miracles, ride donkeys, and try not to annoy the Roman legion too much.</p>
+      <p class="note"><b>Made with</b> Three.js, Rapier 3D physics and the Web Audio API. Every model, texture, character, sound and piece of music is original and generated procedurally in the browser — there are no third-party art or audio assets.</p>
+      <p class="note"><b>Saving</b> happens automatically (every 30 seconds, at every discovery and mission step, and when you quit).</p>
+      <p class="note">Single-player. Multiplayer is planned and not available in this version.</p>`);
   }
 
   openHowTo() {
@@ -531,7 +556,9 @@ export class UI {
         return `<div class="list-item ${ok ? '' : 'locked'}"><div class="ico">${MIRACLE_ICONS[m.id]}</div>
           <div><h4>${m.key}. ${m.name}</h4><p>${m.description}</p>${bless}</div>
           <span class="tag ${ok ? '' : 'muted'}">${ok ? (lvl ? `BLESSED ${'✦'.repeat(lvl)}` : 'REVEALED') : `FIND: ${m.revealAt.toUpperCase()}`}</span></div>`;
-      }).join('')}</div><p class="note">You have <b>${Math.floor(ctx.faith)} Faith</b> to spend. Blessings are permanent.</p>`;
+      }).join('')}</div><p class="note">You have <b>${Math.floor(ctx.faith)} Faith</b> to spend. Blessings are permanent.</p>
+      ${ctx.rewardedAds ? '<p class="note"><button type="button" class="btn bless-btn" id="btn-rewarded">ASK FOR A SIGN · WATCH A VIDEO · +10 FAITH</button></p>' : ''}`;
+      $('btn-rewarded')?.addEventListener('click', () => this.bus.emit('ui:rewarded'));
       for (const b of body.querySelectorAll('[data-bless]')) {
         b.addEventListener('click', () => this.bus.emit('ui:bless', { miracleId: b.dataset.bless }));
       }

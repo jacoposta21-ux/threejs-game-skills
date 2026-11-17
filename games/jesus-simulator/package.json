@@ -13,7 +13,8 @@
     "verify:visual": "node scripts/inspect-threejs-canvas.mjs --manifest artifacts/evidence.json --url http://127.0.0.1:4188/ --seed 42",
     "test:npc-motion": "node tests/npc-motion.mjs http://127.0.0.1:4188/ artifacts/motion",
     "test:roman-motion": "node tests/roman-motion.mjs http://127.0.0.1:4188/ artifacts/motion",
-    "test:ride-motion": "node tests/ride-motion.mjs http://127.0.0.1:4188/ artifacts/motion"
+    "test:ride-motion": "node tests/ride-motion.mjs http://127.0.0.1:4188/ artifacts/motion",
+    "test:platform": "node tests/platform.mjs http://127.0.0.1:4188/ artifacts/platform"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

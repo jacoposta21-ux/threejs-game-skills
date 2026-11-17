@@ -301,3 +301,6 @@ kbd {
 .stat.wide { grid-column: 1 / -1; }
 .stat.wide p { margin: 4px 0 0; font-size: 12px; opacity: 0.8; }
 @media (max-width: 700px) { .hud-rep { left: 18px; bottom: auto; top: 168px; font-size: 13px; } .hud-rep .rep-title { display: none; } }
+
+/* ---- Phase 7 polish */
+.loading-tip { margin-top: 14px; font: 600 14px var(--ui); opacity: 0.8; max-width: 440px; text-align: center; min-height: 1.4em; }
