@@ -350,14 +350,16 @@ export class GameSession {
       this.effects.ring({ x, y: 0.05, z, color: '#e6f6ff', from: 0.2, to: 1.6, life: 0.8, opacity: 0.6 });
       this.audio.splash(this.audioGain(x, z) * 0.35);
     });
-    bus.on('prop:disturbed', ({ type }) => {
-      if (this.screen !== 'playing') return;
+    // mess only counts against Yeshua when it happens around him (not a villager bumping a pot across town)
+    const nearPlayer = (x, z) => x === undefined || Math.hypot(x - this.playerState.position.x, z - this.playerState.position.z) < 14;
+    bus.on('prop:disturbed', ({ type, x, z }) => {
+      if (this.screen !== 'playing' || !nearPlayer(x, z)) return;
       this.playerState.stats.propsDisturbed += 1;
       if (type === 'fruit') this.addChaos(0.2);
       this.audio.thud(type === 'fruit' ? 0.4 : 1);
     });
     bus.on('prop:broken', ({ x, z }) => {
-      if (this.screen !== 'playing') return;
+      if (this.screen !== 'playing' || !nearPlayer(x, z)) return;
       this.playerState.stats.potsBroken = (this.playerState.stats.potsBroken || 0) + 1;
       this.addChaos(2);
       this.audio.crash(this.audioGain(x, z));

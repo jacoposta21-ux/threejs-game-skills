@@ -189,7 +189,7 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
   // walk up to the camp gate (outside): the centurion comes over to talk
   await teleport(-6, -108, Math.PI / 2);
   await holdSim(['KeyW'], 1.0);
-  await sim(9);
+  await sim(14);
   await events();
   const gate = await setup(() => { const g = window.__JESUS_SIM__.session.romans.byId.get('roman.gaius'); return { summoned: !!g.summoned, x: +g.pos.x.toFixed(1) }; });
   await setup(() => {
@@ -218,7 +218,7 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
   await press('KeyQ');
   await sim(0.5);
   await teleport(-6, -108, Math.PI / 2);
-  await sim(9);
+  await sim(14); // Gaius walks over from his post (~10 s)
   await setup(() => {
     const S = window.__JESUS_SIM__.session;
     const g = S.romans.byId.get('roman.gaius');
