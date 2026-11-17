@@ -30,6 +30,6 @@ if (!webglAvailable()) {
   game.onReady = () => markReady();
   game.init().catch((e) => {
     console.error(e);
-    fatal(`Grand Theft Almost failed to start: ${e && e.message ? e.message : e}`);
+    fatal(`Vista Mar Crime Story failed to start: ${e && e.message ? e.message : e}`);
   });
 }

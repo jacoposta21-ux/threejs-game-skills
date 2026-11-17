@@ -1,6 +1,6 @@
-# Grand Theft Almost
+# Vista Mar Crime Story
 
-An original open-world game set in the fictional city of Vista Mar (project folder and save keys keep the `vista-mar` name).
+An original open-world crime game set in the fictional coastal city of Vista Mar.
 
 An original third-person open-world game about a fictional tropical coastal city. It runs in the browser with Three.js and WebGL.
 All five phases are complete: **1** playable foundation, **2** vehicles, **3** living city, **4** gameplay (police, missions, money, places) and **5** visual polish.
