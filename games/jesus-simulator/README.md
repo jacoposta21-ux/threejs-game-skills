@@ -2,7 +2,7 @@
 
 A humorous, Roblox-inspired, GTA-style open-world sandbox set in first-century Galilee. Built with Three.js, Rapier 3D and Vite as plain JavaScript ES modules. **This release is single-player only.**
 
-> Status: **Phases 1–6 are complete**: playable foundation, living world, miracles, the Roman system, the open world with rides, and the Ministry (missions, followers, Faith/Chaos, Blessings, full save). Phase 7 (polish, optimisation, CrazyGames SDK) is not implemented yet. See [Roadmap](#roadmap).
+> Status: **All 7 phases are complete**: playable foundation, living world, miracles, the Roman system, the open world with rides, the Ministry (missions, followers, Faith/Chaos, Blessings, full save), and polish (regional music, a host-platform layer prepared for the CrazyGames SDK). The game has **not** been submitted to CrazyGames. See [Roadmap](#roadmap).
 
 ## Run it
 
@@ -25,6 +25,7 @@ npm run test:play      # real-input playtest: Phases 1-6 (movement, saves, NPCs,
 npm run test:motion    # locomotion video + contact sheet
 npm run test:npc-motion    # villager life contact sheet
 npm run test:roman-motion  # legionaries chasing + a Divine Push ragdoll, contact sheet
+npm run test:platform  # host-platform layer with a test-only SDK double + regional music
 npm run verify:visual  # canvas inspector over the states in artifacts/evidence.json
 ```
 
@@ -51,6 +52,38 @@ If Playwright can't find a browser, point it at an installed Chromium with `CHRO
 | G | Followers: wait here / come with me |
 | Tab | Map |
 | Esc | Pause menu |
+
+## What Phase 7 adds — polish, music and the host platform
+
+- **Platform layer** (`src/platform/Platform.js`): the game talks to one `platform` object, which talks to the host.
+  - **CrazyGames SDK v3** is loaded from the SDK's own URL **only** when the game is hosted on CrazyGames (a crazygames hostname or referrer), or when the URL has `?crazygames=1` (to test with the SDK's local mode). Otherwise a local platform is used where every call is a no-op. **There are no ads of any kind outside the host SDK, and nothing in the game imitates an ad.**
+  - **Loading:** `loadingStart` when booting and `loadingStop` when the menu is ready.
+  - **Gameplay:** `gameplayStart` only while actually playing; `gameplayStop` in the menu, pause, map, arrest card and during ads. State changes only, never repeated calls.
+  - **Happy moments:** `happytime` on mission, chapter and circus-record completion.
+  - **Mute:** the host's mute setting (`muteAudio` plus its change listener) mutes the game.
+  - **Saves:** stored in the host's data module when present; an existing local save is carried over once.
+  - **Ads:**
+    - A **midgame** ad only at natural breaks: when released after an arrest, and when continuing from the main menu. At most once per 3 minutes of actual play, and never in the first 3 minutes. The game is paused and muted while it plays.
+    - An optional **rewarded** ad ("Ask for a sign", Faith +10) in Pause → Miracles, shown only when the host supports ads.
+  - **Safety:** every SDK call is feature-checked and wrapped, so a missing or failing SDK can't break the game, and an ad whose callbacks never arrive releases the game after 90 s.
+- **Music by region:** the procedural score changes with the region — scale, voice, pacing and wind level.
+  - **Nazareth:** lyre (pentatonic).
+  - **Countryside:** flute.
+  - **Sea of Galilee:** bells.
+  - **Roman outpost:** horn with drum taps (minor).
+  - **Desert:** an oud-like voice over a drone (Phrygian dominant).
+- **Polish:**
+  - An *About & credits* sheet in the menu (v1.0, all assets procedural).
+  - Loading tips; the loading bar no longer overflows with the larger world.
+  - Phones and tablets start on Medium quality on first launch (the automatic downgrade still handles weak desktops).
+
+### Publishing on CrazyGames (status)
+The integration is prepared but **the game has not been submitted to CrazyGames, and nothing here implies CrazyGames approval.** The SDK documentation and script hosts couldn't be reached from the build environment, so the adapter follows SDK v3 as known at the time of writing. Before submitting:
+1. Check the method names against the current CrazyGames docs.
+2. Test with `?crazygames=1` and the CrazyGames QA tool.
+3. Upload the `dist/` folder.
+
+The relative-base build works from any sub-path.
 
 ## What Phase 6 adds — the Ministry: missions, followers, Faith and Chaos
 
@@ -239,7 +272,7 @@ Supporting changes:
   - Pauses on pointer-lock loss and tab hide.
   - Loading screen with progress, plus a friendly error screen.
   - Low/Medium/High quality presets with automatic downgrade when FPS stays under 38.
-  - No external network requests; relative-base production build.
+  - No external network requests unless hosted on CrazyGames (then only the official SDK script); relative-base production build.
 
 ## Project structure
 
@@ -263,9 +296,10 @@ src/
   npc/Wildlife.js         instanced birds (shader flapping) and leaping fish
   missions/               MissionManager (state machine, markers, dialogue offers) + missions.js (Chapter III data, posted folk)
   game/reputation.js      Faith titles, Chaos tiers, Blessing costs and effects
+  platform/Platform.js    host platform layer (CrazyGames SDK v3 adapter, local no-op platform)
   audio/AudioManager.js   procedural Web Audio
   save/SaveManager.js     LocalStorage + validation
-tests/                    playtest.mjs + phase2/3/4/5/6 checks, motion.mjs, npc-motion.mjs, roman-motion.mjs, ride-motion.mjs (Playwright, real input)
+tests/                    playtest.mjs + phase2/3/4/5/6 checks, platform.mjs, motion.mjs, npc-motion.mjs, roman-motion.mjs, ride-motion.mjs (Playwright, real input)
 scripts/                  inspect-threejs-canvas.mjs (canvas/pixel/budget inspector)
 artifacts/                evidence manifest, captures, playtest results, final-evidence.md
 ```
@@ -287,10 +321,10 @@ artifacts/                evidence manifest, captures, playtest results, final-e
 - **Simple stealth:** there is no crouching or hiding spot; you lose the Romans by breaking line of sight and waiting. The wanted level is not saved, so reloading clears it.
 - **Night is brief:** about 84 seconds. Villagers vanish indoors rather than performing evening activities inside houses.
 - **Edge of the map:** a square boundary at ±204 m; the ridges beyond are scenery.
-- **No miracle upgrades yet:** upgrades and follower recruitment from healing are planned for Phase 6. Healed villagers are already recorded in the save.
 - **Large Rapier bundle:** about 1.7 MB gzipped, because the `-compat` build inlines its WASM. Switching to the non-compat package with a separate `.wasm` file would cut this.
 - **Performance unmeasured on a real GPU:** all automated captures ran on a software renderer, so FPS numbers from them aren't meaningful. Desktop render budgets pass; the mobile triangle budget is exceeded (≈340k vs 300k), and mobile is not a target for this release.
-- **Camera passes through foliage:** the camera ignores tree trunks for collision, so it can pass through canopies. Occluder fading is planned for the polish phase.
+- **Camera passes through foliage:** the camera ignores tree trunks for collision, so it can pass through canopies.
+- **CrazyGames SDK unverified against live docs:** see *Publishing on CrazyGames* above. No mobile/touch controls.
 
 ## Roadmap
 
@@ -300,6 +334,6 @@ artifacts/                evidence manifest, captures, playtest results, final-e
 4. ~~Phase 4 — Roman system~~ ✅
 5. ~~Phase 5 — World expansion~~ ✅ countryside, lake, outpost, desert, rides (donkey, horse, camel, cart, chariot), animals.
 6. ~~Phase 6 — Missions, Faith/Chaos, followers, full save~~ ✅
-7. **Phase 7 — Polish, audio, optimisation, CrazyGames SDK integration** *(next)*.
+7. ~~Phase 7 — Polish, audio, optimisation, CrazyGames SDK integration~~ ✅ (submission to CrazyGames not done).
 
 All models, textures and sounds are original and generated procedurally at runtime. No third-party or Roblox assets are used.

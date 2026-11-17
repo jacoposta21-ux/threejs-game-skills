@@ -1,7 +1,7 @@
 # Jesus Simulator — progress log
 
 ## Intent and constraints
-- Complete Jesus Simulator for CrazyGames, built incrementally phase by phase. Phases 1–6 are done; the current pass is Phase 6 (missions, followers, Faith/Chaos, Blessings, full save).
+- Complete Jesus Simulator for CrazyGames, built incrementally phase by phase. All 7 phases are done; the current pass is Phase 7 (polish, regional music, host-platform layer). Not submitted to CrazyGames.
 - JavaScript ES modules (the user asked for JS, overriding the pack's TS default), Three.js, Rapier 3D, Vite, Web Audio, LocalStorage.
 - Single-player only; MULTIPLAYER is a visibly disabled "COMING SOON" button with no networking.
 - Tone: playful and absurd, never deliberately offensive. Roblox-inspired but original art; procedural geometry is acceptable for Phase 1.
@@ -133,8 +133,23 @@ Player **explores** to **discover the 7 landmarks of Nazareth**; the minimap and
 - **Save v2:** `ministry`, `followers`, `miracleLevels`, parked `vehicles`, and the new stats `missions`, `followersEver`, `blessings` and `faithEarned`. v1 saves still load.
 - **UI:** a reputation pill, quest bubbles (`!` / ★), mission and giver markers on the minimap and world map, the journal (Chapter III first) and Blessing buttons.
 
-## Next actions (Phase 7 — polish, audio, optimisation, CrazyGames SDK)
-- **CrazyGames SDK** integration (loading events, gameplay start/stop, ads only through the SDK, no fake ads), plus a build size pass (Rapier non-compat build).
-- **Performance on real GPUs:** LOD for far characters, shadow cascades, a quality auto-tune.
-- **Audio polish and music per region;** occluder fading for the camera.
-- **Mobile/touch controls** if wanted.
+## Phase 7 — Polish and platform (completed)
+- **`src/platform/Platform.js`:** `createPlatform()` loads the CrazyGames SDK v3 only when hosted on CrazyGames or with `?crazygames=1`; otherwise it uses a `LocalPlatform` with no-ops and no ads. Tests inject a double via `window.__PLATFORM_SDK__`.
+  - **Calls:** `init`, `loadingStart` / `loadingStop`, idempotent `gameplayStart` / `gameplayStop`, `happytime`, `ad(type, {onStart, onEnd})` (90 s safety timeout), `storage()` backed by the data module, and the `muteAudio` listener.
+  - **Not verified against live docs:** docs.crazygames.com and sdk.crazygames.com were blocked for this session even after the environment allowed them.
+- **GameSession:**
+  - Calls `loadingStart` / `loadingStop` around init; `gameplayStart` only when the screen is `playing`; `happytime` on missions, chapters and lap records.
+  - **Midgame ads:** `maybeMidgame` after an arrest or on continue, only with at least 180 s of play since the last ad. During an ad the screen is `ad`, the game is muted and pointer lock is released.
+  - **Rewarded ad:** `rewardedFaith` (+10 Faith, Pause → Miracles, only when ads are supported).
+  - **Saves:** `SaveManager.attachStore` uses host storage and carries the local save over once.
+- **Audio:** `MUSIC_STYLES` per region (lyre, flute, bells, horn + drum, oud + drone) via `setRegion`; `setPlatformMuted` provides a master mute for host and ads.
+- **Polish:** About & credits, v1.0 footer, loading tips, the loading bar fix, and Medium quality by default on touch devices.
+- **Tests:** `tests/platform.mjs` (10 checks).
+
+## Possible next steps (beyond the 7 phases)
+- Verify the SDK against the live CrazyGames docs and QA tool, then submit (a human decision).
+- Measure frame rate on real GPUs (desktop and laptop).
+- Character LOD and shadow cascades if needed.
+- Mobile/touch controls.
+- Camera occluder fading.
+- Branching missions and more region NPC routines.
