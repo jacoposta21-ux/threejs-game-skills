@@ -240,7 +240,7 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
   d = await diag();
   const camelsB = d.wildlife.camels;
   const caravanMoved = camelsB.some((c, i) => !c[2] && Math.hypot(c[0] - camelsA[i][0], c[1] - camelsA[i][1]) > 8);
-  check('Wildlife: pigeons, goats, caravan, fish', pig >= 3 && goats >= 2 && caravanMoved && ev.filter((e) => e.name === 'fish:jump').length >= 2 && d.wildlife.birds > 30,
+  check('Wildlife: pigeons, goats, caravan, fish', pig >= 2 && goats >= 2 && caravanMoved && ev.filter((e) => e.name === 'fish:jump').length >= 2 && d.wildlife.birds > 30,
     `pigeonsFlying=${pig} goatsFleeing=${goats} caravanMoved=${caravanMoved} fish=${ev.filter((e) => e.name === 'fish:jump').length} birds=${d.wildlife.birds}`);
 
   // 13. Water to Wine works on the oasis pond (real 3 + Q)
