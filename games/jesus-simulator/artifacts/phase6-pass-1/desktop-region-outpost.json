@@ -1,0 +1,409 @@
+{
+  "url": "http://127.0.0.1:4188/",
+  "mode": "desktop",
+  "state": "region-outpost",
+  "requestedState": "region-outpost",
+  "appliedState": "region-outpost",
+  "runId": "phase6-pass-1",
+  "seed": 42,
+  "screenshotPath": "artifacts/phase6-pass-1/desktop-region-outpost.png",
+  "gpu": {
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "vendor": "Google Inc. (Google)",
+    "softwareRendered": true
+  },
+  "result": {
+    "ok": true,
+    "reason": "nonblank",
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "drawingBuffer": {
+      "width": 1280,
+      "height": 720
+    },
+    "alphaPixels": 4096,
+    "variance": 255,
+    "colorBuckets": 163,
+    "metrics": {
+      "colorBuckets": 229,
+      "colorEntropyBits": 5.9,
+      "edgeDensity": 0.248,
+      "luminance": {
+        "mean": 131.3,
+        "p5": 44.7,
+        "p95": 226.5,
+        "contrast": 181.8
+      },
+      "dominantColorShare": 0.126,
+      "nonBackgroundShare": 0.874
+    },
+    "renderBudget": {
+      "tier": "desktop",
+      "note": "starting-point budget; adjust per game and document overrides",
+      "rows": [
+        {
+          "metric": "calls",
+          "actual": 180,
+          "limit": 300,
+          "ok": true
+        },
+        {
+          "metric": "triangles",
+          "actual": 453562,
+          "limit": 750000,
+          "ok": true
+        },
+        {
+          "metric": "geometries",
+          "actual": 116,
+          "limit": 300,
+          "ok": true
+        },
+        {
+          "metric": "textures",
+          "actual": 15,
+          "limit": 60,
+          "ok": true
+        }
+      ],
+      "withinBudget": true
+    },
+    "diagnostics": {
+      "frame": 3,
+      "screen": "playing",
+      "quality": "high",
+      "fps": 9.99999985098839,
+      "player": {
+        "position": {
+          "x": 4.000209629034089,
+          "y": 1.74294169513596,
+          "z": -170.0007508021663
+        },
+        "speed": 0,
+        "grounded": true,
+        "yaw": 1.2707963267948965
+      },
+      "camera": {
+        "yaw": -1.9207963267948966,
+        "distance": 9
+      },
+      "discovered": [],
+      "clock": 0.10083333333333339,
+      "night": 0,
+      "flags": {},
+      "faith": 0,
+      "chaos": 0,
+      "dialogue": null,
+      "talkTarget": null,
+      "npcs": {
+        "count": 38,
+        "near": 0,
+        "visible": 1,
+        "hidden": 0,
+        "states": {
+          "travel": 14,
+          "act": 12,
+          "none": 12
+        },
+        "nav": {
+          "nodes": 419,
+          "edges": 816,
+          "casts": 1120,
+          "unreachable": 0
+        },
+        "homesReachable": true,
+        "animals": 34,
+        "ragdolls": 0
+      },
+      "miracles": {
+        "cooldowns": {},
+        "water": null,
+        "lifting": null,
+        "wine": []
+      },
+      "romans": {
+        "count": 12,
+        "active": 12,
+        "reserves": 0,
+        "modes": {
+          "duty": 12
+        },
+        "visible": 10,
+        "seeing": 2,
+        "stars": 0,
+        "heat": 0,
+        "search": 0,
+        "grab": 0,
+        "ragdolls": 0,
+        "disabled": false,
+        "arrestPending": false
+      },
+      "vehicles": {
+        "count": 10,
+        "ridden": null,
+        "lap": {
+          "active": false,
+          "time": 0,
+          "quads": 0
+        },
+        "vehicles": [
+          {
+            "id": "vehicle.donkey.joseph",
+            "kind": "donkey",
+            "x": -19,
+            "z": 7,
+            "roman": false,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.donkey.farm",
+            "kind": "donkey",
+            "x": -141.5,
+            "z": 38.5,
+            "roman": false,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.cart.farm",
+            "kind": "cart",
+            "x": -136.5,
+            "z": 37.4,
+            "roman": false,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.horse.farm",
+            "kind": "horse",
+            "x": -150.5,
+            "z": 22,
+            "roman": false,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.cart.hamlet",
+            "kind": "cart",
+            "x": 165.5,
+            "z": -120.5,
+            "roman": false,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.horse.legion.1",
+            "kind": "horse",
+            "x": 32.5,
+            "z": -163.4,
+            "roman": true,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.horse.legion.2",
+            "kind": "horse",
+            "x": 41.5,
+            "z": -163.4,
+            "roman": true,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.chariot.1",
+            "kind": "chariot",
+            "x": 30,
+            "z": -171,
+            "roman": true,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.chariot.2",
+            "kind": "chariot",
+            "x": 30,
+            "z": -175.5,
+            "roman": true,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.camel.camp",
+            "kind": "camel",
+            "x": -38,
+            "z": 159.5,
+            "roman": false,
+            "stolen": false
+          }
+        ]
+      },
+      "wildlife": {
+        "birds": 33,
+        "pigeonsFlying": 0,
+        "fishJumps": 0,
+        "goats": [
+          [
+            -161.6,
+            20.3,
+            false
+          ],
+          [
+            -160.3,
+            20,
+            false
+          ],
+          [
+            -162.1,
+            19.4,
+            false
+          ],
+          [
+            -161,
+            19.3,
+            false
+          ],
+          [
+            -166.7,
+            -76.1,
+            false
+          ],
+          [
+            -154.1,
+            -76.4,
+            false
+          ],
+          [
+            -156,
+            -59.8,
+            false
+          ],
+          [
+            -155.9,
+            -75.8,
+            false
+          ],
+          [
+            -156.9,
+            -82.1,
+            false
+          ],
+          [
+            -164.4,
+            -60.2,
+            false
+          ],
+          [
+            -155.4,
+            -77,
+            false
+          ],
+          [
+            -158,
+            -74.1,
+            false
+          ]
+        ],
+        "camels": [
+          [
+            -46,
+            159,
+            true
+          ],
+          [
+            -33,
+            166,
+            true
+          ],
+          [
+            -53,
+            170,
+            true
+          ],
+          [
+            -33,
+            159.7,
+            false
+          ],
+          [
+            -36.1,
+            160.4,
+            false
+          ],
+          [
+            -39.3,
+            161,
+            false
+          ]
+        ]
+      },
+      "mode": "on-foot",
+      "region": "Roman Outpost",
+      "missions": {
+        "tracked": null,
+        "active": [],
+        "done": []
+      },
+      "followers": [],
+      "levels": {},
+      "reputation": {
+        "faith": 0,
+        "chaos": 0,
+        "tier": "calm",
+        "title": "Joseph's son"
+      },
+      "perks": [],
+      "chapters": {
+        "one": 0,
+        "two": 0,
+        "complete1": false,
+        "complete2": false
+      },
+      "ragdolls": {
+        "active": 0,
+        "spawned": 0,
+        "bodies": 0
+      },
+      "unlocked": [],
+      "selected": 0,
+      "effects": {
+        "particles": 0,
+        "rings": 0
+      },
+      "water": {
+        "depth": 0,
+        "onWater": false
+      },
+      "props": {
+        "total": 79,
+        "awake": 27,
+        "broken": 0,
+        "shards": 0,
+        "copies": 0
+      },
+      "stats": {
+        "distance": 0.0009229699737674527,
+        "jumps": 0,
+        "playTime": 0,
+        "propsDisturbed": 0,
+        "conversations": 0
+      },
+      "physics": {
+        "bodies": 364,
+        "colliders": 1405,
+        "activeBodies": 52
+      },
+      "renderer": {
+        "calls": 180,
+        "triangles": 453562,
+        "geometries": 116,
+        "textures": 15
+      },
+      "canvas": {
+        "clientWidth": 1280,
+        "clientHeight": 720,
+        "width": 1280,
+        "height": 720
+      }
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "consoleErrorCount": 0,
+  "pageErrorCount": 0
+}

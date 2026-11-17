@@ -22,7 +22,7 @@ The exceptions are the circus lap and the last metres of the donkey ride home, w
 Phase 1–5 evidence remains in git history.
 
 ## Canvas inspector — run `phase6-pass-1`
-Manifest: [evidence.json](evidence.json). **18/18 captures PASS.** All 17 desktop captures are within the desktop render budget (calls ≤ 300, triangles ≤ 750k, geometries ≤ 300).
+Manifest: [evidence.json](evidence.json). `check_evidence.py --manifest` → **passed, 23 artifacts confirmed.** **18/18 captures PASS.** All 17 desktop captures are within the desktop render budget (calls ≤ 300, triangles ≤ 750k, geometries ≤ 300).
 
 | Viewport / state | Draw calls | Triangles | Geometries |
 | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ Manifest: [evidence.json](evidence.json). **18/18 captures PASS.** All 17 deskto
 The mobile capture is over the triangle budget; mobile is not a target.
 
 ## Real-input playtest — run `phase6-pass-1`
-[results.json](phase6-pass-1/playtest/results.json) — **final run in progress**.
+[results.json](phase6-pass-1/playtest/results.json) — **73/73 PASS** and no console or page errors.
 
 The suite runs the Phase 1–5 checks (12 + 10 + 9 + 14 + 14) followed by 14 new Phase 6 checks:
 
@@ -73,6 +73,10 @@ The suite runs the Phase 1–5 checks (12 + 10 + 9 + 14 + 14) followed by 14 new
 - **Gaius's mission meant trespassing:** his post is inside the palisade. He now comes to the gate, and stands far enough inside that Jesus stays outside.
 - **Menu over the draw-call budget:** the wedding feast pushed it to 301 of 300. The feast is now part of the village batch (no extra calls); the menu is back at 297.
 - **HUD and journal layout:** the reputation pill overlapped the hotbar at 960 px; it now sits above the follower count. Chapter III was listed at the bottom of the journal; it is now first.
+- **Followers took the caravan's bread:** they (and travellers who had already eaten) grabbed the loaves meant for the hungry. Only the still-hungry go for them now.
+- **Mess far from Jesus counted as his Chaos:** villagers bumping pots across town added to it. Only mess within 14 m of Jesus counts now.
+- **Followers could get stuck behind a wall** (and, in simulated time, never rejoin). A follower who makes no progress steps back into formation, and anyone more than 60 m behind always rejoins.
+- **Crowd-dependent checks made deterministic:** they use plain villagers, quiet spots and placed witnesses.
 - **Older checks adjusted to new rules and frame-rate effects:**
   - Pottery now allows for the Chaos fade.
   - The persistence check allows a second, real arrest.

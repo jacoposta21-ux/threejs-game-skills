@@ -1,0 +1,424 @@
+{
+  "url": "http://127.0.0.1:4188/",
+  "mode": "desktop",
+  "state": "miracle-push",
+  "requestedState": "miracle-push",
+  "appliedState": "miracle-push",
+  "runId": "phase6-pass-1",
+  "seed": 42,
+  "screenshotPath": "artifacts/phase6-pass-1/desktop-miracle-push.png",
+  "gpu": {
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "vendor": "Google Inc. (Google)",
+    "softwareRendered": true
+  },
+  "result": {
+    "ok": true,
+    "reason": "nonblank",
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "drawingBuffer": {
+      "width": 1280,
+      "height": 720
+    },
+    "alphaPixels": 4096,
+    "variance": 255,
+    "colorBuckets": 265,
+    "metrics": {
+      "colorBuckets": 395,
+      "colorEntropyBits": 5.93,
+      "edgeDensity": 0.437,
+      "luminance": {
+        "mean": 145,
+        "p5": 28.4,
+        "p95": 228.6,
+        "contrast": 200.3
+      },
+      "dominantColorShare": 0.164,
+      "nonBackgroundShare": 0.836
+    },
+    "renderBudget": {
+      "tier": "desktop",
+      "note": "starting-point budget; adjust per game and document overrides",
+      "rows": [
+        {
+          "metric": "calls",
+          "actual": 224,
+          "limit": 300,
+          "ok": true
+        },
+        {
+          "metric": "triangles",
+          "actual": 493296,
+          "limit": 750000,
+          "ok": true
+        },
+        {
+          "metric": "geometries",
+          "actual": 213,
+          "limit": 300,
+          "ok": true
+        },
+        {
+          "metric": "textures",
+          "actual": 17,
+          "limit": 60,
+          "ok": true
+        }
+      ],
+      "withinBudget": true
+    },
+    "diagnostics": {
+      "frame": 3,
+      "screen": "playing",
+      "quality": "high",
+      "fps": 9.99999985098839,
+      "player": {
+        "position": {
+          "x": -0.5000252808487744,
+          "y": 1.235885576135479,
+          "z": -19.500000000032607
+        },
+        "speed": 0,
+        "grounded": true,
+        "yaw": 1.9999999999999998
+      },
+      "camera": {
+        "yaw": 0.35,
+        "distance": 6
+      },
+      "discovered": [
+        "landmark.market"
+      ],
+      "clock": 0.14197222222221612,
+      "night": 0,
+      "flags": {},
+      "faith": 0,
+      "chaos": 0.5956944444444439,
+      "dialogue": null,
+      "talkTarget": "npc.tobias",
+      "npcs": {
+        "count": 38,
+        "near": 21,
+        "visible": 29,
+        "hidden": 0,
+        "states": {
+          "startle": 3,
+          "angry": 6,
+          "act": 5,
+          "travel": 8,
+          "none": 12,
+          "chat": 4
+        },
+        "nav": {
+          "nodes": 419,
+          "edges": 816,
+          "casts": 1169,
+          "unreachable": 0
+        },
+        "homesReachable": true,
+        "animals": 34,
+        "ragdolls": 0
+      },
+      "miracles": {
+        "cooldowns": {
+          "miracle.divine-push": 0.88
+        },
+        "water": null,
+        "lifting": null,
+        "wine": []
+      },
+      "romans": {
+        "count": 12,
+        "active": 12,
+        "reserves": 0,
+        "modes": {
+          "duty": 12
+        },
+        "visible": 8,
+        "seeing": 0,
+        "stars": 0,
+        "heat": 0,
+        "search": 0,
+        "grab": 0,
+        "ragdolls": 0,
+        "disabled": false,
+        "arrestPending": false
+      },
+      "vehicles": {
+        "count": 10,
+        "ridden": null,
+        "lap": {
+          "active": false,
+          "time": 0,
+          "quads": 0
+        },
+        "vehicles": [
+          {
+            "id": "vehicle.donkey.joseph",
+            "kind": "donkey",
+            "x": -19,
+            "z": 7,
+            "roman": false,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.donkey.farm",
+            "kind": "donkey",
+            "x": -141.5,
+            "z": 38.5,
+            "roman": false,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.cart.farm",
+            "kind": "cart",
+            "x": -136.5,
+            "z": 37.4,
+            "roman": false,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.horse.farm",
+            "kind": "horse",
+            "x": -150.5,
+            "z": 22,
+            "roman": false,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.cart.hamlet",
+            "kind": "cart",
+            "x": 165.5,
+            "z": -120.5,
+            "roman": false,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.horse.legion.1",
+            "kind": "horse",
+            "x": 32.5,
+            "z": -163.4,
+            "roman": true,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.horse.legion.2",
+            "kind": "horse",
+            "x": 41.5,
+            "z": -163.4,
+            "roman": true,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.chariot.1",
+            "kind": "chariot",
+            "x": 30,
+            "z": -171,
+            "roman": true,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.chariot.2",
+            "kind": "chariot",
+            "x": 30,
+            "z": -175.5,
+            "roman": true,
+            "stolen": false
+          },
+          {
+            "id": "vehicle.camel.camp",
+            "kind": "camel",
+            "x": -38,
+            "z": 159.5,
+            "roman": false,
+            "stolen": false
+          }
+        ]
+      },
+      "wildlife": {
+        "birds": 33,
+        "pigeonsFlying": 0,
+        "fishJumps": 0,
+        "goats": [
+          [
+            -159.9,
+            21,
+            false
+          ],
+          [
+            -157.5,
+            20.5,
+            false
+          ],
+          [
+            -160.7,
+            19.9,
+            false
+          ],
+          [
+            -160.9,
+            21.5,
+            false
+          ],
+          [
+            -161.6,
+            -70.6,
+            false
+          ],
+          [
+            -157.1,
+            -74.6,
+            false
+          ],
+          [
+            -156.7,
+            -67.3,
+            false
+          ],
+          [
+            -160.5,
+            -74.6,
+            false
+          ],
+          [
+            -160.3,
+            -76.3,
+            false
+          ],
+          [
+            -160.5,
+            -70.4,
+            false
+          ],
+          [
+            -153,
+            -73.5,
+            false
+          ],
+          [
+            -161.5,
+            -71.6,
+            false
+          ]
+        ],
+        "camels": [
+          [
+            -46,
+            159,
+            true
+          ],
+          [
+            -33,
+            166,
+            true
+          ],
+          [
+            -53,
+            170,
+            true
+          ],
+          [
+            1.6,
+            146.8,
+            false
+          ],
+          [
+            -1.7,
+            148.2,
+            false
+          ],
+          [
+            -4.7,
+            149.4,
+            false
+          ]
+        ]
+      },
+      "mode": "on-foot",
+      "region": "Nazareth",
+      "missions": {
+        "tracked": null,
+        "active": [],
+        "done": []
+      },
+      "followers": [],
+      "levels": {},
+      "reputation": {
+        "faith": 0,
+        "chaos": 0.6,
+        "tier": "calm",
+        "title": "Joseph's son"
+      },
+      "perks": [],
+      "chapters": {
+        "one": 1,
+        "two": 0,
+        "complete1": false,
+        "complete2": false
+      },
+      "ragdolls": {
+        "active": 0,
+        "spawned": 0,
+        "bodies": 0
+      },
+      "unlocked": [
+        "miracle.divine-push",
+        "miracle.multiplication",
+        "miracle.water-to-wine",
+        "miracle.walk-on-water",
+        "miracle.healing-touch",
+        "miracle.holy-levitation"
+      ],
+      "selected": 0,
+      "effects": {
+        "particles": 95,
+        "rings": 1
+      },
+      "water": {
+        "depth": 0,
+        "onWater": false
+      },
+      "props": {
+        "total": 79,
+        "awake": 4,
+        "broken": 0,
+        "shards": 0,
+        "copies": 0
+      },
+      "stats": {
+        "distance": 1.861642570502989,
+        "jumps": 0,
+        "playTime": 0,
+        "propsDisturbed": 2,
+        "conversations": 0,
+        "miracles": 1
+      },
+      "physics": {
+        "bodies": 364,
+        "colliders": 1405,
+        "activeBodies": 31
+      },
+      "renderer": {
+        "calls": 224,
+        "triangles": 493296,
+        "geometries": 213,
+        "textures": 17
+      },
+      "canvas": {
+        "clientWidth": 1280,
+        "clientHeight": 720,
+        "width": 1280,
+        "height": 720
+      }
+    }
+  },
+  "consoleErrors": [],
+  "pageErrors": [],
+  "consoleErrorCount": 0,
+  "pageErrorCount": 0
+}
