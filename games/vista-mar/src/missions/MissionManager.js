@@ -121,6 +121,7 @@ export class MissionManager {
     if (g.stats) g.stats.failed++;
     g.audio.missionFailed();
     if (this.active.onFail) this.active.onFail(this.ctx);
+    g.events.emit('missionFailed', this.active);
     this.cleanup();
   }
 

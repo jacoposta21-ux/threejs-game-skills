@@ -9,7 +9,9 @@
     "build:single": "vite build && node scripts/build-single.mjs",
     "preview": "vite preview --host 127.0.0.1 --port 5188",
     "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs",
-    "verify:visual": "node scripts/playtest.mjs"
+    "verify:visual": "node scripts/playtest.mjs",
+    "dev:crazygames": "PLATFORM=crazygames vite --host 127.0.0.1 --port 5188",
+    "build:crazygames": "PLATFORM=crazygames vite build"
   },
   "dependencies": {
     "three": "^0.184.0"

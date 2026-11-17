@@ -5,3 +5,4 @@ artifacts/canvas-inspection/
 artifacts/playtest-log.txt
 artifacts/*.html
 artifacts/playtest/
+dist-crazygames/

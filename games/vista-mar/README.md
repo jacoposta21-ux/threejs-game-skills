@@ -163,6 +163,7 @@ The triangle counts reported for `BatchedMesh` multi-draw may under-count. The d
 ## Launch
 
 - `npm run build` writes `dist/`: a static site (relative paths, no server code). Upload the folder as it is to any static host (itch.io HTML5 upload, Netlify, GitHub Pages, a game portal). Entry point: `index.html`.
+- `npm run build:crazygames` writes `dist-crazygames/`: the same site plus the CrazyGames SDK v3 script (loading/gameplay events, portal mute, midgame ads at natural breaks, saves through the SDK Data module). Zip its contents for the CrazyGames upload. `npm run dev:crazygames` runs it locally with the SDK's local test mode.
 - `npm run build:single` also writes `dist-single/index.html`, one self-contained file that runs by double-click and offline.
 - Fonts are embedded, nothing is fetched from other domains at runtime, and progress is stored in the browser (`localStorage`, keys `vistamar.save` and `vistamar.settings`).
 - Desktop browsers with keyboard and mouse; phones and tablets get a notice on the start screen.

@@ -195,7 +195,7 @@ export class Menus {
     on('set-invert', 'change', (t) => { s.invertY = t.checked; });
     on('set-dist', 'input', (t) => { s.cameraDistance = +t.value; });
     on('set-fov', 'input', (t) => { s.fov = +t.value; });
-    on('set-vol', 'input', (t) => { s.volume = +t.value; g.audio.setVolume(s.volume); });
+    on('set-vol', 'input', (t) => { s.volume = +t.value; g.applyVolume(); });
     on('set-music', 'input', (t) => { s.music = +t.value; g.audio.radio.setVolume(s.music); });
     on('set-weather', 'change', (t) => { s.weather = t.value; });
     on('set-day', 'change', (t) => { s.dayMinutes = +t.value; g.applyDaySpeed(); });

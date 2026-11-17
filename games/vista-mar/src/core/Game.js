@@ -37,6 +37,7 @@ import { Interiors } from '../world/Interiors.js';
 import { SideJobs } from '../systems/SideJobs.js';
 import { Weather } from '../world/Weather.js';
 import { saveSettings } from '../ui/Menus.js';
+import { Platform } from '../platform/Platform.js';
 
 const SAVE_KEY = 'vistamar.save';
 const newStats = () => ({ walked: 0, driven: 0, flown: 0, topSpeed: 0, stolen: 0, busted: 0, wasted: 0, earned: 0, spent: 0, passed: 0, failed: 0 });
@@ -121,6 +122,8 @@ export class Game {
 
   async init() {
     this.menus = new Menus(this);
+    // the portal SDK (if present) starts alongside the asset download
+    const platformReady = Platform.init().then((ok) => { if (ok) Platform.loadingStart(); return ok; });
     this.menus.setLoading(0.02, 'Loading models…');
     const assets = await loadAssets((f, k) => this.menus.setLoading(0.05 + f * 0.6, `Loading ${k}…`));
     this.assets = assets;
@@ -200,6 +203,9 @@ export class Game {
     this.composer.render(0.016);
     this.renderer.render(this.scene, this.camera);
     await nextFrame();
+    await platformReady;
+    Platform.onMute(() => this.applyVolume());
+    Platform.loadingStop();
     this.state = 'ready';
     this.menus.setLoading(1, 'Ready');
     this.menus.ready();
@@ -262,11 +268,11 @@ export class Game {
 
   // ------------------------------------------------------------- flow
   hasSave() {
-    try { const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return !!d && d.v >= 1 && d.v <= 3; } catch { return false; }
+    try { const d = JSON.parse(Platform.getItem(SAVE_KEY) || 'null'); return !!d && d.v >= 1 && d.v <= 3; } catch { return false; }
   }
 
   clearSave() {
-    try { localStorage.removeItem(SAVE_KEY); } catch { /* storage unavailable */ }
+    Platform.removeItem(SAVE_KEY);
   }
 
   /** Counters for the stats page and the triggers that autosave progress. */
@@ -274,8 +280,36 @@ export class Game {
     const ev = this.events, st = () => this.stats;
     ev.on('carjack', () => st().stolen++);
     ev.on('carStolen', () => st().stolen++);
-    ev.on('missionPassed', () => { st().passed++; this.autosave(); });
+    ev.on('missionPassed', () => { st().passed++; this.autosave(); Platform.happytime(); setTimeout(() => this.breakAd(), 3500); });
+    ev.on('missionFailed', () => setTimeout(() => this.breakAd(), 3000));
+    ev.on('raceDone', (r) => { if (r && r.medal === 'gold') Platform.happytime(); });
+    ev.on('tapeCollected', () => { if (this.tapes.count === this.tapes.tapes.length) Platform.happytime(); });
     for (const n of ['propertyBought', 'fareDone', 'raceDone', 'tapeCollected', 'purchase', 'payday']) ev.on(n, () => this.autosave());
+  }
+
+  /** Master volume: the player's setting, or silence when the portal mutes the game. */
+  applyVolume() {
+    this.audio.setVolume(Platform.muted ? 0 : this.settings.volume);
+  }
+
+  /**
+   * A midgame ad at a natural break (the portal decides whether one is shown). The game is
+   * frozen and silent while it plays, then opens the pause menu so the player resumes with a click.
+   */
+  breakAd() {
+    if (this.state !== 'playing' || this.respawning || this.cutscene?.active || this.cinematic) return;
+    Platform.midgameAd(this.playTime, () => {
+      this.adWasPlaying = this.state === 'playing';
+      this.suppressUnlockPause = true;
+      this.input.exitLock();
+      this.input.keys.clear();
+      this.input.enabled = false;
+      this.audio.suspend();
+    }, () => {
+      this.input.enabled = true;
+      this.audio.resume();
+      if (this.adWasPlaying && this.state === 'playing') this.pause();
+    });
   }
 
   /** Progress (not position) is written a moment after anything worth keeping happens. */
@@ -299,7 +333,7 @@ export class Game {
     if (this.state !== 'ready') return;
     if (fresh) this.clearSave();
     this.audio.start();
-    this.audio.setVolume(this.settings.volume);
+    this.applyVolume();
     this.menus.showStart(false);
     this.hud.show(true);
     this.state = 'playing';
@@ -454,6 +488,7 @@ export class Game {
       this.world.setTime((this.world.timeOfDay + 4) % 24);
       this.hud.fade(false);
       this.respawning = false;
+      setTimeout(() => this.breakAd(), 600);
     }, 2600);
   }
 
@@ -469,12 +504,12 @@ export class Game {
 
   save() {
     const data = { v: 3, money: this.money, tapes: this.tapes.tapes.map((t) => t.collected), missions: [...this.story.done], time: this.world.timeOfDay, combat: this.combat.serialize(), econ: this.economy.serialize(), jobs: this.jobs.serialize(), stats: this.stats, playTime: Math.round(this.playTime) };
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); return true; } catch { if (!this.saveWarned) { this.saveWarned = true; this.hud.toast('SAVE FAILED', 'This browser blocks local storage.'); } return false; }
+    try { Platform.setItem(SAVE_KEY, JSON.stringify(data)); return true; } catch { if (!this.saveWarned) { this.saveWarned = true; this.hud.toast('SAVE FAILED', 'This browser blocks local storage.'); } return false; }
   }
 
   loadSave() {
     let data = null;
-    try { data = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch { data = null; }
+    try { data = JSON.parse(Platform.getItem(SAVE_KEY) || 'null'); } catch { data = null; }
     if (!data || !(data.v >= 1 && data.v <= 3)) return false;
     if (typeof data.time === 'number') this.world.setTime(data.time);
     if (data.playTime) this.playTime = data.playTime;
@@ -537,6 +572,8 @@ export class Game {
   tick() {
     this.timer.update();
     const rawDt = this.timer.getDelta();
+    Platform.setPlaying(this.state === 'playing' && !Platform.adPlaying && !this.cutscene?.active && !document.hidden);
+    if (Platform.adPlaying) { this.input.endFrame(); return; }
     if (this.state === 'playing' && !this.pausedForScreenshot) this.autoPerformance(rawDt);
     this.renderer.info.reset();
     const dt = Math.min(rawDt, 1 / 20);
