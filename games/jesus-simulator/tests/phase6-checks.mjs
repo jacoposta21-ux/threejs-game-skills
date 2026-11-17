@@ -195,7 +195,7 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
   await setup(() => {
     const S = window.__JESUS_SIM__.session;
     const g = S.romans.byId.get('roman.gaius');
-    S.player.teleport(g.pos.x - 1.7, 0, g.pos.z, Math.PI / 2);
+    S.player.teleport(Math.min(g.pos.x - 1.7, 5.6), 0, g.pos.z, Math.PI / 2);
     S.playerState.yaw = Math.PI / 2;
     S.cam.snap(S.playerState.position, -Math.PI / 2);
     S.simulate(0.05);
@@ -222,7 +222,7 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
   await setup(() => {
     const S = window.__JESUS_SIM__.session;
     const g = S.romans.byId.get('roman.gaius');
-    S.player.teleport(g.pos.x - 1.7, 0, g.pos.z, Math.PI / 2);
+    S.player.teleport(Math.min(g.pos.x - 1.7, 5.6), 0, g.pos.z, Math.PI / 2);
     S.playerState.yaw = Math.PI / 2;
     S.cam.snap(S.playerState.position, -Math.PI / 2);
     S.simulate(0.05);
@@ -309,7 +309,9 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
   ev = await events();
   d = await diag();
   const tierHud = await page.getAttribute('#hud-rep', 'data-tier');
-  const chaos1 = d.reputation.chaos;
+  // measure the fade somewhere quiet (frightened villagers bump the market's fruit)
+  await teleport(60, -60, 0);
+  const chaos1 = (await diag()).reputation.chaos;
   await sim(60);
   const chaos2 = (await diag()).reputation.chaos;
   check('Chaos tiers: notorious scares villagers, Chaos fades', d.reputation.tier === 'notorious' && tierHud === 'notorious' && ev.some((e) => e.name === 'npc:avoid') && chaos2 < chaos1 - 0.3,

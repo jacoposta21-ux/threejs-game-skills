@@ -1052,7 +1052,7 @@ export class GameSession {
     const wants = this.missions.isAvailable('mission.centurion') || this.missions.step('mission.centurion')?.kind === 'talk';
     const near = Math.hypot(p.x - gate.x, p.z - gate.z) < 12 && !this.romans.attention.wanted;
     const was = !!g.summoned;
-    g.summoned = wants && near ? { x: gate.x - 0.6, y: gate.y, z: gate.z, yaw: -Math.PI / 2 } : null; // just inside the gate
+    g.summoned = wants && near ? { x: gate.x - 1.2, y: gate.y, z: gate.z, yaw: -Math.PI / 2 } : null; // just inside the gate
     if (g.summoned && !was) this.romans.say(g, 'Carpenter! A word — at the gate.', 2.6, 'neutral');
   }
 
