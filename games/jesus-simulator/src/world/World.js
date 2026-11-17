@@ -152,6 +152,8 @@ export class World {
     const centres = { west: [FARM.x - 6, FARM.z - 50], lake: [HAMLET.x + 10, (HAMLET.z + ISLE.z) / 2], wedding: [WEDDING.x, WEDDING.z], north: [(OUTPOST.x + CIRCUIT.x) / 2, OUTPOST.z], south: [10, 165] };
     for (const [name, g] of groups) {
       const mesh = g.batch.build(materials, { name: `region-${name}` });
+      // the wedding feast sits in the village's wide shots: no shadow pass for its small decor
+      if (name === 'wedding') mesh.traverse((o) => { o.castShadow = false; });
       mesh.userData.site = { x: centres[name][0], z: centres[name][1] };
       this.root.add(mesh);
       this.regionMeshes.push(mesh);
