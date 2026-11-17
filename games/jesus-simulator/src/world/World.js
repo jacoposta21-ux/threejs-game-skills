@@ -77,9 +77,14 @@ export class World {
     const village = buildNazareth(batcher, this.rng);
     this.footprints = village.footprints;
     this.houses = village.houses;
+    // the wedding feast (Phase 6) shares the village batch: no extra draw calls
+    const wedding = buildWedding(batcher, this.rng, null, WEDDING);
+    this.weddingWater = wedding.water;
+    this.footprints.push(...wedding.B.footprints);
     this.villageTriangles = batcher.triangles;
     this.root.add(batcher.build(materials, { name: 'nazareth' }));
     this.physics.addStaticColliders(village.colliders);
+    this.physics.addStaticColliders(wedding.B.colliders);
     this.staticColliderCount = village.colliders.length;
     this.workshopSign = village.workshop.sign;
     // anchors for NPC routines (doors, stalls, benches, named spots)
@@ -148,12 +153,9 @@ export class World {
     const oasis = site('south', (b) => buildOasis(b, rng));
     const camp = site('south', (b) => buildCamp(b, rng, extras));
     site('south', (b) => buildDesertRocks(b, rng));
-    const wedding = site('wedding', (b) => buildWedding(b, rng, extras, WEDDING));
-    const centres = { west: [FARM.x - 6, FARM.z - 50], lake: [HAMLET.x + 10, (HAMLET.z + ISLE.z) / 2], wedding: [WEDDING.x, WEDDING.z], north: [(OUTPOST.x + CIRCUIT.x) / 2, OUTPOST.z], south: [10, 165] };
+    const centres = { west: [FARM.x - 6, FARM.z - 50], lake: [HAMLET.x + 10, (HAMLET.z + ISLE.z) / 2], north: [(OUTPOST.x + CIRCUIT.x) / 2, OUTPOST.z], south: [10, 165] };
     for (const [name, g] of groups) {
       const mesh = g.batch.build(materials, { name: `region-${name}` });
-      // the wedding feast sits in the village's wide shots: no shadow pass for its small decor
-      if (name === 'wedding') mesh.traverse((o) => { o.castShadow = false; });
       mesh.userData.site = { x: centres[name][0], z: centres[name][1] };
       this.root.add(mesh);
       this.regionMeshes.push(mesh);
@@ -179,7 +181,7 @@ export class World {
     this.waterTargets.push(this.pondTarget);
 
     // the wedding's six stone jars (one water surface per jar, one shared target)
-    const wj = wedding.water;
+    const wj = this.weddingWater;
     const jarMat = new THREE.MeshStandardMaterial({ color: '#3f8fa6', roughness: 0.12, metalness: 0.05, emissive: '#000000' });
     const jars = new THREE.InstancedMesh(new THREE.CircleGeometry(0.27, 14).rotateX(-Math.PI / 2), jarMat, 6);
     const o = new THREE.Object3D();
