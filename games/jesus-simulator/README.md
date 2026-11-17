@@ -18,6 +18,12 @@ npm run build
 npm run preview    # http://127.0.0.1:4188
 ```
 
+A single self-contained HTML file (everything inlined, opens with a double-click, no server):
+
+```bash
+npm run build:single   # dist-single/jesus-simulator.html (~5 MB)
+```
+
 Checks (need the preview server running):
 
 ```bash

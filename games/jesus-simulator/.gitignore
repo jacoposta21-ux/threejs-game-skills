@@ -4,3 +4,4 @@ test-results
 *.webm
 artifacts/**/motion/frame-*.png
 tests/tmp/
+dist-single

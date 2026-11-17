@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
+    "build:single": "node scripts/build-single.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs",
     "test:play": "node tests/playtest.mjs http://127.0.0.1:4188/ artifacts/playtest",
