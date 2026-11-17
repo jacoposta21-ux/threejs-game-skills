@@ -306,7 +306,7 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
     `inside=${inside} x=${d.player.position.x.toFixed(1)} warnings=${warnings} toast=${warnToast.includes('Restricted')} stars=${d.romans.stars} modes=${JSON.stringify(d.romans.modes)} seeing=${d.romans.seeing}`);
   await page.screenshot({ path: `${out}/roman-camp.png` });
   // leave the camp and let things calm down before saving
-  await setup(() => { const S = window.__JESUS_SIM__.session; S.player.teleport(-1.5, 0, -90, Math.PI); S.romans.resetDuty(true); S.romans.syncState(); });
+  await setup(() => { const S = window.__JESUS_SIM__.session; S.player.teleport(-1.5, 0, -90, Math.PI); S.romans.attention.reset(); S.romans.grab = 0; S.romans.resetDuty(true); S.romans.syncState(); if (S.screen === 'arrested') S.finishArrest(); });
   await waitFrames(3);
 
   // 14. Roman record persists (arrests, escapes, highest attention); wanted level does not
