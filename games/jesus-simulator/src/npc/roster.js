@@ -175,3 +175,40 @@ export function merchantRoutine(k) {
     evening: [{ go: 'door', act: 'idle', dur: [20, 30] }],
   };
 }
+
+/**
+ * Phase 6: people at fixed posts outside the village routines (they stay
+ * put, day and night, unless something pulls them away or they follow you).
+ * `post` = where they stand, `act` = what they do there.
+ */
+export function postedFolk(P) {
+  const list = [
+    {
+      id: 'npc.bartholomew', name: 'Bartholomew', role: 'Farmer, Bar-Tolmai', voice: 0.82, dialogue: 'bartholomew', post: P.bartholomew, act: 'look',
+      look: { variant: 'adult', skin: SKIN[1], hair: HAIR[2], hairStyle: 'short', beard: HAIR[2], tunic: '#8f9a6a', tunicShade: '#76805a', belt: '#5a3a1e', headwear: { type: 'wrap', color: '#e8dcc0', band: '#3a2a20' }, carry: ['staff'] },
+    },
+    {
+      id: 'npc.hiram', name: 'Hiram', role: 'Caravan master', voice: 0.88, dialogue: 'hiram', post: P.hiram, act: 'talk',
+      look: { variant: 'adult', skin: SKIN[4], hair: HAIR[0], beard: HAIR[0], tunic: '#2f6f6a', tunicShade: '#255a56', mantle: '#e0a12c', headwear: { type: 'wrap', color: '#efe6d2', band: '#a8472e' } },
+    },
+    {
+      id: 'npc.philo', name: 'Philo', role: 'The centurion\'s servant', voice: 1.0, dialogue: 'philo', post: P.philo, act: 'idle', injured: 'fever',
+      look: { variant: 'adult', skin: SKIN[0], hair: HAIR[1], hairStyle: 'short', tunic: '#d9c7a2', tunicShade: '#c4b18c', belt: '#8f2a22' },
+    },
+    {
+      id: 'npc.groom', name: 'Nathan', role: 'The bridegroom', voice: 0.95, dialogue: 'groom', post: P.groom, act: 'talk',
+      look: { variant: 'adult', skin: SKIN[2], hair: HAIR[0], hairStyle: 'short', beard: HAIR[0], tunic: '#efe6d2', tunicShade: '#d9cbaa', mantle: '#3d6fb0', headwear: { type: 'wrap', color: '#e0a12c', band: '#b8322e' } },
+    },
+  ];
+  const names = ['Tavi', 'Omar', 'Zara', 'Kedar', 'Nadia', 'Amir'];
+  P.travellers.forEach((post, i) => {
+    const female = i % 3 === 2;
+    list.push({
+      id: `npc.traveller.${i}`, name: names[i], role: 'Hungry traveller', voice: female ? 1.2 : 0.9 + i * 0.03, dialogue: 'traveller', post, act: 'idle', hungry: true,
+      look: female
+        ? { variant: 'woman', skin: SKIN[(i + 2) % SKIN.length], hair: HAIR[i % HAIR.length], tunic: TUNIC[(i * 2) % TUNIC.length], headwear: { type: 'scarf', color: SCARF[(i + 3) % SCARF.length] }, mantle: SCARF[i % SCARF.length] }
+        : { variant: 'adult', skin: SKIN[(i + 3) % SKIN.length], hair: HAIR[(i + 1) % HAIR.length], beard: HAIR[(i + 1) % HAIR.length], tunic: TUNIC[(i * 3 + 1) % TUNIC.length], headwear: { type: 'wrap', color: WRAP[i % WRAP.length], band: '#3a2a20' }, mantle: i % 2 ? '#7a2f3a' : null },
+    });
+  });
+  return list;
+}

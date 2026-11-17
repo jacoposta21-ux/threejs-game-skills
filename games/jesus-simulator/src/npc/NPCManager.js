@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { buildCharacter, CharacterAnimator } from './CharacterKit.js';
 import { NavGraph } from './NavGraph.js';
-import { NAMED, generateVillagers, villagerRoutine, merchantRoutine } from './roster.js';
+import { NAMED, generateVillagers, villagerRoutine, merchantRoutine, postedFolk } from './roster.js';
+import { POSTED_FOLK } from '../missions/missions.js';
 import { BARKS } from './dialogue.js';
 import { Animals } from './Animals.js';
 import { terrainHeight, PLAZA } from '../world/layout.js';
@@ -81,7 +82,7 @@ export class NPCManager {
 
     // people
     const villagers = generateVillagers(this.rng);
-    const defs = [...NAMED, ...villagers];
+    const defs = [...NAMED, ...villagers, ...postedFolk(POSTED_FOLK)];
     const doors = this.anchors.doors.filter((d) => d.kind === 'house');
     const usedDoors = new Set();
     const nearestDoor = (x, z) => {
@@ -100,6 +101,7 @@ export class NPCManager {
     let shared = null;
     for (const def of defs) {
       let home;
+      if (def.post) { this.spawn(def, null); continue; }
       if (def.home === 'workshop' && shared) home = shared;
       else if (def.home && homeHints[def.home]) home = nearestDoor(...homeHints[def.home]);
       else if (def.stall !== undefined) { const s = this.anchors.stalls[def.stall]; home = nearestDoor(s.front.x, s.front.z + (s.front.z < -27 ? -14 : 14)); }
@@ -162,6 +164,7 @@ export class NPCManager {
     const start = home ? { x: home.x, z: home.z } : { x: 0, z: 8 };
     if (def.stall !== undefined) Object.assign(start, this.anchors.stalls[def.stall].stand);
     if (def.kid) Object.assign(start, { x: this.rng.range(-8, 8), z: this.rng.range(5, 10) });
+    if (def.post) Object.assign(start, { x: def.post.x, z: def.post.z, yaw: def.post.yaw });
     // never spawn inside another villager (shared homes)
     if (def.stall === undefined) {
       for (let k = 0; k < 8 && this.npcs.some((o) => Math.hypot(o.pos.x - start.x, o.pos.z - start.z) < 0.9); k += 1) {
@@ -172,7 +175,7 @@ export class NPCManager {
     const y = terrainHeight(start.x, start.z);
     const body = this.physics.world.createRigidBody(this.physics.RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(start.x, y + half + radius, start.z));
     const collider = this.physics.world.createCollider(this.physics.RAPIER.ColliderDesc.capsule(half, radius).setFriction(0), body);
-    const routine = def.routine || (def.stall !== undefined ? merchantRoutine(def.stall) : def.kid ? { day: [], evening: [{ go: 'door', act: 'idle', dur: [20, 30] }] } : villagerRoutine(this.rng));
+    const routine = def.post ? { day: [], evening: [] } : def.routine || (def.stall !== undefined ? merchantRoutine(def.stall) : def.kid ? { day: [], evening: [{ go: 'door', act: 'idle', dur: [20, 30] }] } : villagerRoutine(this.rng));
     const npc = {
       id: def.id, def, name: def.name, role: def.role, rig, anim: new CharacterAnimator(rig, this.npcs.length),
       body, collider, radius, half, home, routine,
@@ -185,7 +188,8 @@ export class NPCManager {
       lookYaw: 0, progressT: 0, progressPos: new THREE.Vector3(start.x, y, start.z), stuck: 0, sidestep: null,
       distP: 999, distC: 999, lod: 'near', animAcc: 0, frameSkip: this.npcs.length % 3, expr: 'neutral', mouthT: 0,
       tag: def.kid ? { it: def.id === 'npc.sami', target: null, pause: 0 } : null,
-      injured: def.injured ? { kind: def.injured, label: 'injured' } : (def.id === 'npc.villager.3' ? { kind: 'chronic', label: 'sprained ankle' } : null),
+      injured: def.injured ? { kind: def.injured, label: def.injured === 'fever' ? 'fever' : 'injured' } : (def.id === 'npc.villager.3' ? { kind: 'chronic', label: 'sprained ankle' } : null),
+      follower: null, fed: false,
     };
     rig.group.position.copy(npc.pos);
     rig.group.rotation.y = npc.yaw;
@@ -431,8 +435,8 @@ export class NPCManager {
       if (npc.bubble) { npc.bubble.t -= dt; if (npc.bubble.t <= 0) npc.bubble = null; }
       if (npc.exprHold) { npc.exprHold.t -= dt; if (npc.exprHold.t <= 0) npc.exprHold = null; }
 
-      // routine block switching (day / evening / night)
-      const block = this.blockFor(npc);
+      // routine block switching (day / evening / night); posted people and followers keep going
+      const block = npc.def.post || npc.follower ? npc.block : this.blockFor(npc);
       if (block !== npc.block) {
         npc.block = block;
         npc.stepIndex = -1;
@@ -474,7 +478,9 @@ export class NPCManager {
             vx = (dx / dd) * sp; vz = (dz / dd) * sp; speed = sp;
           } else {
             if (o.type === 'fetch' && o.copy) {
-              this.bus.emit('npc:fetched', { entityId: npc.id, copy: o.copy });
+              const firstMeal = npc.def.hungry && !npc.fed;
+              npc.fed = true;
+              this.bus.emit('npc:fetched', { entityId: npc.id, copy: o.copy, hungry: firstMeal });
               this.say(npc, this.pickLine(['Free bread!', 'Dinner!', 'Is this… for me?', 'Bless you!']), 2, 'smile');
             } else if (o.onArrive) this.say(npc, this.pickLine(o.onArrive), 2.2, 'surprised');
             npc.override = { type: 'look', t: 2.5, age: 0, lookAt: { x: tp.x, z: tp.z } };
@@ -503,6 +509,21 @@ export class NPCManager {
         if (o.t <= 0 && o.type !== 'talk-player') {
           npc.override = null;
           if (npc.phase === 'travel' && npc.path) this.travelTo(npc, npc.step); // re-path after interruption
+        }
+      } else if (npc.follower) {
+        ({ vx, vz, speed, action } = this.followPlayer(npc, dt, ctx));
+      } else if (npc.def.post) {
+        // posted: walk back if pushed away, otherwise face the post and do the job
+        const p = npc.def.post;
+        const d = Math.hypot(p.x - npc.pos.x, p.z - npc.pos.z);
+        if (d > 0.6) {
+          const sp = Math.min(npc.walkSpeed, d * 2);
+          vx = ((p.x - npc.pos.x) / d) * sp; vz = ((p.z - npc.pos.z) / d) * sp; speed = sp;
+          npc.directMove = true;
+        } else {
+          npc.directMove = false;
+          npc.faceYaw = p.yaw;
+          action = npc.def.act && npc.def.act !== 'idle' ? npc.def.act : 'none';
         }
       } else if (npc.tag && npc.block !== 'night' && npc.block !== 'evening') {
         ({ vx, vz, speed } = this.updateKid(npc, dt, player));
@@ -583,7 +604,16 @@ export class NPCManager {
       const toP = Math.atan2(player.x - npc.pos.x, player.z - npc.pos.z);
       if (Math.abs(wrapAngle(toP - npc.yaw)) < 1.9) {
         npc.greetCd = 40 + this.rng() * 30;
-        const chaosy = ctx.chaos >= 8 && this.rng() < 0.5;
+        if (npc.follower) return;
+        // Chaos tiers (Phase 6): restless 12+ = wary, notorious 30+ = people back away
+        if (ctx.chaos >= 30 && !npc.anchored && !npc.def.post && this.rng() < 0.6) {
+          npc.pushV = { x: (npc.pos.x - player.x) / npc.distP * 2.2, z: (npc.pos.z - player.z) / npc.distP * 2.2 };
+          this.setOverride(npc, 'startle', 1.4, { lookAt: { x: player.x, z: player.z } });
+          this.say(npc, this.pickLine(['Stay back!', 'It\'s HIM. The pot-breaker.', 'Hide the jars!', 'Not today, Yeshua!']), 2, 'surprised');
+          this.bus.emit('npc:avoid', { entityId: npc.id });
+          return;
+        }
+        const chaosy = ctx.chaos >= 12 ? this.rng() < 0.7 : ctx.chaos >= 8 && this.rng() < 0.4;
         if (!npc.anchored) this.setOverride(npc, chaosy ? 'look' : 'greet', 1.6, { lookAt: { x: player.x, z: player.z } });
         this.say(npc, chaosy ? this.pickLine(['Oh no, it\'s him.', 'Mind the pots!', 'Here comes trouble.']) : this.pickLine(BARKS.greet), 2, chaosy ? 'surprised' : 'smile');
       }
@@ -856,6 +886,77 @@ export class NPCManager {
     this.bus.emit('npc:getup', { entityId: npc.id });
   }
 
+  // ---------------------------------------------------------------- followers
+  /** Make someone a follower (formation slot behind Yeshua). */
+  recruit(npc) {
+    if (npc.follower) return false;
+    this.leaveAnchor(npc, true);
+    if (npc.seat) npc.seat = null;
+    npc.override = null;
+    npc.path = null;
+    npc.phase = 'none';
+    npc.step = null;
+    npc.injured = null;
+    const slots = this.npcs.filter((n) => n.follower).map((n) => n.follower.slot);
+    let slot = 0;
+    while (slots.includes(slot)) slot += 1;
+    npc.follower = { slot, waiting: false, wait: null };
+    if (npc.hidden) this.hide(npc, false);
+    this.bus.emit('follower:joined', { entityId: npc.id, name: npc.name });
+    return true;
+  }
+
+  followers() {
+    return this.npcs.filter((n) => n.follower);
+  }
+
+  setFollowersWaiting(waiting) {
+    for (const n of this.followers()) {
+      n.follower.waiting = waiting;
+      n.follower.wait = waiting ? { x: n.pos.x, z: n.pos.z } : null;
+    }
+  }
+
+  /** Walk / jog / run to a slot behind Yeshua; catch up out of sight when far behind. */
+  followPlayer(npc, dt, ctx) {
+    const f = npc.follower;
+    const p = ctx.playerPos;
+    if (f.waiting) {
+      npc.faceYaw = Math.atan2(p.x - npc.pos.x, p.z - npc.pos.z);
+      return { vx: 0, vz: 0, speed: 0, action: npc.distP < 6 ? 'none' : 'look' };
+    }
+    // a slowly turning frame so the formation doesn't whip around
+    const want = ctx.playerYaw ?? 0;
+    this.formationYaw = this.formationYaw ?? want;
+    if (this.formationClock !== this.time) {
+      this.formationClock = this.time;
+      if ((ctx.playerSpeed || 0) > 0.6) this.formationYaw += wrapAngle(want - this.formationYaw) * Math.min(1, dt * 2.5);
+    }
+    const yaw = this.formationYaw;
+    const row = Math.floor(f.slot / 3) + 1;
+    const col = (f.slot % 3) - 1;
+    const back = 1.3 + row * 1.5;
+    const side = col * 1.3 + (row % 2 ? 0 : 0.6);
+    const tx = p.x - Math.sin(yaw) * back + Math.cos(yaw) * side;
+    const tz = p.z - Math.cos(yaw) * back - Math.sin(yaw) * side;
+    const dx = tx - npc.pos.x;
+    const dz = tz - npc.pos.z;
+    const d = Math.hypot(dx, dz);
+    // far behind (riding, lake crossing): rejoin out of view
+    if (npc.distP > 40 && npc.distC > 30) {
+      this.place(npc, tx, terrainHeight(tx, tz), tz);
+      return { vx: 0, vz: 0, speed: 0, action: 'none' };
+    }
+    if (d < 0.5) {
+      npc.directMove = false;
+      if ((ctx.playerSpeed || 0) < 0.3) npc.faceYaw = Math.atan2(p.x - npc.pos.x, p.z - npc.pos.z);
+      return { vx: 0, vz: 0, speed: 0, action: 'none' };
+    }
+    const sp = d > 8 ? 6.6 : d > 3 ? 4.4 : Math.max(1.2, d * 1.4);
+    npc.directMove = npc.distP > 26; // cheap movement when far, real collisions when near
+    return { vx: (dx / d) * sp, vz: (dz / d) * sp, speed: sp, action: 'none' };
+  }
+
   heal(npc) {
     const was = npc.injured;
     npc.injured = null;
@@ -903,8 +1004,13 @@ export class NPCManager {
         else if (roll < 0.75 && !npc.anchored && !npc.tag) { npc.override = { type: 'approach', t: 14, age: 0, target: { x, z }, stopAt: 2.4, speed: 2.4, onArrive: ['Smell that!', 'Real wine!', 'From WATER?'] }; this.say(npc, this.pickLine(['What\'s that?', 'Is that…?']), 1.6, 'surprised'); }
         else { this.setOverride(npc, 'wave', 2.5, { lookAt: look }); this.say(npc, this.pickLine(['Everyone, come see!', 'Come quick! The well!', 'Hannah! HANNAH!']), 2.4, 'surprised'); this.callFriends(npc, x, z); }
       } else if (kind === 'bread') {
-        if (roll < 0.45) { this.setOverride(npc, 'cheer', 2.2, { lookAt: look }); this.say(npc, this.pickLine(['Bread!', 'More bread!', 'It keeps coming!']), 1.8, 'smile'); }
-        else if (roll < 0.75 && !npc.anchored && !npc.tag && extra.copy) { npc.override = { type: 'fetch', t: 12, age: 0, copy: extra.copy, stopAt: 0.9, speed: 2.6 }; }
+        if (roll < 0.45 && !(npc.def.hungry && !npc.fed && extra.copy)) { this.setOverride(npc, 'cheer', 2.2, { lookAt: look }); this.say(npc, this.pickLine(['Bread!', 'More bread!', 'It keeps coming!']), 1.8, 'smile'); }
+        else if ((roll < 0.75 || (npc.def.hungry && !npc.fed)) && !npc.anchored && !npc.tag && extra.copy) {
+          // spread the hungry over the fresh loaves (one each)
+          const pool = extra.copies || [extra.copy];
+          const copy = pool[(extra.served = (extra.served ?? -1) + 1) % pool.length];
+          npc.override = { type: 'fetch', t: 12, age: 0, copy, stopAt: 0.9, speed: 2.6 };
+        }
         else { this.setOverride(npc, 'startle', 1.1, { lookAt: look }); npc.exprHold = { expr: 'surprised', t: 1.2 }; }
       } else if (kind === 'push') {
         if (roll < 0.5) { this.setOverride(npc, 'startle', 1.2, { lookAt: look }); this.say(npc, this.pickLine(BARKS.startle), 1.6, 'surprised'); }
@@ -984,7 +1090,7 @@ export class NPCManager {
   }
 
   minimapDots() {
-    return this.npcs.filter((n) => !n.hidden).map((n) => ({ x: n.render.x || n.pos.x, z: n.render.z || n.pos.z, named: !n.def.generic }));
+    return this.npcs.filter((n) => !n.hidden).map((n) => ({ x: n.render.x || n.pos.x, z: n.render.z || n.pos.z, named: !n.def.generic, follower: !!n.follower }));
   }
 
   reset(flags) {
@@ -1004,6 +1110,9 @@ export class NPCManager {
     }
     for (const s of this.seats) s.taken = null;
     for (const npc of this.npcs) {
+      npc.follower = null;
+      npc.fed = false;
+      if (npc.def.post) this.place(npc, npc.def.post.x, terrainHeight(npc.def.post.x, npc.def.post.z), npc.def.post.z);
       npc.override = null;
       npc.anchored = null;
       npc.block = null;

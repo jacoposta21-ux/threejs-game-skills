@@ -83,7 +83,7 @@ export class SaveManager {
   }
 
   saveGame(snapshot) {
-    return this.writeJson(SAVE_KEY, { version: 1, savedAt: Date.now(), ...snapshot });
+    return this.writeJson(SAVE_KEY, { version: 2, savedAt: Date.now(), ...snapshot });
   }
 
   deleteGame() {
@@ -123,7 +123,8 @@ export class SaveManager {
 const LANDMARK_IDS = new Set(LANDMARKS.map((l) => l.id));
 
 export function validateSave(raw) {
-  if (!raw || typeof raw !== 'object' || raw.version !== 1) return null;
+  // version 1 (Phases 1-5) loads fine: the Phase 6 fields simply start empty
+  if (!raw || typeof raw !== 'object' || (raw.version !== 1 && raw.version !== 2)) return null;
   const p = raw.player;
   if (!p || typeof p !== 'object') return null;
   const x = num(p.x, -SAVE_EXTENT, SAVE_EXTENT, NaN);
@@ -132,7 +133,7 @@ export function validateSave(raw) {
   if (![x, y, z].every(Number.isFinite)) return null;
   const stats = raw.stats && typeof raw.stats === 'object' ? raw.stats : {};
   return {
-    version: 1,
+    version: 2,
     player: { x, y, z, yaw: num(p.yaw, -10, 10, 0) },
     discovered: Array.isArray(raw.discovered) ? raw.discovered.filter((id) => LANDMARK_IDS.has(id)) : [],
     unlockedMiracles: Array.isArray(raw.unlockedMiracles) ? raw.unlockedMiracles.filter((id) => typeof id === 'string') : [],
@@ -158,12 +159,27 @@ export function validateSave(raw) {
       chariotsStolen: num(stats.chariotsStolen, 0, 1e9, 0),
       laps: num(stats.laps, 0, 1e9, 0),
       bestLap: num(stats.bestLap, 0, 1e5, 0),
+      missions: num(stats.missions, 0, 1e4, 0),
+      followersEver: num(stats.followersEver, 0, 1e4, 0),
+      blessings: num(stats.blessings, 0, 100, 0),
+      faithEarned: num(stats.faithEarned, 0, 1e7, 0),
     },
     flags: validFlags(raw.flags),
     met: Array.isArray(raw.met) ? raw.met.filter((id) => typeof id === 'string' && (id.startsWith('npc.') || id.startsWith('roman.'))).slice(0, 200) : [],
     clock: num(raw.clock, 0, 0.9999, 0.1),
+    ministry: raw.ministry && typeof raw.ministry === 'object' && !Array.isArray(raw.ministry) ? raw.ministry : null,
+    followers: Array.isArray(raw.followers) ? raw.followers.filter((f) => f && typeof f.id === 'string' && f.id.startsWith('npc.')).slice(0, 12).map((f) => ({ id: f.id, waiting: !!f.waiting })) : [],
+    miracleLevels: validLevels(raw.miracleLevels),
+    vehicles: Array.isArray(raw.vehicles) ? raw.vehicles.filter((v) => v && typeof v.id === 'string' && v.id.startsWith('vehicle.')).slice(0, 20).map((v) => ({ id: v.id, x: num(v.x, -SAVE_EXTENT, SAVE_EXTENT, 0), z: num(v.z, -SAVE_EXTENT, SAVE_EXTENT, 0), yaw: num(v.yaw, -10, 10, 0) })) : [],
     savedAt: num(raw.savedAt, 0, 1e15, 0),
   };
+}
+
+function validLevels(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [k, v] of Object.entries(raw)) if (/^miracle\.[a-z-]+$/.test(k)) out[k] = num(v, 0, 2, 0);
+  return out;
 }
 
 function validFlags(raw) {

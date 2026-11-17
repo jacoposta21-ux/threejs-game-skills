@@ -4,8 +4,9 @@ import { PropSystem } from './PropSystem.js';
 import { buildShore } from './Shore.js';
 import { buildCheckpoint } from './RomanCheckpoint.js';
 import {
-  buildFarm, wheatFields, buildGoatHill, buildHamlet, buildIsle, buildOutpost, buildCircuit, buildOasis, buildCamp, buildDesertRocks,
+  buildFarm, wheatFields, buildGoatHill, buildHamlet, buildIsle, buildOutpost, buildCircuit, buildOasis, buildCamp, buildDesertRocks, buildWedding,
 } from './Regions.js';
+import { WEDDING } from '../missions/missions.js';
 
 const WATER_COLOR = new THREE.Color('#3f8fa6');
 const WINE_COLOR = new THREE.Color('#6b0f2e');
@@ -147,7 +148,8 @@ export class World {
     const oasis = site('south', (b) => buildOasis(b, rng));
     const camp = site('south', (b) => buildCamp(b, rng, extras));
     site('south', (b) => buildDesertRocks(b, rng));
-    const centres = { west: [FARM.x - 6, FARM.z - 50], lake: [HAMLET.x + 10, (HAMLET.z + ISLE.z) / 2], north: [(OUTPOST.x + CIRCUIT.x) / 2, OUTPOST.z], south: [10, 165] };
+    const wedding = site('wedding', (b) => buildWedding(b, rng, extras, WEDDING));
+    const centres = { west: [FARM.x - 6, FARM.z - 50], lake: [HAMLET.x + 10, (HAMLET.z + ISLE.z) / 2], wedding: [WEDDING.x, WEDDING.z], north: [(OUTPOST.x + CIRCUIT.x) / 2, OUTPOST.z], south: [10, 165] };
     for (const [name, g] of groups) {
       const mesh = g.batch.build(materials, { name: `region-${name}` });
       mesh.userData.site = { x: centres[name][0], z: centres[name][1] };
@@ -173,6 +175,21 @@ export class World {
     this.root.add(pondMesh);
     this.pondTarget = { id: 'water.oasis', name: 'Palm Oasis pond', mesh: pondMesh, x: w.x, y: w.y, z: w.z, radius: w.r - 1, wine: 0, target: 0, wineUntil: 0 };
     this.waterTargets.push(this.pondTarget);
+
+    // the wedding's six stone jars (one water surface per jar, one shared target)
+    const wj = wedding.water;
+    const jarMat = new THREE.MeshStandardMaterial({ color: '#3f8fa6', roughness: 0.12, metalness: 0.05, emissive: '#000000' });
+    const jars = new THREE.InstancedMesh(new THREE.CircleGeometry(0.27, 14).rotateX(-Math.PI / 2), jarMat, 6);
+    const o = new THREE.Object3D();
+    for (let i = 0; i < 6; i += 1) {
+      const lx = -2.75 + i * 1.1;
+      o.position.set(wj.x + Math.cos(wj.yaw) * lx, wj.y, wj.z - Math.sin(wj.yaw) * lx);
+      o.updateMatrix();
+      jars.setMatrixAt(i, o.matrix);
+    }
+    jars.name = 'wedding-jars';
+    this.root.add(jars);
+    this.waterTargets.push({ id: 'water.wedding', name: 'The six stone jars', mesh: jars, x: wj.x, y: wj.y, z: wj.z, radius: 2.4, wine: 0, target: 0, wineUntil: 0 });
   }
 
   /** Split placements into grid cells, one InstancedMesh per cell (frustum culling per cell). */

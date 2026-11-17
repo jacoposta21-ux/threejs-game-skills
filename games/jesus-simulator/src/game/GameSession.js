@@ -29,6 +29,11 @@ import { MIRACLE_REVEALS } from './miracles.js';
 import { RagdollSystem } from '../physics/Ragdoll.js';
 import { RomanManager } from '../roman/RomanManager.js';
 import { VehicleManager } from '../vehicles/VehicleManager.js';
+import { MissionManager } from '../missions/MissionManager.js';
+import { MISSIONS, LOST_DONKEY } from '../missions/missions.js';
+import { FOLLOW_INVITE } from '../npc/dialogue.js';
+import { faithTitle, chaosTier, BLESSING_COSTS, MAX_FOLLOWERS } from './reputation.js';
+import { zoneAccess } from '../world/layout.js';
 
 const AUTOSAVE_SECONDS = 30;
 
@@ -94,11 +99,18 @@ export class GameSession {
     this.vehicles = new VehicleManager({ scene: this.scene, physics: this.physics, bus: this.bus, rng: this.rng, sites: this.world.sites });
     this.vehicles.build();
     this.npcs.animals.buildWild(this.world.sites);
+    this.missions = new MissionManager(this.bus, {
+      matches: (filter, e) => (filter === 'hungry' ? !!e.hungry : true),
+      vehiclePos: (id) => { const v = this.vehicles.byId.get(id); return v ? { x: v.pos.x, z: v.pos.z } : null; },
+      npcPos: (id) => { const n = this.npcs.byId.get(id) || this.romans.byId.get(id); return n ? { x: n.pos.x, z: n.pos.z } : null; },
+      targetPos: (id) => { const w = this.world.waterTargets.find((t) => t.id === id); return w ? { x: w.x, z: w.z } : null; },
+    });
     ui.setLoading(0.94, 'Dressing Jesus in his finest tunic…');
 
     this.createLights();
     this.dayCycle = new DayCycle({ sun: this.sunLight, hemi: this.hemi, sky: this.world.sky, fog: this.scene.fog, clouds: this.world.clouds, scene: this.scene });
     this.dialogue = new DialogueController({ bus: this.bus, ui: this.ui, rng: this.rng, getContext: () => this.dialogueContext() });
+    this.dialogue.getExtras = (npc) => this.dialogueExtras(npc);
     this.playerState = new PlayerState();
     this.romans.state = this.playerState;
     this.worldState = new WorldState(this.bus);
@@ -191,6 +203,7 @@ export class GameSession {
     const bus = this.bus;
     bus.on('ui:play', ({ newGame }) => this.startPlay(newGame));
     bus.on('ui:resume', () => this.resume());
+    bus.on('ui:bless', ({ miracleId }) => this.buyBlessing(miracleId));
     bus.on('ui:save-quit', () => {
       this.saveGame();
       this.ui.closePause();
@@ -236,6 +249,61 @@ export class GameSession {
         this.ui.banner('CHAPTER I COMPLETE', 'Nazareth Explored', 'You know every corner of home. Now the roads of Galilee are yours — borrow a donkey and go.');
       }
       this.saveGame();
+    });
+
+    // ---- missions (Chapter III — The Ministry)
+    bus.on('mission:accepted', ({ missionId, title, onAccept, step }) => {
+      this.audio.chime();
+      this.ui.banner('NEW MISSION', title, step.text);
+      if (onAccept === 'hide-donkey') {
+        const v = this.vehicles.byId.get('vehicle.donkey.farm');
+        if (v && this.vehicles.ridden !== v) this.vehicles.place(v, LOST_DONKEY.x, LOST_DONKEY.z, LOST_DONKEY.yaw);
+        if (v) v.home = { ...LOST_DONKEY };
+      } else if (onAccept === 'give-bread') this.giveBread();
+      else if (onAccept === 'fort-pass') this.flags['pass.outpost'] = true;
+      this.applyPerks();
+      this.saveGame();
+      this.bus.emit('session:mission', { missionId });
+    });
+    bus.on('mission:step', ({ missionId, step, finished }) => {
+      this.audio.chime();
+      if (finished?.done === 'fish') this.fishMiracle();
+      this.ui.toast(`${MISSIONS.find((m) => m.id === missionId).title}: ${step.text}`, `mstep-${missionId}`, 1);
+      if (missionId === 'mission.caravan' && step.kind === 'event') this.giveBread();
+    });
+    bus.on('mission:progress', ({ missionId, progress, count }) => this.ui.toast(`Fed ${progress}/${count}`, `mprog-${missionId}`, 0.5));
+    bus.on('mission:done', ({ missionId, title, reward }) => {
+      this.audio.discovery();
+      this.ui.banner('MISSION COMPLETE', title, reward?.text || '');
+      if (reward?.faith) this.addFaith(reward.faith);
+      if (reward?.chaos) this.playerState.chaos = Math.max(0, this.playerState.chaos + reward.chaos);
+      if (reward?.perk) this.flags[`perk.${reward.perk}`] = true;
+      if (reward?.follower) this.recruitFollower(this.npcs.byId.get(reward.follower), 'mission');
+      if (missionId === 'mission.wedding') this.flags['wine.wedding'] = true;
+      if (missionId === 'mission.donkey') {
+        const v = this.vehicles.byId.get('vehicle.donkey.farm');
+        if (v) v.home = { ...v.def.spot };
+      }
+      this.playerState.stats.missions = (this.playerState.stats.missions || 0) + 1;
+      this.applyPerks();
+      this.saveGame();
+      if (this.missions.done().length === MISSIONS.length) {
+        this.addFaith(20);
+        this.ui.banner('CHAPTER III COMPLETE', 'The Ministry', 'Every task in Galilee is done. Faith +20');
+      }
+    });
+    bus.on('follower:wait', () => { const n = this.followerCommandTarget; if (n?.follower) { n.follower.waiting = true; n.follower.wait = { x: n.pos.x, z: n.pos.z }; } });
+    bus.on('follower:resume', () => { const n = this.followerCommandTarget; if (n?.follower) { n.follower.waiting = false; n.follower.wait = null; } });
+    bus.on('follower:joined', ({ name }) => {
+      this.audio.discovery();
+      this.ui.toast(`${name} is now following you. (G: wait / follow)`, `follow-${name}`, 2);
+    });
+    bus.on('miracle:cast', ({ miracleId, healed, npc }) => {
+      if (miracleId !== 'miracle.healing-touch' || !healed) return;
+      this.playerState.chaos = Math.max(0, this.playerState.chaos - 1);
+      const n = this.npcs.byId.get(npc);
+      // the long-suffering (bad knees, fevers that aren't the centurion's) follow the one who healed them
+      if (n && n.def.injured === 'chronic' && !n.def.post) this.recruitFollower(n, 'healed');
     });
 
     // ---- riding
@@ -319,7 +387,10 @@ export class GameSession {
       if (amos) this.npcs.say(amos, 'You found her! Bless you, Yeshua!', 3, 'smile');
       this.saveGame();
     });
-    bus.on('dialogue:effect', ({ npcId, faith, chaos, flag, event }) => {
+    bus.on('dialogue:effect', ({ npcId, faith, chaos, flag, event, mission, missionTalk, invite }) => {
+      if (mission) this.missions.accept(mission);
+      if (missionTalk) this.missions.talked(missionTalk);
+      if (invite) this.recruitFollower(this.npcs.byId.get(invite), 'invite');
       const first = !flag || !this.flags[flag];
       if (flag) this.flags[flag] = true;
       if (faith && first) this.addFaith(faith);
@@ -480,6 +551,7 @@ export class GameSession {
     for (const id of this.worldState.discovered) if (MIRACLE_REVEALS[id]) this.miracles.unlock(MIRACLE_REVEALS[id], false);
     this.npcs.reset({ ...this.flags });
     this.romans.reset();
+    this.restoreMinistry(data);
     this.ui.hideArrest();
     this.arrest = null;
     this.player.speedScale = 1;
@@ -548,12 +620,21 @@ export class GameSession {
       faith: this.playerState.faith,
       chaos: this.playerState.chaos,
       followers: this.playerState.followers.length,
+      followerNames: this.npcs.followers().map((n) => n.name),
+      missions: this.missions,
+      missionDefs: MISSIONS,
+      levels: { ...this.miracles.levels },
+      title: faithTitle(this.playerState.stats.faithEarned || this.playerState.faith),
+      tier: chaosTier(this.playerState.chaos),
+      perks: Object.keys(this.flags).filter((k) => k.startsWith('perk.')),
+      markers: this.missionDots(),
       met: this.met.size,
     };
   }
 
   addFaith(n) {
     this.playerState.faith += n;
+    this.playerState.stats.faithEarned = (this.playerState.stats.faithEarned || 0) + n;
     this.ui.toast(`Faith +${n}`, `faith-${this.frame}`, 0.5);
   }
 
@@ -573,7 +654,7 @@ export class GameSession {
     return {
       flags: { ...this.flags, ...this.npcs.flags }, chaos: this.playerState.chaos, faith: this.playerState.faith,
       hour: clockLabel(this.clock), night: this.dayCycle.nightWeight(this.clock) > 0.5,
-      next, discovered: this.worldState.discovered.size, total: LANDMARKS.length,
+      next, discovered: this.worldState.discovered.size, total: LANDMARKS.length, followers: this.npcs.followers().length,
     };
   }
 
@@ -584,6 +665,10 @@ export class GameSession {
       discovered: [...this.worldState.discovered],
       unlockedMiracles: p.unlockedMiracles,
       missions: { 'mission.discover-nazareth': { complete: this.worldState.explorationComplete }, 'mission.explore-galilee': { complete: !!this.worldState.galileeComplete } },
+      ministry: this.missions.serialize(),
+      followers: this.npcs.followers().map((n) => ({ id: n.id, waiting: !!n.follower.waiting })),
+      miracleLevels: { ...this.miracles.levels },
+      vehicles: this.vehicles.list.filter((v) => v !== this.vehicles.ridden && Math.hypot(v.pos.x - v.def.spot.x, v.pos.z - v.def.spot.z) > 3).map((v) => ({ id: v.id, x: +v.pos.x.toFixed(2), z: +v.pos.z.toFixed(2), yaw: +v.yaw.toFixed(3) })),
       faith: p.faith,
       chaos: p.chaos,
       stats: p.stats,
@@ -608,7 +693,7 @@ export class GameSession {
     this.vehicles.fixedUpdate(dt, this.screen === 'playing' && this.vehicles.ridden ? this.intent : null, this.player, this.playerState);
     if (this.screen !== 'menu' || this.npcsInMenu) {
       this.npcs.fixedUpdate(dt, {
-        playerPos: this.playerState.position, playerSpeed: this.playerState.speed, clock: this.clock,
+        playerPos: this.playerState.position, playerSpeed: this.playerState.speed, playerYaw: this.playerState.yaw, clock: this.clock,
         chaos: this.playerState.chaos, flags: { ...this.flags, ...this.npcs.flags },
       });
     }
@@ -620,6 +705,7 @@ export class GameSession {
         playerPos: st.position, playerVel: st.velocity, playerOnWater: !!st.onWater || st.waterDepth > 0.6,
         night: (this.night || 0) > 0.5, cameraDir: this.camDir, cameraPos: this.camera.position,
         playing: this.screen === 'playing', chaos: st.chaos, mount: st.mount || null,
+        sightScale: (chaosTier(st.chaos).id === 'notorious' ? 1.2 : 1) * (this.flags['perk.favour'] ? 0.85 : 1),
       });
       this.player.speedScale = this.screen === 'playing' ? 1 - 0.45 * Math.min(1, this.romans.grab * 2) : 1;
       // a legionary with a grip on you pulls you off your ride
@@ -753,6 +839,10 @@ export class GameSession {
       } else this.ui.toast('Nothing to ride here. Donkeys wait by the workshop, the farm and the camp.', 'no-vehicle', 4);
     }
     this.updateRideHud();
+    if (intent.command && !this.dialogue.active) this.toggleFollowers();
+    this.missions.update({ x: st.position.x, z: st.position.z, onWater: !!st.onWater, vehicle: st.mount?.id || null });
+    this.updateReputation(dt);
+    this.updateCenturion();
     this.ui.setPrompt(this.dialogue.active ? null : talk ? `Talk to ${talk.name}` : it ? it.label : null);
     if (intent.interact && !this.dialogue.active && talk) {
       this.ui.hideDialog();
@@ -821,7 +911,7 @@ export class GameSession {
     this.minimapTimer -= dt;
     if (this.minimapTimer <= 0) {
       const next = this.worldState.nextLandmark(st.position, this.worldState.explorationComplete ? 2 : 1) || this.worldState.nextLandmark(st.position);
-      this.minimap.draw(renderPos, st.yaw, this.cam.yaw, this.worldState.discovered, next?.landmark.id, this.time, [...this.npcs.minimapDots(), ...this.romans.minimapDots((this.night || 0) > 0.5), ...this.vehicles.minimapDots()]);
+      this.minimap.draw(renderPos, st.yaw, this.cam.yaw, this.worldState.discovered, next?.landmark.id, this.time, [...this.npcs.minimapDots(), ...this.romans.minimapDots((this.night || 0) > 0.5), ...this.vehicles.minimapDots(), ...this.missionDots()]);
       this.minimapTimer = 1 / 30;
     }
 
@@ -830,6 +920,209 @@ export class GameSession {
       this.saveGame();
       this.autosaveTimer = AUTOSAVE_SECONDS;
     }
+  }
+
+  // ---------------------------------------------------------------- Phase 6
+  /** Missions, followers, Blessings and parked rides from a save (or a clean slate). */
+  restoreMinistry(data) {
+    this.missions.reset(data?.ministry || null);
+    // the Lost Sheep errand predates the mission system: rebuild it from its flags
+    const sh = this.missions.state['mission.sheep'];
+    if (this.flags['sheep.returned']) Object.assign(sh, { status: 'done', step: 1 });
+    else if (this.flags['sheep.asked'] && sh.status === 'available') Object.assign(sh, { status: 'active', step: 0 });
+    this.miracles.levels = { ...(data?.miracleLevels || {}) };
+    for (const v of data?.vehicles || []) {
+      const ride = this.vehicles.byId.get(v.id);
+      if (ride) this.vehicles.place(ride, v.x, v.z, v.yaw);
+    }
+    const donkey = this.vehicles.byId.get('vehicle.donkey.farm');
+    if (donkey) donkey.home = { ...donkey.def.spot };
+    const dm = this.missions.state['mission.donkey'];
+    if (dm.status === 'active' && donkey) {
+      donkey.home = { ...LOST_DONKEY };
+      if (dm.step === 0) this.vehicles.place(donkey, LOST_DONKEY.x, LOST_DONKEY.z, LOST_DONKEY.yaw);
+    }
+    if (this.missions.step('mission.caravan')?.kind === 'event') this.giveBread();
+    const p = this.playerState.position;
+    for (const f of data?.followers || []) {
+      const n = this.npcs.byId.get(f.id);
+      if (!n || !this.npcs.recruit(n)) continue;
+      this.npcs.place(n, p.x - 1.5 - n.follower.slot * 0.4, terrainHeight(p.x, p.z + 2), p.z + 2 + n.follower.slot * 0.6);
+      if (f.waiting) { n.follower.waiting = true; n.follower.wait = { x: n.pos.x, z: n.pos.z }; }
+    }
+    this.playerState.followers = this.npcs.followers().map((n) => n.id);
+    this.applyPerks();
+    this.lastTier = null;
+  }
+
+  /** Mission offers / talk steps added to a conversation, plus the follow invite. */
+  dialogueExtras(npc) {
+    const options = [];
+    const nodes = {};
+    for (const e of this.missions.dialogueFor(npc.id, { wanted: this.romans.attention.wanted })) {
+      const m = e.mission;
+      if (e.type === 'offer') {
+        options.push({ label: `★ ${m.title}`, next: `m:${m.id}` });
+        nodes[`m:${m.id}`] = {
+          text: m.dialog.offer,
+          options: [{ label: m.dialog.accept, next: `m:${m.id}:yes`, effect: { mission: m.id } }, { label: m.dialog.decline, end: true }],
+        };
+        nodes[`m:${m.id}:yes`] = { text: m.dialog.accepted, options: [{ label: 'On my way.', end: true }] };
+      } else {
+        options.push({ label: `★ ${e.step.option}`, next: `t:${m.id}`, effect: { missionTalk: npc.id } });
+        nodes[`t:${m.id}`] = { text: e.step.line, options: [{ label: '(continue)', end: true }] };
+      }
+    }
+    const canInvite = !npc.soldier && !npc.follower && !npc.def.kid && !npc.def.post && this.playerState.faith >= 25 && !npc.def.stall && !['npc.mary', 'npc.joseph'].includes(npc.id);
+    if (canInvite) {
+      const full = this.npcs.followers().length >= MAX_FOLLOWERS;
+      options.push({ label: FOLLOW_INVITE.option, next: full ? 'inv:full' : 'inv:yes', effect: full ? undefined : { invite: npc.id } });
+      nodes['inv:yes'] = FOLLOW_INVITE.node;
+      nodes['inv:full'] = FOLLOW_INVITE.full;
+    }
+    if (npc.follower) {
+      options.push({ label: npc.follower.waiting ? 'Come with me again.' : 'Wait here for me.', next: 'f:ok', effect: { event: npc.follower.waiting ? 'follower:resume' : 'follower:wait', flag: undefined } });
+      nodes['f:ok'] = { text: npc.follower.waiting ? 'Right behind you, Rabbi.' : 'I\'ll be right here.', options: [{ label: 'Good.', end: true }] };
+      this.followerCommandTarget = npc;
+    }
+    return options.length ? { options, nodes } : null;
+  }
+
+  recruitFollower(npc, why) {
+    if (!npc || npc.follower || npc.soldier) return false;
+    if (this.npcs.followers().length >= MAX_FOLLOWERS) {
+      this.ui.toast('You already have twelve followers. That seems like plenty.', 'max-followers', 10);
+      return false;
+    }
+    const ok = this.npcs.recruit(npc);
+    if (ok) {
+      this.playerState.followers = this.npcs.followers().map((n) => n.id);
+      this.playerState.stats.followersEver = (this.playerState.stats.followersEver || 0) + 1;
+      this.bus.emit('player:follower', { entityId: npc.id, why });
+      this.saveGame();
+    }
+    return ok;
+  }
+
+  toggleFollowers() {
+    const list = this.npcs.followers();
+    if (!list.length) { this.ui.toast('No followers yet. Heal the long-suffering, finish missions, or ask (Faith 25+).', 'no-followers', 6); return; }
+    const waiting = !list.some((n) => n.follower.waiting);
+    this.npcs.setFollowersWaiting(waiting);
+    this.ui.toast(waiting ? 'Your followers wait here. (G to call them)' : 'Your followers come with you.', 'follow-cmd', 0.5);
+    this.audio.uiClick();
+  }
+
+  /** Bread for the hungry caravan: one loaf next to Hiram (again if it's all gone). */
+  giveBread() {
+    const h = this.npcs.byId.get('npc.hiram');
+    if (!h) return;
+    const near = this.world.propSystem.copies.some((c) => { const t = c.body.translation(); return Math.hypot(t.x - h.pos.x, t.z - h.pos.z) < 12; });
+    if (near) return;
+    const x = h.pos.x - 1.6;
+    const z = h.pos.z - 2.2;
+    this.world.propSystem.spawnCopy('bread', x, terrainHeight(x, z) + 0.6, z, this.simTime || 0);
+  }
+
+  /** Reaching the deep water on the fishing mission: the lake boils with fish. */
+  fishMiracle() {
+    const p = this.playerState.position;
+    for (let i = 0; i < 14; i += 1) {
+      const a = (i / 14) * Math.PI * 2;
+      const r = 2 + (i % 3) * 1.6;
+      this.effects.ring({ x: p.x + Math.cos(a) * r, y: 0.05, z: p.z + Math.sin(a) * r, color: '#e6f6ff', from: 0.2, to: 1.8, life: 1 + (i % 4) * 0.25, opacity: 0.7 });
+    }
+    this.effects.burst({ x: p.x, y: 0.2, z: p.z, count: 60, color: '#d4f1ff', color2: '#b8c6cc', speed: 4, up: 2, life: 1.4, gravity: -7, size: 0.3, radius: 3 });
+    const w = this.npcs.animals.wildlife;
+    if (w) for (const f of w.fish) Object.assign(f, { t: 0, x: p.x + (Math.random() - 0.5) * 8, z: p.z + (Math.random() - 0.5) * 8, dx: Math.random() - 0.5, dz: Math.random() - 0.5, dur: 0.9, h: 1.4, len: 2, yaw: Math.random() * 6 });
+    this.audio.splash(0.8);
+    this.ui.toast('The water boils with fish! Simon\'s crew is hauling in nets that won\'t stop filling.', 'fish', 8);
+  }
+
+  /**
+   * The centurion's mission starts at the camp gate: when Yeshua comes close
+   * (and isn't wanted), Gaius walks over so they can talk without trespassing.
+   */
+  updateCenturion() {
+    const g = this.romans.byId.get('roman.gaius');
+    if (!g) return;
+    const gate = this.world.anchors.romanPosts.gateInside;
+    const p = this.playerState.position;
+    const wants = this.missions.isAvailable('mission.centurion') || this.missions.step('mission.centurion')?.kind === 'talk';
+    const near = Math.hypot(p.x - gate.x, p.z - gate.z) < 12 && !this.romans.attention.wanted;
+    const was = !!g.summoned;
+    g.summoned = wants && near ? { x: gate.x - 0.6, y: gate.y, z: gate.z, yaw: -Math.PI / 2 } : null; // just inside the gate
+    if (g.summoned && !was) this.romans.say(g, 'Carpenter! A word — at the gate.', 2.6, 'neutral');
+  }
+
+  /** Perks and zone passes that come from flags (missions). */
+  applyPerks() {
+    zoneAccess.outpost = !!this.flags['pass.outpost'];
+  }
+
+  /** Followers bring Faith; Chaos fades over time; tier changes are announced. */
+  updateReputation(dt) {
+    const st = this.playerState;
+    const n = this.npcs.followers().length;
+    st.followers = this.npcs.followers().map((f) => f.id);
+    this.faithTick = (this.faithTick || 0) + dt * n;
+    if (this.faithTick >= 90) { this.faithTick -= 90; this.addFaith(1); }
+    st.chaos = Math.max(0, st.chaos - dt / 60 * 0.5);
+    const tier = chaosTier(st.chaos);
+    if (this.lastTier && tier.id !== this.lastTier) this.ui.toast(`Reputation: ${tier.label}. ${tier.note}`, `tier-${tier.id}`, 20);
+    this.lastTier = tier.id;
+    this.ui.setReputation({ faith: st.faith, chaos: st.chaos, title: faithTitle(st.stats.faithEarned || st.faith), tier });
+  }
+
+  buyBlessing(id) {
+    const lvl = this.miracles.level(id);
+    const cost = BLESSING_COSTS[lvl];
+    const st = this.playerState;
+    if (cost === undefined || !this.miracles.isUnlocked(id) || st.faith < cost) { this.audio.uiDenied(); return false; }
+    st.faith -= cost;
+    this.miracles.levels[id] = lvl + 1;
+    st.stats.blessings = (st.stats.blessings || 0) + 1;
+    this.audio.discovery();
+    this.bus.emit('miracle:blessed', { miracleId: id, level: lvl + 1, cost });
+    this.saveGame();
+    if (this.screen === 'paused') this.ui.openPause(this.pauseContext(), 'miracles');
+    return true;
+  }
+
+  missionDots() {
+    const out = [];
+    const t = this.missions.tracked;
+    for (const m of this.missions.active()) {
+      const at = this.missions.markerOf(m.id);
+      if (at) out.push({ x: at.x, z: at.z, kind: 'mission', tracked: m.id === t });
+    }
+    for (const m of MISSIONS) {
+      if (!this.missions.isAvailable(m.id) || m.legacy) continue;
+      const at = this.missions.world.npcPos(m.giver);
+      if (at) out.push({ x: at.x, z: at.z, kind: 'giver' });
+    }
+    return out;
+  }
+
+  questBubbles() {
+    const out = [];
+    const cam = this.camera.position;
+    const add = (who, text) => {
+      if (!who || who.hidden || (who.rig && !who.rig.group.visible)) return;
+      const r = who.render || who.pos;
+      const d = Math.hypot(r.x - cam.x, r.z - cam.z);
+      if (d > 40) return;
+      const h = (who.def.look?.scale || 1) * 2.35 + 0.55;
+      out.push({ id: `q-${who.id}`, kind: 'quest', text, x: r.x, y: r.y + h, z: r.z, d });
+    };
+    for (const m of MISSIONS) {
+      if (m.legacy) continue;
+      const giver = this.npcs.byId.get(m.giver) || this.romans.byId.get(m.giver);
+      if (this.missions.isAvailable(m.id) && !(m.requiresCalm && this.romans.attention.wanted)) add(giver, '!');
+      const st = this.missions.step(m.id);
+      if (st?.kind === 'talk') add(this.npcs.byId.get(st.npc) || this.romans.byId.get(st.npc), '★');
+    }
+    return out;
   }
 
   regionName(x, z) {
@@ -859,6 +1152,15 @@ export class GameSession {
   updateObjective() {
     const ws = this.worldState;
     const st = this.playerState;
+    const tracked = this.missions.tracked;
+    if (tracked) {
+      const m = MISSIONS.find((x) => x.id === tracked);
+      const at = this.missions.markerOf(tracked);
+      const dist = at ? ` · <b>${Math.round(Math.hypot(at.x - st.position.x, at.z - st.position.z) / 5) * 5} m</b> ${this.compass(at)}` : '';
+      const more = this.missions.active().length > 1 ? ` · +${this.missions.active().length - 1} more` : '';
+      this.ui.setObjective(`MISSION · ${m.region.toUpperCase()}`, m.title, `${this.missions.stepText(tracked)}${dist}${more}`);
+      return;
+    }
     const pipsFor = (list) => `<div class="obj-pips">${list.map((l) => `<i class="${ws.discovered.has(l.id) ? 'on' : ''}"></i>`).join('')}</div>`;
     const n1 = ws.chapterCount(1);
     const n2 = ws.chapterCount(2);
@@ -897,7 +1199,7 @@ export class GameSession {
   }
 
   allBubbles() {
-    const list = [...this.npcs.bubbles(this.talkTarget), ...this.romans.bubbles()];
+    const list = [...this.npcs.bubbles(this.talkTarget), ...this.romans.bubbles(), ...this.questBubbles()];
     list.sort((a, b) => a.d - b.d);
     return list.slice(0, 6);
   }
@@ -915,7 +1217,7 @@ export class GameSession {
     this.input.releaseAll();
     const st = this.playerState;
     const level = Math.max(stars || 0, peak || 0, 1);
-    const fine = Math.min(Math.floor(st.faith), 2 + level * 2);
+    const fine = Math.min(Math.floor(st.faith), Math.ceil((2 + level * 2) * (this.flags['perk.favour'] ? 0.5 : 1)));
     this.arrest = { t: 0, fine, level };
     const lines = [
       'Jesus spent the night at the Roman checkpoint, explaining very patiently that he is a carpenter.',
@@ -1304,6 +1606,59 @@ export class GameSession {
         this.cam.targetDistance = 8;
         this.cam.currentDistance = 8;
       },
+      // ---- Phase 6: missions, followers, Blessings
+      'mission-wedding': () => {
+        states['active-play']();
+        this.romans.setActive(false);
+        this.unlockAllForTest();
+        this.missions.accept('mission.wedding');
+        this.player.teleport(18.5, 0, 4.2, -0.75);
+        this.simulate(1);
+        this.cam.snap(this.playerState.position, -0.75 + Math.PI + 0.2);
+        this.cam.pitch = 0.22;
+        this.cam.targetDistance = 6;
+        this.cam.currentDistance = 6;
+        this.romans.setActive(true);
+      },
+      followers: () => {
+        states['active-play']();
+        this.romans.setActive(false);
+        this.playerState.faith = 30;
+        for (const id of ['npc.benjamin', 'npc.villager.2', 'npc.villager.5', 'npc.simon', 'npc.villager.8']) this.recruitFollower(this.npcs.byId.get(id), 'test');
+        this.player.teleport(-2, 0, 30, Math.PI * 0.95);
+        this.simulate(1.5);
+        this.intent = { moveX: 0, moveY: 1, sprint: false, jump: false, lookX: 0, lookY: 0, zoom: 0 };
+        this.cam.yaw = this.playerState.yaw + Math.PI;
+        for (let i = 0; i < 150; i += 1) this.fixedUpdate(1 / 60);
+        this.intent = this.input.read();
+        this.simulate(0.6);
+        this.cam.snap(this.playerState.position, this.playerState.yaw + 0.5);
+        this.cam.pitch = 0.3;
+        this.cam.targetDistance = 7.5;
+        this.cam.currentDistance = 7.5;
+        this.romans.setActive(true);
+      },
+      journal: () => {
+        states['active-play']();
+        this.missions.accept('mission.wedding');
+        this.missions.accept('mission.fishers');
+        this.missions.advance('mission.wedding');
+        this.missions.state['mission.caravan'].status = 'done';
+        this.recruitFollower(this.npcs.byId.get('npc.benjamin'), 'test');
+        this.screen = 'playing';
+        this.pause();
+        this.ui.openPause(this.pauseContext(), 'missions');
+        this.ui.$scrollPause?.();
+      },
+      blessings: () => {
+        states['active-play']();
+        this.unlockAllForTest();
+        this.playerState.faith = 52;
+        this.miracles.levels = { 'miracle.divine-push': 2, 'miracle.healing-touch': 1 };
+        this.screen = 'playing';
+        this.pause();
+        this.ui.openPause(this.pauseContext(), 'miracles');
+      },
       night: () => {
         states['active-play']();
         this.clock = 0.885;
@@ -1493,6 +1848,11 @@ export class GameSession {
       } : null,
       mode: this.playerState?.mode,
       region: this.playerState ? this.regionName(this.playerState.position.x, this.playerState.position.z) : null,
+      missions: this.missions?.stats(),
+      followers: this.npcs ? this.npcs.followers().map((n) => ({ id: n.id, waiting: n.follower.waiting, d: +n.distP.toFixed(1) })) : [],
+      levels: this.miracles ? { ...this.miracles.levels } : {},
+      reputation: this.playerState ? { faith: this.playerState.faith, chaos: +this.playerState.chaos.toFixed(2), tier: chaosTier(this.playerState.chaos).id, title: faithTitle(this.playerState.stats.faithEarned || this.playerState.faith) } : null,
+      perks: Object.keys(this.flags || {}).filter((k) => k.startsWith('perk.') || k.startsWith('pass.')),
       chapters: this.worldState ? { one: this.worldState.chapterCount(1), two: this.worldState.chapterCount(2), complete1: this.worldState.explorationComplete, complete2: !!this.worldState.galileeComplete } : null,
       ragdolls: this.ragdolls?.stats(),
       unlocked: this.playerState?.unlockedMiracles,

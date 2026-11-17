@@ -215,6 +215,46 @@ export const DIALOGUES = {
     hint: { text: (c) => hintLine(c), options: [{ label: 'Thanks!', end: true }] },
     how: { text: (c) => (c.chaos >= 5 ? 'Nervous. Things keep falling over around here.' : ['Blessed, mostly. My back is less blessed.', 'Busy! The market doesn\'t shop by itself.']), options: [{ label: 'Take care.', end: true }] },
   },
+  // ---- Phase 6: people outside the village
+  bartholomew: {
+    root: {
+      text: ['Wheat, vines, goats and one donkey with ideas above her station.', 'Bar-Tolmai Farm! Borrow the cart, borrow the mare — just bring them back.'],
+      options: [{ label: 'How is the harvest?', next: 'harvest' }, bye],
+    },
+    harvest: { text: 'Good wheat this year. The goats ate half of it, but the half they left is excellent.', options: [{ label: 'Blessings on the rest.', end: true }] },
+  },
+  hiram: {
+    root: {
+      text: ['Silk from the east, spices from the south, sand from absolutely everywhere.', 'Caravan from Damascus. Well — towards Damascus. Eventually.'],
+      options: [{ label: 'What do you trade?', next: 'trade' }, bye],
+    },
+    trade: { text: 'Carpets, mostly. They do not fly, before you ask. Everyone asks.', options: [{ label: 'I wasn\'t going to ask.', end: true }] },
+  },
+  traveller: {
+    root: {
+      text: (c) => (c.npc.fed ? ['Bread from nowhere! I will tell my grandchildren.', 'Full at last. Thank you, stranger.'] : ['So… hungry…', 'Three days of dates. Only dates. I dream of bread.', 'Is that food? No? Oh.']),
+      options: [bye],
+    },
+  },
+  philo: {
+    root: {
+      text: (c) => (c.npc.injured ? 'So… hot… the centurion says fevers are a sign of weak discipline…' : 'I feel wonderful! Don\'t tell the centurion, he\'ll put me back on latrine duty.'),
+      options: [bye],
+    },
+  },
+  groom: {
+    root: {
+      text: (c) => (c.flags['wine.wedding'] ? 'Best wedding in the history of Nazareth! Have a cup — have three!' : 'Welcome to my wedding, cousin! Have you… er… brought anything to drink?'),
+      options: [bye],
+    },
+  },
+};
+
+/** Lines added to everyone's conversation at Faith 25+: anyone may choose to follow. */
+export const FOLLOW_INVITE = {
+  option: 'Come, follow me.',
+  node: { text: ['…Yes. Yes, I think I will. Where are we going?', 'Leave everything? …Alright. It was mostly pots anyway.', 'I have been waiting for someone to ask.'], options: [{ label: 'Everywhere.', end: true }] },
+  full: { text: 'You already have twelve, Yeshua. That seems like plenty.', options: [{ label: 'Fair enough.', end: true }] },
 };
 
 /** Short ambient lines shown in speech bubbles. */

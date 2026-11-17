@@ -280,3 +280,24 @@ kbd {
 .ride-keys { margin-top: 8px; font-size: 11px; font-weight: 600; opacity: 0.85; line-height: 1.6; }
 .ride-keys kbd { font-size: 10px; padding: 1px 5px; }
 @media (max-width: 700px) { .ride-hud { left: 10px; bottom: 120px; width: 200px; } .ride-keys { display: none; } }
+
+/* ---- Phase 6: reputation, quests, blessings, ministry */
+.hud-rep { position: absolute; left: 18px; bottom: 74px; display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: 999px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--panel-edge); font: 800 15px var(--ui); }
+.hud-rep .rep-title { font: 700 13px var(--display); opacity: 0.9; max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud-rep .rep-faith b { color: var(--gold); }
+.hud-rep .rep-chaos b { color: #e86a4a; }
+.hud-rep[data-tier="restless"] .rep-chaos { color: #ffb08a; }
+.hud-rep[data-tier="notorious"] { box-shadow: inset 0 0 0 2px #e0281e; }
+.hud-rep[data-tier="notorious"] .rep-chaos { color: #ff5a3c; }
+.bubble.quest { background: linear-gradient(180deg, #ffe08a, #f2b632); color: #4a2c16; font: 900 20px var(--ui); padding: 2px 10px; border-radius: 10px; box-shadow: 0 0 0 2px #fff7d6, 0 4px 12px rgba(0,0,0,0.35); animation: quest-bob 1.2s ease-in-out infinite alternate; }
+@keyframes quest-bob { from { margin-top: 0; } to { margin-top: -6px; } }
+.bless { margin-top: 6px; font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bless.done { color: var(--gold); }
+.bless-btn { padding: 4px 10px; font-size: 12px; }
+.bless-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.bless-pips i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; box-shadow: inset 0 0 0 1.5px var(--gold); }
+.bless-pips i.on { background: var(--gold); }
+.list-item.active { box-shadow: inset 0 0 0 2px var(--gold); }
+.stat.wide { grid-column: 1 / -1; }
+.stat.wide p { margin: 4px 0 0; font-size: 12px; opacity: 0.8; }
+@media (max-width: 700px) { .hud-rep { left: 18px; bottom: auto; top: 168px; font-size: 13px; } .hud-rep .rep-title { display: none; } }

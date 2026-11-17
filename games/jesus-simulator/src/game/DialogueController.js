@@ -22,9 +22,11 @@ export class DialogueController {
   }
 
   open(npc) {
-    const tree = DIALOGUES[npc.def.dialogue] || DIALOGUES.villager;
+    const base = DIALOGUES[npc.def.dialogue] || DIALOGUES.villager;
     this.npc = npc;
-    this.tree = tree;
+    // missions and follower invites add options in front of the NPC's own root
+    const extra = this.getExtras ? this.getExtras(npc) : null;
+    this.tree = extra ? { ...base, ...extra.nodes, root: { ...base.root, options: [...extra.options, ...(base.root.options || [])] } } : base;
     this.bus.emit('npc:interact', { entityId: 'player.local', targetId: npc.id });
     this.show('root');
   }

@@ -135,6 +135,7 @@ export class Minimap {
       const x = dx * c - dz * s;
       const y = dx * s + dz * c;
       if (Math.hypot(x, y) > half - 6) continue;
+      if (n.kind === 'mission' || n.kind === 'giver') continue; // drawn on top, below
       if (n.kind === 'vehicle') {
         g.fillStyle = n.color;
         g.strokeStyle = '#fff';
@@ -168,7 +169,7 @@ export class Minimap {
         g.stroke();
         continue;
       }
-      g.fillStyle = n.named ? '#2f6fb0' : '#5f7f9a';
+      g.fillStyle = n.follower ? '#f2b632' : n.named ? '#2f6fb0' : '#5f7f9a';
       g.strokeStyle = '#fff';
       g.lineWidth = 1.5;
       g.beginPath();
@@ -190,14 +191,66 @@ export class Minimap {
       const isNext = l.id === nextId;
       landmarkPin(g, half + x, half + y, discovered.has(l.id), isNext && Math.sin(time * 5) > -0.3, 0.9);
     }
+    // mission step (gold star, clamped to the rim) and people offering missions (gold "!")
+    for (const n of dots || []) {
+      if (n.kind !== 'mission' && n.kind !== 'giver') continue;
+      const dx = (n.x - pos.x) * PX_PER_M * scale;
+      const dz = (n.z - pos.z) * PX_PER_M * scale;
+      let x = dx * c - dz * s;
+      let y = dx * s + dz * c;
+      const r = Math.hypot(x, y);
+      const max = half - 11;
+      if (r > max) {
+        if (n.kind === 'giver') continue;
+        x = (x / r) * max;
+        y = (y / r) * max;
+      }
+      questMark(g, half + x, half + y, n.kind, n.tracked && Math.sin(time * 6) > -0.2);
+    }
     g.translate(half, half);
     playerArrow(g, Math.PI - playerYaw + cameraYaw, 10);
     g.restore();
   }
 }
 
+function questMark(g, x, y, kind, glow, scale = 1) {
+  g.save();
+  g.translate(x, y);
+  g.scale(scale, scale);
+  if (glow) {
+    g.fillStyle = 'rgba(255, 210, 90, 0.4)';
+    g.beginPath();
+    g.arc(0, 0, 13, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.fillStyle = '#f2b632';
+  g.strokeStyle = '#4a2c16';
+  g.lineWidth = 2;
+  g.beginPath();
+  if (kind === 'mission') {
+    for (let i = 0; i < 10; i += 1) {
+      const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+      const rr = i % 2 ? 4 : 9;
+      g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    g.closePath();
+    g.fill();
+    g.stroke();
+  } else {
+    g.arc(0, 0, 7, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    g.fillStyle = '#4a2c16';
+    g.font = '900 11px Trebuchet MS, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('!', 0, 0.5);
+  }
+  g.restore();
+}
+
 /** Full-screen valley map used by TAB and the pause menu. */
-export function drawWorldMap(canvas, base, pos, playerYaw, discovered, nextId) {
+export function drawWorldMap(canvas, base, pos, playerYaw, discovered, nextId, markers = []) {
   const g = canvas.getContext('2d');
   const size = canvas.width;
   const k = size / BASE;
@@ -259,6 +312,7 @@ export function drawWorldMap(canvas, base, pos, playerYaw, discovered, nextId) {
     g.fillStyle = '#4a2c16';
     g.fillText(label, x, y + 30);
   }
+  for (const m of markers) questMark(g, toMap(m.x), toMap(m.z), m.kind, m.tracked, 1.4);
   g.save();
   g.translate(toMap(pos.x), toMap(pos.z));
   playerArrow(g, Math.PI - playerYaw, 14);

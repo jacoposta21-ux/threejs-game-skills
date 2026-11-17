@@ -662,3 +662,45 @@ export function buildDesertRocks(batcher, rng) {
   mesa(-90, 196, 12, 7);
   return { B };
 }
+
+// ---------------------------------------------------------------- Phase 6: the wedding feast
+/** Long table under a canopy, benches, garlands and six stone jars (a water-to-wine target). */
+export function buildWedding(batcher, rng, extras, at) {
+  const B = new Builder(batcher, rng);
+  const g = terrainHeight(at.x, at.z);
+  B.at(at.x, g, at.z, at.yaw);
+  // canopy (chuppah): four poles + striped cloth
+  for (const [lx, lz] of [[-3.2, -1.8], [3.2, -1.8], [-3.2, 1.8], [3.2, 1.8]]) {
+    B.cyl('wood', PALETTE.woodDark, 0.07, 0.08, 2.9, lx, 1.45, lz, {}, 6);
+    B.colCyl(0.12, 1.45, lx, 1.45, lz);
+  }
+  const cloth = ['#efe6d2', '#3d6fb0'];
+  for (let i = 0; i < 6; i += 1) B.box('cloth', cloth[i % 2], 1.1, 0.05, 3.8, -2.75 + i * 1.1, 2.9, 0, { rz: (i - 2.5) * 0.04 }, 1);
+  // garlands
+  for (const lz of [-1.8, 1.8]) for (let i = 0; i < 7; i += 1) B.put(new THREE.IcosahedronGeometry(0.13, 0), 'plain', ['#e0a12c', '#c4567a', '#f2efe6'][i % 3], -3 + i, 2.62 - Math.sin((i / 6) * Math.PI) * 0.25, lz);
+  // table with cloth, food and cups
+  B.box('wood', PALETTE.woodMid, 5.2, 0.12, 1.1, 0, 0.82, 0, {}, 1);
+  B.box('cloth', '#f4ecd8', 5.3, 0.04, 1.2, 0, 0.9, 0, {}, 1);
+  for (const lx of [-2.3, 2.3]) B.box('wood', PALETTE.woodDark, 0.12, 0.8, 0.9, lx, 0.4, 0, {}, 1);
+  B.colBox(2.65, 0.46, 0.6, 0, 0.46, 0);
+  for (const lz of [-1.05, 1.05]) {
+    B.box('wood', PALETTE.woodMid, 4.6, 0.08, 0.38, 0, 0.46, lz, {}, 1);
+    B.colBox(2.3, 0.24, 0.2, 0, 0.24, lz);
+  }
+  for (let i = 0; i < 6; i += 1) {
+    B.put(new THREE.SphereGeometry(0.16, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), 'plain', ['#c98a4a', '#e0b46a', '#7a3b6e'][i % 3], -2.2 + i * 0.88, 0.92, 0.18, { sy: 0.7 });
+    B.cyl('clay', '#b5643a', 0.06, 0.05, 0.12, -1.9 + i * 0.8, 0.98, -0.25, {}, 7);
+  }
+  // six stone water jars in a row beside the table
+  const jarY = 0;
+  for (let i = 0; i < 6; i += 1) {
+    const lx = -2.75 + i * 1.1;
+    const pts = [[0, 0], [0.26, 0], [0.38, 0.25], [0.4, 0.62], [0.33, 0.86], [0.3, 0.9], [0.27, 0.9]].map(([x, y]) => new THREE.Vector2(x, y));
+    B.put(new THREE.LatheGeometry(pts, 12), 'stone', '#d8ccb2', lx, jarY, -2.6);
+    B.colCyl(0.4, 0.46, lx, 0.46, -2.6);
+  }
+  const water = B.world(0, 0.84, -2.6);
+  B.at(0, 0, 0, 0);
+  B.footprints.push({ x: at.x, z: at.z, w: 6.6, d: 4, ry: at.yaw, kind: 'tent' });
+  return { B, water: { x: water.x, y: g + 0.84, z: water.z, yaw: at.yaw, len: 6, jarSpacing: 1.1 } };
+}

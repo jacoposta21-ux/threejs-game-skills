@@ -205,6 +205,7 @@ export class RomanManager {
 
   /** Where a soldier belongs when nothing is happening. */
   dutySpot(s) {
+    if (s.summoned) return s.summoned; // Phase 6: the centurion comes to the gate to talk
     if (s.post) return s.post;
     if (s.route) { const p = this.routes[s.route][s.routeIdx]; return { x: p.x, y: p.y, z: p.z, yaw: null }; }
     if (s.def.follow) { const l = this.byId.get(s.def.follow); return { x: l.pos.x - 1, y: l.pos.y, z: l.pos.z + 1, yaw: l.yaw }; }
@@ -257,7 +258,7 @@ export class RomanManager {
 
   sightRange(s, ctx) {
     const base = s.def.lookout ? SIGHT.lookoutRange : SIGHT.range;
-    return base * (ctx.night ? SIGHT.nightFactor : 1) * (this.attention.wanted ? 1.2 : 1);
+    return base * (ctx.night ? SIGHT.nightFactor : 1) * (this.attention.wanted ? 1.2 : 1) * (ctx.sightScale ?? 1);
   }
 
   eye(s) {
@@ -592,10 +593,11 @@ export class RomanManager {
     } else this.sweep(s, dt);
     if (!s.bubble && s.barkCd < this.time && s.distP < 22 && this.rng() < 0.004) this.say(s, this.pick(ROMAN.idle), 2.2);
 
-    if (s.post) {
-      const d = Math.hypot(s.post.x - s.pos.x, s.post.z - s.pos.z);
-      if (d > 0.6 && !s.def.lookout) return this.goTo(s, s.post.x, s.post.z, SPEED.patrol, dt, { stop: 0.25 });
-      s.faceYaw = s.post.yaw;
+    const post = s.summoned || s.post;
+    if (post) {
+      const d = Math.hypot(post.x - s.pos.x, post.z - s.pos.z);
+      if (d > 0.6 && !s.def.lookout) return this.goTo(s, post.x, post.z, SPEED.patrol, dt, { stop: 0.25 });
+      s.faceYaw = post.yaw;
       return { action: 'guard' };
     }
     if (s.def.follow) {

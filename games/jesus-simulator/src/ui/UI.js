@@ -1,6 +1,7 @@
 import { MIRACLES } from '../game/miracles.js';
 import { MIRACLE_ICONS, LOCK_ICON } from './icons.js';
 import { LANDMARKS, CHAPTER_ONE, CHAPTER_TWO } from '../world/layout.js';
+import { BLESSINGS, BLESSING_COSTS, CHAOS_TIERS } from '../game/reputation.js';
 import { drawWorldMap } from './Minimap.js';
 
 const $ = (id) => document.getElementById(id);
@@ -126,15 +127,18 @@ export class UI {
   openHowTo() {
     const k = (key, text) => `<div><kbd>${key}</kbd>${text}</div>`;
     this.openSheet('How to Play', `
-      <p>You are Jesus of Nazareth, back home and ready to explore. Meet the villagers, discover the landmarks and the gifts hidden among them, then try them out — gently or not. Donkeys are on their way in a future chapter; the Romans are already here.</p>
+      <p>You are Jesus of Nazareth, back home and ready to explore. Meet the villagers, discover the landmarks and the gifts hidden among them, then try them out — gently or not. Borrow a donkey (F) to cross Galilee, take on missions from the people you meet, and gather followers — but mind the Romans.</p>
       <div class="howto-grid">
         ${k('W A S D', 'Move')}${k('Mouse', 'Rotate camera')}${k('Shift', 'Sprint')}${k('Space', 'Jump')}
         ${k('E', 'Talk / interact')}${k('Wheel', 'Camera distance')}${k('RMB', 'Shoulder aim view')}${k('LMB / Q', 'Use miracle (hold to keep lifting)')}
-        ${k('1 – 6', 'Select miracle')}${k('F', 'Enter / exit vehicle')}${k('Tab', 'Open map')}${k('Esc', 'Pause menu')}
-        ${k('← →', 'Turn camera (keys)')}
+        ${k('1 – 6', 'Select miracle')}${k('F', 'Ride / get off')}${k('Tab', 'Open map')}${k('Esc', 'Pause menu')}
+        ${k('G', 'Followers: wait / follow')}${k('← →', 'Turn camera (keys)')}
       </div>
       <p class="note"><b>Miracles:</b> each gift is revealed at a special place — the workshop, the market, the well, the synagogue, the highest rooftop and the shore of Galilee. Select one with 1–6, aim with the crosshair and click (or press Q).</p>
       <p class="note"><b>Roman Attention:</b> legionaries patrol the village and guard the checkpoint up the north road. Break things, blast people or shove a soldier where one can see you and the stars go up; at three stars reinforcements arrive. Red cones on the minimap show where soldiers are looking. Break their line of sight and stay hidden until the stars stop flashing, or heal a soldier you hurt — he may look the other way. Get seized and you can still push free; get caught and you spend a few hours at the checkpoint (and pay a fine in Faith). The palisade camp is off-limits.</p>
+      <p class="note"><b>Missions:</b> people with a gold <b>!</b> over their head need help — talk to them (E) and pick the ★ option. The objective card and the gold star on the map show the next step. Finished missions bring Faith, followers and favours.</p>
+      <p class="note"><b>Faith &amp; Chaos:</b> Faith is earned by miracles, good deeds, missions and followers, and spent on <b>Blessings</b> (miracle upgrades, Pause → Miracles). Chaos rises with mayhem and slowly fades; at high Chaos villagers grow wary and the legion watches you more closely.</p>
+      <p class="note"><b>Followers:</b> heal the long-suffering, finish missions, or — once your Faith reaches 25 — simply ask people to follow you (up to twelve). Press G to tell them to wait or to come along.</p>
       <p class="note"><b>Chapter I:</b> discover all eight landmarks of Nazareth and its shore. Gold pins on the minimap point to places you have not visited yet. Climb the outdoor stairs to reach the rooftops.</p>`);
   }
 
@@ -223,6 +227,18 @@ export class UI {
 
   setFollowers(n) {
     $('follower-count').textContent = String(n);
+  }
+
+  /** Faith / Chaos pill next to the follower count. */
+  setReputation({ faith, chaos, title, tier }) {
+    const key = `${Math.floor(faith)}|${Math.floor(chaos)}|${title}|${tier.id}`;
+    if (this.repKey === key) return;
+    this.repKey = key;
+    $('rep-faith').textContent = String(Math.floor(faith));
+    $('rep-chaos').textContent = String(Math.floor(chaos));
+    $('rep-title').textContent = title;
+    $('hud-rep').dataset.tier = tier.id;
+    $('hud-rep').title = `${tier.label}: ${tier.note}`;
   }
 
   setRegion(name) {
@@ -337,7 +353,7 @@ export class UI {
       const key = `${b.kind}|${b.text}|${b.sub || ''}|${b.roman ? 1 : 0}`;
       if (slot.key !== key) {
         slot.key = key;
-        slot.el.className = `bubble ${b.kind === 'name' ? 'name' : b.kind === 'alert' ? `alert${b.text === '?' ? ' q' : ''}` : b.roman ? 'roman' : ''}`;
+        slot.el.className = `bubble ${b.kind === 'name' ? 'name' : b.kind === 'quest' ? 'quest' : b.kind === 'alert' ? `alert${b.text === '?' ? ' q' : ''}` : b.roman ? 'roman' : ''}`;
         slot.el.textContent = b.text;
         if (b.sub) { const sm = document.createElement('small'); sm.textContent = b.sub; slot.el.appendChild(sm); }
       }
@@ -415,7 +431,7 @@ export class UI {
   // ---------------------------------------------------------------- map
   openMap(ctx) {
     $('worldmap').hidden = false;
-    drawWorldMap($('worldmap-canvas'), ctx.mapBase, ctx.position, ctx.yaw, ctx.discovered, ctx.nextId);
+    drawWorldMap($('worldmap-canvas'), ctx.mapBase, ctx.position, ctx.yaw, ctx.discovered, ctx.nextId, ctx.markers);
   }
 
   closeMap() {
@@ -454,6 +470,26 @@ export class UI {
     return !$('pause').hidden;
   }
 
+  ministryHtml(ctx) {
+    const M = ctx.missions;
+    const rows = ctx.missionDefs.map((m) => {
+      const st = M.state[m.id];
+      const done = st.status === 'done';
+      const active = st.status === 'active';
+      const tag = done ? 'DONE' : active ? (M.tracked === m.id ? 'TRACKED' : 'ACTIVE') : 'OFFERED';
+      const line = active ? `<b>Next:</b> ${M.stepText(m.id)}` : done ? m.reward?.text || '' : `${m.summary} <i>(${m.region})</i>`;
+      return `<div class="list-item ${done ? 'done' : ''} ${active ? 'active' : ''}">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 20.9l1.6-7L2 9.2l7.1-.6z"/></svg></div>
+        <div><h4>${m.title}</h4><p>${line}</p></div><span class="tag ${done || active ? '' : 'muted'}">${tag}</span></div>`;
+    }).join('');
+    const n = ctx.missionDefs.filter((m) => M.state[m.id].status === 'done').length;
+    const followers = ctx.followerNames.length ? ctx.followerNames.join(', ') : 'nobody yet';
+    return `<div class="list"><div class="list-item ${n === ctx.missionDefs.length ? 'done' : ''}">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 4h12l-2 4 2 4H6v8H4z"/></svg></div>
+        <div><h4>Chapter III — The Ministry</h4><p>Help the people of Galilee. Followers (${ctx.followerNames.length}/12): ${followers}.</p></div>
+        <span class="tag">${n}/${ctx.missionDefs.length}</span></div>${rows}</div>`;
+  }
+
   renderPauseTab(tab) {
     this.pauseTab = tab;
     const ctx = this.pauseCtx;
@@ -461,7 +497,7 @@ export class UI {
     const body = $('pause-body');
     if (tab === 'map') {
       body.innerHTML = '<h3>Map</h3><canvas id="pause-map" width="720" height="720"></canvas>';
-      drawWorldMap($('pause-map'), ctx.mapBase, ctx.position, ctx.yaw, ctx.discovered, ctx.nextId);
+      drawWorldMap($('pause-map'), ctx.mapBase, ctx.position, ctx.yaw, ctx.discovered, ctx.nextId, ctx.markers);
     } else if (tab === 'missions') {
       const chapter = (list) => list.map((l) => {
         const found = ctx.discovered.has(l.id);
@@ -478,16 +514,27 @@ export class UI {
       };
       const s = ctx.stats;
       body.innerHTML = `<h3>Missions</h3>
-        <div class="list">${head('Chapter I — Discover Nazareth', 'Visit every landmark of your home village.', CHAPTER_ONE)}${chapter(CHAPTER_ONE)}</div>
+        ${this.ministryHtml(ctx)}
+        <div class="list" style="margin-top:14px">${head('Chapter I — Discover Nazareth', 'Visit every landmark of your home village.', CHAPTER_ONE)}${chapter(CHAPTER_ONE)}</div>
         <div class="list" style="margin-top:14px">${head('Chapter II — Explore Galilee', 'The countryside, the lake, the Roman fort and the desert. Borrow a donkey.', CHAPTER_TWO)}${chapter(CHAPTER_TWO)}</div>
-        <p class="note">Circus best lap: <b>${s.bestLap ? `${s.bestLap.toFixed(2)} s` : '—'}</b>. Villager missions (the wedding wine, the fisherman's troubles, the Roman problem) arrive in the next chapter.</p>`;
+        <p class="note">Circus best lap: <b>${s.bestLap ? `${s.bestLap.toFixed(2)} s` : '—'}</b>.</p>`;
     } else if (tab === 'miracles') {
       body.innerHTML = `<h3>Miracles</h3><div class="list">${MIRACLES.map((m) => {
         const ok = ctx.unlocked.includes(m.id);
+        const lvl = ctx.levels?.[m.id] || 0;
+        const cost = BLESSING_COSTS[lvl];
+        const next = BLESSINGS[m.id][lvl];
+        const pips = `<span class="bless-pips">${[0, 1].map((i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</span>`;
+        const bless = !ok ? '' : cost === undefined
+          ? `<p class="bless done">${pips} Fully blessed — ${BLESSINGS[m.id][1]}</p>`
+          : `<p class="bless">${pips} Next: ${next} · −20% cooldown <button type="button" class="btn bless-btn" data-bless="${m.id}" ${ctx.faith >= cost ? '' : 'disabled'}>BLESS · ${cost} FAITH</button></p>`;
         return `<div class="list-item ${ok ? '' : 'locked'}"><div class="ico">${MIRACLE_ICONS[m.id]}</div>
-          <div><h4>${m.key}. ${m.name}</h4><p>${m.description}</p></div>
-          <span class="tag ${ok ? '' : 'muted'}">${ok ? 'REVEALED' : `FIND: ${m.revealAt.toUpperCase()}`}</span></div>`;
-      }).join('')}</div>`;
+          <div><h4>${m.key}. ${m.name}</h4><p>${m.description}</p>${bless}</div>
+          <span class="tag ${ok ? '' : 'muted'}">${ok ? (lvl ? `BLESSED ${'✦'.repeat(lvl)}` : 'REVEALED') : `FIND: ${m.revealAt.toUpperCase()}`}</span></div>`;
+      }).join('')}</div><p class="note">You have <b>${Math.floor(ctx.faith)} Faith</b> to spend. Blessings are permanent.</p>`;
+      for (const b of body.querySelectorAll('[data-bless]')) {
+        b.addEventListener('click', () => this.bus.emit('ui:bless', { miracleId: b.dataset.bless }));
+      }
     } else if (tab === 'stats') {
       const s = ctx.stats;
       const pct = (v) => Math.min(100, v);
@@ -495,6 +542,9 @@ export class UI {
         <div class="stat-grid">
           <div class="stat"><span>FAITH</span><strong>${Math.round(ctx.faith)}</strong><div class="meter faith"><i style="width:${pct(ctx.faith)}%"></i></div></div>
           <div class="stat"><span>CHAOS</span><strong>${Math.round(ctx.chaos)}</strong><div class="meter chaos"><i style="width:${pct(ctx.chaos)}%"></i></div></div>
+          <div class="stat wide"><span>REPUTATION</span><strong>${ctx.title} · ${ctx.tier.label}</strong><p>${ctx.tier.note}</p></div>
+          <div class="stat"><span>MISSIONS DONE</span><strong>${s.missions || 0} / ${ctx.missionDefs.length}</strong></div>
+          <div class="stat"><span>BLESSINGS</span><strong>${s.blessings || 0} / 12</strong></div>
           <div class="stat"><span>PLACES FOUND</span><strong>${ctx.discovered.size} / ${LANDMARKS.length}</strong></div>
           <div class="stat"><span>DISTANCE RIDDEN</span><strong>${((s.ridden || 0) / 1000).toFixed(2)} km</strong></div>
           <div class="stat"><span>RIDES TAKEN</span><strong>${s.rides || 0}</strong></div>

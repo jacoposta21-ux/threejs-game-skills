@@ -29,6 +29,7 @@ export class MiracleManager {
     this.lastWitness = new Map();
     this.marker = this.createMarker();
     this.byId = new Map(MIRACLES.map((m) => [m.id, m]));
+    this.levels = {}; // Blessings (Phase 6): 0..2 per miracle
   }
 
   createMarker() {
@@ -48,6 +49,18 @@ export class MiracleManager {
     this.state.unlockedMiracles.push(id);
     if (announce) this.bus.emit('miracle:reveal', { entityId: this.state.id, miracleId: id, miracle: this.byId.get(id) });
     return true;
+  }
+
+  level(id) {
+    return this.levels[id] || 0;
+  }
+
+  /** Targeting range, widened by Blessings for Push and Levitation. */
+  rangeOf(id) {
+    const base = RULES[id].range;
+    if (id === 'miracle.divine-push') return base * (1 + 0.25 * this.level(id));
+    if (id === 'miracle.holy-levitation') return base + 4 * this.level(id);
+    return base;
   }
 
   cooldownLeft(id) {
@@ -74,7 +87,7 @@ export class MiracleManager {
     for (const c of this.candidates()) {
       if (!rule.accepts(c)) continue;
       const dp = Math.hypot(c.x - p.x, c.z - p.z);
-      if (dp > rule.range) continue;
+      if (dp > this.rangeOf(id)) continue;
       // ray test from the camera through the crosshair
       tmpV.set(c.x - cam.x, c.y - cam.y, c.z - cam.z);
       const along = tmpV.dot(tmpDir);
@@ -128,7 +141,7 @@ export class MiracleManager {
     }[id];
     const res = fn();
     if (!res.ok) return res;
-    this.cooldowns.set(id, this.time + (res.cooldown ?? m.cooldown));
+    this.cooldowns.set(id, this.time + (res.cooldown ?? m.cooldown) * (1 - 0.2 * this.level(id)));
     this.bus.emit('miracle:cast', { entityId: this.state.id, miracleId: id, targetId: target?.id ?? null, x: this.state.position.x, z: this.state.position.z, ...res.event });
     return res;
   }
@@ -153,7 +166,7 @@ export class MiracleManager {
     const dz = tmpDir.z;
     this.state.yaw = Math.atan2(dx, dz);
     this.model.cast('push', 0.55);
-    const range = RULES['miracle.divine-push'].range;
+    const range = this.rangeOf('miracle.divine-push');
     const half = 0.8;
     let knocked = 0;
     let hitProps = 0;
@@ -220,14 +233,14 @@ export class MiracleManager {
     this.model.cast('bless', 0.45);
     const kind = target.type;
     const copies = [];
-    for (let i = 0; i < 2; i += 1) {
+    for (let i = 0; i < 2 + this.level('miracle.multiplication'); i += 1) {
       const c = this.props.spawnCopy(kind, target.x, target.y, target.z, this.props.simTime ?? 0);
       if (c) copies.push(c);
     }
     this.effects.burst({ x: target.x, y: target.y + 0.3, z: target.z, count: 22, color: '#fff1a8', color2: '#ffc94a', speed: 2.2, up: 1, life: 0.9, gravity: -1, size: 0.22, radius: 0.3 });
     this.effects.ring({ x: target.x, y: target.y + 0.05, z: target.z, color: '#ffd36b', from: 0.1, to: 1.2, life: 0.45 });
     this.audio.multiply?.();
-    if (copies.length) this.witness('bread', target.x, target.z, 12, { copy: copies[0], minGap: 2 });
+    if (copies.length) this.witness('bread', target.x, target.z, 12, { copy: copies[0], copies, minGap: 2 });
     // crowding: lots of copies near the same spot clogs the street
     let crowd = 0;
     for (const c of this.props.copies) {
@@ -245,7 +258,7 @@ export class MiracleManager {
       const w = target.ref;
       first = w.target < 0.5;
       w.target = 1;
-      w.wineUntil = this.time + 120;
+      w.wineUntil = this.time + 120 * (1 + this.level('miracle.water-to-wine'));
     } else {
       target.ref.wine = true;
       this.props.setTint(target.ref, '#6b1030');
@@ -264,7 +277,8 @@ export class MiracleManager {
     const p = this.state.position;
     if (this.water) return { ok: false, reason: 'You are already walking on water.' };
     if (lakeDistance(p.x, p.z) > 1.3) return { ok: false, reason: 'There is no open water here. Try the Shore of Galilee (east).' };
-    this.water = { t: 25, witnessed: false, warned: false };
+    const duration = 25 * (1 + 0.5 * this.level('miracle.walk-on-water'));
+    this.water = { t: duration, witnessed: false, warned: false };
     // standing in the shallows or under the surface: rise up onto the water first
     if (p.y < 0.02 && waterDepth(p.x, p.z) > 0.05) this.player.teleport(p.x, 0.06, p.z, this.state.yaw);
     this.world.setWaterWalkable(true);
@@ -273,7 +287,7 @@ export class MiracleManager {
     this.effects.burst({ x: p.x, y: p.y + 0.2, z: p.z, count: 40, color: '#e9f6ff', color2: '#ffe08a', speed: 2, up: 0.8, life: 1.2, gravity: -0.5, size: 0.3, radius: 0.6 });
     this.effects.ring({ x: p.x, y: Math.max(p.y, 0) + 0.05, z: p.z, color: '#bfe8ff', from: 0.3, to: 4, life: 1 });
     this.audio.waterWalk?.();
-    return { ok: true, event: { duration: 25 } };
+    return { ok: true, event: { duration } };
   }
 
   endWaterWalk(reason) {
@@ -309,7 +323,20 @@ export class MiracleManager {
     this.audio.heal?.(healed);
     let witnesses = 0;
     if (healed) witnesses = this.witness('heal', npc.pos.x, npc.pos.z, 14);
-    return { ok: true, event: { healed, npc: npc.id }, faith: healed ? (was.kind === 'chronic' ? 5 : 3) : 0, cooldown: healed ? undefined : 1 };
+    // second Blessing: the light spreads to everyone hurting nearby
+    let more = 0;
+    if (this.level('miracle.healing-touch') >= 2) {
+      for (const other of this.npcs.npcs) {
+        if (other === npc || !other.injured || other.hidden || other.ragdoll) continue;
+        if (Math.hypot(other.pos.x - npc.pos.x, other.pos.z - npc.pos.z) > 4.5) continue;
+        if (this.npcs.heal(other)) {
+          more += 1;
+          this.effects.burst({ x: other.pos.x, y: other.pos.y + 0.2, z: other.pos.z, count: 30, color: '#fff3b0', speed: 1.4, up: 1.6, life: 1.4, gravity: 0.6, size: 0.24, radius: 0.4 });
+          this.bus.emit('npc:healed', { entityId: other.id, by: 'blessing' });
+        }
+      }
+    }
+    return { ok: true, event: { healed, npc: npc.id, more }, faith: (healed ? (was.kind === 'chronic' ? 5 : 3) : 0) + more * 2, cooldown: healed ? undefined : 1 };
   }
 
   castLevitate(target) {

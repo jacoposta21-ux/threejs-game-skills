@@ -83,9 +83,12 @@ export const CHECKPOINT = {
   release: { x: -1.5, z: -95, yaw: Math.PI },
 };
 
+/** Zones the player has been granted entry to (Phase 6: the centurion's seal opens the fort). */
+export const zoneAccess = { outpost: false };
+
 /** Inside the palisade or the fort walls (restricted military area)? */
 export function inRestrictedZone(x, z) {
-  for (const c of [CHECKPOINT.compound, OUTPOST.compound]) {
+  for (const c of zoneAccess.outpost ? [CHECKPOINT.compound] : [CHECKPOINT.compound, OUTPOST.compound]) {
     if (x > c.x0 + 0.3 && x < c.x1 - 0.3 && z > c.z0 + 0.3 && z < c.z1 - 0.3) return true;
   }
   return false;
@@ -96,6 +99,7 @@ export function restrictedZoneAt(x, z) {
   const c = CHECKPOINT.compound;
   if (x > c.x0 + 0.3 && x < c.x1 - 0.3 && z > c.z0 + 0.3 && z < c.z1 - 0.3) return 'checkpoint';
   const o = OUTPOST.compound;
+  if (zoneAccess.outpost) return null;
   if (x > o.x0 + 0.3 && x < o.x1 - 0.3 && z > o.z0 + 0.3 && z < o.z1 - 0.3) return 'outpost';
   return null;
 }

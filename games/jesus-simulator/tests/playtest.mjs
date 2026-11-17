@@ -9,6 +9,7 @@ import { phase2Checks } from './phase2-checks.mjs';
 import { phase3Checks } from './phase3-checks.mjs';
 import { phase4Checks } from './phase4-checks.mjs';
 import { phase5Checks } from './phase5-checks.mjs';
+import { phase6Checks } from './phase6-checks.mjs';
 
 const url = process.argv[2] || 'http://127.0.0.1:4188/';
 const out = process.argv[3] || 'artifacts/playtest';
@@ -197,6 +198,7 @@ await phase3Checks({ page, check, diag, waitFrames, hold, out });
 // Phase 4 — the Roman system
 await phase4Checks({ page, check, diag, waitFrames, hold, out });
 await phase5Checks({ page, check, diag, waitFrames, hold, out });
+await phase6Checks({ page, check, diag, waitFrames, hold, out });
 
 check('no console/page errors', errors.length === 0, errors.slice(0, 5).join(' | '));
 fs.writeFileSync(`${out}/results.json`, JSON.stringify({ url, results, errors }, null, 2));
