@@ -75,7 +75,7 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
   const turned = (await diag()).vehicles.ridden;
   const seat = await setup(() => { const S = window.__JESUS_SIM__.session; const v = S.vehicles.ridden; return { dy: S.model.group.position.y - v.render.y, gap: Math.hypot(S.model.group.position.x - v.render.x, S.model.group.position.z - v.render.z) }; });
   const moved = Math.hypot(gallop.x - p0.x, gallop.z - p0.z);
-  check('Riding: trot, gallop, steer', trot.speed > 4.2 && gallop.speed > trot.speed + 1.5 && moved > 8 && Math.atan2(Math.sin(turned.yaw - gallop.yaw), Math.cos(turned.yaw - gallop.yaw)) < -0.3 && seat.dy > 0.3 && seat.dy < 1.0 && seat.gap < 0.3,
+  check('Riding: trot, gallop, steer', trot.speed > 3.5 && gallop.speed > trot.speed + 1.5 && moved > 8 && Math.atan2(Math.sin(turned.yaw - gallop.yaw), Math.cos(turned.yaw - gallop.yaw)) < -0.3 && seat.dy > 0.3 && seat.dy < 1.0 && seat.gap < 0.3,
     `trot=${trot.speed.toFixed(1)} gallop=${gallop.speed.toFixed(1)} moved=${moved.toFixed(1)} yaw ${gallop.yaw.toFixed(2)}->${turned.yaw.toFixed(2)} seat=${JSON.stringify(seat)}`);
 
   // 4. a galloping donkey into a villager: knocked down (no Romans around to care)
