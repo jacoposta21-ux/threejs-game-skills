@@ -15,7 +15,7 @@ Simulation-heavy checks fast-forward the fixed 60 Hz step in-page. Player action
 Phase 1–4 evidence remains in git history.
 
 ## Canvas inspector — run `phase5-pass-1`
-Manifest: [evidence.json](evidence.json). **17/17 captures PASS.** All 16 desktop captures are within the desktop render budget (calls ≤ 300, triangles ≤ 750k, geometries ≤ 300).
+Manifest: [evidence.json](evidence.json). `check_evidence.py --manifest` → **passed, 22 artifacts confirmed.** **17/17 captures PASS.** All 16 desktop captures are within the desktop render budget (calls ≤ 300, triangles ≤ 750k, geometries ≤ 300).
 
 | Viewport / state | Draw calls | Triangles | Geometries |
 | --- | --- | --- | --- |
@@ -35,7 +35,7 @@ Manifest: [evidence.json](evidence.json). **17/17 captures PASS.** All 16 deskto
 The mobile capture is over the triangle budget; mobile is not a target.
 
 ## Real-input playtest — run `phase5-pass-1`
-[results.json](phase5-pass-1/playtest/results.json) — **final run in progress** and no console or page errors.
+[results.json](phase5-pass-1/playtest/results.json) — **59/59 PASS** and no console or page errors.
 
 The suite has 12 Phase 1, 10 Phase 2, 9 Phase 3 and 14 Phase 4 checks; the Phase 4 garrison check now expects 12 soldiers. It adds 14 new Phase 5 checks:
 
