@@ -45,6 +45,7 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
       S.npcs.leaveAnchor(n, true);
       S.npcs.place(n, -40, 1.2, 30 + Math.random() * 6);
       n.phase = 'none';
+      n.override = { type: 'look', t: 30, age: 0 }; // stay out of the way for the check
     }
   }, [x, z, r]);
 
@@ -179,7 +180,9 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
   await setup(() => {
     const S = window.__JESUS_SIM__.session;
     window.__lost = [];
+    window.__crimes = [];
     S.bus.on('roman:lost', () => window.__lost.push(document.getElementById('toasts').textContent));
+    S.bus.on('roman:crime', (e) => window.__crimes.push(e.type));
     // sprint away down the south road
     S.player.teleport(3, 0, 22, 0.05);
     S.cam.snap(S.playerState.position, Math.PI + 0.05);
@@ -202,7 +205,7 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
   d = await diag();
   const lostToasts = await setup(() => window.__lost);
   check('break line of sight and the Romans give up', starsBefore >= 1 && searching && d.romans.stars === 0 && d.stats.escapes >= 1 && lostToasts.length === 1 && lostToasts[0].includes('lost them'),
-    `stars ${starsBefore} -> ${d.romans.stars}, escapes=${d.stats.escapes}`);
+    `stars ${starsBefore} -> ${d.romans.stars}, escapes=${d.stats.escapes} crimes=${await setup(() => window.__crimes.join(','))}`);
 
   // 9. three stars: horn, the garrison joins in and reinforcements arrive from out of view
   await calm();

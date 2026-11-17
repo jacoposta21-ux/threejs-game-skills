@@ -170,7 +170,7 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
   await press('Digit2');
   let fed = 0;
   ev = [];
-  for (let i = 0; i < 12 && fed < 6; i += 1) {
+  for (let i = 0; i < 18 && fed < 6; i += 1) {
     await press('KeyQ', 2);
     await sim(3);
     ev = ev.concat(await events());
@@ -259,6 +259,12 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
     const S = window.__JESUS_SIM__.session;
     S.playerState.faith = Math.max(S.playerState.faith, 30);
     const n = S.npcs.npcs.find((x) => x.def.generic && !x.follower && !x.hidden && !x.injured && x.id !== 'npc.villager.3');
+    // talk somewhere quiet so nobody else takes the E key
+    S.npcs.leaveAnchor(n, true);
+    S.npcs.place(n, 40, window.__JESUS_SIM__.terrainHeight(40, -6), -6);
+    n.phase = 'none';
+    n.yaw = 0;
+    n.override = { type: 'look', t: 20, age: 0 };
     return n.id;
   });
   const inv = await talk(asked);
@@ -306,6 +312,18 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
   // 11. Chaos consequences: notorious = villagers back away, Romans see further; it fades over time
   await setup(() => { const S = window.__JESUS_SIM__.session; S.playerState.chaos = 36; S.npcs.setFollowersWaiting(true); });
   await teleport(-4, 8, Math.PI);
+  // a few villagers right ahead, ready to notice him
+  await setup(() => {
+    const S = window.__JESUS_SIM__.session;
+    const list = S.npcs.npcs.filter((x) => x.def.generic && !x.follower && !x.hidden && !x.anchored).slice(0, 5);
+    list.forEach((n, i) => {
+      S.npcs.place(n, -6 + i, window.__JESUS_SIM__.terrainHeight(-6 + i, 3.5), 3.5);
+      n.yaw = 0;
+      n.phase = 'none';
+      n.override = null;
+      n.greetCd = 0;
+    });
+  });
   await events();
   await holdSim(['KeyW'], 3);
   await sim(3);

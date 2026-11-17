@@ -83,7 +83,8 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
     const S = window.__JESUS_SIM__.session;
     const v = S.vehicles.ridden;
     S.vehicles.place(v, -46, 4.4, -Math.PI / 2);
-    const n = S.npcs.npcs.find((x) => !x.hidden && !x.anchored && !x.def.kid && x.id !== 'npc.amos');
+    // a plain villager (posted people walk back to their post, followers follow)
+    const n = S.npcs.npcs.find((x) => x.def.generic && !x.hidden && !x.anchored && !x.follower);
     S.npcs.leaveAnchor(n, true);
     S.npcs.place(n, -52.5, window.__JESUS_SIM__.terrainHeight(-52.5, 4.1), 4.1);
     n.phase = 'none';
