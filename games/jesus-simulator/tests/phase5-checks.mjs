@@ -168,17 +168,21 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
   const stealPrompt = await setup(() => (document.getElementById('ride-prompt').hidden ? null : document.getElementById('ride-prompt-text').textContent));
   await events();
   await press('KeyF');
+  // what F did, read before the guard reaches us
+  const stolen = await setup(() => window.__JESUS_SIM__.session.vehicles.ridden?.kind ?? null);
   await sim(0.6);
   ev = await events();
+  const theftEvents = ev;
   d = await diag();
-  check('Stealing a Roman chariot is a crime', stealPrompt === 'Steal the Roman chariot' && d.vehicles.ridden?.kind === 'chariot' && ev.some((e) => e.name === 'roman:crime' && e.type === 'chariot') && d.romans.stars >= 2 && (d.stats.chariotsStolen || 0) >= 1,
-    `prompt=${stealPrompt} ride=${d.vehicles.ridden?.id} crimes=${ev.filter((e) => e.name === 'roman:crime').map((e) => e.type).join(',')} stars=${d.romans.stars}`);
+  check('Stealing a Roman chariot is a crime', stealPrompt === 'Steal the Roman chariot' && stolen === 'chariot' && ev.some((e) => e.name === 'roman:crime' && e.type === 'chariot') && d.romans.stars >= 2 && (d.stats.chariotsStolen || 0) >= 1,
+    `prompt=${stealPrompt} ride=${stolen} crimes=${ev.filter((e) => e.name === 'roman:crime').map((e) => e.type).join(',')} stars=${d.romans.stars}`);
 
   // 10. sit still: a legionary grabs the reins and drags you off the chariot
   await setup(() => {
     const S = window.__JESUS_SIM__.session;
     const R = S.romans;
     const v = S.vehicles.ridden;
+    if (!v) return; // the stable guard already dragged him off
     for (const id of ['roman.felix', 'roman.cassius']) {
       const s = R.byId.get(id);
       R.place(s, v.pos.x + (id === 'roman.felix' ? 1.8 : -1.8), v.pos.y, v.pos.z + 1.2);
@@ -188,7 +192,7 @@ export async function phase5Checks({ page, check, diag, waitFrames, out }) {
   await events();
   await sim(2.5);
   await waitFrames(3);
-  ev = await events();
+  ev = theftEvents.concat(await events());
   d = await diag();
   check('Pulled off your ride by a legionary', ev.some((e) => e.name === 'vehicle:exit' && e.reason === 'pulled') && d.vehicles.ridden === null,
     `exits=${JSON.stringify(ev.filter((e) => e.name === 'vehicle:exit'))} mode=${d.mode} grab=${d.romans.grab}`);
