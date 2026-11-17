@@ -228,13 +228,15 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
     S.simulate(0.05);
   });
   await waitFrames(3);
+  const back2 = await setup(() => { const S = window.__JESUS_SIM__.session; const g = S.romans.byId.get('roman.gaius'); return { mode: g.mode, x: +g.pos.x.toFixed(1), z: +g.pos.z.toFixed(1), summoned: !!g.summoned, step: S.missions.step('mission.centurion')?.kind, talk: S.talkTarget?.id ?? null, px: +S.playerState.position.x.toFixed(1), stars: S.romans.attention.stars }; });
   await press('KeyE', 4);
+  const opts2 = await setup(() => { const D = window.__JESUS_SIM__.session.dialogue; return D.active ? D.options.map((o) => o.label) : null; });
   await choose(1);
   await closeTalk();
   ev = ev.concat(await events());
   d = await diag();
   check('Centurion\'s Servant: Gaius comes to the gate, a pass into the fort, Philo healed, favour', gate.summoned && gate.x < 10 && gc?.options[0] === '★ The Centurion\'s Servant' && !warned && stepNow === 1 && d.romans.stars === 0 && ev.some((e) => e.name === 'mission:done' && e.missionId === 'mission.centurion') && d.perks.includes('perk.favour') && d.perks.includes('pass.outpost'),
-    `gate=${JSON.stringify(gate)} options=${JSON.stringify(gc?.options)} warned=${warned} step=${stepNow} stars=${d.romans.stars} perks=${d.perks}`);
+    `back=${JSON.stringify(back2)} opts2=${JSON.stringify(opts2)} gate=${JSON.stringify(gate)} options=${JSON.stringify(gc?.options)} warned=${warned} step=${stepNow} stars=${d.romans.stars} perks=${d.perks}`);
   await setup(() => window.__JESUS_SIM__.session.romans.setActive(false));
 
   // 7. followers keep formation while you walk; G makes them wait, G calls them back
