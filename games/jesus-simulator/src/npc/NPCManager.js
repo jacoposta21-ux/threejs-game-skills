@@ -947,6 +947,13 @@ export class NPCManager {
       this.place(npc, tx, terrainHeight(tx, tz), tz);
       return { vx: 0, vz: 0, speed: 0, action: 'none' };
     }
+    // stuck behind a wall or a stall: no progress for 2.5 s while well behind -> step back into formation
+    f.checkT = (f.checkT || 0) + dt;
+    if (f.checkT > 2.5) {
+      if (d > 5 && f.lastD !== undefined && d > f.lastD - 1) this.place(npc, tx, terrainHeight(tx, tz), tz);
+      f.lastD = d;
+      f.checkT = 0;
+    }
     if (d < 0.5) {
       npc.directMove = false;
       if ((ctx.playerSpeed || 0) < 0.3) npc.faceYaw = Math.atan2(p.x - npc.pos.x, p.z - npc.pos.z);
