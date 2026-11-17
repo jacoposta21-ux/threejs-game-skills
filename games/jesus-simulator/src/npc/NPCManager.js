@@ -1005,7 +1005,7 @@ export class NPCManager {
         else { this.setOverride(npc, 'wave', 2.5, { lookAt: look }); this.say(npc, this.pickLine(['Everyone, come see!', 'Come quick! The well!', 'Hannah! HANNAH!']), 2.4, 'surprised'); this.callFriends(npc, x, z); }
       } else if (kind === 'bread') {
         if (roll < 0.45 && !(npc.def.hungry && !npc.fed && extra.copy)) { this.setOverride(npc, 'cheer', 2.2, { lookAt: look }); this.say(npc, this.pickLine(['Bread!', 'More bread!', 'It keeps coming!']), 1.8, 'smile'); }
-        else if ((roll < 0.75 || (npc.def.hungry && !npc.fed)) && !npc.anchored && !npc.tag && extra.copy) {
+        else if ((roll < 0.75 || (npc.def.hungry && !npc.fed)) && !(npc.def.hungry && npc.fed) && !npc.anchored && !npc.tag && extra.copy) {
           // spread the hungry over the fresh loaves (one each)
           const pool = extra.copies || [extra.copy];
           const copy = pool[(extra.served = (extra.served ?? -1) + 1) % pool.length];
