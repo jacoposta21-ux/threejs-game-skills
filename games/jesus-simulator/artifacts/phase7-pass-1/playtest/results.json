@@ -1,0 +1,369 @@
+{
+  "url": "http://127.0.0.1:4188/",
+  "results": [
+    {
+      "name": "walk forward moves player",
+      "ok": true,
+      "detail": "moved=13.27m grounded=true"
+    },
+    {
+      "name": "landmark discovery triggers",
+      "ok": true,
+      "detail": "[\"landmark.workshop\"]"
+    },
+    {
+      "name": "wall blocks movement",
+      "ok": true,
+      "detail": "player local z=5.40 (wall at 5)"
+    },
+    {
+      "name": "climb stairs to rooftop",
+      "ok": true,
+      "detail": "landing y=8.79 roof y=8.79 local x=0.89"
+    },
+    {
+      "name": "rooftop lookout discovered",
+      "ok": true,
+      "detail": "[\"landmark.workshop\",\"landmark.lookout\"]"
+    },
+    {
+      "name": "jump leaves ground and lands",
+      "ok": true,
+      "detail": "airborne y=9.73 landed y=2.29 jumps=1"
+    },
+    {
+      "name": "interaction prompt + dialog",
+      "ok": true,
+      "detail": "Cool, clear water. Strangely, you feel it could become somet"
+    },
+    {
+      "name": "sprint faster than walk",
+      "ok": true,
+      "detail": "walk=4.60 sprint=8.20"
+    },
+    {
+      "name": "TAB map opens and closes",
+      "ok": true
+    },
+    {
+      "name": "ESC opens pause menu",
+      "ok": true
+    },
+    {
+      "name": "save & continue restores progress",
+      "ok": true,
+      "detail": "landmarks 3 -> 3"
+    },
+    {
+      "name": "corrupt save -> fresh start, no crash",
+      "ok": true,
+      "detail": "label=PLAY"
+    },
+    {
+      "name": "NPCs spawn and follow routines",
+      "ok": true,
+      "detail": "count=38 moved>2m=20 states={\"act\":10,\"travel\":15,\"none\":12,\"startle\":1} nav={\"nodes\":419,\"edges\":816,\"casts\":1136,\"unreachable\":0}"
+    },
+    {
+      "name": "talk to NPC (E, choose 1, Esc)",
+      "ok": true,
+      "detail": "prompt=\"Talk to Eli\" options=3 \"Everyone wants bread, nobody wants to pa\" -> \"Rome taxes the flour, the oven and the s\""
+    },
+    {
+      "name": "NPC collision blocks the player",
+      "ok": true,
+      "detail": "contacts=40 min centre gap=0.70 reaction=greet"
+    },
+    {
+      "name": "sprinting into a villager knocks them over (+Chaos)",
+      "ok": true,
+      "detail": "reaction=stumble chaos 0 -> 1.0"
+    },
+    {
+      "name": "pottery breaks on hard impact",
+      "ok": true,
+      "detail": "broken=1 shards=6 chaos=3.0"
+    },
+    {
+      "name": "fruit pile scatters when walked into",
+      "ok": true,
+      "detail": "propsDisturbed 2 -> 6"
+    },
+    {
+      "name": "lost-sheep errand (Amos)",
+      "ok": true,
+      "detail": "following=true joined=true faith=5"
+    },
+    {
+      "name": "villagers go home at night, return at dawn",
+      "ok": true,
+      "detail": "{\"atNight\":28,\"morning\":0,\"total\":38}"
+    },
+    {
+      "name": "dialogue flags + people met persist",
+      "ok": true,
+      "detail": "{\"met\":2,\"sheep\":true,\"stray\":true}"
+    },
+    {
+      "name": "locked miracles cannot be cast",
+      "ok": true,
+      "detail": "unlocked=[]"
+    },
+    {
+      "name": "landmark reveals a miracle (workshop -> Divine Push)",
+      "ok": true,
+      "detail": "unlocked=[\"miracle.divine-push\"] banner=\"\n          MISSION COMPLETE\n          The Lost Sheep\n       \""
+    },
+    {
+      "name": "Divine Push shoves villagers (cooldown blocks spam)",
+      "ok": true,
+      "detail": "npc moved 7.83 m, casts=1"
+    },
+    {
+      "name": "Multiplication: Q copies bread, holding repeats, capped at 80",
+      "ok": true,
+      "detail": "label=\"Multiplication · Multiply: bread\" after1=2 afterHold=22 afterSpam=80"
+    },
+    {
+      "name": "Water to Wine turns the well to wine (+Faith)",
+      "ok": true,
+      "detail": "wine=[\"water.well\"] faith 0 -> 4"
+    },
+    {
+      "name": "Healing Touch cures an injured villager (+Faith)",
+      "ok": true,
+      "detail": "healed=true faith 4 -> 10"
+    },
+    {
+      "name": "Holy Levitation lifts while Q is held, sets down on release",
+      "ok": true,
+      "detail": "held y=3.70 released y=1.28"
+    },
+    {
+      "name": "Walk on Water: wading stops at depth, the miracle lets you walk out, expiry sinks you to the dock",
+      "ok": true,
+      "detail": "wade depth=1.33 on water=true y=0.06 after expiry x=106.0"
+    },
+    {
+      "name": "revealed miracles persist",
+      "ok": true,
+      "detail": "[\"miracle.divine-push\",\"miracle.multiplication\",\"miracle.water-to-wine\",\"miracle.healing-touch\",\"miracle.holy-levitation\",\"miracle.walk-on-water\"]"
+    },
+    {
+      "name": "Roman garrison patrols and guards",
+      "ok": true,
+      "detail": "active=12 walking=roman.brutus,roman.sextus,roman.flavius,roman.quintus nav={\"nodes\":419,\"edges\":816,\"casts\":1550,\"unreachable\":0}"
+    },
+    {
+      "name": "talk to a legionary (E, answer, Esc)",
+      "ok": true,
+      "detail": "prompt=\"Talk to Legionary Flavius\" name=\"Legionary Flavius\" text=\"You break things where I can see, we chase you. Pu…\""
+    },
+    {
+      "name": "legionaries need line of sight (house blocks the view)",
+      "ok": true,
+      "detail": "in the open=true behind the house=false"
+    },
+    {
+      "name": "witnessed crime raises Roman Attention and starts a chase",
+      "ok": true,
+      "detail": "stars=1 heat=1.1 flavius=pursue villager ragdolls=2"
+    },
+    {
+      "name": "ragdolled villagers stand back up",
+      "ok": true,
+      "detail": "[{\"ragdoll\":false,\"collider\":true,\"ok\":true,\"y\":1.1530224686882384},{\"ragdoll\":false,\"collider\":true,\"ok\":true,\"y\":1.17270588264849}]"
+    },
+    {
+      "name": "Divine Push ragdolls a legionary; he gets up angrier",
+      "ok": true,
+      "detail": "flew 5.0 m, stars 1 -> 2, after: {\"ragdoll\":false,\"mode\":\"pursue\",\"collider\":true,\"bruised\":true}"
+    },
+    {
+      "name": "Healing Touch on a legionary lowers Roman Attention",
+      "ok": true,
+      "detail": "stars 2 -> 1, flavius=friendly"
+    },
+    {
+      "name": "break line of sight and the Romans give up",
+      "ok": true,
+      "detail": "stars 1 -> 0, escapes=1 crimes="
+    },
+    {
+      "name": "3 stars: reinforcements join the hunt",
+      "ok": true,
+      "detail": "stars=3 reinforcements=[{\"mode\":\"pursue\",\"d\":11.7},{\"mode\":\"pursue\",\"d\":23.5}] modes={\"pursue\":6,\"duty\":8}"
+    },
+    {
+      "name": "seized: a Divine Push breaks free",
+      "ok": true,
+      "detail": "grab peaked 0.33, after push 0, toppled 1->2, meter=true"
+    },
+    {
+      "name": "Water to Wine distracts the legionaries",
+      "ok": true,
+      "detail": "brutus=distracted"
+    },
+    {
+      "name": "arrest: card, fine, release at the checkpoint",
+      "ok": true,
+      "detail": "screen=arrested card=true after=playing pos=-1.5,-95.0 arrests=1 faith=0"
+    },
+    {
+      "name": "trespassing in the Roman camp: warning, then wanted",
+      "ok": true,
+      "detail": "inside=true x=14.2 warnings=1 toast=false stars=1 modes={\"pursue\":6,\"duty\":6} seeing=3"
+    },
+    {
+      "name": "Roman record persists; wanted level resets on load",
+      "ok": true,
+      "detail": "arrests=2 escapes=1 maxStars=5 stars=0"
+    },
+    {
+      "name": "Fort garrison posted and navigable",
+      "ok": true,
+      "detail": "active=12 fort=[[\"roman.cassius\",18,-181],[\"roman.drusus\",18,-175],[\"roman.felix\",37,-168],[\"roman.varro\",20,-196]] nav={\"nodes\":419,\"edges\":816,\"casts\":2034,\"unreachable\":0}"
+    },
+    {
+      "name": "Mount Joseph's donkey with F",
+      "ok": true,
+      "detail": "prompt=Ride Joseph's donkey mode=mounted hud={\"visible\":true,\"name\":\"Joseph's donkey\"}"
+    },
+    {
+      "name": "Riding: trot, gallop, steer",
+      "ok": true,
+      "detail": "trot=5.0 gallop=6.9 moved=48.7 yaw -1.65->2.38 seat={\"dy\":0.8014943624274604,\"gap\":0.04525380643657867}"
+    },
+    {
+      "name": "Trampling: a galloping ride knocks a villager over",
+      "ok": true,
+      "detail": "events=npc:trampled,vehicle:hit knocked 0->1"
+    },
+    {
+      "name": "Dismount with F, then walk",
+      "ok": true,
+      "detail": "mode=on-foot {\"enabled\":true,\"gap\":1.1700001494694323,\"hud\":false} walked=5.2"
+    },
+    {
+      "name": "Rides refuse to walk into the lake",
+      "ok": true,
+      "detail": "ride={\"x\":115.45042895379083,\"depth\":0.29097957442939304} events=fish:jump,fish:jump,fish:jump,fish:jump,vehicle:refuse,fish:jump,fish:jump,fish:jump"
+    },
+    {
+      "name": "Chapter II: 8 new places, region labels, chapter complete",
+      "ok": true,
+      "detail": "found=8 labels=Bar-Tolmai Farm | Goat Hill | Fishers' Hamlet | The Lonely Isle | Castra Galilaea (restricted) | The Little Circus | Palm Oasis | Caravan Camp chapters={\"one\":0,\"two\":8,\"complete1\":false,\"complete2\":true}"
+    },
+    {
+      "name": "World boundary at the edge of the map",
+      "ok": true,
+      "detail": "x=-202.3 events=player:boundary"
+    },
+    {
+      "name": "Stealing a Roman chariot is a crime",
+      "ok": true,
+      "detail": "prompt=Steal the Roman chariot ride=chariot crimes=chariot stars=2"
+    },
+    {
+      "name": "Pulled off your ride by a legionary",
+      "ok": true,
+      "detail": "exits=[{\"name\":\"vehicle:exit\",\"entityId\":\"player.local\",\"vehicleId\":\"vehicle.chariot.1\",\"kind\":\"chariot\",\"reason\":\"pulled\"}] mode=on-foot grab=0.11"
+    },
+    {
+      "name": "Circus lap timed and best lap saved",
+      "ok": true,
+      "detail": "laps=[[15.93,true]] best=15.93"
+    },
+    {
+      "name": "Wildlife: pigeons, goats, caravan, fish",
+      "ok": true,
+      "detail": "pigeonsFlying=4 goatsFleeing=6 caravanMoved=true fish=18 birds=33"
+    },
+    {
+      "name": "Water to Wine on the oasis pond",
+      "ok": true,
+      "detail": "target=1 wine=0.58"
+    },
+    {
+      "name": "Save & continue keeps riding stats and Galilee places",
+      "ok": true,
+      "detail": "mode=on-foot two=8 rides=5/5 ridden=266 best=15.93 camel=-38,159.5"
+    },
+    {
+      "name": "Mission offered and accepted through dialogue",
+      "ok": true,
+      "detail": "bubble=true options=[\"★ The Wedding Wine\",\"I ate yesterday, Mother.\",\"Anything happening in the village?\",\"I love you, Mother.\",\"Peace be with you.\"] card=The Wedding Wine"
+    },
+    {
+      "name": "Wedding: reach the feast, wine in the jars, the bridegroom",
+      "ok": true,
+      "detail": "steps=miracle,talk faith 3.5 -> 18.5 done=[\"mission.wedding\"]"
+    },
+    {
+      "name": "Fishers of Men: walk on the deep water, Simon follows",
+      "ok": true,
+      "detail": "jettyStep=1 water={\"depth\":4.5,\"onWater\":true} followers=[\"npc.simon\"]"
+    },
+    {
+      "name": "Wandering Donkey: found at the oasis, ridden home, Bartholomew follows",
+      "ok": true,
+      "detail": "lost at 54,157 mounted=vehicle.donkey.farm done=[\"mission.wedding\",\"mission.fishers\",\"mission.donkey\"]"
+    },
+    {
+      "name": "Bread for the Caravan: six travellers fed from one loaf",
+      "ok": true,
+      "detail": "fed=6 progress=1,2,3,4,5,6"
+    },
+    {
+      "name": "Centurion's Servant: Gaius comes to the gate, a pass into the fort, Philo healed, favour",
+      "ok": true,
+      "detail": "back={\"mode\":\"duty\",\"x\":7.3,\"z\":-107.9,\"summoned\":true,\"step\":\"talk\",\"talk\":\"roman.gaius\",\"px\":5.6,\"stars\":0} opts2=[\"★ Peace be with you, Gaius.\",\"What is this place?\",\"Why are you so grumpy?\",\"Your men look tired.\",\"Just passing through.\"] gate={\"summoned\":true,\"x\":7.3} options=[\"★ The Centurion's Servant\",\"What is this place?\",\"Why are you so grumpy?\",\"Your men look tired.\",\"Just passing through.\"] warned=false step=1 stars=0 perks=pass.outpost,perk.favour"
+    },
+    {
+      "name": "Followers follow, wait on G, come back on G",
+      "ok": true,
+      "detail": "walking=[6.3,6.1] waiting=[29.4,29.3] back=[2.7,2.4]"
+    },
+    {
+      "name": "Recruiting: an invitation at Faith 25+, a healed sufferer joins",
+      "ok": true,
+      "detail": "invite option at 1 followers=[\"npc.simon\",\"npc.villager.0\",\"npc.villager.3\",\"npc.bartholomew\"]"
+    },
+    {
+      "name": "Followers catch up when you ride off",
+      "ok": true,
+      "detail": "[3.1,3.1,4.5,3.1]"
+    },
+    {
+      "name": "Blessing: Faith spent, Divine Push upgraded",
+      "ok": true,
+      "detail": "level=1 faith=25 reach 7.5 -> 9.375"
+    },
+    {
+      "name": "Chaos tiers: notorious scares villagers, Chaos fades",
+      "ok": true,
+      "detail": "tier=notorious hud=notorious avoid=5 chaos 35.94 -> 35.44"
+    },
+    {
+      "name": "Followers bring Faith over time",
+      "ok": true,
+      "detail": "faith 28 -> 30 with 4 followers"
+    },
+    {
+      "name": "Save & continue keeps missions, followers, Blessings and favours",
+      "ok": true,
+      "detail": "version=2 done=5/5 followers=4/4 levels={\"miracle.divine-push\":1}"
+    },
+    {
+      "name": "A version 1 save loads (no missions, followers or Blessings yet)",
+      "ok": true,
+      "detail": "screen=playing followers=0 done=0"
+    },
+    {
+      "name": "no console/page errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": []
+}

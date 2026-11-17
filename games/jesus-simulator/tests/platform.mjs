@@ -46,8 +46,9 @@ const DOUBLE = () => {
           cb.adStarted?.();
           // what the game looks like while the ad plays (sampled by the double itself)
           setTimeout(() => { const S = window.__JESUS_SIM__?.session; (window.__adDuring ||= []).push({ type, screen: S?.screen, muted: S?.audio.platformMuted, gameplay: S?.platform.gameplay }); }, 1200);
+          // the "ad" lasts 2.5 s from its own start (timers can bunch up behind slow software-rendered frames)
+          setTimeout(() => { calls.push('adFinished'); cb.adFinished?.(); }, 2500);
         }, 50);
-        setTimeout(() => { calls.push('adFinished'); cb.adFinished?.(); }, 2500);
       },
     },
     data: {

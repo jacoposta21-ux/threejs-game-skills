@@ -1,0 +1,55 @@
+{
+  "results": [
+    {
+      "name": "Boot: SDK init, loadingStart then loadingStop",
+      "ok": true,
+      "detail": "[\"init\",\"loadingStart\",\"loadingStop\"]"
+    },
+    {
+      "name": "Gameplay start/stop follow play, pause and resume",
+      "ok": true,
+      "detail": "[\"init\",\"loadingStart\",\"loadingStop\",\"gameplayStart\",\"gameplayStop\",\"gameplayStart\"]"
+    },
+    {
+      "name": "Host mute setting mutes and unmutes the game",
+      "ok": true,
+      "detail": "on=true off=false"
+    },
+    {
+      "name": "Saves go to the host data module",
+      "ok": true,
+      "detail": "[\"jesus-simulator.save.v1\"]"
+    },
+    {
+      "name": "Midgame ad only at a natural break after 3 min: game paused and muted during it",
+      "ok": true,
+      "detail": "early=not-now during={\"type\":\"midgame\",\"screen\":\"ad\",\"muted\":true,\"gameplay\":false} after=playing calls=[\"gameplayStop\",\"requestAd:midgame\",\"data.setItem:jesus-simulator.save.v1\",\"gameplayStart\",\"adStarted\",\"gameplayStop\",\"adFinished\",\"gameplayStart\"]"
+    },
+    {
+      "name": "Rewarded ad from the pause menu grants Faith +10",
+      "ok": true,
+      "detail": "faith 6 -> 16"
+    },
+    {
+      "name": "Happy moments are reported (mission complete → happytime)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Each region has its own music style",
+      "ok": true,
+      "detail": "{\"desert\":\"desert\",\"countryside\":\"countryside\",\"outpost\":\"outpost\",\"galilee\":\"galilee\",\"nazareth\":\"nazareth\"}"
+    },
+    {
+      "name": "Without the host SDK: local platform, no ad buttons, no ads",
+      "ok": true,
+      "detail": "platform=local button=false midgame=not-now"
+    },
+    {
+      "name": "No console or page errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": []
+}
