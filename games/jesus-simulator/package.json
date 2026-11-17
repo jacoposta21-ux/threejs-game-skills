@@ -15,7 +15,8 @@
     "test:npc-motion": "node tests/npc-motion.mjs http://127.0.0.1:4188/ artifacts/motion",
     "test:roman-motion": "node tests/roman-motion.mjs http://127.0.0.1:4188/ artifacts/motion",
     "test:ride-motion": "node tests/ride-motion.mjs http://127.0.0.1:4188/ artifacts/motion",
-    "test:platform": "node tests/platform.mjs http://127.0.0.1:4188/ artifacts/platform"
+    "test:platform": "node tests/platform.mjs http://127.0.0.1:4188/ artifacts/platform",
+    "trailer": "node tests/trailer.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
@@ -26,5 +27,5 @@
     "pngjs": "^7.0.0",
     "vite": "^8.3.8"
   },
-  "description": "Jesus Simulator \u2014 a humorous Roblox-inspired open-world sandbox in first-century Galilee (Three.js + Rapier)."
+  "description": "Jesus Simulator — a humorous Roblox-inspired open-world sandbox in first-century Galilee (Three.js + Rapier)."
 }
