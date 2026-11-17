@@ -1,98 +1,103 @@
 {
   "version": 1,
-  "runId": "phase5-pass-1",
+  "runId": "phase6-pass-1",
   "captures": [
     {
       "mode": "desktop",
       "state": "menu",
-      "report": "artifacts/phase5-pass-1/desktop-menu.json"
+      "report": "artifacts/phase6-pass-1/desktop-menu.json"
     },
     {
       "mode": "desktop",
       "state": "active-play",
-      "report": "artifacts/phase5-pass-1/desktop-active-play.json"
+      "report": "artifacts/phase6-pass-1/desktop-active-play.json"
     },
     {
       "mode": "desktop",
       "state": "plaza-life",
-      "report": "artifacts/phase5-pass-1/desktop-plaza-life.json"
+      "report": "artifacts/phase6-pass-1/desktop-plaza-life.json"
     },
     {
       "mode": "desktop",
       "state": "npc-dialogue",
-      "report": "artifacts/phase5-pass-1/desktop-npc-dialogue.json"
+      "report": "artifacts/phase6-pass-1/desktop-npc-dialogue.json"
     },
     {
       "mode": "desktop",
       "state": "pause",
-      "report": "artifacts/phase5-pass-1/desktop-pause.json"
+      "report": "artifacts/phase6-pass-1/desktop-pause.json"
     },
     {
       "mode": "desktop",
       "state": "map",
-      "report": "artifacts/phase5-pass-1/desktop-map.json"
+      "report": "artifacts/phase6-pass-1/desktop-map.json"
     },
     {
       "mode": "desktop",
       "state": "miracle-push",
-      "report": "artifacts/phase5-pass-1/desktop-miracle-push.json"
+      "report": "artifacts/phase6-pass-1/desktop-miracle-push.json"
     },
     {
       "mode": "desktop",
       "state": "roman-pursuit",
-      "report": "artifacts/phase5-pass-1/desktop-roman-pursuit.json"
-    },
-    {
-      "mode": "desktop",
-      "state": "roman-arrest",
-      "report": "artifacts/phase5-pass-1/desktop-roman-arrest.json"
+      "report": "artifacts/phase6-pass-1/desktop-roman-pursuit.json"
     },
     {
       "mode": "desktop",
       "state": "night",
-      "report": "artifacts/phase5-pass-1/desktop-night.json"
+      "report": "artifacts/phase6-pass-1/desktop-night.json"
     },
     {
       "mode": "desktop",
       "state": "ride-donkey",
-      "report": "artifacts/phase5-pass-1/desktop-ride-donkey.json"
+      "report": "artifacts/phase6-pass-1/desktop-ride-donkey.json"
     },
     {
       "mode": "desktop",
       "state": "ride-chariot",
-      "report": "artifacts/phase5-pass-1/desktop-ride-chariot.json"
+      "report": "artifacts/phase6-pass-1/desktop-ride-chariot.json"
     },
     {
       "mode": "desktop",
       "state": "region-farm",
-      "report": "artifacts/phase5-pass-1/desktop-region-farm.json"
-    },
-    {
-      "mode": "desktop",
-      "state": "region-lake",
-      "report": "artifacts/phase5-pass-1/desktop-region-lake.json"
+      "report": "artifacts/phase6-pass-1/desktop-region-farm.json"
     },
     {
       "mode": "desktop",
       "state": "region-outpost",
-      "report": "artifacts/phase5-pass-1/desktop-region-outpost.json"
+      "report": "artifacts/phase6-pass-1/desktop-region-outpost.json"
     },
     {
       "mode": "desktop",
-      "state": "region-desert",
-      "report": "artifacts/phase5-pass-1/desktop-region-desert.json"
+      "state": "mission-wedding",
+      "report": "artifacts/phase6-pass-1/desktop-mission-wedding.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "followers",
+      "report": "artifacts/phase6-pass-1/desktop-followers.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "journal",
+      "report": "artifacts/phase6-pass-1/desktop-journal.json"
+    },
+    {
+      "mode": "desktop",
+      "state": "blessings",
+      "report": "artifacts/phase6-pass-1/desktop-blessings.json"
     },
     {
       "mode": "mobile",
-      "state": "ride-donkey",
-      "report": "artifacts/phase5-pass-1/mobile-ride-donkey.json"
+      "state": "followers",
+      "report": "artifacts/phase6-pass-1/mobile-followers.json"
     }
   ],
   "artifacts": [
-    "artifacts/phase5-pass-1/playtest/results.json",
-    "artifacts/phase5-pass-1/motion/motion-sheet.png",
-    "artifacts/phase5-pass-1/motion/npc-motion-sheet.png",
-    "artifacts/phase5-pass-1/motion/roman-motion-sheet.png",
-    "artifacts/phase5-pass-1/motion/ride-motion-sheet.png"
+    "artifacts/phase6-pass-1/playtest/results.json",
+    "artifacts/phase6-pass-1/motion/motion-sheet.png",
+    "artifacts/phase6-pass-1/motion/npc-motion-sheet.png",
+    "artifacts/phase6-pass-1/motion/roman-motion-sheet.png",
+    "artifacts/phase6-pass-1/motion/ride-motion-sheet.png"
   ]
 }

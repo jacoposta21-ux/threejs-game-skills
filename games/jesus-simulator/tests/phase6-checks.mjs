@@ -168,13 +168,14 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
     S.simulate(0.05);
   });
   await press('Digit2');
-  for (let i = 0; i < 6; i += 1) {
+  let fed = 0;
+  ev = [];
+  for (let i = 0; i < 12 && fed < 6; i += 1) {
     await press('KeyQ', 2);
-    await sim(2.2);
+    await sim(3);
+    ev = ev.concat(await events());
+    fed = ev.filter((e) => e.name === 'npc:fetched' && e.hungry).length;
   }
-  await sim(6);
-  ev = await events();
-  const fed = ev.filter((e) => e.name === 'npc:fetched' && e.hungry).length;
   await talk('npc.hiram');
   await choose(1);
   await closeTalk();

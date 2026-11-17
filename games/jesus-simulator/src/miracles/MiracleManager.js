@@ -336,7 +336,7 @@ export class MiracleManager {
         }
       }
     }
-    return { ok: true, event: { healed, npc: npc.id, more }, faith: (healed ? (was.kind === 'chronic' ? 5 : 3) : 0) + more * 2, cooldown: healed ? undefined : 1 };
+    return { ok: true, event: { healed, npc: npc.id, more, injury: was?.kind || null }, faith: (healed ? (was.kind === 'chronic' ? 5 : 3) : 0) + more * 2, cooldown: healed ? undefined : 1 };
   }
 
   castLevitate(target) {

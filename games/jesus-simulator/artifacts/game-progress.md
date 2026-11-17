@@ -1,7 +1,7 @@
 # Jesus Simulator — progress log
 
 ## Intent and constraints
-- Complete Jesus Simulator for CrazyGames, built incrementally phase by phase. Phases 1–5 are done; the current pass is Phase 5 (world expansion, rides, wildlife).
+- Complete Jesus Simulator for CrazyGames, built incrementally phase by phase. Phases 1–6 are done; the current pass is Phase 6 (missions, followers, Faith/Chaos, Blessings, full save).
 - JavaScript ES modules (the user asked for JS, overriding the pack's TS default), Three.js, Rapier 3D, Vite, Web Audio, LocalStorage.
 - Single-player only; MULTIPLAYER is a visibly disabled "COMING SOON" button with no networking.
 - Tone: playful and absurd, never deliberately offensive. Roblox-inspired but original art; procedural geometry is acceptable for Phase 1.
@@ -117,8 +117,24 @@ Player **explores** to **discover the 7 landmarks of Nazareth**; the minimap and
   - Rides are hidden beyond 140 m and drop shadows beyond 45 m.
 - **Tests:** `tests/phase5-checks.mjs` (14 checks; real F/W/Shift/D/Q input plus the test autopilot for the lap) and `tests/ride-motion.mjs` (contact sheet). The Phase 4 garrison count is now 12.
 
-## Next actions (Phase 6 — missions, Faith/Chaos, followers, full save)
-- **Missions:** a mission framework (objectives, triggers, rewards, a journal), with villager missions — the wedding wine, the fishermen's troubles and the Roman problem. The new regions give each one a stage: the hamlet, the farm, the fort and the camp.
-- **Followers:** recruited by healing and good deeds; they follow on foot and later ride along.
-- **Faith/Chaos consequences**, miracle upgrades and the full save (missions, followers, ride positions if needed).
-- **Region NPCs:** a farmer, fishermen and traders (`NPCManager` homes beyond Nazareth; the nav graph already covers the new roads).
+## Phase 6 — The Ministry (completed)
+- **Missions** (`src/missions/`): a `MissionManager` with available, active and done states, steps, progress, a tracked mission, markers and dialogue offers; it emits `mission:accepted`, `mission:step`, `mission:progress` and `mission:done`. `missions.js` holds 6 missions: wedding, fishers, donkey, caravan, centurion and the legacy sheep errand.
+  - **Step kinds:** talk, reach (optionally on water, or to a ride), ride, miracle (on a target or an NPC) and counted events.
+- **Dialogue:** `DialogueController.getExtras` puts mission offers, talk steps, the follow invite and follower orders in front of any NPC's own options.
+- **Posted folk:** `postedFolk()` in the roster adds Bartholomew, Hiram, 6 hungry travellers (the bread witness serves one loaf each), Philo (fever) and Nathan the groom. Posted people skip routines and night-time hiding and walk back to their post.
+- **Centurion:** Gaius is *summoned* to the camp gate when Yeshua approaches with his mission available or due, so it can start without trespassing. The `pass.outpost` flag makes the fort non-restricted (`zoneAccess`).
+- **Wedding feast:** `buildWedding` places a canopy, table, benches and six stone jars (an InstancedMesh water target `water.wedding`) at `WEDDING` (15.5, 9.5).
+- **Followers:** `NPCManager.recruit`, `followPlayer` (formation behind a damped yaw; catch-up teleport when more than 40 m away and out of view) and `setFollowersWaiting` (G). Followers come from missions, healing chronic injuries and invites at Faith 25+, up to 12.
+- **Reputation** (`game/reputation.js`):
+  - Faith titles come from the lifetime `faithEarned`.
+  - Chaos tiers: restless (12+) means wary greetings; notorious (30+) means villagers back away (`npc:avoid`) and Roman `sightScale` ×1.2.
+  - Chaos fades by 0.5 per minute; healing −1, missions −2 or −3. Followers add +1 Faith per 90 s each (fixed step).
+- **Blessings:** `MiracleManager.levels` gives −20% cooldown per level plus each miracle's own effect (push reach, loaves per cast, wine duration, water time, area heal, levitation range). They are bought in Pause → Miracles (`ui:bless`).
+- **Save v2:** `ministry`, `followers`, `miracleLevels`, parked `vehicles`, and the new stats `missions`, `followersEver`, `blessings` and `faithEarned`. v1 saves still load.
+- **UI:** a reputation pill, quest bubbles (`!` / ★), mission and giver markers on the minimap and world map, the journal (Chapter III first) and Blessing buttons.
+
+## Next actions (Phase 7 — polish, audio, optimisation, CrazyGames SDK)
+- **CrazyGames SDK** integration (loading events, gameplay start/stop, ads only through the SDK, no fake ads), plus a build size pass (Rapier non-compat build).
+- **Performance on real GPUs:** LOD for far characters, shadow cascades, a quality auto-tune.
+- **Audio polish and music per region;** occluder fading for the camera.
+- **Mobile/touch controls** if wanted.

@@ -2,7 +2,7 @@
 
 A humorous, Roblox-inspired, GTA-style open-world sandbox set in first-century Galilee. Built with Three.js, Rapier 3D and Vite as plain JavaScript ES modules. **This release is single-player only.**
 
-> Status: **Phases 1–5 are complete**: playable foundation, living world, miracles, the Roman system, and the open world of Galilee with rideable animals and vehicles. Later phases (missions and followers, polish and the CrazyGames SDK) are not implemented yet. See [Roadmap](#roadmap).
+> Status: **Phases 1–6 are complete**: playable foundation, living world, miracles, the Roman system, the open world with rides, and the Ministry (missions, followers, Faith/Chaos, Blessings, full save). Phase 7 (polish, optimisation, CrazyGames SDK) is not implemented yet. See [Roadmap](#roadmap).
 
 ## Run it
 
@@ -21,7 +21,7 @@ npm run preview    # http://127.0.0.1:4188
 Checks (need the preview server running):
 
 ```bash
-npm run test:play      # real-input playtest: Phases 1-5 (movement, saves, NPCs, miracles, Romans, riding, regions, wildlife)
+npm run test:play      # real-input playtest: Phases 1-6 (movement, saves, NPCs, miracles, Romans, riding, regions, wildlife, missions, followers)
 npm run test:motion    # locomotion video + contact sheet
 npm run test:npc-motion    # villager life contact sheet
 npm run test:roman-motion  # legionaries chasing + a Divine Push ragdoll, contact sheet
@@ -48,8 +48,44 @@ If Playwright can't find a browser, point it at an installed Chromium with `CHRO
 | F | Get on / get off a ride (donkey, horse, camel, cart, chariot) |
 | W / S · A / D (riding) | Pace (trot, back up) · steer |
 | Shift · Space (riding) | Gallop · hop (animals) |
+| G | Followers: wait here / come with me |
 | Tab | Map |
 | Esc | Pause menu |
+
+## What Phase 6 adds — the Ministry: missions, followers, Faith and Chaos
+
+- **Chapter III: The Ministry — 6 missions** run by a data-driven `MissionManager`.
+  - **How a mission starts:** anyone with a mission shows a bobbing gold **!** over their head and on the maps. Talk to them (E) and pick the ★ option.
+  - **Tracking:** the objective card shows the current step with distance and direction, and a gold star marks it on the minimap and the map. A ★ option appears in the conversation with whoever you need to talk to next.
+  - **The Wedding Wine** (Mary): Cousin Nathan's feast east of the square has run out of wine. Go to the canopy, turn the water in the six stone jars into wine, then tell the bridegroom. Faith +15, Chaos −3.
+  - **Fishers of Men** (Simon): go to the end of the hamlet jetty and walk out onto the deep water. The lake boils with fish. Tell Simon and he leaves his nets to follow you.
+  - **The Wandering Donkey** (Bartholomew, at the farm): his donkey has run off to the Palm Oasis. Find her and ride her home. Bartholomew follows you.
+  - **Bread for the Caravan** (Hiram, at the camp): one loaf, six hungry travellers. Use Multiplication until everyone has eaten.
+  - **The Centurion's Servant** (Gaius Grumpus): he comes to the camp gate to ask, so you don't have to trespass. His seal lets you into Castra Galilaea; heal his servant Philo there. Reward: *Centurion's Favour* — soldiers see 15% less far and arrest fines are halved.
+  - **The Lost Sheep** (Amos): the Phase 2 errand, now tracked as a mission.
+  - Finishing all six completes Chapter III (Faith +20).
+- **New people:** Bartholomew the farmer, Hiram the caravan master, six hungry travellers, Philo the centurion's servant, and Nathan the bridegroom. They have their own dialogue and stay at their posts day and night.
+- **Followers (up to twelve):**
+  - **Recruiting:** finish Simon's and Bartholomew's missions, heal someone long-suffering (Benjamin's knee, the sprained ankle), or, once your Faith reaches 25, simply say "Come, follow me" to almost anyone.
+  - **Following:** they walk, jog or run to keep a loose formation behind you. If you ride or walk off far, they rejoin out of sight.
+  - **Orders:** **G** makes them wait or calls them back; you can also tell one of them in conversation.
+  - **Faith:** they bring Faith over time (+1 per follower every 90 s).
+- **Faith and Chaos with consequences:**
+  - A HUD pill shows your title, Faith and Chaos.
+  - **Titles** come from the Faith you have ever earned: Joseph's son → Wandering teacher → Miracle worker → Prophet of Galilee → …
+  - **Chaos tiers:**
+    - *Restless* (12+): villagers are wary.
+    - *Notorious* (30+): people back away from you and the legion watches 20% more closely.
+  - Chaos fades slowly, and faster with healing and missions.
+- **Blessings:** spend Faith on miracle upgrades in Pause → Miracles. Each miracle has 2 levels (15 / 30 Faith), and every level also cuts its cooldown by 20%.
+  - **Divine Push:** wider reach.
+  - **Multiplication:** more loaves per cast.
+  - **Water to Wine:** lasts longer.
+  - **Walk on Water:** more time on the lake.
+  - **Healing Touch:** at level 2, healing spreads to everyone hurt nearby.
+  - **Holy Levitation:** longer range.
+- **Full save (version 2):** stores mission states and the tracked mission, followers (and who is waiting), Blessings, perks and passes, and rides parked away from home. Version 1 saves from Phases 1–5 still load; the new systems start empty.
+- **Journal:** the Missions tab starts with Chapter III: every mission's state, its next step or its reward, and your followers by name. Statistics add reputation, missions done and Blessings.
 
 ## What Phase 5 adds — Galilee and things to ride
 
@@ -225,9 +261,11 @@ src/
   world/Regions.js        Phase 5 sites: farm, goat hill, hamlet, isle, fort, circus, oasis, caravan camp, desert rocks
   vehicles/               VehicleManager (riding physics, mount/dismount, collisions, circus laps), mounts (procedural donkey/horse/camel/cart/chariot models)
   npc/Wildlife.js         instanced birds (shader flapping) and leaping fish
+  missions/               MissionManager (state machine, markers, dialogue offers) + missions.js (Chapter III data, posted folk)
+  game/reputation.js      Faith titles, Chaos tiers, Blessing costs and effects
   audio/AudioManager.js   procedural Web Audio
   save/SaveManager.js     LocalStorage + validation
-tests/                    playtest.mjs + phase2/3/4/5 checks, motion.mjs, npc-motion.mjs, roman-motion.mjs, ride-motion.mjs (Playwright, real input)
+tests/                    playtest.mjs + phase2/3/4/5/6 checks, motion.mjs, npc-motion.mjs, roman-motion.mjs, ride-motion.mjs (Playwright, real input)
 scripts/                  inspect-threejs-canvas.mjs (canvas/pixel/budget inspector)
 artifacts/                evidence manifest, captures, playtest results, final-evidence.md
 ```
@@ -242,9 +280,9 @@ artifacts/                evidence manifest, captures, playtest results, final-e
 
 ## Known limitations
 
-- **Content not built yet:** no followers or full mission framework. Their HUD slots and menu entries say plainly that they're coming in a later chapter, and nothing fakes them. The lost-sheep errand is a single scripted good deed, not the Phase 6 mission framework.
+- **Missions are single-path:** six hand-written missions with fixed steps; there are no branching outcomes, failure states or timed missions yet. Followers don't fight, carry things or ride their own animals; they keep formation and rejoin out of sight.
 - **Arcade riding:** rides are a kinematic box moved by Rapier's character controller, not wheel or leg physics. They can't swim, there are no boats to sail, and the cart carries nobody but you. Romans have no cavalry; they chase on foot. The circus has no rival racers.
-- **The new regions are quieter:** no villagers live outside Nazareth yet (the farmer, fishermen and traders are implied by their homes, signs and animals). Their stories arrive with the Phase 6 missions.
+- **Region people stand at posts:** the farmer, caravan folk and the centurion's servant stay at their spots (no daily routines outside Nazareth).
 - **Ragdolls only for big hits:** legionaries always ragdoll under Divine Push and villagers do on close, strong hits (up to 8 ragdolls at once). Being bumped or sprinted into still plays the animated stumble. Ragdoll limbs don't collide with each other.
 - **Simple stealth:** there is no crouching or hiding spot; you lose the Romans by breaking line of sight and waiting. The wanted level is not saved, so reloading clears it.
 - **Night is brief:** about 84 seconds. Villagers vanish indoors rather than performing evening activities inside houses.
@@ -261,7 +299,7 @@ artifacts/                evidence manifest, captures, playtest results, final-e
 3. ~~Phase 3 — Miracles~~ ✅
 4. ~~Phase 4 — Roman system~~ ✅
 5. ~~Phase 5 — World expansion~~ ✅ countryside, lake, outpost, desert, rides (donkey, horse, camel, cart, chariot), animals.
-6. **Phase 6 — Missions, Faith/Chaos, followers, full save** *(next)*.
-7. Phase 7 — Polish, audio, optimisation, CrazyGames SDK integration.
+6. ~~Phase 6 — Missions, Faith/Chaos, followers, full save~~ ✅
+7. **Phase 7 — Polish, audio, optimisation, CrazyGames SDK integration** *(next)*.
 
 All models, textures and sounds are original and generated procedurally at runtime. No third-party or Roblox assets are used.

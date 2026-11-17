@@ -298,12 +298,12 @@ export class GameSession {
       this.audio.discovery();
       this.ui.toast(`${name} is now following you. (G: wait / follow)`, `follow-${name}`, 2);
     });
-    bus.on('miracle:cast', ({ miracleId, healed, npc }) => {
+    bus.on('miracle:cast', ({ miracleId, healed, npc, injury }) => {
       if (miracleId !== 'miracle.healing-touch' || !healed) return;
       this.playerState.chaos = Math.max(0, this.playerState.chaos - 1);
       const n = this.npcs.byId.get(npc);
       // the long-suffering (bad knees, fevers that aren't the centurion's) follow the one who healed them
-      if (n && n.def.injured === 'chronic' && !n.def.post) this.recruitFollower(n, 'healed');
+      if (n && injury === 'chronic' && !n.def.post) this.recruitFollower(n, 'healed');
     });
 
     // ---- riding
@@ -711,6 +711,7 @@ export class GameSession {
       // a legionary with a grip on you pulls you off your ride
       if (this.vehicles.ridden && this.romans.grab > 0.15 && this.screen === 'playing') this.vehicles.dismount(this.player, st, { force: true, reason: 'pulled' });
     }
+    if (this.screen === 'playing') this.tickReputation(dt);
     if (this.screen === 'playing') this.miracles.fixedUpdate(dt, { castHeld: (this.testCastHeld || !!this.intent?.castHeld) && !this.dialogue.active });
     this.ragdolls.fixedUpdate(dt);
     this.physics.step();
@@ -1061,13 +1062,18 @@ export class GameSession {
   }
 
   /** Followers bring Faith; Chaos fades over time; tier changes are announced. */
-  updateReputation(dt) {
+  /** Game-time part (fixed step): followers' Faith trickle and Chaos fading. */
+  tickReputation(dt) {
     const st = this.playerState;
     const n = this.npcs.followers().length;
-    st.followers = this.npcs.followers().map((f) => f.id);
     this.faithTick = (this.faithTick || 0) + dt * n;
     if (this.faithTick >= 90) { this.faithTick -= 90; this.addFaith(1); }
     st.chaos = Math.max(0, st.chaos - dt / 60 * 0.5);
+  }
+
+  updateReputation() {
+    const st = this.playerState;
+    st.followers = this.npcs.followers().map((f) => f.id);
     const tier = chaosTier(st.chaos);
     if (this.lastTier && tier.id !== this.lastTier) this.ui.toast(`Reputation: ${tier.label}. ${tier.note}`, `tier-${tier.id}`, 20);
     this.lastTier = tier.id;
