@@ -217,7 +217,8 @@ export async function phase6Checks({ page, check, diag, waitFrames, out }) {
   await press('Digit5');
   await press('KeyQ');
   await sim(0.5);
-  await teleport(-6, -108, Math.PI / 2);
+  await teleport(-1, -108, Math.PI / 2); // within 12 m of the gate: Gaius is called over
+  await waitFrames(3);
   await sim(14); // Gaius walks over from his post (~10 s)
   await setup(() => {
     const S = window.__JESUS_SIM__.session;

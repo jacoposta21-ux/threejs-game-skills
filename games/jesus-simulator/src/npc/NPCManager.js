@@ -943,7 +943,7 @@ export class NPCManager {
     const dz = tz - npc.pos.z;
     const d = Math.hypot(dx, dz);
     // far behind (riding, lake crossing): rejoin out of view
-    if (npc.distP > 40 && npc.distC > 30) {
+    if ((npc.distP > 40 && npc.distC > 30) || npc.distP > 60) {
       this.place(npc, tx, terrainHeight(tx, tz), tz);
       return { vx: 0, vz: 0, speed: 0, action: 'none' };
     }
