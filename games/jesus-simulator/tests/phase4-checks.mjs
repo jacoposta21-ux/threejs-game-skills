@@ -317,6 +317,6 @@ export async function phase4Checks({ page, check, diag, waitFrames, hold, out })
   await page.click('#btn-play');
   await waitFrames(5);
   d = await diag();
-  check('Roman record persists; wanted level resets on load', d.stats.arrests === 1 && d.stats.escapes >= 1 && d.stats.maxStars >= 3 && d.romans.stars === 0,
+  check('Roman record persists; wanted level resets on load', d.stats.arrests >= 1 && /* the trespass check may end in a second, real arrest */ d.stats.escapes >= 1 && d.stats.maxStars >= 3 && d.romans.stars === 0,
     `arrests=${d.stats.arrests} escapes=${d.stats.escapes} maxStars=${d.stats.maxStars} stars=${d.romans.stars}`);
 }
