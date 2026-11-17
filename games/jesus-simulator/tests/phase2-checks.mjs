@@ -120,7 +120,7 @@ export async function phase2Checks({ page, check, diag, waitFrames, hold, out })
   });
   await waitFrames(40);
   d = await diag();
-  check('pottery breaks on hard impact', d.props.broken >= 1 && d.props.shards >= 1 && d.chaos >= chaos1 + 2, `broken=${d.props.broken} shards=${d.props.shards} chaos=${d.chaos.toFixed(1)}`);
+  check('pottery breaks on hard impact', d.props.broken >= 1 && d.props.shards >= 1 && d.chaos >= chaos1 + 1.7, // +2, minus the slow Chaos fade (Phase 6) `broken=${d.props.broken} shards=${d.props.shards} chaos=${d.chaos.toFixed(1)}`);
 
   // 6. walking into a fruit pile scatters fruit
   await setup(() => {
