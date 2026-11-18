@@ -1,5 +1,6 @@
 /**
- * Gameplay trailer renderer (landscape 1920x1080 or portrait 1080x1920).
+ * Gameplay trailer renderer (landscape 1920x1080 or portrait 1080x1620, 2:3).
+ * TRAILER_SECONDS caps the length (default 20 s).
  *
  * The game is driven frame by frame at a fixed 30 fps: the real-time loop is
  * stopped, each video frame advances the simulation by 1/30 s (two 60 Hz
@@ -18,7 +19,7 @@ const mode = process.argv[2] === 'portrait' ? 'portrait' : 'landscape';
 const url = process.argv[3] || 'http://127.0.0.1:4188/';
 const outDir = process.argv[4] || 'artifacts/trailer';
 const FPS = 30;
-const size = mode === 'portrait' ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 };
+const size = mode === 'portrait' ? { width: 1080, height: 1620 } : { width: 1920, height: 1080 };
 const frameDir = path.join(outDir, `frames-${mode}`);
 fs.rmSync(frameDir, { recursive: true, force: true });
 fs.mkdirSync(frameDir, { recursive: true });
@@ -46,7 +47,7 @@ await page.evaluate(({ portrait }) => {
   let t = 100;
   const tr = {};
   window.__TR = tr;
-  const far = (k) => (portrait ? k * 1.35 : k);
+  const far = (k) => (portrait ? k * 1.2 : k);
 
   /** Advance 1/30 s with the given intent (two fixed steps, two visual updates), then render. */
   tr.frame = (want = {}, camFn = null) => {
@@ -253,12 +254,14 @@ await page.evaluate(({ portrait }) => {
 // ---- the cut: [shot, seconds]
 const QUICK = !!process.env.TRAILER_QUICK; // preview: 3 frames per shot, contact sheet, no video
 const CUT = [['village', 3], ['push', 3], ['bread', 2.7], ['water', 2.7], ['chariot', 2.7], ['pursuit', 2.7], ['followers', 2.7], ['endcard', 2.5]];
+const MAX_FRAMES = Math.round(Number(process.env.TRAILER_SECONDS || 20) * FPS);
 let index = 0;
 const t0 = Date.now();
 for (const [shot, seconds] of CUT) {
+  if (!QUICK && index >= MAX_FRAMES) break;
   await page.evaluate((name) => window.__TR.setup(name), shot);
   const n = QUICK ? 3 : Math.round(seconds * FPS);
-  for (let i = 0; i < n; i += 1) {
+  for (let i = 0; i < n && (QUICK || index < MAX_FRAMES); i += 1) {
     await page.evaluate(([name, k, total]) => window.__TR.step(name, k, total), [shot, i, n]);
     await page.screenshot({ path: path.join(frameDir, `f${String(index).padStart(5, '0')}.jpg`), type: 'jpeg', quality: 92, timeout: 180000 });
     index += 1;
