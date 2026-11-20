@@ -122,7 +122,13 @@ export class ThirdPersonCamera {
     this.camera.lookAt(lx, ly, lz);
 
     const gallop = mount ? Math.min(1, Math.max(0, (Math.abs(mount.speed) - 7) / 8)) : 0;
-    const fov = lerp(this.baseFov, 50, a) + (intent.sprinting ? 4 : 0) + gallop * 7;
+    let fov = lerp(this.baseFov, 50, a) + (intent.sprinting ? 4 : 0) + gallop * 7;
+    // upright screens (phones held vertically): open the vertical FOV so the side view is not a keyhole
+    const aspect = this.camera.aspect;
+    if (aspect < 1) {
+      const k = Math.min(1.6, 0.75 / aspect);
+      if (k > 1) fov = (2 * Math.atan(Math.tan((fov * Math.PI) / 360) * k) * 180) / Math.PI;
+    }
     if (Math.abs(this.camera.fov - fov) > 0.05) {
       this.camera.fov = lerp(this.camera.fov, fov, damp(6, dt));
       this.camera.updateProjectionMatrix();

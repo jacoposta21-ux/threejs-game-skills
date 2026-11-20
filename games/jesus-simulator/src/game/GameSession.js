@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { EventBus } from '../core/EventBus.js';
 import { Input } from '../core/Input.js';
+import { TouchControls } from '../core/TouchControls.js';
 import { Loop } from '../core/Loop.js';
 import { createRenderer, resizeRenderer, QUALITY_PRESETS } from '../core/Renderer.js';
 import { createRng, damp } from '../core/rng.js';
@@ -146,6 +147,7 @@ export class GameSession {
 
     this.input = new Input(this.canvas);
     this.input.onPointerLockChange = (locked) => this.onPointerLock(locked);
+    this.touch = new TouchControls(this.input, document.getElementById('hud'));
     this.applyQuality(this.settings.quality);
     this.bindEvents();
     this.installTestHooks();
@@ -490,19 +492,20 @@ export class GameSession {
     bus.on('roman:arrest', (e) => this.startArrest(e));
 
     document.addEventListener('keydown', (e) => {
-      if (e.code !== 'Escape') return;
-      if (this.ui.sheetOpen) {
-        this.ui.closeSheet();
-        return;
-      }
-      if (this.screen === 'playing' && this.dialogue.active) {
-        this.dialogue.close();
-        return;
-      }
-      if (this.screen === 'playing') this.pause();
-      else if (this.screen === 'paused') this.resume();
-      else if (this.screen === 'map') this.closeMap();
+      if (e.code === 'Escape') this.handleEscape();
     });
+    // touch buttons: pause and map (the same as Esc and Tab)
+    document.addEventListener('touch-action', (e) => {
+      if (e.detail.code === 'Escape') this.handleEscape();
+      else if (e.detail.code === 'Tab') {
+        if (this.screen === 'map') this.closeMap();
+        else if (this.screen === 'playing' && !this.dialogue.active) this.openMap();
+      }
+    });
+    bus.on('ui:map-close', () => { if (this.screen === 'map') this.closeMap(); });
+    bus.on('ui:dialogue-leave', () => { if (this.screen === 'playing' && this.dialogue.active) this.dialogue.close(); });
+    bus.on('ui:dialogue-advance', () => this.input.virtualPress('KeyE'));
+    bus.on('ui:arrest-continue', () => { if (this.screen === 'arrested') this.input.virtualPress('KeyE'); });
     document.addEventListener('keydown', (e) => {
       if (e.code === 'Tab' && this.screen === 'map') {
         e.preventDefault();
@@ -619,6 +622,20 @@ export class GameSession {
     this.ui.closeMap();
     this.screen = 'playing';
     this.input.releaseAll();
+  }
+
+  handleEscape() {
+    if (this.ui.sheetOpen) {
+      this.ui.closeSheet();
+      return;
+    }
+    if (this.screen === 'playing' && this.dialogue.active) {
+      this.dialogue.close();
+      return;
+    }
+    if (this.screen === 'playing') this.pause();
+    else if (this.screen === 'paused') this.resume();
+    else if (this.screen === 'map') this.closeMap();
   }
 
   onPointerLock(locked) {
@@ -841,7 +858,7 @@ export class GameSession {
     this.cam.dialogueTarget = this.dialogue.active ? this.dialogue.npc.render : null;
     this.cam.mount = ride ? { yaw: ride.renderYaw, speed: ride.speed, extra: ride.k.cam, lift: ride.model.standing ? 0.4 : 0.15 } : null;
     this.cam.update(dt, intent, renderPos, this.settings, this.physics, ride ? ride.collider : this.player.collider);
-    this.ui.setLockHint(!this.input.pointerLocked && !this.hideDebugUi);
+    this.ui.setLockHint(!this.input.pointerLocked && !this.input.touchMode && !this.hideDebugUi);
 
     // discovery + interaction
     this.worldState.checkDiscovery(st.id, st.position);
@@ -925,6 +942,15 @@ export class GameSession {
       label: this.miracles.describe(selected.id, target),
     });
     this.ui.setAiming(intent.aim || targeting);
+    this.touch.update({
+      talk: !this.dialogue.active && !!(talk || it),
+      ride: !this.dialogue.active && !!mountTarget,
+      riding: !!ride,
+      followers: st.followers.length,
+      selected: st.selectedMiracle,
+      unlocked: st.unlockedMiracles.includes(selected.id),
+      cooldown: this.miracles.cooldownLeft(selected.id) / selected.cooldown,
+    });
     if (intent.map) this.openMap();
 
     // objective HUD

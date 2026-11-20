@@ -59,6 +59,25 @@ If Playwright can't find a browser, point it at an installed Chromium with `CHRO
 | Tab | Map |
 | Esc | Pause menu |
 
+### Touch (phones and tablets)
+
+Touch controls switch on by themselves on a touch screen (a coarse pointer). `?touch=1` forces them on and `?touch=0` off. They feed the same intents as the keyboard and mouse (`src/core/TouchControls.js` writes into `Input`).
+
+| Touch | Action |
+| --- | --- |
+| Left thumb, anywhere on the left part of the screen | Floating joystick: move · push past the ring to sprint (gallop when riding) |
+| Drag anywhere else | Look around · two-finger pinch zooms |
+| Big gold button | Use the selected miracle (hold to keep lifting / multiplying) |
+| Arrow button | Jump (hold for higher) |
+| Speech button (glows when someone or something is near) | Talk / interact · the prompt itself is tappable too |
+| Horse button (shown by a ride or while riding) | Get on / get off |
+| People button (shown with followers) | Followers: wait / follow |
+| Hotbar | Tap a miracle to select it |
+| Pause / map buttons (top) | Pause menu / map · ✕ closes the map |
+| Conversation | Tap an answer · ✕ leaves · tap the panel to continue |
+
+The HUD regroups around the thumbs: objective, Faith/Chaos, followers and the riding panel stack top-left; minimap top-right; the hotbar sits between the thumbs (above them when the phone is upright). Phones held upright get a wider field of view. Phones start on the Low graphics preset and tablets on Medium.
+
 ## What Phase 7 adds — polish, music and the host platform
 
 - **Platform layer** (`src/platform/Platform.js`): the game talks to one `platform` object, which talks to the host.

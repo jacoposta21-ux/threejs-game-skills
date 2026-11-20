@@ -16,7 +16,8 @@
     "test:roman-motion": "node tests/roman-motion.mjs http://127.0.0.1:4188/ artifacts/motion",
     "test:ride-motion": "node tests/ride-motion.mjs http://127.0.0.1:4188/ artifacts/motion",
     "test:platform": "node tests/platform.mjs http://127.0.0.1:4188/ artifacts/platform",
-    "trailer": "node tests/trailer.mjs"
+    "trailer": "node tests/trailer.mjs",
+    "test:mobile": "node tests/mobile.mjs http://127.0.0.1:4188/ artifacts/mobile"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

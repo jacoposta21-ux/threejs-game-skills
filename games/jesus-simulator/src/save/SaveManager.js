@@ -21,8 +21,10 @@ const num = (v, min, max, fallback) => (typeof v === 'number' && Number.isFinite
 /** First launch: phones and tablets start on medium (the automatic downgrade handles weak desktops). */
 function defaultQuality() {
   try {
-    const touch = (navigator.maxTouchPoints || 0) > 1 && window.matchMedia?.('(pointer: coarse)').matches;
-    if (touch && Math.min(window.innerWidth, window.innerHeight) < 900) return 'medium';
+    const touch = (navigator.maxTouchPoints || 0) > 0 && window.matchMedia?.('(pointer: coarse)').matches;
+    const short = Math.min(window.innerWidth, window.innerHeight);
+    if (touch && short < 520) return 'low'; // phones: no shadows, 1x pixels
+    if (touch && short < 900) return 'medium'; // tablets
   } catch { /* fall through */ }
   return DEFAULT_SETTINGS.quality;
 }

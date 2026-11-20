@@ -33,6 +33,12 @@ export class UI {
     this.bindMenu();
     this.bindPause();
     $('sheet-close').addEventListener('click', () => this.closeSheet());
+    $('map-close').addEventListener('click', () => this.bus.emit('ui:map-close'));
+    $('worldmap').addEventListener('click', (e) => { if (e.target === $('worldmap')) this.bus.emit('ui:map-close'); });
+    $('conv-leave').addEventListener('click', (e) => { e.stopPropagation(); this.bus.emit('ui:dialogue-leave'); });
+    // tapping the conversation (outside the answers) continues it, like E
+    $('conversation').addEventListener('click', (e) => { if (!e.target.closest('.conv-opt, .conv-leave')) this.bus.emit('ui:dialogue-advance'); });
+    $('arrest-card').addEventListener('click', () => this.bus.emit('ui:arrest-continue'));
     document.addEventListener('mouseover', (e) => {
       if (e.target instanceof Element && e.target.closest('.btn:not(:disabled)')) this.audio.uiHover();
     });
@@ -151,14 +157,23 @@ export class UI {
 
   openHowTo() {
     const k = (key, text) => `<div><kbd>${key}</kbd>${text}</div>`;
+    const touch = document.body.classList.contains('touch-ui');
+    const grid = touch ? `
+      <div class="howto-grid">
+        ${k('Left thumb', 'Joystick: move · push past the ring to run')}${k('Drag', 'Look around · pinch to zoom')}
+        ${k('Big button', 'Use the selected miracle (hold to keep going)')}${k('Arrow', 'Jump')}
+        ${k('Speech', 'Talk / interact (glows when someone is near)')}${k('Horse', 'Ride / get off')}
+        ${k('Hotbar', 'Tap a miracle to select it')}${k('People', 'Followers: wait / follow')}
+        ${k('Top', 'Pause and map')}${k('Prompts', 'Tap a prompt to use it')}
+      </div>` : null;
     this.openSheet('How to Play', `
       <p>You are Jesus of Nazareth, back home and ready to explore. Meet the villagers, discover the landmarks and the gifts hidden among them, then try them out — gently or not. Borrow a donkey (F) to cross Galilee, take on missions from the people you meet, and gather followers — but mind the Romans.</p>
-      <div class="howto-grid">
+      ${grid || `<div class="howto-grid">
         ${k('W A S D', 'Move')}${k('Mouse', 'Rotate camera')}${k('Shift', 'Sprint')}${k('Space', 'Jump')}
         ${k('E', 'Talk / interact')}${k('Wheel', 'Camera distance')}${k('RMB', 'Shoulder aim view')}${k('LMB / Q', 'Use miracle (hold to keep lifting)')}
         ${k('1 – 6', 'Select miracle')}${k('F', 'Ride / get off')}${k('Tab', 'Open map')}${k('Esc', 'Pause menu')}
         ${k('G', 'Followers: wait / follow')}${k('← →', 'Turn camera (keys)')}
-      </div>
+      </div>`}
       <p class="note"><b>Miracles:</b> each gift is revealed at a special place — the workshop, the market, the well, the synagogue, the highest rooftop and the shore of Galilee. Select one with 1–6, aim with the crosshair and click (or press Q).</p>
       <p class="note"><b>Roman Attention:</b> legionaries patrol the village and guard the checkpoint up the north road. Break things, blast people or shove a soldier where one can see you and the stars go up; at three stars reinforcements arrive. Red cones on the minimap show where soldiers are looking. Break their line of sight and stay hidden until the stars stop flashing, or heal a soldier you hurt — he may look the other way. Get seized and you can still push free; get caught and you spend a few hours at the checkpoint (and pay a fine in Faith). The palisade camp is off-limits.</p>
       <p class="note"><b>Missions:</b> people with a gold <b>!</b> over their head need help — talk to them (E) and pick the ★ option. The objective card and the gold star on the map show the next step. Finished missions bring Faith, followers and favours.</p>
@@ -349,7 +364,10 @@ export class UI {
       b.addEventListener('click', () => this.bus.emit('ui:dialogue-choice', { index: i }));
       box.appendChild(b);
     });
-    $('conv-hint').textContent = options.length ? `PRESS 1–${options.length} TO ANSWER · ESC TO LEAVE` : 'PRESS E TO CONTINUE';
+    const touch = document.body.classList.contains('touch-ui');
+    $('conv-hint').textContent = touch
+      ? (options.length ? 'TAP AN ANSWER · ✕ TO LEAVE' : 'TAP TO CONTINUE')
+      : (options.length ? `PRESS 1–${options.length} TO ANSWER · ESC TO LEAVE` : 'PRESS E TO CONTINUE');
     $('conversation').hidden = false;
     $('prompt').hidden = true;
     this.hideDialog();

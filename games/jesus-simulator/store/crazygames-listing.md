@@ -46,6 +46,12 @@ Your progress is saved automatically. Every region has its own music.
 - **Tab**: map
 - **Esc**: pause menu
 
+On phones and tablets:
+- **Left thumb**: joystick (push past the ring to run)
+- **Drag**: look around · pinch to zoom
+- **Gold button**: use the miracle · **arrow**: jump · **speech**: talk · **horse**: ride
+- **Tap the hotbar** to pick a miracle
+
 While riding:
 - **W / S**: speed up / slow down and reverse
 - **A / D**: steer
@@ -62,7 +68,7 @@ Open World, 3D, Funny, Sandbox, Adventure, Simulator, Blocky, Physics, Horse, Ra
 Pick whichever of these the form's tag list offers.
 
 ## Technical notes for the form
-- **Platform:** desktop (keyboard and mouse). Mobile/touch is not supported yet.
+- **Platform:** desktop (keyboard and mouse) and mobile/tablet (touch controls: joystick, drag to look, action buttons). Landscape is recommended on phones; portrait works too.
 - **Multiplayer:** no (single-player; the menu shows multiplayer as "coming soon").
 - **Engine:** Three.js (WebGL) and Rapier physics, built with Vite.
 - **SDK:** the game includes an adapter for the CrazyGames SDK v3. It handles loading events, gameplay start/stop, happytime, mute, data saving, and midgame and rewarded ads, but has not been tested against the live SDK. Test it with `?crazygames=1` and the CrazyGames QA tool before submitting.

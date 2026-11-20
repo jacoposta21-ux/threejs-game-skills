@@ -20,6 +20,10 @@ export class Input {
     this.enabled = false;
     this.pointerLocked = false;
     this.onPointerLockChange = null;
+    // touch controls (TouchControls) write here: an analog stick and virtual keys
+    this.touchMode = false;
+    this.analog = null; // { x, y, run }
+    this.onRelease = null;
 
     this._key = (e) => {
       if (!this.enabled) return;
@@ -37,7 +41,7 @@ export class Input {
       this.mouseDY += e.movementY || 0;
     };
     this._mouseDown = (e) => {
-      if (!this.enabled) return;
+      if (!this.enabled || this.touchMode) return; // taps also fire compatibility mouse events
       if (!this.pointerLocked && e.target === canvas) this.requestLock();
       this.buttons = e.buttons;
       this.mousePressed.add(e.button);
@@ -68,6 +72,7 @@ export class Input {
   }
 
   requestLock() {
+    if (this.touchMode) return; // touch looks by dragging; no pointer to capture
     try {
       const result = this.canvas.requestPointerLock?.();
       if (result && typeof result.catch === 'function') result.catch(() => {});
@@ -80,7 +85,24 @@ export class Input {
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
+  /** A tap of a virtual key (touch buttons, hotbar, prompts). */
+  virtualPress(code) {
+    if (!this.enabled) return;
+    this.pressed.add(code);
+  }
+
+  /** A held virtual key: pressed on the way down, released on the way up. */
+  virtualDown(code, on) {
+    if (on) {
+      if (!this.enabled) return;
+      if (!this.down.has(code)) this.pressed.add(code);
+      this.down.add(code);
+    } else this.down.delete(code);
+  }
+
   releaseAll() {
+    this.analog = null;
+    this.onRelease?.();
     this.down.clear();
     this.pressed.clear();
     this.mousePressed.clear();
@@ -91,10 +113,12 @@ export class Input {
   /** Snapshot intents for this frame, then clear edge-triggered state. */
   read() {
     const d = this.down;
+    const a = this.analog;
+    const clamp1 = (v) => Math.max(-1, Math.min(1, v));
     const intent = {
-      moveX: (d.has('KeyD') ? 1 : 0) - (d.has('KeyA') ? 1 : 0),
-      moveY: (d.has('KeyW') ? 1 : 0) - (d.has('KeyS') ? 1 : 0),
-      sprint: d.has('ShiftLeft') || d.has('ShiftRight'),
+      moveX: clamp1((d.has('KeyD') ? 1 : 0) - (d.has('KeyA') ? 1 : 0) + (a ? a.x : 0)),
+      moveY: clamp1((d.has('KeyW') ? 1 : 0) - (d.has('KeyS') ? 1 : 0) + (a ? a.y : 0)),
+      sprint: d.has('ShiftLeft') || d.has('ShiftRight') || !!(a && a.run),
       jump: this.pressed.has('Space'),
       jumpHeld: d.has('Space'),
       interact: this.pressed.has('KeyE'),

@@ -5,7 +5,7 @@
 - JavaScript ES modules (the user asked for JS, overriding the pack's TS default), Three.js, Rapier 3D, Vite, Web Audio, LocalStorage.
 - Single-player only; MULTIPLAYER is a visibly disabled "COMING SOON" button with no networking.
 - Tone: playful and absurd, never deliberately offensive. Roblox-inspired but original art; procedural geometry is acceptable for Phase 1.
-- Desktop browsers first; responsive layout. Mobile input is not a target yet.
+- Desktop browsers first; responsive layout. **Mobile pass (after Phase 7, at the user's request):** touch controls and a phone/tablet HUD are now in scope.
 
 ## Design brief (Phase 1 slice)
 - **Player promise:** wander your blocky, sun-baked home village as Jesus and get to know every corner, before the miracles and the chaos arrive.
@@ -153,3 +153,18 @@ Player **explores** to **discover the 7 landmarks of Nazareth**; the minimap and
 - Mobile/touch controls.
 - Camera occluder fading.
 - Branching missions and more region NPC routines.
+
+
+## Mobile pass (after Phase 7)
+- **Request:** "potresti implementare la versione mobile?"
+- **Done:**
+  - `src/core/TouchControls.js`: floating joystick (past the ring = sprint/gallop), drag-to-look, pinch zoom.
+  - Buttons: cast (selected miracle icon + cooldown sweep), jump, talk (glows when a target is near), ride (contextual), followers (contextual), pause, map.
+  - Tappable hotbar and E/F prompts. Everything writes into `Input` as virtual keys / analog stick, so no game system changed.
+  - Releases on pointerup/cancel/lostpointercapture, blur, visibility change and every `Input.releaseAll()`.
+  - UI: map ✕ button, conversation ✕ and tap-to-continue, arrest card tap-to-continue, touch How-to-Play, touch hint texts.
+  - HUD regrouped for thumbs (`body.touch-ui`): top-left column (objective, Faith/Chaos, followers, ride panel), compact minimap, hotbar between the thumbs (raised when upright).
+  - Short-screen menus (2-column menu buttons, compact pause/map/sheets), safe-area insets, `touch-action` scoped, no page zoom.
+  - Wider FOV on upright screens; phones default to Low quality and tablets to Medium.
+- **Evidence:** `tests/mobile.mjs` (`npm run test:mobile`) uses real CDP touch events on a phone held sideways (844×390) and upright (390×844), a tablet (1024×768) and desktop. Results in `artifacts/mobile/results.json`.
+- **Not verified:** real phones (frame rate on a real mobile GPU, iOS Safari specifics such as the address bar and notch).
