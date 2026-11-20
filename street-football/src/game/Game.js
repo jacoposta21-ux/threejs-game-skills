@@ -260,6 +260,19 @@ export class Game {
     document.getElementById('stamina').classList.toggle('hidden', false);
   }
 
+  /** Touch buttons follow the play: attack set with the ball or a loose ball, defence set when they have it. */
+  updateTouchContext() {
+    if (!this.touchUi) return;
+    const tc = this.touchControlsEl ??= document.getElementById('touch-controls');
+    const o = this.match.owner;
+    const held = this.ball.heldBy;
+    const defend = this.phase !== 'lobby' && ((o && o.team !== 'home') || (held && held.team === 'away'));
+    const ctx = defend ? 'defend' : 'attack';
+    if (tc.dataset.ctx !== ctx) tc.dataset.ctx = ctx;
+    const ready = this.phase === 'playing' && this.gb.meter >= 1 && this.gb.active <= 0;
+    tc.classList.toggle('gb-ready', ready);
+  }
+
   setMuted(muted) {
     this.audio.setMuted(muted);
     document.getElementById('mute-btn').classList.toggle('muted', muted);
@@ -1399,6 +1412,7 @@ export class Game {
     this.indicators.update(dt, this.human, showTarget, ['playing', 'countdown', 'kickoff'].includes(this.phase));
 
     this.hud.update(dt, this.hudState());
+    this.updateTouchContext();
     if (!this.pausedForScreenshot) this.watchPerformance(dt);
     this.publishDiagnostics();
   }

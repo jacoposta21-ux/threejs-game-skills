@@ -957,95 +957,187 @@ body {
   pointer-events: none;
 }
 
-#touch-stick {
+/* Touch: a floating stick on the left half, an arc of action buttons round a big one on the right.
+   The buttons follow the play: attack (shoot, pass, skill, flair) or defence (tackle, switch). */
+#touch-zone {
   position: absolute;
-  left: calc(22px + var(--safe-l));
-  bottom: calc(44px + var(--safe-b));
-  width: 132px;
-  height: 132px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.45));
-  border: 3px solid rgba(255, 255, 255, 0.35);
+  left: 0;
+  bottom: 0;
+  width: 50%;
+  height: 72%;
   pointer-events: auto;
   touch-action: none;
 }
 
+#touch-stick {
+  position: absolute;
+  left: calc(26px + var(--safe-l));
+  bottom: calc(30px + var(--safe-b));
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.38));
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
 #touch-stick.active {
-  border-color: var(--yellow);
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.6);
 }
 
 #touch-knob {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 58px;
-  height: 58px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: var(--yellow);
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
+  background: rgba(244, 241, 232, 0.92);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
   transform: translate(-50%, -50%);
+}
+
+#touch-stick.sprint {
+  border-color: #ff8a1f;
+}
+
+#touch-stick.sprint #touch-knob {
+  background: #ff8a1f;
 }
 
 #touch-buttons {
   position: absolute;
-  right: calc(18px + var(--safe-r));
-  bottom: calc(30px + var(--safe-b));
-  display: grid;
-  grid-template-columns: repeat(3, 68px);
-  grid-template-rows: 64px 84px;
-  gap: 12px;
-  pointer-events: auto;
+  right: calc(16px + var(--safe-r));
+  bottom: calc(18px + var(--safe-b));
+  width: 236px;
+  height: 236px;
+  pointer-events: none;
 }
 
 .tbtn {
-  border: 3px solid rgba(255, 255, 255, 0.4);
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.35);
   border-radius: 50%;
   font-family: var(--display);
-  font-size: 15px;
+  font-size: 14px;
+  letter-spacing: 0.03em;
   color: var(--paper);
-  background: rgba(20, 20, 20, 0.6);
+  background: rgba(16, 16, 16, 0.55);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  pointer-events: auto;
   touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.06s, background 0.1s;
 }
 
-.tbtn.shoot {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  align-self: end;
-  width: 92px;
-  height: 92px;
-  background: var(--red);
-  font-size: 18px;
+/* Big action in the corner; the others on an arc of radius 116 px round its centre. */
+.tbtn.big {
+  right: 0;
+  bottom: 0;
+  width: 96px;
+  height: 96px;
+  font-size: 19px;
+  border-width: 3px;
 }
 
-.tbtn.pass {
-  grid-column: 1;
-  grid-row: 2;
-  background: var(--green);
+.tbtn.a180 {
+  right: calc(48px + 116px - 33px);
+  bottom: calc(48px - 33px);
 }
 
-.tbtn.sprint {
-  grid-column: 1;
-  grid-row: 1;
+.tbtn.a135 {
+  right: calc(48px + 82px - 33px);
+  bottom: calc(48px + 82px - 33px);
+}
+
+.tbtn.a90 {
+  right: calc(48px - 33px);
+  bottom: calc(48px + 116px - 33px);
+}
+
+.tbtn.big.att {
+  background: rgba(200, 16, 46, 0.82);
+}
+
+.tbtn.big.def {
+  background: rgba(29, 79, 163, 0.85);
+}
+
+.tbtn[data-action='pass'] {
+  background: rgba(31, 138, 76, 0.78);
+}
+
+.tbtn[data-action='skill'] {
+  background: rgba(232, 51, 139, 0.75);
+}
+
+.tbtn[data-action='skill2'] {
+  background: rgba(122, 59, 232, 0.75);
+}
+
+/* Only the set for the current situation is shown. */
+#touch-controls[data-ctx='attack'] .def,
+#touch-controls[data-ctx='defend'] .att {
+  display: none;
+}
+
+.tbtn.gb {
+  right: calc(48px + 116px - 33px);
+  bottom: calc(48px + 116px - 33px);
+  display: none;
+  color: var(--ink);
+  background: #ff8a1f;
+  border-color: var(--yellow);
+  animation: pulse 0.6s ease-in-out infinite alternate;
+}
+
+#touch-controls.gb-ready .tbtn.gb {
+  display: grid;
+}
+
+.tbtn.pressed {
+  transform: scale(0.9);
+  border-color: var(--yellow);
+  background-color: rgba(246, 201, 21, 0.85);
+  color: var(--ink);
+}
+
+#touch-hint {
+  position: absolute;
+  left: calc(26px + var(--safe-l));
+  bottom: calc(166px + var(--safe-b));
+  max-width: 40vw;
+  padding: 4px 10px;
+  font-family: var(--body);
+  font-weight: 700;
   font-size: 13px;
+  color: var(--paper);
+  background: rgba(14, 14, 14, 0.7);
+  border-left: 3px solid #ff8a1f;
+  pointer-events: none;
+  transition: opacity 0.5s;
 }
 
-.tbtn.tackle {
-  grid-column: 3;
-  grid-row: 2;
-  background: #2c2c2c;
-  font-size: 12px;
+#touch-hint.gone {
+  opacity: 0;
 }
 
-.tbtn.skill {
-  grid-column: 3;
-  grid-row: 1;
-  align-self: start;
-  width: 60px;
-  height: 44px;
-  margin-top: -52px;
-  border-radius: 22px;
-  background: #e8338b;
-  font-size: 12px;
+/* Phones held upright: a slightly tighter cluster. */
+@media (max-width: 480px) {
+  #touch-buttons {
+    transform: scale(0.88);
+    transform-origin: right bottom;
+  }
 }
 
 .howto-grid .zones {
@@ -1065,16 +1157,6 @@ body {
   opacity: 0.9;
 }
 
-.tbtn.switch {
-  grid-column: 3;
-  grid-row: 1;
-  font-size: 12px;
-}
-
-.tbtn.pressed {
-  transform: scale(0.92);
-  border-color: var(--yellow);
-}
 
 /* ---------- Screens ---------- */
 .screen {

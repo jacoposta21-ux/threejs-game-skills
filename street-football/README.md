@@ -1,4 +1,4 @@
-# RUA 10 — Street Football (v1.8.1 — release candidate)
+# RUA 10 — Street Football (v1.8.2 — release candidate)
 
 A 3D arcade street-football game for the browser: Three.js rendering, Rapier physics, a loose physically simulated ball, skeletal animation, and a Brazilian street court. It is built for CrazyGames-style distribution: one static bundle that loads fast.
 
@@ -17,7 +17,7 @@ Production build, local preview and the CrazyGames upload:
 ```bash
 npm run build      # outputs dist/ (relative paths, deploy anywhere)
 npm run preview    # http://127.0.0.1:4188
-npm run package    # build + checks + release/rua10-crazygames-v1.8.1.zip
+npm run package    # build + checks + release/rua10-crazygames-v1.8.2.zip
 ```
 
 Single self-contained HTML (double-click to play from disk, works offline; about 7.6 MB, physics WASM and models inlined):
@@ -50,7 +50,7 @@ Two keyboard zones, no mouse: the left hand moves, the right hand does everythin
 | Action | Keyboard | Touch |
 | --- | --- | --- |
 | Move (camera-relative) | WASD (arrow keys also work) | left stick |
-| Sprint | Shift | SPRINT |
+| Sprint | Shift | push the stick to the rim |
 | Shoot (hold to charge, release to strike; W/S while shooting aims at a post; ball in the air: volley or bicycle kick) | J | SHOOT (hold) |
 | Pass (tap) · lob (hold) · through ball (with Shift) · one-two (press again after your pass) | K | PASS |
 | Skill move (see the table below) | L + direction relative to where you face | SKILL + stick |
@@ -97,6 +97,17 @@ Control follows the ball automatically: when a teammate wins it or receives your
   - On top: a stinger wipe in and out, a white flash on each cut, the scorer's name and number, and a "press any key to skip" hint.
   - Film look: grade, grain and a heavier vignette.
   - The ball trail now draws on the shot.
+
+## v1.8.2 — goal net, touch controls
+
+- **Goal net roof fixed.** The top net was yawed 90° too far, so it lay crossways over the goal mouth instead of covering the goal's depth.
+- **Touch controls redesigned:**
+  - **Floating stick.** It appears under the thumb wherever it lands on the left half of the screen.
+  - **Sprint is automatic** when the stick is pushed to its rim (it turns orange), so the SPRINT button is gone. Through ball and slide tackle work the same way, by passing or tackling at full push.
+  - **Buttons follow the play.** In attack, or with the ball loose, a big SHOOT has PASS, SKILL and FLAIR on an arc around it. When the opponents have the ball it becomes a big TACKLE with SWITCH.
+  - **GB** appears only when the Gamebreaker meter is full.
+  - Larger hit areas, a light vibration on press where supported, and a one-time hint about sprinting.
+- Check: `node tools/qa/touchui.mjs <dir>` (phone emulation, portrait and landscape, plus side and top views of the goal net).
 
 ## v1.8.1 — bug sweep before release
 

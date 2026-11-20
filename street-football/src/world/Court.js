@@ -249,7 +249,8 @@ export function buildCourt(scene, physics, rng) {
     nets.push(netPlane(GW * 2, GH, bx, GH / 2, 0, Math.PI / 2));
     nets.push(netPlane(GD, GH, (gx + bx) / 2, GH / 2, -GW, 0));
     nets.push(netPlane(GD, GH, (gx + bx) / 2, GH / 2, GW, 0));
-    nets.push(netPlane(GD, GW * 2, (gx + bx) / 2, GH, 0, Math.PI / 2, -Math.PI / 2));
+    // Roof: depth along X, width along Z (laid flat; no extra yaw, which turned it crossways).
+    nets.push(netPlane(GD, GW * 2, (gx + bx) / 2, GH, 0, 0, -Math.PI / 2));
 
     const net = { restitution: 0.04, friction: 1, soft: true, tag: { type: 'net', side: s } };
     physics.addStaticBox(bx + s * 0.06, GH / 2, 0, 0.06, GH / 2, GW, net);

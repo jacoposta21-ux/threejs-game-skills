@@ -73,18 +73,19 @@
       <div id="banner" class="hidden"><span id="banner-text">GOOOL!</span><small id="banner-sub"></small></div>
 
       <!-- Touch controls -->
-      <div id="touch-controls" class="hidden">
+      <div id="touch-controls" class="hidden" data-ctx="attack">
+        <div id="touch-zone"></div>
         <div id="touch-stick"><div id="touch-knob"></div></div>
         <div id="touch-buttons">
-          <button type="button" data-action="sprint" class="tbtn sprint">SPRINT</button>
-          <button type="button" data-action="pass" class="tbtn pass">PASS</button>
-          <button type="button" data-action="shoot" class="tbtn shoot">SHOOT</button>
-          <button type="button" data-action="tackle" class="tbtn tackle">TACKLE</button>
-          <button type="button" data-action="switch" class="tbtn switch">SWITCH</button>
-          <button type="button" data-action="skill" class="tbtn skill">SKILL</button>
-          <button type="button" data-action="skill2" class="tbtn skill2">FLAIR</button>
-          <button type="button" data-action="special" class="tbtn special">GB</button>
+          <button type="button" data-action="shoot" class="tbtn big att">SHOOT</button>
+          <button type="button" data-action="pass" class="tbtn a180 att">PASS</button>
+          <button type="button" data-action="skill" class="tbtn a135 att">SKILL</button>
+          <button type="button" data-action="skill2" class="tbtn a90 att">FLAIR</button>
+          <button type="button" data-action="tackle" class="tbtn big def">TACKLE</button>
+          <button type="button" data-action="switch" class="tbtn a180 def">SWITCH</button>
+          <button type="button" data-action="special" class="tbtn gb">GB</button>
         </div>
+        <div id="touch-hint">Push the stick to the edge to sprint</div>
       </div>
 
       <!-- Loading -->

@@ -194,3 +194,32 @@ test('home screen is free play: one player, a ball, the menu on ESC', async ({ p
   }
   expect(errors).toEqual([]);
 });
+
+test('touch: floating stick, sprint at the rim, buttons follow the play', async ({ page }, info) => {
+  test.skip(!info.project.name.includes('mobile'), 'touch path');
+  await page.goto('/?qa=1');
+  await page.waitForFunction(() => window.__THREE_GAME_DIAGNOSTICS__?.phase === 'lobby', null, { timeout: 90_000 });
+  const visible = () => page.evaluate(() => [...document.querySelectorAll('#touch-buttons .tbtn')].filter((b) => b.offsetParent).map((b) => b.textContent.trim()));
+  expect(await visible()).toEqual(['SHOOT', 'PASS', 'SKILL', 'FLAIR']);
+  const vp = page.viewportSize();
+  const x = Math.round(vp.width * 0.3);
+  const y = Math.round(vp.height * 0.7);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  const c = await page.locator('#touch-stick').boundingBox();
+  expect(Math.hypot(c.x + c.width / 2 - x, c.y + c.height / 2 - y)).toBeLessThan(6);
+  await page.mouse.move(x + 25, y, { steps: 3 });
+  expect(await page.evaluate(() => window.__RUA10__.input.touchHeld.sprint)).toBe(false);
+  await page.mouse.move(x + 90, y, { steps: 3 });
+  expect(await page.evaluate(() => window.__RUA10__.input.touchHeld.sprint)).toBe(true);
+  await page.mouse.up();
+  await page.evaluate(() => {
+    const g = window.__RUA10__;
+    window.__THREE_GAME_TEST_HOOKS__.setState('active-play');
+    const opp = g.match.teams.away.players[0];
+    g.match.setOwner(opp);
+    opp.possession = true;
+    g.updateTouchContext();
+  });
+  expect(await visible()).toEqual(['TACKLE', 'SWITCH']);
+});

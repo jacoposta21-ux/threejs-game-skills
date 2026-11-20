@@ -99,10 +99,13 @@ export class Input {
   }
 
   bindTouch(root) {
+    const zone = root.querySelector('#touch-zone');
     const stick = root.querySelector('#touch-stick');
     const knob = root.querySelector('#touch-knob');
+    const hint = root.querySelector('#touch-hint');
     let stickPointer = null;
     let origin = { x: 0, y: 0 };
+    const home = { left: stick.style.left, bottom: stick.style.bottom, top: stick.style.top };
     const radius = () => stick.getBoundingClientRect().width * 0.42;
 
     const moveKnob = (dx, dy) => {
@@ -111,20 +114,32 @@ export class Input {
     const endStick = () => {
       stickPointer = null;
       this.touchMove = { x: 0, y: 0, active: false };
+      this.touchHeld.sprint = false;
       moveKnob(0, 0);
-      stick.classList.remove('active');
+      stick.classList.remove('active', 'sprint');
+      // Back to its resting spot.
+      stick.style.left = home.left;
+      stick.style.top = home.top;
+      stick.style.bottom = home.bottom;
     };
-    this.listen(stick, 'pointerdown', (e) => {
+    // Floating stick: it appears under the thumb wherever it lands on the left half.
+    this.listen(zone, 'pointerdown', (e) => {
+      if (stickPointer != null) return;
       e.preventDefault();
       this.lastDevice = 'touch';
       stickPointer = e.pointerId;
-      stick.setPointerCapture(e.pointerId);
-      const r = stick.getBoundingClientRect();
-      origin = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      zone.setPointerCapture(e.pointerId);
+      const size = stick.offsetWidth;
+      const x = Math.max(size / 2 + 8, e.clientX);
+      const y = Math.min(window.innerHeight - size / 2 - 8, Math.max(size / 2 + 8, e.clientY));
+      stick.style.left = `${x - size / 2}px`;
+      stick.style.top = `${y - size / 2}px`;
+      stick.style.bottom = 'auto';
+      origin = { x, y };
       stick.classList.add('active');
       this.pressed.add('any');
     });
-    this.listen(stick, 'pointermove', (e) => {
+    this.listen(zone, 'pointermove', (e) => {
       if (e.pointerId !== stickPointer) return;
       const rad = radius();
       let dx = e.clientX - origin.x;
@@ -139,9 +154,16 @@ export class Input {
       const dead = 0.12;
       const scale = mag < dead ? 0 : (mag - dead) / (1 - dead) / Math.max(mag, 1e-6);
       this.touchMove = { x: (dx / rad) * scale, y: (-dy / rad) * scale, active: true };
+      // Pushed to the rim: sprint (the stick turns orange).
+      const sprint = mag > 0.92;
+      if (sprint !== this.touchHeld.sprint) {
+        this.touchHeld.sprint = sprint;
+        stick.classList.toggle('sprint', sprint);
+        if (sprint) hint?.classList.add('gone');
+      }
     });
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-      this.listen(stick, type, (e) => {
+      this.listen(zone, type, (e) => {
         if (e.pointerId === stickPointer) endStick();
       });
     }
@@ -162,6 +184,7 @@ export class Input {
         pointer = e.pointerId;
         button.setPointerCapture(e.pointerId);
         button.classList.add('pressed');
+        navigator.vibrate?.(8);
         if (action in this.touchHeld) this.touchHeld[action] = true;
         this.pressed.add(action);
         this.pressed.add('any');

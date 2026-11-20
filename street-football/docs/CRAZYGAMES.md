@@ -3,7 +3,7 @@
 ## Build the upload
 
 ```bash
-npm run package        # production build + checks → release/rua10-crazygames-v1.8.1.zip
+npm run package        # production build + checks → release/rua10-crazygames-v1.8.2.zip
 ```
 
 The zip holds `dist/` with `index.html` at the root (33 files, 2.94 MB compressed). The script fails if the build contains source maps, `localhost` references, or absolute asset paths. Every path is relative (`base: './'`), so it runs from any CDN folder.
@@ -33,7 +33,7 @@ The SDK script (`https://sdk.crazygames.com/crazygames-sdk-v3.js`) loads only on
 | Fast first load | ✓ 2.94 MB compressed in total; Rapier WASM streamed and compiled in parallel with the character models; content-hashed, cacheable assets |
 | No mouse needed in play | ✓ two keyboard zones (WASD + Shift; J K L / U I O / H); the mouse only clicks menus |
 | Keyboard works inside an iframe | ✓ the canvas takes focus on click; arrow keys and Space do not scroll the host page |
-| Mobile / touch | ✓ stick plus PASS/SHOOT/SPRINT/TACKLE/SWITCH/SKILL/FLAIR/GB buttons and a MENU button; portrait camera; Low quality by default on handhelds |
+| Mobile / touch | ✓ floating stick (sprint at the rim) plus context buttons: SHOOT/PASS/SKILL/FLAIR in attack, TACKLE/SWITCH in defence, GB when ready; MENU button; portrait camera; Low quality by default on handhelds |
 | Pause and mute on focus loss; pause and mute during ads | ✓ |
 | Loading and gameplay events; happy time; midgame ad at a natural break | ✓ (verify method names in the QA tool) |
 | No debug UI or test hooks in the shipped build | ✓ hooks and diagnostics exist only in dev or with `?qa` |
@@ -70,7 +70,7 @@ The SDK script (`https://sdk.crazygames.com/crazygames-sdk-v3.js`) loads only on
 | H | Gamebreaker |
 | Esc / M | Menu or pause |
 
-On touch: stick and on-screen buttons.
+On touch: a floating stick on the left (push it to the edge to sprint) and action buttons on the right that switch between attack and defence.
 
 **Category / tags:** Sports, Football (Soccer), 3D, Skill, 1 player.
 
@@ -78,7 +78,7 @@ On touch: stick and on-screen buttons.
 
 ## Still to do in the CrazyGames portal (needs your account)
 
-1. Upload `release/rua10-crazygames-v1.8.1.zip` and open the QA tool.
+1. Upload `release/rua10-crazygames-v1.8.2.zip` and open the QA tool.
 2. Check that loading start/stop and gameplay start/stop fire, the midgame ad plays after a match, and audio mutes during it.
 3. Paste the listing text above, upload the screenshots and make a cover image (none is included).
 4. Play one match at real speed on a desktop with a GPU and on a phone: this was not possible in the build environment.
