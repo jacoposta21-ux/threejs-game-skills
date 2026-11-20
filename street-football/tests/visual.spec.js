@@ -216,6 +216,8 @@ test('touch: floating stick, sprint at the rim, buttons follow the play', async 
   await page.evaluate(() => {
     const g = window.__RUA10__;
     window.__THREE_GAME_TEST_HOOKS__.setState('active-play');
+    // Freeze play so nobody wins the ball back before the check.
+    window.__THREE_GAME_TEST_HOOKS__.setPausedForScreenshot(true);
     const opp = g.match.teams.away.players[0];
     g.match.setOwner(opp);
     opp.possession = true;
