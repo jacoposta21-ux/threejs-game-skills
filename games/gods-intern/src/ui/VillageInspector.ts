@@ -12,6 +12,8 @@ const BUILDING_INFO: Record<BuildingData['type'], { name: string; role: string }
   farm: { name: 'Farm', role: 'Grows food. Needs moist soil, hates floods.' },
   storage: { name: 'Storehouse', role: 'Holds the village food and wood.' },
   shrine: { name: 'Shrine', role: 'Where villagers come to pray to you.' },
+  quarry: { name: 'Quarry', role: 'Miners cut stone here. Stone builds shrines, monuments and trade deals.' },
+  fishery: { name: 'Fishery', role: 'Fishers dry the catch here. Food that does not care about the weather.' },
 };
 
 /** Village stats card opened by clicking a building in Look mode. */

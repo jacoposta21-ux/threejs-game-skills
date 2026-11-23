@@ -1,4 +1,5 @@
-import type { CultureState, GameStateData, VillagerData } from '../core/types';
+import type { CivState, CultureState, GameStateData, VillagerData } from '../core/types';
+import { identityFor } from '../world/Settlements';
 import { traitsFromId } from '../culture/Personality';
 
 export function defaultCulture(): CultureState {
@@ -33,6 +34,26 @@ export function defaultCulture(): CultureState {
   };
 }
 
+export function defaultCivState(): CivState {
+  return {
+    relations: {},
+    caravans: [],
+    favorEvents: [],
+    lastFavoritismAt: -9999,
+    rivalries: {},
+    challenges: {},
+    pinned: [],
+    titles: [],
+    selectedTitle: null,
+    cosmetics: [],
+    visited: [],
+    shippingFees: false,
+    luxuryCarrots: false,
+    lastMigrationAt: -9999,
+    officePrayersCounted: false,
+  };
+}
+
 /**
  * Upgrade a save to the current schema in place. v1 → v2 adds personalities,
  * memories, religions, sacred objects, mutations, history, rocks and culture
@@ -61,5 +82,21 @@ export function migrateState(state: GameStateData): GameStateData {
   if (!Array.isArray(s.history)) s.history = [];
   s.culture = { ...defaultCulture(), ...((s.culture as Partial<CultureState>) ?? {}) };
   if (typeof s.cooldowns.mutation !== 'number') s.cooldowns.mutation = 0;
+  // v2 → v3: civilization layer. New villages are added by the Simulation
+  // (they need the terrain); here we only extend existing records.
+  if (s.version < 3) {
+    for (const v of s.villages) {
+      const anyV = v as typeof v & Partial<Record<string, unknown>>;
+      if (typeof anyV.stone !== 'number') v.stone = 0;
+      if (!anyV.identity) v.identity = identityFor(v.id, 'agricultural');
+      if (!Array.isArray(anyV.quarryIds)) v.quarryIds = [];
+      if (!Array.isArray(anyV.fisheryIds)) v.fisheryIds = [];
+    }
+    for (const b of s.buildings) if (!b.style) b.style = 'agricultural';
+    s.version = 3;
+  }
+  const st = s.stats as unknown as Record<string, number>;
+  for (const k of ['tradesCompleted', 'tradesFailed', 'migrations', 'religionSpreads', 'prayersAfterOffice']) if (typeof st[k] !== 'number') st[k] = 0;
+  s.civ = { ...defaultCivState(), ...((s.civ as Partial<CivState>) ?? {}) };
   return s;
 }

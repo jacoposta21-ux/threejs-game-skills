@@ -55,6 +55,10 @@ export const ICON = {
   speed: svg(`<path d="M4 6l8 6-8 6zM12 6l8 6-8 6z" fill="currentColor"/>`),
   house: svg(`<path d="M3 11 12 4l9 7v9H3z" fill="#fff2d6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 20v-5h4v5" fill="none" stroke="currentColor" stroke-width="1.5"/>`),
   question: svg(`<circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.3 9.2a2.8 2.8 0 1 1 3.9 2.6c-.8.4-1.2 1-1.2 1.8v.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="17" r="1.1" fill="currentColor"/>`),
+  trophy: svg(`<path d="M7 4h10v5a5 5 0 0 1-10 0z" fill="#ffe08a" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 6H4.5a2.5 2.5 0 0 0 2.7 3.4M17 6h2.5a2.5 2.5 0 0 1-2.7 3.4M12 14v3.5M8.5 20.5h7l-1-3h-5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>`),
+  map: svg(`<path d="M3 6.5 8.5 4l7 2.5L21 4v13.5L15.5 20l-7-2.5L3 20z" fill="#eaf4e0" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.5 4v13.5M15.5 6.5V20" stroke="currentColor" stroke-width="1.4"/>`),
+  stone: svg(`<path d="M4 17.5 6.5 10l5-3.5 6 2 2.5 6.5-3 3.5H7z" fill="#cfd4d8" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 11.5l3 1.5 3-2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>`),
+  cart: svg(`<path d="M3 7h14l-1.6 7.5H5z" fill="#ffe2a8" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M17 7l1.2-3H21" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="7.5" cy="18" r="2" fill="#fff" stroke="currentColor" stroke-width="1.5"/><circle cx="14" cy="18" r="2" fill="#fff" stroke="currentColor" stroke-width="1.5"/>`),
 };
 
 export type IconName = keyof typeof ICON;

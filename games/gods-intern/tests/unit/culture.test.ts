@@ -580,7 +580,7 @@ describe('save compatibility', () => {
     if (!loaded.ok) return;
     const sim = new Simulation(SEED, loaded.state);
     const s = sim.state;
-    expect(s.version).toBe(2);
+    expect(s.version).toBe(3);
     expect(s.rocks.length).toBeGreaterThan(5);
     expect(s.culture.festivals).toEqual([]);
     expect(s.cooldowns.mutation).toBe(0);

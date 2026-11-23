@@ -32,7 +32,7 @@ export class VillageSystem {
       const m = sim.moistureAt(well.x, well.z);
       village.water = Math.min(
         CONFIG.village.maxWater,
-        village.water + (CONFIG.village.wellRefillBase + CONFIG.village.wellRefillMoisture * m) * dt,
+        village.water + (CONFIG.village.wellRefillBase + CONFIG.village.wellRefillMoisture * m) * village.identity.wellRefill * dt,
       );
     }
 
@@ -52,7 +52,7 @@ export class VillageSystem {
       const cultureFactor = (c.upsideDownUntil > sim.state.time ? 0.65 : 1) * (c.potatoCult && sim.religion.byArchetype('potato') ? 0.8 : 1);
       farm.cropGrowth += CONFIG.farm.baseGrowth * moistureFactor * workerFactor * cultureFactor * (flood > 0.25 ? 0.3 : 1) * dt;
       if (flood > 0.25) {
-        farm.cropHealth = Math.max(0.1, farm.cropHealth - CONFIG.flood.cropDamagePerSec * dt);
+        farm.cropHealth = Math.max(0.1, farm.cropHealth - CONFIG.flood.cropDamagePerSec * village.identity.floodSensitivity * dt);
         const last = this.cropWarn.get(farm.id) ?? -99;
         if (sim.state.time - last > 6) {
           this.cropWarn.set(farm.id, sim.state.time);
@@ -62,7 +62,7 @@ export class VillageSystem {
         farm.cropHealth = Math.min(1, farm.cropHealth + 0.004 * dt);
       }
       if (farm.cropGrowth >= 1) {
-        const amount = Math.round(CONFIG.farm.harvestYield * farm.cropHealth);
+        const amount = Math.round(CONFIG.farm.harvestYield * farm.cropHealth * village.identity.farmYield);
         farm.cropGrowth = 0;
         village.food = Math.min(CONFIG.village.maxFood, village.food + amount);
         sim.bus.emit('HARVEST', { villageId: village.id, amount });

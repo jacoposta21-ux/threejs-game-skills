@@ -30,7 +30,7 @@ export type VillagerStateName =
   | 'CELEBRATING'
   | 'DEAD';
 
-export type VillagerJob = 'farmer' | 'woodcutter' | 'builder' | 'idler';
+export type VillagerJob = 'farmer' | 'woodcutter' | 'builder' | 'idler' | 'miner' | 'fisher';
 
 export interface VillagerTask {
   state: VillagerStateName;
@@ -82,6 +82,8 @@ export interface VillagerData {
   memoryIds: string[];
   mutation: MutationKind | null;
   title: string | null;
+  /** v0.3: set while away from home. */
+  travel?: TravelPlan | null;
 }
 
 export type Trait =
@@ -131,9 +133,34 @@ export interface VillageData {
   floodActive: boolean;
   treesNearby: number;
   problems: string[];
+  /** v0.3 */
+  stone: number;
+  identity: VillageIdentity;
+  quarryIds: number[];
+  fisheryIds: number[];
 }
 
-export type BuildingType = 'house' | 'well' | 'farm' | 'storage' | 'shrine';
+export type VillageCulture = 'agricultural' | 'mountain' | 'riverside';
+
+/** Persistent cultural identity. Shapes economy, belief, trade, migration and reactions to miracles. */
+export interface VillageIdentity {
+  villageId: string;
+  culture: VillageCulture;
+  openness: number; // 0..1 — trade/visit appetite, curiosity about foreign faiths
+  religiousTolerance: number; // 0..1 — how easily foreign beliefs take root
+  divineFavor: number; // -100..100 — running balance of how the god treats this village
+  preferredResources: ResourceKind[];
+  dominantReligionId?: string;
+  /** Tuning knobs derived from culture (kept on the record so saves are self-describing). */
+  farmYield: number;
+  wellRefill: number;
+  floodSensitivity: number;
+  monumentDevotion: number;
+}
+
+export type ResourceKind = 'food' | 'water' | 'wood' | 'stone';
+
+export type BuildingType = 'house' | 'well' | 'farm' | 'storage' | 'shrine' | 'quarry' | 'fishery';
 
 export interface BuildingData {
   id: number;
@@ -149,6 +176,8 @@ export interface BuildingData {
   cropGrowth: number;
   cropHealth: number;
   variant: number;
+  /** v0.3 visual style follows the owning village's culture. */
+  style?: VillageCulture;
 }
 
 export type TreeKind = 'oak' | 'pine' | 'bush';
@@ -295,7 +324,7 @@ export interface CultureState {
   picnickers: string[];
   picnicSpot: { x: number; z: number } | null;
   upsideDownUntil: number;
-  cursedWell: { until: number; believers: string[] } | null;
+  cursedWell: { until: number; believers: string[]; villageId?: string } | null;
   festivals: Festival[];
   festivalUntil: number;
   officeBuilt: boolean;
@@ -380,6 +409,85 @@ export interface StatsData {
   prayersAnswered: number;
   prayersFailed: number;
   buildingsLost: number;
+  // v0.3
+  tradesCompleted: number;
+  tradesFailed: number;
+  migrations: number;
+  religionSpreads: number;
+  prayersAfterOffice: number;
+}
+
+/** A villager away from home: trading, migrating, visiting or on pilgrimage. */
+export interface TravelPlan {
+  kind: 'trade' | 'migrate' | 'visit' | 'pilgrim';
+  originId: string;
+  destId: string;
+  phase: 'out' | 'back';
+  caravanId?: string;
+  sacredId?: string;
+  reason?: string;
+  /** Consecutive failed route searches; the trip is abandoned after 3. */
+  tries?: number;
+}
+
+export interface Caravan {
+  id: string;
+  kind: 'trade' | 'aid';
+  originId: string;
+  destId: string;
+  merchantIds: string[];
+  cargo: { resource: ResourceKind; amount: number };
+  payment: { resource: ResourceKind; amount: number } | null;
+  phase: 'outbound' | 'returning';
+  startedAt: number;
+  outcome?: 'success' | 'failed';
+  note?: string;
+}
+
+export type RelationCategory = 'allied' | 'friendly' | 'neutral' | 'rival' | 'hostile';
+
+export interface RelationRecord {
+  score: number; // -100..100
+  category: RelationCategory;
+  /** Accumulated causes of negative change since the last category change (for history/challenges). */
+  negCauses: Record<string, number>;
+  everRival: boolean;
+}
+
+export interface FavorEvent {
+  t: number;
+  villageId: string;
+  amount: number;
+  kind: string;
+}
+
+export type ChallengeStatus = 'locked' | 'available' | 'active' | 'completed';
+
+export interface ChallengeState {
+  status: ChallengeStatus;
+  counters: Record<string, number>;
+  /** Seconds a duration objective has been continuously satisfied. */
+  held: number;
+  completedAt?: number;
+  rewardApplied: boolean;
+}
+
+export interface CivState {
+  relations: Record<string, RelationRecord>;
+  caravans: Caravan[];
+  favorEvents: FavorEvent[];
+  lastFavoritismAt: number;
+  rivalries: Record<string, number>;
+  challenges: Record<string, ChallengeState>;
+  pinned: string[];
+  titles: string[];
+  selectedTitle: string | null;
+  cosmetics: string[];
+  visited: string[];
+  shippingFees: boolean;
+  luxuryCarrots: boolean;
+  lastMigrationAt: number;
+  officePrayersCounted: boolean;
 }
 
 export interface GameStateData {
@@ -417,4 +525,6 @@ export interface GameStateData {
   mutations: MutationData[];
   history: HistoryEntry[];
   culture: CultureState;
+  // ---- v0.3 ----
+  civ: CivState;
 }

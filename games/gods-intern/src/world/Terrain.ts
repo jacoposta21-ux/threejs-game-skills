@@ -43,14 +43,18 @@ export class TerrainMesh {
   private readonly triCell: Uint16Array;
   private wetTimer = 0;
 
-  constructor(private readonly terrain: TerrainData, buildings: BuildingData[], villageCenter: { x: number; z: number }) {
+  /**
+   * @param centers village plazas (v0.3: one per village)
+   * @param roads   flat [ax, az, bx, bz, ...] segments of inter-village roads (from real A* routes)
+   */
+  constructor(private readonly terrain: TerrainData, buildings: BuildingData[], centers: Array<{ id: string; x: number; z: number }>, roads: number[] = []) {
     const seg = terrain.segments;
     const v = terrain.verts;
     const triCount = seg * seg * 2;
     const positions = new Float32Array(triCount * 9);
     this.baseColors = new Float32Array(triCount * 9);
     this.triCell = new Uint16Array(triCount);
-    const paths = this.pathSegments(buildings, villageCenter);
+    const paths = [...this.pathSegments(buildings, centers), ...roads];
     const color = new THREE.Color();
     let t = 0;
     const h = terrain.heights;
@@ -82,7 +86,7 @@ export class TerrainMesh {
           const cz = (tri[2] + tri[5] + tri[8]) / 3;
           // Classify by the whole quad's relief so both triangles agree (no checkerboard).
           const quadRelief = Math.max(h[i00], h[i10], h[i01], h[i11]) - Math.min(h[i00], h[i10], h[i01], h[i11]);
-          this.colorFor(cx, cy, cz, quadRelief * 0.85, paths, villageCenter, color);
+          this.colorFor(cx, cy, cz, quadRelief * 0.85, paths, centers, color);
           for (let k = 0; k < 3; k++) {
             this.baseColors[t * 9 + k * 3] = color.r;
             this.baseColors[t * 9 + k * 3 + 1] = color.g;
@@ -159,17 +163,18 @@ if (uCursor.w > 0.0) {
     this.mesh.name = 'terrain';
   }
 
-  /** Straight dirt paths from each building door to the well. */
-  private pathSegments(buildings: BuildingData[], center: { x: number; z: number }): number[] {
+  /** Straight dirt paths from each building door to its village plaza. */
+  private pathSegments(buildings: BuildingData[], centers: Array<{ id: string; x: number; z: number }>): number[] {
     const segs: number[] = [];
     for (const b of buildings) {
       if (b.type === 'well') continue;
-      segs.push(center.x, center.z, b.x, b.z);
+      const c = centers.find((v) => v.id === b.villageId) ?? centers[0];
+      segs.push(c.x, c.z, b.x, b.z);
     }
     return segs;
   }
 
-  private colorFor(x: number, y: number, z: number, relief: number, paths: number[], center: { x: number; z: number }, out: THREE.Color): void {
+  private colorFor(x: number, y: number, z: number, relief: number, paths: number[], centers: Array<{ x: number; z: number }>, out: THREE.Color): void {
     const terrain = this.terrain;
     const water = terrain.waterAt(x, z);
     const slope = relief / terrain.step;
@@ -208,9 +213,13 @@ if (uCursor.w > 0.0) {
     if (y < 1.8) out.lerp(C.sand, (1.8 - y) / 0.55 * 0.5);
 
     // Village plaza and dirt paths.
-    const dc = Math.hypot(x - center.x, z - center.z);
-    if (dc < 4.2) out.lerp(C.plaza, 0.85 * (1 - dc / 6));
+    for (const center of centers) {
+      const dc = Math.hypot(x - center.x, z - center.z);
+      if (dc < 4.2) out.lerp(C.plaza, 0.85 * (1 - dc / 6));
+    }
     for (let i = 0; i < paths.length; i += 4) {
+      // Cheap bounding reject before the exact segment distance.
+      if (x < Math.min(paths[i], paths[i + 2]) - 1.5 || x > Math.max(paths[i], paths[i + 2]) + 1.5 || z < Math.min(paths[i + 1], paths[i + 3]) - 1.5 || z > Math.max(paths[i + 1], paths[i + 3]) + 1.5) continue;
       const d = distSeg(x, z, paths[i], paths[i + 1], paths[i + 2], paths[i + 3]);
       if (d < 1.05) {
         out.lerp(C.dirt, 0.75 * (1 - d / 1.3));

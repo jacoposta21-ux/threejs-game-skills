@@ -3,7 +3,10 @@ import { STAGE_NAMES } from '../culture/SacredSystem';
 import type { Simulation } from '../simulation/SimulationManager';
 import { $, el, escapeHtml, icon } from './dom';
 
-type Tab = 'history' | 'beliefs' | 'sacred';
+type Tab = 'history' | 'civ' | 'beliefs' | 'sacred';
+
+/** History kinds shown in the Civilization chapter. */
+const CIV_KINDS = new Set(['trade', 'migration', 'religion-spread', 'diplomacy', 'challenge', 'village', 'founding', 'monument']);
 
 const KIND_ICON: Record<string, string> = {
   religion: '✦',
@@ -17,6 +20,13 @@ const KIND_ICON: Record<string, string> = {
   disaster: '🔥',
   argument: '⚡',
   event: '•',
+  trade: '⇄',
+  migration: '➜',
+  'religion-spread': '✧',
+  diplomacy: '⚖',
+  challenge: '🏆',
+  village: '⌂',
+  founding: '⚑',
 };
 
 /**
@@ -84,7 +94,7 @@ export class HistoryBookPanel {
     this.badge.classList.toggle('hidden', unread === 0 || this.open);
     if (!this.open) return;
     this.seen = s.history.length;
-    const key = `${this.tab}|${s.history.length}|${s.history[s.history.length - 1]?.id}|${s.religions.map((r) => `${r.id}${r.followers.length}${r.active}`).join()}|${s.sacred.map((x) => `${x.stage}${x.decorations}${x.shrineProgress.toFixed(1)}${x.monumentProgress.toFixed(1)}`).join()}`;
+    const key = `${this.tab}|${s.history.length}|${s.stats.tradesCompleted}|${s.stats.migrations}|${s.history[s.history.length - 1]?.id}|${s.religions.map((r) => `${r.id}${r.followers.length}${r.active}`).join()}|${s.sacred.map((x) => `${x.stage}${x.decorations}${x.shrineProgress.toFixed(1)}${x.monumentProgress.toFixed(1)}`).join()}`;
     if (key === this.renderKey) return;
     this.renderKey = key;
     this.root.innerHTML = `
@@ -93,16 +103,30 @@ export class HistoryBookPanel {
         <button class="book-close insp-close" type="button" aria-label="Close">${icon('close')}</button>
       </header>
       <nav class="book-tabs">
-        ${(['history', 'beliefs', 'sacred'] as Tab[])
-          .map((t) => `<button type="button" data-tab="${t}" class="${this.tab === t ? 'on' : ''}">${t === 'history' ? 'History' : t === 'beliefs' ? `Beliefs <b>${s.religions.filter((r) => r.active).length}</b>` : `Sacred Places <b>${s.sacred.length}</b>`}</button>`)
+        ${(['history', 'civ', 'beliefs', 'sacred'] as Tab[])
+          .map((t) => `<button type="button" data-tab="${t}" class="${this.tab === t ? 'on' : ''}">${t === 'history' ? 'History' : t === 'civ' ? 'Civilization' : t === 'beliefs' ? `Beliefs <b>${s.religions.filter((r) => r.active).length}</b>` : `Sacred <b>${s.sacred.length}</b>`}</button>`)
           .join('')}
       </nav>
-      <div class="book-body">${this.tab === 'history' ? this.history(sim) : this.tab === 'beliefs' ? this.beliefs(sim) : this.sacredList(sim)}</div>`;
+      <div class="book-body">${this.tab === 'history' ? this.history(sim) : this.tab === 'civ' ? this.civilization(sim) : this.tab === 'beliefs' ? this.beliefs(sim) : this.sacredList(sim)}</div>`;
   }
 
-  private history(sim: Simulation): string {
-    const list = [...sim.state.history].reverse();
-    if (!list.length) return `<p class="book-empty">Nothing questionable has happened yet. Give it a minute.</p>`;
+  /** The Civilization chapter: foundings, trades, migrations, spreads, alliances, rivalries, monuments, challenges. */
+  private civilization(sim: Simulation): string {
+    const s = sim.state;
+    const stats = s.stats;
+    const summary = `<div class="civ-summary">
+      <span><b>${s.villages.length}</b> villages</span>
+      <span><b>${stats.tradesCompleted}</b> trades</span>
+      <span><b>${stats.migrations}</b> migrations</span>
+      <span><b>${stats.religionSpreads}</b> faith spreads</span>
+      <span><b>${sim.challenges.completedCount()}</b> challenges</span>
+    </div>`;
+    return summary + this.history(sim, (h) => CIV_KINDS.has(h.kind), 'No civilization milestones yet. The villages are still pretending the others do not exist.');
+  }
+
+  private history(sim: Simulation, filter: (h: (typeof sim.state.history)[number]) => boolean = () => true, empty = 'Nothing questionable has happened yet. Give it a minute.'): string {
+    const list = [...sim.state.history].filter(filter).reverse();
+    if (!list.length) return `<p class="book-empty">${escapeHtml(empty)}</p>`;
     return `<ol class="chronicle">${list
       .map(
         (h) => `<li data-x="${h.x ?? ''}" data-z="${h.z ?? ''}" class="${h.x !== undefined ? 'linked' : ''} k-${h.kind}">

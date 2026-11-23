@@ -12,6 +12,10 @@ interface ThreeGameTestHooks {
   simulate(seconds: number): void;
   grantChaos(amount: number): void;
   openBook(): void;
+  planTrade(): string | null;
+  planMigration(): string | null;
+  focusVillage(id: string): void;
+  worldPoint(x: number, z: number): { x: number; y: number; visible: boolean };
 }
 
 interface Window {

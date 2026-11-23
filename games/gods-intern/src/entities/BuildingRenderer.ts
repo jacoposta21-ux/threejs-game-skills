@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import type { BuildingData, VillageData } from '../core/types';
+import type { BuildingData, VillageCulture, VillageData } from '../core/types';
 import { build, flatMaterial, Part } from '../render/ModelKit';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { TerrainData } from '../world/TerrainGen';
 
 const ROOF_COLORS = [0xd2553f, 0x3f78b5, 0xe0a13a, 0x6a9e4a];
@@ -8,14 +9,40 @@ const STONE = 0x9e968c;
 const TIMBER = 0x6b4a2e;
 const PLASTER = 0xf3e3c3;
 
-function houseGeometry(variant: number): THREE.BufferGeometry {
-  const roof = ROOF_COLORS[variant % ROOF_COLORS.length];
+const STYLE_ROOFS: Record<VillageCulture, number[]> = {
+  agricultural: ROOF_COLORS,
+  mountain: [0x5d6670, 0x6b4a2e, 0x4a5560, 0x7a5a3a],
+  riverside: [0x2a9d8f, 0x3f78b5, 0x48b5d4, 0x1d6f8c],
+};
+const STYLE_WALLS: Record<VillageCulture, number> = { agricultural: PLASTER, mountain: 0xa9773f, riverside: 0xe6f0ee };
+
+function houseGeometry(variant: number, style: VillageCulture = 'agricultural'): THREE.BufferGeometry {
+  const roof = STYLE_ROOFS[style][variant % 4];
+  const wall = STYLE_WALLS[style];
+  const extra: Part[] =
+    style === 'mountain'
+      ? [
+          // Log-cabin courses and a heavy stone base.
+          Part.box(3.8, 0.9, 3.4).at(0, 0.3, 0).color(0x8a8178, 0.05),
+          ...[0.9, 1.4, 1.9].map((y) => Part.box(3.3, 0.1, 2.9).at(0, y, 0).color(0x6b4a2e)),
+          Part.box(0.6, 1.0, 0.6).at(-1.2, 3.2, -0.6).color(0x7d736e),
+        ]
+      : style === 'riverside'
+        ? [
+            // Stilts, a little porch and a hanging umbrella of optimism.
+            ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => Part.cyl(0.08, 0.09, 0.6, 5).at(sx * 1.7, 0.1, sz * 1.5).color(0x6b4a2e))),
+            Part.box(3.6, 0.1, 1.0).at(0, 0.45, 2.0).color(0xb08a60),
+            Part.box(0.06, 0.6, 0.06).at(1.6, 0.75, 2.4).color(0x6b4a2e),
+            Part.cone(0.5, 0.3, 8).at(1.6, 1.15, 2.4).color(0xf2c14e),
+          ]
+        : [];
   const parts = [
+    ...extra,
     Part.box(3.6, 0.45, 3.2).at(0, 0.2, 0).color(STONE, 0.04),
-    Part.box(3.2, 2.0, 2.8).at(0, 1.42, 0).color(PLASTER, 0.02),
+    Part.box(3.2, 2.0, 2.8).at(0, 1.42, 0).color(wall, 0.02),
     Part.box(3.36, 0.16, 2.96).at(0, 2.45, 0).color(TIMBER),
     Part.box(3.36, 0.14, 2.96).at(0, 0.5, 0).color(TIMBER),
-    Part.prism(3.2, 1.25, 2.8).at(0, 2.42, 0).color(PLASTER, 0.02),
+    Part.prism(3.2, 1.25, 2.8).at(0, 2.42, 0).color(wall, 0.02),
     Part.prism(3.9, 1.6, 3.5).at(0, 2.5, 0).color(roof, 0.04),
     Part.box(0.14, 0.14, 3.6).at(0, 4.1, 0).color(0x5a3a24),
     Part.box(0.5, 1.4, 0.5).at(0.95, 3.4, -0.55).color(0x8a7f76),
@@ -135,6 +162,55 @@ function shrineGeometry(): THREE.BufferGeometry {
   return build(parts);
 }
 
+function quarryGeometry(): THREE.BufferGeometry {
+  const parts: Part[] = [
+    Part.cyl(2.6, 2.2, 0.3, 9).at(0, -0.05, 0).color(0x7d736e),
+    ...Array.from({ length: 8 }, (_, i) => Part.box(0.8, 0.6, 0.7).rot(0, i * 0.8, 0).at(Math.cos(i * 0.8) * 2.4, 0.3, Math.sin(i * 0.8) * 2.4).color(i % 2 ? 0xb8b0a6 : 0x9e968c)),
+    // Wooden crane.
+    Part.box(0.16, 3.2, 0.16).rot(0, 0, 0.18).at(-1.2, 1.6, -1.2).color(0x6b4a2e),
+    Part.box(0.16, 3.2, 0.16).rot(0, 0, -0.18).at(-0.2, 1.6, -1.2).color(0x6b4a2e),
+    Part.box(2.6, 0.14, 0.14).at(0.4, 3.1, -1.2).color(0x6b4a2e),
+    Part.box(0.03, 1.2, 0.03).at(1.4, 2.45, -1.2).color(0xd8c7a3),
+    Part.box(0.6, 0.45, 0.5).at(1.4, 1.65, -1.2).color(0xc9c2b8),
+    // Cut blocks and a pickaxe.
+    Part.box(0.7, 0.5, 0.5).at(1.6, 0.25, 1.3).color(0xc9c2b8),
+    Part.box(0.7, 0.5, 0.5).at(1.6, 0.75, 1.3).color(0xbfb7ad),
+    Part.box(0.7, 0.5, 0.5).at(0.8, 0.25, 1.6).color(0xd0c9c0),
+    Part.box(0.05, 0.9, 0.05).rot(0, 0, 0.9).at(-1.6, 0.4, 1.4).color(0x8a6a44),
+    Part.box(0.6, 0.06, 0.08).rot(0, 0, 0.9).at(-1.25, 0.7, 1.4).color(0x9aa4b8),
+  ];
+  return build(parts);
+}
+
+function fisheryGeometry(): THREE.BufferGeometry {
+  const parts: Part[] = [
+    Part.box(3.4, 0.2, 2.6).at(0, 0.1, 0).color(0xb08a60),
+    ...[-1.4, 1.4].map((x) => Part.box(0.1, 1.6, 0.1).at(x, 0.9, -0.8).color(0x6b4a2e)),
+    Part.box(3.0, 0.06, 0.06).at(0, 1.6, -0.8).color(0x6b4a2e),
+    ...Array.from({ length: 6 }, (_, i) => Part.ico(0.12, 0).scale(0.6, 2.2, 0.35).at(-1.1 + i * 0.44, 1.2, -0.8).color(0xb8c8d4)),
+    Part.box(2.8, 0.04, 1.2).rot(0.35, 0, 0).at(0, 0.9, 0.5).color(0x3a4a5e),
+    Part.cyl(0.32, 0.3, 0.6, 8).at(1.3, 0.5, 0.9).color(0x8a5a34),
+    Part.cyl(0.3, 0.28, 0.5, 8).at(0.6, 0.45, 1.0).color(0x9b6a3e),
+    // A small boat, drying upside down.
+    Part.sphere(0.6, 8, 4, Math.PI / 2).scale(2.2, 0.6, 0.9).rot(Math.PI, 0, 0).at(-0.6, 0.55, 0.9).color(0x2a9d8f),
+  ];
+  return build(parts);
+}
+
+function elevatedShrine(): THREE.BufferGeometry {
+  const parts: Part[] = [
+    Part.cyl(3.0, 3.4, 1.3, 8).at(0, 0.65, 0).color(0x8a8178, 0.05),
+    Part.box(1.6, 0.35, 1.2).at(0, 0.18, 3.2).color(0x8a8178),
+    Part.box(1.6, 0.35, 0.9).at(0, 0.53, 2.6).color(0x8a8178),
+    Part.box(1.6, 0.35, 0.8).at(0, 0.88, 2.1).color(0x8a8178),
+  ];
+  const base = build(parts);
+  const top = shrineGeometry().clone();
+  top.translate(0, 1.3, 0);
+  const merged = mergeGeometries([base, top]);
+  return merged ?? base;
+}
+
 function rubbleGeometry(): THREE.BufferGeometry {
   const parts: Part[] = [Part.cyl(2.2, 2.6, 0.3, 9).at(0, 0.12, 0).color(0x3b3430)];
   const pos: Array<[number, number, number]> = [[0.6, 0.3, 0.4], [-0.8, 0.3, -0.2], [0.1, 0.5, -0.7], [-0.3, 0.3, 1.0], [1.2, 0.25, -0.6]];
@@ -179,6 +255,13 @@ export class BuildingRenderer {
   private readonly color = new THREE.Color();
   private readonly geo = {
     house: [0, 1, 2, 3].map((v) => houseGeometry(v)),
+    houseStyled: {
+      mountain: [0, 1, 2, 3].map((v) => houseGeometry(v, 'mountain')),
+      riverside: [0, 1, 2, 3].map((v) => houseGeometry(v, 'riverside')),
+    } as Record<string, THREE.BufferGeometry[]>,
+    quarry: quarryGeometry(),
+    fishery: fisheryGeometry(),
+    shrineHigh: elevatedShrine(),
     windows: windowGeometry(),
     well: wellGeometry(),
     farm: farmGeometry(),
@@ -212,7 +295,7 @@ export class BuildingRenderer {
     const extras: BuildingView['extras'] = {};
     switch (b.type) {
       case 'house':
-        geometry = this.geo.house[b.variant % 4];
+        geometry = b.style && b.style !== 'agricultural' ? this.geo.houseStyled[b.style][b.variant % 4] : this.geo.house[b.variant % 4];
         extras.windows = new THREE.Mesh(this.geo.windows, this.windowMat);
         extras.flag = new THREE.Mesh(this.geo.flag, this.flagMat.clone());
         (extras.flag.material as THREE.MeshStandardMaterial).color.set([0xf2c14e, 0xe8455a, 0x4fd1c5, 0xffffff][b.variant % 4]);
@@ -236,12 +319,21 @@ export class BuildingRenderer {
         extras.logs.castShadow = true;
         break;
       }
-      case 'shrine':
-        geometry = this.geo.shrine;
+      case 'shrine': {
+        // Rockbottom keeps its shrine up on a stone platform.
+        const lift = b.style === 'mountain' ? 1.3 : 0;
+        geometry = lift ? this.geo.shrineHigh : this.geo.shrine;
         extras.halo = new THREE.Mesh(this.geo.halo, this.haloMat);
-        extras.halo.position.set(0, 6.0, 0);
+        extras.halo.position.set(0, 6.0 + lift, 0);
         extras.orb = new THREE.Mesh(this.geo.orb, this.orbMat);
-        extras.orb.position.set(0, 2.05, 0);
+        extras.orb.position.set(0, 2.05 + lift, 0);
+        break;
+      }
+      case 'quarry':
+        geometry = this.geo.quarry;
+        break;
+      case 'fishery':
+        geometry = this.geo.fishery;
         break;
     }
     const main = new THREE.Mesh(geometry, material);
@@ -295,11 +387,12 @@ export class BuildingRenderer {
     });
   }
 
-  update(village: VillageData | undefined, night: number, prayersActive: number, elapsed: number, dt: number): void {
+  update(villages: VillageData[], night: number, prayersActive: number, elapsed: number, dt: number): void {
     this.windowMat.emissiveIntensity = night * 1.8;
     this.windowMat.color.setRGB(0.23 + night * 0.4, 0.29 + night * 0.3, 0.37);
     for (const view of this.views) {
       const b = view.data;
+      const village = villages.find((v) => v.id === b.villageId);
       if (b.destroyed !== view.lastDestroyed) {
         view.lastDestroyed = b.destroyed;
         view.main.visible = !b.destroyed;

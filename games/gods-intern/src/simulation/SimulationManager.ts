@@ -10,7 +10,11 @@ import { MissionManager } from '../missions/MissionManager';
 import { PowerManager } from '../powers/PowerManager';
 import { TerrainData } from '../world/TerrainGen';
 import { createInitialState, generateRocks } from '../world/WorldGen';
+import { addSettlement } from '../world/Settlements';
 import { CultureSystem } from '../culture/CultureSystem';
+import { CivilizationSystem } from '../civ/CivilizationSystem';
+import { ChallengeSystem } from '../civ/ChallengeSystem';
+import { ensureRelations } from '../civ/Relations';
 import { HistoryBook } from '../culture/History';
 import { MemorySystem } from '../culture/MemorySystem';
 import { ReligionSystem } from '../culture/ReligionSystem';
@@ -56,6 +60,9 @@ export class Simulation {
   readonly religion: ReligionSystem;
   readonly surreal: ConsequenceSystem;
   readonly culture: CultureSystem;
+  // ---- v0.3 civilization layer ----
+  readonly civ: CivilizationSystem;
+  readonly challenges: ChallengeSystem;
   /** Sandbox setting; not part of saved world state. */
   unlimitedEnergy = false;
   /** Rolling wind direction used by fire spread. */
@@ -80,6 +87,8 @@ export class Simulation {
     this.consequences = new ConsequenceSystem(this);
     this.surreal = new ConsequenceSystem(this, SURREAL_EVENTS);
     this.culture = new CultureSystem(this);
+    this.civ = new CivilizationSystem(this);
+    this.challenges = new ChallengeSystem(this);
     this.powers = new PowerManager(this);
     this.faith.attach(this);
     this.rebuildIndexes();
@@ -89,6 +98,9 @@ export class Simulation {
   replaceState(state: GameStateData): void {
     this.state = migrateState(state);
     this.ensureWorldFeatures();
+    ensureRelations(this.state);
+    this.civ.onStateReplaced();
+    this.challenges.ensureStates();
     this.rng = new Rng(state.rngState);
     this.rebuildIndexes();
   }
@@ -96,6 +108,23 @@ export class Simulation {
   /** Fill terrain-dependent data missing from older saves (v0.1 has no rock entities). */
   private ensureWorldFeatures(): void {
     if (!this.state.rocks.length) this.state.rocks = generateRocks(this.terrain, this.state.seed);
+    // v0.3: nothing grows on (or right at the ends of) a bridge.
+    for (const b of this.terrain.bridges) {
+      const dx = b.x1 - b.x0;
+      const dz = b.z1 - b.z0;
+      const len = Math.hypot(dx, dz);
+      for (const t of this.state.trees) {
+        if (t.removed) continue;
+        const along = ((t.x - b.x0) * dx + (t.z - b.z0) * dz) / len;
+        const across = Math.abs((t.x - b.x0) * -dz + (t.z - b.z0) * dx) / len;
+        if (along > -4 && along < len + 4 && across < b.halfWidth + 2.2) t.removed = true;
+      }
+    }
+    // v0.3: older saves only have Puddleton — found Drizzleville and Rockbottom without touching it.
+    const added = [addSettlement(this.state, this.terrain, 'v2'), addSettlement(this.state, this.terrain, 'v3')].filter(Boolean);
+    if (added.length && this.state.time > 1) {
+      this.state.history.push({ id: `h${this.state.nextId++}`, day: Math.floor(this.state.time / CONFIG.time.dayLength) + 1, time: this.state.time, title: 'New Neighbors Arrived', text: 'Settlers founded Drizzleville by the river and Rockbottom under the mountain. Nobody asked Puddleton.', villageId: 'v1', kind: 'village' });
+    }
   }
 
   rebuildIndexes(): void {
@@ -148,6 +177,8 @@ export class Simulation {
     this.consequences.update(dt);
     this.culture.update(dt);
     this.surreal.update(dt);
+    this.civ.update(dt);
+    this.challenges.update(dt);
     this.pruneDead();
     s.rngState = this.rng.state;
   }

@@ -100,6 +100,8 @@ export class TerrainData {
   readonly river: RiverInfo;
   /** Walkable points beside fresh water that villagers can drink from. */
   readonly drinkPoints: number[] = [];
+  /** v0.3: wooden bridges over the river (the river splits the island in two). */
+  readonly bridges: Array<{ x0: number; z0: number; x1: number; z1: number; halfWidth: number; deck: number }> = [];
 
   constructor(readonly seed: number) {
     const n = this.verts * this.verts;
@@ -108,8 +110,10 @@ export class TerrainData {
 
     this.sites = [
       { id: 'v1', name: 'Puddleton', x: -12, z: 22, radius: 19, height: 0, populated: true },
-      { id: 'v2', name: 'East Meadow', x: 36, z: 14, radius: 13, height: 0, populated: false },
-      { id: 'v3', name: 'West Meadow', x: -40, z: -4, radius: 13, height: 0, populated: false },
+      // v0.3: the two former empty meadows are now populated. Positions are unchanged
+      // so terrain and older saves stay compatible.
+      { id: 'v2', name: 'Drizzleville', x: 36, z: 14, radius: 13, height: 0, populated: true },
+      { id: 'v3', name: 'Rockbottom', x: -40, z: -4, radius: 13, height: 0, populated: true },
     ];
     this.lake = { x: 30, z: -20, radius: 10, level: 0 };
     const riverPath = [24, -12, 17, -3, 11, 7, 10, 17, 12, 28, 15, 42, 18, 56, 20, 72];
@@ -170,6 +174,15 @@ export class TerrainData {
         this.heights[index] = h;
         this.water[index] = water;
       }
+    }
+
+    // The Drizzleville bridge: east–west across the river, between Puddleton and Drizzleville.
+    {
+      const z = 14;
+      const x0 = 3.5;
+      const x1 = 17.5;
+      const deck = Math.max(this.heightAt(x0, z), this.heightAt(x1, z), this.riverQuery(10.4, z).level + 0.7) + 0.12;
+      this.bridges.push({ x0, z0: z, x1, z1: z, halfWidth: 1.3, deck });
     }
 
     // Drinking spots: land vertices next to river/lake water, sampled sparsely.
@@ -298,6 +311,25 @@ export class TerrainData {
     if (w === WATER_LAKE) return Math.max(h, this.lake.level);
     if (w === WATER_RIVER) return Math.max(h, this.riverQuery(x, z).level);
     return h;
+  }
+
+  /** The bridge under a point, if any. */
+  bridgeAt(x: number, z: number): { deck: number } | null {
+    for (const b of this.bridges) {
+      const dx = b.x1 - b.x0;
+      const dz = b.z1 - b.z0;
+      const len2 = dx * dx + dz * dz;
+      const t = Math.min(1, Math.max(0, ((x - b.x0) * dx + (z - b.z0) * dz) / len2));
+      const d = Math.hypot(x - (b.x0 + dx * t), z - (b.z0 + dz * t));
+      if (d <= b.halfWidth && t > 0 && t < 1) return b;
+    }
+    return null;
+  }
+
+  /** Height a walker stands at: the bridge deck over water, otherwise the ground. */
+  walkHeightAt(x: number, z: number): number {
+    const b = this.bridgeAt(x, z);
+    return b ? Math.max(b.deck, this.heightAt(x, z)) : this.heightAt(x, z);
   }
 
   isLand(x: number, z: number): boolean {

@@ -63,7 +63,7 @@ export class ReligionSystem {
     if (existing) {
       // An existing belief absorbs the event: more influence, more converts.
       existing.influence = Math.min(1, existing.influence + 0.05 * memory.emotionalImpact);
-      for (const v of witnesses) if (!v.religionId && sim.rng.next() < 0.25 * conversionWeight(v)) this.convert(v, existing);
+      for (const v of witnesses) if (!v.religionId && sim.rng.next() < 0.25 * conversionWeight(v) * sim.civ.conversionFactor(v, existing)) this.convert(v, existing, true, 'shared miracle');
       const sacred = existing.sacredEntityId ? sim.state.sacred.find((s) => s.id === existing.sacredEntityId) : undefined;
       if (sacred && Math.hypot(sacred.x - memory.position.x, sacred.z - memory.position.z) < 12) sim.sacredSys.addSacredness(sacred, 0.6);
       return;
@@ -194,8 +194,12 @@ export class ReligionSystem {
     return religion;
   }
 
-  convert(v: VillagerData, religion: Religion, announce = true): void {
+  convert(v: VillagerData, religion: Religion, announce = true, via = 'word of mouth'): void {
     if (!v.alive || v.religionId === religion.id) return;
+    // v0.3: the first believer in a new village is a cross-village spread.
+    const sim = this.sim;
+    const elsewhere = religion.followers.some((id) => sim.villager(id)?.alive);
+    const present = religion.followers.some((id) => sim.villager(id)?.alive && sim.villager(id)?.villageId === v.villageId);
     if (v.religionId) {
       const old = this.sim.state.religions.find((r) => r.id === v.religionId);
       if (old) old.followers = old.followers.filter((id) => id !== v.id);
@@ -204,6 +208,8 @@ export class ReligionSystem {
     religion.followers.push(v.id);
     v.faith = Math.min(1, v.faith + 0.08);
     if (announce) this.sim.bus.emit('CONVERSION', { villagerId: v.id, religionId: religion.id });
+    const village = sim.village(v.villageId);
+    if (elsewhere && !present && village && religion.active) sim.civ.announceSpread(religion, village, via);
   }
 
   private pickLeader(r: Religion): void {
@@ -420,7 +426,7 @@ export class ReligionSystem {
       const preacher = followers[Math.floor(sim.rng.next() * followers.length)];
       const target = sim.villagersNear(preacher.position.x, preacher.position.z, 7, []).find((v) => v.id !== preacher.id && v.religionId !== r.id);
       if (!target) continue;
-      if (sim.rng.next() < 0.18 * conversionWeight(target) * (target.religionId ? 0.3 : 1)) {
+      if (sim.rng.next() < 0.18 * conversionWeight(target) * sim.civ.conversionFactor(target, r) * (target.religionId ? 0.3 : 1)) {
         this.convert(target, r);
         sim.speech.say(preacher, `JOIN ${r.name.split(' ').slice(-2).join(' ').toUpperCase()}!`, 1);
       }
@@ -436,7 +442,8 @@ export class ReligionSystem {
     if (!believers.length) return;
     const a = believers[Math.floor(sim.rng.next() * believers.length)];
     const rivals = sim.state.villagers.filter(
-      (v) => v.alive && v.id !== a.id && v.currentTask.state !== 'RESTING' && v.currentTask.state !== 'FLEEING' &&
+      (v) => v.alive && v.id !== a.id && v.currentTask.state !== 'RESTING' && v.currentTask.state !== 'FLEEING' && !v.travel === !a.travel &&
+        Math.hypot(v.position.x - a.position.x, v.position.z - a.position.z) < 30 &&
         ((v.religionId && v.religionId !== a.religionId) || (!v.religionId && (has(v, 'skeptical') || has(v, 'rebellious')))),
     );
     if (!rivals.length) return;
@@ -446,6 +453,7 @@ export class ReligionSystem {
     const mx = village ? village.centerX + sim.rng.range(-4, 4) : a.position.x;
     const mz = village ? village.centerZ + sim.rng.range(-4, 4) : a.position.z;
     sim.ai.argue(sim, a, b, mx, mz);
+    sim.civ.onArgument(a, b);
     sim.speech.say(a, pair[0], 2, 3.5);
     sim.speech.say(b, pair[1], 2, 3.5);
     a.happiness = Math.max(0, a.happiness - 0.03);

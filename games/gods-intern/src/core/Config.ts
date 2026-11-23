@@ -52,7 +52,7 @@ export const CONFIG = {
     maxDecorations: 8,
     shrineWood: 12,
     monumentWood: 24,
-    maxHistory: 60,
+    maxHistory: 80,
     speechInterval: 1.2,
     speechVillagerCooldown: 8,
     rockWalkSpeed: 0.55,
@@ -124,6 +124,25 @@ export const CONFIG = {
     houseCapacity: 4,
     repairWood: 5,
     repairAmount: 25,
+  },
+  /** v0.3 civilization layer. */
+  civ: {
+    populationCap: 90,
+    comfort: { food: 60, water: 50, wood: 40, stone: 20 } as Record<string, number>,
+    maxStock: { food: 160, water: 100, wood: 120, stone: 80 } as Record<string, number>,
+    tradeInterval: 12,
+    maxCaravans: 3,
+    caravanTimeout: 200,
+    maxCargo: 15,
+    migrationInterval: 30,
+    migrationCooldown: 70,
+    relationStep: 6, // max change from one event
+    relationDrift: 0.5, // max drift per diplomacy update
+    diplomacyInterval: 5,
+    favorWindow: 300,
+    favoritismGap: 40,
+    favoritismCooldown: 120,
+    pilgrimageInterval: 45,
   },
   farm: {
     baseGrowth: 1 / 140,

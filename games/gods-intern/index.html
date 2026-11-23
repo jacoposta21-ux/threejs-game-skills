@@ -55,6 +55,8 @@
           </div>
         </div>
         <div class="hud-right">
+          <button class="icon-btn" id="btn-villages" type="button" title="Villages overview (V)"><span data-icon="map"></span></button>
+          <button class="icon-btn" id="btn-challenges" type="button" title="Divine Challenges (C)"><span data-icon="trophy"></span><span id="challenge-badge" class="badge hidden">0</span></button>
           <button class="icon-btn" id="btn-book" type="button" title="The Book of Questionable Miracles (B)"><span data-icon="book"></span><span id="book-badge" class="badge hidden">0</span></button>
           <button class="icon-btn" id="btn-speed" type="button" title="Simulation speed (F)"><span data-icon="speed"></span><b id="speed-label">1×</b></button>
           <button class="icon-btn" id="btn-pause" type="button" title="Pause (Space)"><span data-icon="pause"></span></button>
@@ -76,6 +78,10 @@
 
       <aside id="inspector" class="ui panel hidden" aria-live="polite"></aside>
       <aside id="book" class="ui panel hidden" aria-label="The Book of Questionable Miracles"></aside>
+      <aside id="challenges" class="ui panel hidden" aria-label="Divine Challenges"></aside>
+      <aside id="villages" class="ui panel hidden" aria-label="Villages overview"></aside>
+      <div id="challenge-pins" class="ui hidden" aria-label="Pinned challenges"></div>
+      <div id="challenge-toast" class="ui hidden" aria-live="polite"></div>
       <div id="perf" class="hidden"></div>
 
       <nav id="toolbar" class="ui" aria-label="Divine powers"></nav>

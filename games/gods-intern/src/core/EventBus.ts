@@ -1,5 +1,5 @@
 import type { PowerId } from './Config';
-import type { BuildingType, DivineMemory, FireKind, HistoryEntry, MutationData, PrayerData, Religion, RitualDefinition, SacredObject } from './types';
+import type { Caravan, RelationCategory, BuildingType, DivineMemory, FireKind, HistoryEntry, MutationData, PrayerData, Religion, RitualDefinition, SacredObject } from './types';
 
 export type NotifyKind = 'good' | 'bad' | 'info' | 'chaos' | 'culture';
 
@@ -65,6 +65,21 @@ export interface GameEvents {
   MUTATION_APPLIED: { mutation: MutationData; x: number; z: number };
   HISTORY_ADDED: { entry: HistoryEntry };
   SURREAL_EVENT: { id: string; title: string; x: number; z: number };
+  // ---- v0.3 civilization ----
+  TRADE_STARTED: { caravan: Caravan };
+  TRADE_COMPLETED: { caravan: Caravan };
+  TRADE_FAILED: { caravan: Caravan; reason: string };
+  VILLAGER_MIGRATED: { villagerId: string; name: string; fromId: string; toId: string; reason: string };
+  MIGRATION_STARTED: { villagerId: string; fromId: string; toId: string; reason: string };
+  RELIGION_SPREAD: { religionId: string; villageId: string; via: string };
+  RELATIONSHIP_CHANGED: { a: string; b: string; score: number; from: RelationCategory; to: RelationCategory; cause: string };
+  DIVINE_FAVOR_CHANGED: { villageId: string; amount: number; kind: string; total: number };
+  FAVORITISM: { favoredId: string; jealousId: string; kind: 'jealousy' | 'resentment'; gap: number };
+  MONUMENT_COMPLETED: { sacredId: string; label: string; x: number; z: number };
+  CHALLENGE_UNLOCKED: { id: string };
+  CHALLENGE_COMPLETED: { id: string; title: string; rewardText: string };
+  CAMERA_VISIT: { villageId: string };
+  PILGRIMAGE_COMPLETED: { villagerId: string; sacredId: string; fromId: string };
   TUTORIAL_STEP: { step: number };
   POWERS_UNLOCKED: { powers: PowerId[] };
 }

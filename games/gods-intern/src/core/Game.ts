@@ -6,6 +6,10 @@ import { BuildingRenderer } from '../entities/BuildingRenderer';
 import { VillagerRenderer } from '../entities/VillagerRenderer';
 import { CultureRenderer } from '../entities/CultureRenderer';
 import { VillageDecor } from '../world/VillageDecor';
+import { buildBridges } from '../world/Bridges';
+import { ChallengePanel } from '../ui/ChallengePanel';
+import { VillagePanel } from '../ui/VillagePanel';
+import { relationKey } from '../world/Settlements';
 import { HistoryBookPanel, cultureTicker } from '../ui/HistoryBookPanel';
 import { PerfOverlay } from '../ui/PerfOverlay';
 import type { VillagerData } from './types';
@@ -34,6 +38,8 @@ import { Rng } from './Rng';
 import { loadSettings, saveSettings, type QualityLevel, type Settings } from './Settings';
 
 export const WORLD_SEED = 42;
+/** Merchant pack colors by cargo. */
+const RESOURCE_COLOR: Record<string, number> = { food: 0xe8a13a, water: 0x4fa3e0, wood: 0x9b6a3e, stone: 0x9aa0a6 };
 type Quality = Exclude<QualityLevel, 'auto'>;
 
 /**
@@ -55,7 +61,10 @@ export class Game {
   private readonly ambient: Ambient;
   private readonly vfx: VisualEffects;
   private readonly culture: CultureRenderer;
-  private readonly decor: VillageDecor;
+  private readonly decors: VillageDecor[];
+  private readonly challengesUi = new ChallengePanel();
+  private readonly villagesUi = new VillagePanel();
+  private readonly packColors = new Map<string, number>();
   private readonly book = new HistoryBookPanel();
   private readonly perf: PerfOverlay;
   private pinTimer = 0;
@@ -125,7 +134,12 @@ export class Game {
 
     const village = this.sim.state.villages[0];
     this.dayNight = new DayNightCycle(this.scene);
-    this.terrainMesh = new TerrainMesh(this.sim.terrain, this.sim.state.buildings, { x: village.centerX, z: village.centerZ });
+    this.terrainMesh = new TerrainMesh(
+      this.sim.terrain,
+      this.sim.state.buildings,
+      this.sim.state.villages.map((v) => ({ id: v.id, x: v.centerX, z: v.centerZ })),
+      this.roadSegments(),
+    );
     this.water = new Water(this.sim.terrain);
     this.vegetation = new Vegetation(this.sim.terrain);
     this.buildings = new BuildingRenderer(this.sim.state.buildings, this.sim.terrain);
@@ -134,8 +148,8 @@ export class Game {
     this.ambient = new Ambient(this.sim.terrain, { x: village.centerX, z: village.centerZ });
     this.vfx = new VisualEffects(this.sim.bus, this.sim.terrain, () => this.sim.state);
     this.culture = new CultureRenderer(this.sim.terrain);
-    this.decor = new VillageDecor(this.sim.terrain, village, this.sim.state.buildings);
-    this.scene.add(this.terrainMesh.mesh, this.water.group, this.vegetation.group, this.buildings.group, this.villagers.group, this.weather.group, this.ambient.group, this.vfx.group, this.culture.group, this.decor.group);
+    this.decors = this.sim.state.villages.map((v) => new VillageDecor(this.sim.terrain, v, this.sim.state.buildings));
+    this.scene.add(this.terrainMesh.mesh, this.water.group, this.vegetation.group, this.buildings.group, this.villagers.group, this.weather.group, this.ambient.group, this.vfx.group, this.culture.group, buildBridges(this.sim.terrain), ...this.decors.map((d) => d.group));
     this.perf = new PerfOverlay(import.meta.env.DEV || this.params.has('debug'), this.params.has('debug'));
 
     this.cam = new CameraController(this.camera, canvas, this.sim.terrain);
@@ -242,7 +256,26 @@ export class Game {
       this.cam.focus(x, z, 42, 1.1);
     };
     this.book.onSacred = (id) => this.labels.onPinClick(id);
-    this.book.onToggle = () => this.audio.click();
+    this.book.onToggle = (open) => {
+      this.audio.click();
+      if (open) this.closeDrawers('book');
+    };
+    this.challengesUi.onToggle = (open) => {
+      this.audio.click();
+      if (open) this.closeDrawers('challenges');
+    };
+    this.challengesUi.onPinFail = () => {
+      this.audio.reject();
+      this.cursorToast('You can pin at most 3 challenges', false, true);
+    };
+    this.villagesUi.onToggle = (open) => {
+      this.audio.click();
+      if (open) this.closeDrawers('villages');
+    };
+    this.villagesUi.onFocus = (v) => {
+      this.audio.click();
+      this.cam.focus(v.centerX + 2, v.centerZ - 2, 52, 1.2, 0.55, 0.86);
+    };
     const v3 = (x: number, z: number, dy = 2) => new THREE.Vector3(x, this.sim.terrain.heightAt(x, z) + dy, z);
     const log = (s: string) => {
       this.eventLog.push(s);
@@ -309,7 +342,7 @@ export class Game {
       bus.on('VILLAGERS_CELEBRATE', () => this.audio.celebrate()),
       bus.on('FIRE_EXTINGUISHED', (e) => e.byRain && this.audio.extinguish()),
       bus.on('HARVEST', (e) => {
-        const farm = this.sim.state.buildings.find((b) => b.type === 'farm');
+        const farm = this.sim.state.buildings.find((b) => b.type === 'farm' && b.villageId === e.villageId);
         if (farm) this.labels.float(`+${e.amount} food`, v3(farm.x, farm.z, 2.5), 'good');
       }),
       bus.on('BUILDING_DAMAGED', (e) => {
@@ -323,9 +356,37 @@ export class Game {
       bus.on('VILLAGER_DIED', (e) => this.labels.float(`RIP ${e.name.split(' ')[0]}`, v3(e.x, e.z, 2.2), 'bad')),
       bus.on('POWERS_UNLOCKED', (e) => this.toolbar.flashUnlocked(e.powers)),
       bus.on('RAIN_STARTED', (e) => {
-        const v = this.sim.state.villages[0];
-        const well = this.sim.building(v.wellId);
-        if (well && Math.hypot(well.x - e.x, well.z - e.z) <= e.radius) this.labels.float('Well filling!', v3(well.x, well.z, 3.5), 'water');
+        for (const v of this.sim.state.villages) {
+          const well = this.sim.building(v.wellId);
+          if (well && Math.hypot(well.x - e.x, well.z - e.z) <= e.radius) this.labels.float('Well filling!', v3(well.x, well.z, 3.5), 'water');
+        }
+      }),
+      // ---- v0.3 civilization ----
+      bus.on('TRADE_STARTED', (e) => log(`trade-start:${e.caravan.originId}>${e.caravan.destId}:${e.caravan.cargo.resource}`)),
+      bus.on('TRADE_COMPLETED', (e) => {
+        log(`trade:${e.caravan.originId}>${e.caravan.destId}`);
+        const o = this.sim.village(e.caravan.originId);
+        if (o && e.caravan.payment) this.labels.float(`+${Math.round(e.caravan.payment.amount)} ${e.caravan.payment.resource}`, v3(o.centerX, o.centerZ, 4), 'good');
+      }),
+      bus.on('TRADE_FAILED', (e) => log(`trade-failed:${e.reason}`)),
+      bus.on('MIGRATION_STARTED', (e) => log(`migration-start:${e.fromId}>${e.toId}`)),
+      bus.on('VILLAGER_MIGRATED', (e) => {
+        log(`migrated:${e.name}:${e.fromId}>${e.toId}`);
+        const v = this.sim.village(e.toId);
+        if (v) this.labels.float(`Welcome, ${e.name.split(' ')[0]}!`, v3(v.centerX, v.centerZ, 3.5), 'good');
+      }),
+      bus.on('RELIGION_SPREAD', (e) => {
+        log(`spread:${e.religionId}:${e.villageId}:${e.via}`);
+        this.audio.choir();
+      }),
+      bus.on('RELATIONSHIP_CHANGED', (e) => log(`relation:${e.a}|${e.b}:${e.from}>${e.to}`)),
+      bus.on('FAVORITISM', (e) => log(`favoritism:${e.kind}:${e.jealousId}`)),
+      bus.on('CAMERA_VISIT', (e) => log(`visit:${e.villageId}`)),
+      bus.on('CHALLENGE_COMPLETED', (e) => {
+        log(`challenge:${e.id}`);
+        this.challengesUi.celebrate(e.title, e.rewardText);
+        this.audio.missionComplete();
+        this.platform.celebrate();
       }),
     );
   }
@@ -369,6 +430,8 @@ export class Game {
         e.preventDefault();
         if (this.menus.open) this.menus.close(true);
         else if (this.book.open) this.book.close();
+        else if (this.challengesUi.open) this.challengesUi.close();
+        else if (this.villagesUi.open) this.villagesUi.close();
         else if (this.inspector.open) this.inspector.hide();
         else if (this.selected) this.select(null);
         else this.openMenu();
@@ -381,8 +444,11 @@ export class Game {
       } else if (e.code === 'KeyF') {
         this.toggleSpeed();
       } else if (e.code === 'KeyB') {
-        this.audio.click();
         this.book.toggle();
+      } else if (e.code === 'KeyC') {
+        this.challengesUi.toggle();
+      } else if (e.code === 'KeyV') {
+        this.villagesUi.toggle();
       } else if (/^Digit[0-5]$/.test(e.code) || /^Numpad[0-5]$/.test(e.code)) {
         const n = Number(e.code.slice(-1));
         this.select(n === 0 ? null : POWER_ORDER[n - 1]);
@@ -412,6 +478,34 @@ export class Game {
     // Keep the page itself from scrolling or zooming.
     window.addEventListener('wheel', (e) => e.ctrlKey && e.preventDefault(), { passive: false });
     document.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  /** Only one left-hand drawer at a time (book, challenges, villages). */
+  private closeDrawers(keep: 'book' | 'challenges' | 'villages'): void {
+    if (keep !== 'book' && this.book.open) this.book.close();
+    if (keep !== 'challenges') this.challengesUi.close();
+    if (keep !== 'villages') this.villagesUi.close();
+  }
+
+  /** Dirt roads drawn along the real A* routes caravans use between plazas (decimated). */
+  private roadSegments(): number[] {
+    const vs = this.sim.state.villages;
+    const out: number[] = [];
+    const pairs: Array<[number, number]> = [];
+    for (let i = 1; i < vs.length; i++) pairs.push([0, i]);
+    for (const [a, b] of pairs) {
+      const p = this.sim.pathfinding.findPath(vs[a].centerX, vs[a].centerZ, vs[b].centerX, vs[b].centerZ, 12000);
+      if (!p) continue;
+      let px = vs[a].centerX;
+      let pz = vs[a].centerZ;
+      for (let i = 0; i < p.length; i += 2) {
+        if (i + 2 < p.length && Math.hypot(p[i] - px, p[i + 1] - pz) < 3) continue;
+        out.push(px, pz, p[i], p[i + 1]);
+        px = p[i];
+        pz = p[i + 1];
+      }
+    }
+    return out;
   }
 
   private openMenu(): void {
@@ -608,11 +702,20 @@ export class Game {
     this.water.update(this.elapsed, this.dayNight.sunDir, this.dayNight.sunColor, this.dayNight.horizon, night);
     this.vegetation.sync(s.trees, sim.terrain, animDt, this.elapsed);
     const activePrayers = s.prayers.filter((p) => p.status === 'active').length;
-    this.buildings.update(s.villages[0], night, activePrayers, this.elapsed, animDt);
+    this.buildings.update(s.villages, night, activePrayers, this.elapsed, animDt);
     const religionColors = new Map(s.religions.filter((r) => r.active).map((r) => [r.id, r.color] as [string, number]));
-    this.villagers.update(s.villagers, sim.terrain, animDt, this.elapsed, this.reducedMotion, religionColors, s.culture.upsideDownUntil > s.time);
+    this.packColors.clear();
+    for (const c of s.civ.caravans) {
+      const res = c.phase === 'outbound' ? c.cargo.resource : c.payment?.resource ?? c.cargo.resource;
+      for (const id of c.merchantIds) this.packColors.set(id, RESOURCE_COLOR[res] ?? 0xc8a46a);
+    }
+    this.villagers.update(s.villagers, sim.terrain, animDt, this.elapsed, this.reducedMotion, religionColors, s.culture.upsideDownUntil > s.time, this.packColors);
     this.culture.update(s, this.elapsed, night, this.reducedMotion);
-    this.decor.update(s.culture.improvements, night);
+    const unlocks = [...s.culture.improvements, ...s.civ.cosmetics];
+    for (const d of this.decors) d.update(unlocks, night);
+    this.weather.rainbow = s.civ.cosmetics.includes('rainbow-rain');
+    this.vfx.setGoldenLightning(s.civ.cosmetics.includes('golden-lightning'));
+    if (!frozen) sim.civ.cameraAt(this.cam.target.x, this.cam.target.z, wallDt);
     this.weather.update(s.clouds, sim.terrain, animDt, this.elapsed, this.vfx.bits, night);
     this.ambient.update(this.elapsed, night, this.reducedMotion);
     this.vfx.update(s, animDt, this.elapsed, night, this.buildings.chimneys(this.chimneyTops));
@@ -624,6 +727,8 @@ export class Game {
     this.prayers.update(sim);
     this.inspector.update(sim, dt);
     this.book.update(sim);
+    this.villagesUi.update(sim);
+    this.challengesUi.update(sim, wallDt, this.book.open || this.villagesUi.open);
     this.notes.update();
     this.pinTimer -= dt;
     if (this.pinTimer <= 0) {
@@ -760,6 +865,8 @@ export class Game {
     this.labels.clear();
     this.prayers.clear();
     this.book.close();
+    this.challengesUi.close();
+    this.villagesUi.close();
     this.inspector.hide();
     this.notes.clear();
     this.tutorial.dispose();
@@ -926,6 +1033,62 @@ export class Game {
             this.cam.snap(v().centerX - 4, v().centerZ, 60, 0.4, 0.9);
             break;
           }
+          // ---- v0.3 civilization states ----
+          case 'civilization': {
+            fresh(0.4);
+            warm(20);
+            this.sim.civ.planTrade();
+            this.sim.civ.planTrade();
+            warm(14);
+            this.cam.snap(-2, 8, 128, 0.4, 0.95);
+            break;
+          }
+          case 'trade': {
+            fresh(0.4);
+            warm(6);
+            const d = this.sim.village('v2')!;
+            const p = this.sim.village('v1')!;
+            d.water = 95;
+            p.water = 18;
+            this.sim.civ.startCaravan(d, p, { resource: 'water', amount: 12 }, { resource: 'wood', amount: 6 }, 'trade');
+            // Walk until a merchant is on the bridge (bounded).
+            for (let k = 0; k < 40; k++) {
+              warm(1);
+              const m = this.sim.state.civ.caravans[0]?.merchantIds.map((id) => this.sim.villager(id)).find(Boolean);
+              if (m && this.sim.terrain.bridgeAt(m.position.x, m.position.z)) break;
+            }
+            this.cam.snap(11, 14, 34, 0.9, 0.78);
+            break;
+          }
+          case 'rockbottom':
+          case 'drizzleville': {
+            fresh(0.42);
+            warm(20);
+            const vv = this.sim.village(name === 'rockbottom' ? 'v3' : 'v2')!;
+            this.cam.snap(vv.centerX + 3, vv.centerZ - 2, 50, name === 'rockbottom' ? 2.2 : -0.6, 0.86);
+            break;
+          }
+          case 'villages': {
+            fresh(0.42);
+            warm(30);
+            this.villagesUi.show();
+            this.cam.snap(-2, 8, 128, 0.4, 0.95);
+            break;
+          }
+          case 'challenges': {
+            fresh(0.42);
+            warm(5);
+            const well = this.sim.building(v().wellId)!;
+            v().water = 30;
+            this.sim.powers.activate('rain', well.x, well.z);
+            this.sim.civ.cameraAt(v().centerX, v().centerZ, 2);
+            warm(3);
+            this.sim.challenges.pin('amateur-botanist');
+            this.sim.challenges.pin('divine-tourist');
+            this.challengesUi.show();
+            this.cam.snap(v().centerX + 4, v().centerZ - 2, 58, 0.55, 0.86);
+            break;
+          }
           default:
             throw new Error(`Unknown test state: ${name}`);
         }
@@ -951,6 +1114,20 @@ export class Game {
       /** Test-only: grant Chaos so Mutation can be exercised deterministically. */
       grantChaos: (amount: number) => this.sim.addChaos(amount, 'Test grant'),
       openBook: () => this.book.show('history'),
+      // ---- v0.3 ----
+      /** Ask the real trade planner for its best deal now (still subject to all trade rules). */
+      planTrade: () => this.sim.civ.planTrade()?.id ?? null,
+      /** Ask the real migration planner (force skips only the global cooldown/probability roll). */
+      planMigration: () => this.sim.civ.considerMigration(true)?.id ?? null,
+      focusVillage: (id: string) => {
+        const vv = this.sim.village(id);
+        if (vv) this.cam.focus(vv.centerX + 2, vv.centerZ - 2, 52, 0.6, 0.55, 0.86);
+      },
+      worldPoint: (x: number, z: number) => {
+        const p = new THREE.Vector3(x, this.sim.terrain.walkHeightAt(x, z) + 1, z).project(this.camera);
+        const rect = this.canvas.getBoundingClientRect();
+        return { x: rect.left + ((p.x + 1) / 2) * rect.width, y: rect.top + ((1 - p.y) / 2) * rect.height, visible: p.z < 1 };
+      },
     };
     // Read-only state accessor for the browser playtest (positions of buildings/trees).
     (window as unknown as { __GI_STATE__?: () => unknown }).__GI_STATE__ = () => this.sim.state;
@@ -984,6 +1161,66 @@ export class Game {
       for (let i = 0; i < 6 * CONFIG.sim.hz; i++) sim.step(1 / CONFIG.sim.hz);
     }
     this.cam.snap(rock.x - 2, rock.z + 1, 30, 0.35, 0.75);
+  }
+
+  private civDiagnostics() {
+    const sim = this.sim;
+    const s = sim.state;
+    const travellers: Record<string, number> = {};
+    for (const p of s.villagers) if (p.alive && p.travel) travellers[p.travel.kind] = (travellers[p.travel.kind] ?? 0) + 1;
+    const relations: Record<string, { score: number; category: string }> = {};
+    for (let i = 0; i < s.villages.length; i++) {
+      for (let j = i + 1; j < s.villages.length; j++) {
+        const key = relationKey(s.villages[i].id, s.villages[j].id);
+        const r = s.civ.relations[key];
+        if (r) relations[key] = { score: +r.score.toFixed(2), category: r.category };
+      }
+    }
+    return {
+      villages: s.villages.map((v) => ({
+        id: v.id,
+        name: v.name,
+        culture: v.identity.culture,
+        population: v.population,
+        food: +v.food.toFixed(1),
+        water: +v.water.toFixed(1),
+        wood: +v.wood.toFixed(1),
+        stone: +v.stone.toFixed(1),
+        prosperity: +v.prosperity.toFixed(3),
+        favor: +v.identity.divineFavor.toFixed(1),
+        favorPos: +sim.civ.favorSum(v.id, 1).toFixed(1),
+        favorNeg: +sim.civ.favorSum(v.id, -1).toFixed(1),
+        dominantReligion: v.identity.dominantReligionId ?? null,
+        center: { x: v.centerX, z: v.centerZ },
+      })),
+      relations,
+      caravans: s.civ.caravans.map((c) => ({
+        id: c.id,
+        origin: c.originId,
+        dest: c.destId,
+        phase: c.phase,
+        kind: c.kind,
+        cargo: { ...c.cargo },
+        payment: c.payment ? { ...c.payment } : null,
+        merchants: c.merchantIds.map((id) => {
+          const m = sim.villager(id);
+          return m ? { id, x: +m.position.x.toFixed(2), z: +m.position.z.toFixed(2), y: +m.position.y.toFixed(2) } : { id };
+        }),
+      })),
+      travellers,
+      stats: { trades: s.stats.tradesCompleted, tradesFailed: s.stats.tradesFailed, migrations: s.stats.migrations, religionSpreads: s.stats.religionSpreads },
+      challenges: {
+        completed: sim.challenges.completedCount(),
+        status: Object.fromEntries(sim.challenges.definitions.map((d) => [d.id, sim.challenges.state(d.id).status])),
+        rewardApplied: Object.fromEntries(sim.challenges.definitions.map((d) => [d.id, sim.challenges.state(d.id).rewardApplied])),
+        pinned: [...s.civ.pinned],
+        titles: [...s.civ.titles],
+        selectedTitle: s.civ.selectedTitle,
+        cosmetics: [...s.civ.cosmetics],
+      },
+      visited: [...s.civ.visited],
+      panels: { challenges: this.challengesUi.open, villages: this.villagesUi.open, pins: !document.querySelector('#challenge-pins')?.classList.contains('hidden') },
+    };
   }
 
   private publishDiagnostics(now: number): void {
@@ -1037,6 +1274,7 @@ export class Game {
         unlocked: s.unlockedPowers,
         cursor: this.groundValid ? { x: this.ground.x, z: this.ground.z } : null,
       },
+      civ: this.civDiagnostics(),
       camera: { distance: this.cam.distance, yaw: this.cam.yaw, pitch: this.cam.pitch, x: this.cam.target.x, z: this.cam.target.z },
       menu: this.menus.current,
       events: [...this.eventLog],

@@ -92,7 +92,9 @@ export class SacredSystem {
   }
 
   addSacredness(s: SacredObject, amount: number): void {
-    s.sacredness += amount;
+    // Monument-loving cultures (Rockbottom) push their sacred places further.
+    const devotion = amount > 0 ? this.ownerVillage(s)?.identity?.monumentDevotion ?? 1 : 1;
+    s.sacredness += amount * devotion;
     this.restage(s);
   }
 
@@ -155,6 +157,11 @@ export class SacredSystem {
     this.assignWork();
   }
 
+  /** The village a sacred place belongs to (nearest village). */
+  ownerVillage(s: SacredObject) {
+    return this.sim.nearestVillage(s.x, s.z).village;
+  }
+
   private workersOn(index: number): number {
     let n = 0;
     for (const v of this.sim.state.villagers) {
@@ -170,9 +177,12 @@ export class SacredSystem {
   }
 
   private needsWork(s: SacredObject): 'decorate' | 'construct' | null {
-    const wood = this.sim.state.villages[0]?.wood ?? 0;
-    if (s.stage >= 4 && s.shrineProgress < 1 && wood >= 3) return 'construct';
-    if (s.stage >= 5 && s.monumentProgress < 1 && wood >= 4) return 'construct';
+    const v = this.ownerVillage(s);
+    const wood = v?.wood ?? 0;
+    const stone = v?.stone ?? 0;
+    // Stone substitutes for wood in construction (Rockbottom builds mostly in stone).
+    if (s.stage >= 4 && s.shrineProgress < 1 && (wood >= 3 || stone >= 2)) return 'construct';
+    if (s.stage >= 5 && s.monumentProgress < 1 && (wood >= 4 || stone >= 3)) return 'construct';
     if (s.decorations < this.desiredDecorations(s) && wood >= 1) return 'decorate';
     return null;
   }
@@ -229,8 +239,9 @@ export class SacredSystem {
     const sim = this.sim;
     if (index === null) return;
     const s = sim.state.sacred[index];
-    const village = sim.village(v.villageId);
-    if (!s || !village) return;
+    if (!s) return;
+    const village = this.ownerVillage(s) ?? sim.village(v.villageId);
+    if (!village) return;
     const productivity = sim.state.culture.upsideDownUntil > sim.state.time ? 0.65 : 1;
     if (activity === 'decorate') {
       if (village.wood < 1 || s.decorations >= this.desiredDecorations(s)) return;
@@ -242,8 +253,9 @@ export class SacredSystem {
     }
     if (activity === 'construct') {
       if (s.shrineProgress < 1) {
-        if (village.wood < 3) return;
-        village.wood -= 3;
+        if (village.stone >= 2) village.stone -= 2;
+        else if (village.wood >= 3) village.wood -= 3;
+        else return;
         s.shrineProgress = Math.min(1, s.shrineProgress + 0.25 * productivity);
         if (s.shrineProgress >= 1) {
           sim.history.add(`A Shrine for ${s.label}`, 'The villagers built a small shrine. It leans slightly. This is considered holy.', { kind: 'build', x: s.x, z: s.z });
@@ -251,13 +263,15 @@ export class SacredSystem {
           this.restage(s);
         }
       } else if (s.stage >= 5 && s.monumentProgress < 1) {
-        if (village.wood < 4) return;
-        village.wood -= 4;
+        if (village.stone >= 3) village.stone -= 3;
+        else if (village.wood >= 4) village.wood -= 4;
+        else return;
         s.monumentProgress = Math.min(1, s.monumentProgress + 0.17 * productivity);
         if (s.monumentProgress >= 1) {
           sim.history.add(`The Monument to ${s.label}`, MONUMENT_TEXT[s.monument] ?? 'An enormous tribute now stands here. Nobody remembers voting for it.', { kind: 'monument', x: s.x, z: s.z });
           sim.notify('A MONUMENT RISES', 'culture', `${s.label} is now officially a landmark.`, 3);
           sim.godMessage('THE ISLAND IS BECOMING A MUSEUM OF YOUR MISTAKES.', 1);
+          sim.bus.emit('MONUMENT_COMPLETED', { sacredId: s.id, label: s.label, x: s.x, z: s.z });
         }
       }
     }

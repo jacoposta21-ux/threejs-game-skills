@@ -1,6 +1,8 @@
 import { BASIC_POWERS, CONFIG } from '../core/Config';
 import { rollTraits } from '../culture/Personality';
-import { defaultCulture } from '../persistence/Migrations';
+import { defaultCivState, defaultCulture } from '../persistence/Migrations';
+import { addSettlement, identityFor } from './Settlements';
+import { FOOTPRINT } from './Footprints';
 import { Rng } from '../core/Rng';
 import type {
   BuildingData,
@@ -15,7 +17,7 @@ import type {
 } from '../core/types';
 import { fbm, TerrainData, WATER_NONE } from './TerrainGen';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 const FIRST_NAMES = [
   'Gary', 'Brenda', 'Kevin', 'Doris', 'Nigel', 'Mildred', 'Barnaby', 'Agatha', 'Dave', 'Gertrude',
@@ -90,13 +92,6 @@ export function makeVillager(
   };
 }
 
-const FOOTPRINT: Record<BuildingType, number> = {
-  house: 2.6,
-  well: 1.5,
-  farm: 5.6,
-  storage: 3.2,
-  shrine: 2.4,
-};
 
 /** Village layout relative to the site centre (x, z, type). Doors face the well. */
 const VILLAGE_LAYOUT: Array<[number, number, BuildingType]> = [
@@ -168,6 +163,10 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
     floodActive: false,
     treesNearby: 0,
     problems: [],
+    stone: 0,
+    identity: identityFor(site.id, 'agricultural'),
+    quarryIds: [],
+    fisheryIds: [],
   };
   villages.push(village);
 
@@ -188,6 +187,7 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
       cropGrowth: type === 'farm' ? 0.45 : 0,
       cropHealth: 1,
       variant: rng.int(0, 3),
+      style: 'agricultural',
     };
     buildings.push(building);
     if (type === 'well') village.wellId = building.id;
@@ -247,7 +247,7 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
   const villageTrees: Array<[number, number]> = [[-4, -5], [4, 5], [-15, 10], [15, 4], [-3, -15], [5, -14], [-16, 1]];
   for (const [ox, oz] of villageTrees) placeTree(trees, ox % 2 === 0 ? 'oak' : 'bush', site.x + ox, site.z + oz, rng);
 
-  return {
+  const state: GameStateData = {
     version: SAVE_VERSION,
     seed,
     rngState: rng.state,
@@ -282,6 +282,11 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
       prayersAnswered: 0,
       prayersFailed: 0,
       buildingsLost: 0,
+      tradesCompleted: 0,
+      tradesFailed: 0,
+      migrations: 0,
+      religionSpreads: 0,
+      prayersAfterOffice: 0,
     },
     lastGodMessage: -999,
     rocks: generateRocks(terrain, seed),
@@ -291,7 +296,12 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
     mutations: [],
     history: [],
     culture: defaultCulture(),
+    civ: defaultCivState(),
   };
+  // v0.3: Drizzleville and Rockbottom.
+  addSettlement(state, terrain, 'v2');
+  addSettlement(state, terrain, 'v3');
+  return state;
 }
 
 /**

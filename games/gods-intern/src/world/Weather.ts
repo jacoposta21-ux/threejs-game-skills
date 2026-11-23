@@ -34,6 +34,8 @@ export class Weather {
   private readonly dummy = new THREE.Object3D();
   private splashBudget = 0;
   density = 1;
+  /** v0.3 cosmetic reward: rain cycles through the rainbow. */
+  rainbow = false;
 
   constructor() {
     this.rainMat = flatMaterial({ transparent: true, opacity: 0.94, roughness: 1 });
@@ -68,6 +70,9 @@ export class Weather {
   }
 
   update(clouds: CloudData[], terrain: TerrainData, dt: number, elapsed: number, splashes: ParticleSystem, night: number): void {
+    const dropMat = this.drops.material as THREE.MeshBasicMaterial;
+    if (this.rainbow) dropMat.color.setHSL((elapsed * 0.25) % 1, 0.85, 0.72);
+    else dropMat.color.setHex(0xb9e2ff);
     // Rain clouds follow logical clouds.
     let dropCount = 0;
     this.splashBudget = Math.min(60, this.splashBudget + dt * 90 * this.density);

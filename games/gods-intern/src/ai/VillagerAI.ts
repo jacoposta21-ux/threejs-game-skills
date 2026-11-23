@@ -55,6 +55,14 @@ export class VillagerAI {
       return;
     }
 
+    // v0.3: travellers keep to their trip (trade, migration, visits, pilgrimages).
+    if (v.travel) {
+      if (task.activity === 'travel' && !task.arrived) return;
+      if ((task.activity === 'barter' || task.activity === 'visit') && task.timer > 0) return;
+      this.travelStep(sim, v);
+      return;
+    }
+
     const urgentNeed = v.thirst > 0.75 || v.hunger > 0.8;
     const busy = task.state !== 'IDLE' && task.state !== 'WANDERING';
     if (busy && !(urgentNeed && task.state === 'WORKING')) return;
@@ -139,6 +147,17 @@ export class VillagerAI {
         const oz = rng.range(-2.5, 2.5);
         const effort = has(v, 'ambitious') ? 1.25 : has(v, 'lazy') ? 0.7 : 1;
         this.goToPoint(sim, v, 'WORKING', 'farm', farm.x + ox, farm.z + oz, farm.id, rng.range(14, 24) * effort);
+        return;
+      }
+    }
+    if (job === 'miner' || job === 'fisher') {
+      const ids = job === 'miner' ? village.quarryIds : village.fisheryIds;
+      const site = ids.map((id) => sim.building(id)).find((b) => b && !b.destroyed);
+      if (site) {
+        const a = rng.range(0, Math.PI * 2);
+        this.goToPoint(sim, v, 'WORKING', job === 'miner' ? 'mine' : 'fish', site.x + Math.cos(a) * (site.footprint + 0.6), site.z + Math.sin(a) * (site.footprint + 0.6), site.id, rng.range(10, 16) * (has(v, 'ambitious') ? 1.25 : has(v, 'lazy') ? 0.7 : 1));
+        v.currentTask.faceX = site.x;
+        v.currentTask.faceZ = site.z;
         return;
       }
     }
@@ -299,6 +318,15 @@ export class VillagerAI {
       case 'farm':
         v.happiness = clamp01(v.happiness + 0.02);
         break;
+      case 'mine': {
+        const slow = sim.state.culture.upsideDownUntil > sim.state.time ? 0.65 : 1;
+        village.stone = Math.min(CONFIG.civ.maxStock.stone, village.stone + 3 * slow);
+        break;
+      }
+      case 'fish':
+        // Fishing ignores drought but suffers in floods (the fish are everywhere, which is somehow worse).
+        village.food = Math.min(CONFIG.village.maxFood, village.food + 2.6 * (village.floodActive ? 0.4 : 1));
+        break;
       case 'decorate':
       case 'construct':
         sim.sacredSys.onWorkDone(v, task.activity, task.targetId);
@@ -315,6 +343,10 @@ export class VillagerAI {
         v.faith = clamp01(v.faith + 0.03);
         break;
       }
+      case 'travel':
+        sim.civ.onArrive(v);
+        if (v.currentTask.activity !== 'travel') return; // onArrive assigned the next activity
+        break;
       case 'picnic':
         v.happiness = clamp01(v.happiness + 0.03);
         break;
@@ -364,8 +396,36 @@ export class VillagerAI {
         remaining = 0;
       }
     }
-    v.position.y = sim.terrain.heightAt(v.position.x, v.position.z);
+    v.position.y = sim.terrain.walkHeightAt(v.position.x, v.position.z);
     return v.pathIndex >= v.path.length;
+  }
+
+  // ---------------- travel (v0.3) ----------------
+
+  /** Walk the current leg of a trip. Long routes cross the bridge; failures abandon the trip. */
+  travelStep(sim: Simulation, v: VillagerData): void {
+    const plan = v.travel;
+    if (!plan || !v.alive) return;
+    const target = sim.civ.travelTarget(v);
+    if (!target) {
+      sim.civ.onTravelFailed(v, 'no destination');
+      return;
+    }
+    if (Math.hypot(target.x - v.position.x, target.z - v.position.z) < 1.5) {
+      this.setTask(v, 'WANDERING', 'travel', target.x, target.z, null, 0);
+      v.path = [];
+      v.pathIndex = 0;
+      v.currentTask.arrived = true;
+      plan.tries = 0;
+      return;
+    }
+    const ok = this.goToPoint(sim, v, 'WANDERING', 'travel', target.x, target.z, null, 0);
+    if (ok) {
+      plan.tries = 0;
+      return;
+    }
+    plan.tries = (plan.tries ?? 0) + 1;
+    if (plan.tries >= 3) sim.civ.onTravelFailed(v, 'no route');
   }
 
   // ---------------- task helpers ----------------

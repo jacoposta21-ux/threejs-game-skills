@@ -41,7 +41,7 @@ export class PrayerGenerator {
   pickMessenger(sim: Simulation, village: VillageData): VillagerData | null {
     let best: VillagerData | null = null;
     for (const v of sim.state.villagers) {
-      if (!v.alive || v.villageId !== village.id || v.age < 10) continue;
+      if (!v.alive || v.villageId !== village.id || v.age < 10 || v.travel) continue;
       const st = v.currentTask.state;
       if (st === 'FLEEING' || st === 'PRAYING' || (st === 'RESTING' && v.currentTask.arrived)) continue;
       if (!best || v.faith > best.faith) best = v;

@@ -27,6 +27,12 @@ export class VisualEffects {
   private readonly bolts: Bolt[] = [];
   private readonly boltCore = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
   private readonly boltGlow = new THREE.MeshBasicMaterial({ color: 0x8fb8ff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false });
+
+  /** v0.3 cosmetic reward: golden lightning. */
+  setGoldenLightning(on: boolean): void {
+    this.boltGlow.color.setHex(on ? 0xffc83a : 0x8fb8ff);
+    this.boltCore.color.setHex(on ? 0xfff3c4 : 0xffffff);
+  }
   private readonly flash = new THREE.PointLight(0xc8d8ff, 0, 60, 1.6);
   private readonly fireLights: THREE.PointLight[] = [];
   private readonly puddles: THREE.InstancedMesh;

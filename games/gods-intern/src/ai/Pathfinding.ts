@@ -36,7 +36,7 @@ export class Pathfinding {
       for (let cx = 0; cx < this.dim; cx++) {
         const x = -this.half + (cx + 0.5) * this.cell;
         const z = -this.half + (cz + 0.5) * this.cell;
-        const ok = terrain.isLand(x, z) && terrain.slopeAt(x, z) < 1.15;
+        const ok = (terrain.isLand(x, z) && terrain.slopeAt(x, z) < 1.15) || !!terrain.bridgeAt(x, z);
         this.terrainBlocked[cz * this.dim + cx] = ok ? 0 : 1;
       }
     }
@@ -99,6 +99,7 @@ export class Pathfinding {
    * route exists. Goals inside obstacles are snapped to the nearest walkable cell.
    */
   findPath(sx: number, sz: number, tx: number, tz: number, maxExpansions = 3500): number[] | null {
+    if (Math.hypot(tx - sx, tz - sz) > 40) maxExpansions = Math.max(maxExpansions, 9000); // long journeys between villages
     const goalPoint = this.nearestWalkable(tx, tz);
     if (!goalPoint) return null;
     if (this.lineOfSight(sx, sz, goalPoint.x, goalPoint.z)) return [goalPoint.x, goalPoint.z];
