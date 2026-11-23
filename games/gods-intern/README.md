@@ -2,6 +2,10 @@
 
 > God is on vacation. You're in charge.
 
+**Version 0.2 — The Divine Absurdity Update.** The villagers now *remember* what you do,
+misunderstand it, found religions around it, decorate it, build monuments to it and hold
+festivals about it. See [What's new in 0.2](#whats-new-in-02).
+
 A browser-playable 3D god sandbox. A tiny island village lives its own life; you
 answer its prayers with divine powers, and every miracle has consequences.
 Built with TypeScript, Vite and Three.js. No backend, accounts, API keys or external
@@ -31,6 +35,9 @@ Chromium with `PW_CHROMIUM_PATH=/path/to/chrome npm run test:e2e`.
 | --- | --- |
 | Left click | Use the selected power / inspect in Look mode |
 | `1` `2` `3` `4` | Rain, Lightning, Nature, Fire |
+| `5` | Mutation (unlocks at 25 Chaos) |
+| `B` | The Book of Questionable Miracles (history, beliefs, sacred places) |
+| `` ` `` | Performance overlay (development builds, or any build with `?debug`) |
 | `0` / `Esc` | Look mode (hover villagers, click buildings) |
 | Right drag | Orbit camera |
 | Wheel | Zoom |
@@ -156,3 +163,79 @@ an energy and approval reward. There's one active prayer per type per village an
 interface. The official SDK docs could not be reached while this was built, so **no SDK
 calls are made yet**. Implement a `GamePlatform` against the current official docs before
 enabling it. The build has no external runtime requests and needs no login or keys.
+
+## What's new in 0.2
+
+All of the following is simulation-driven (DOM-free code under `src/culture/`), saved,
+and covered by `tests/unit/culture.test.ts`.
+
+- **Divine memory** (`culture/MemorySystem.ts`): lightning, floods, instant trees,
+  regrowth, fires put out by rain, destroyed buildings, answered prayers and mutations
+  are recorded with the ids of the villagers who perceived them. Perception uses a
+  spatial-grid query, and villagers must be alive and awake. Memories decay; strong,
+  widely witnessed events become permanent. Memories make fire survivors flee earlier,
+  raise faith, and feed belief formation. The list is bounded at 80.
+- **Personalities** (`culture/Personality.ts`): each villager has one or two
+  compatible traits, out of curious, skeptical, superstitious, brave, cowardly, lazy,
+  ambitious, devout, rebellious and dramatic. Traits weight conversion, fleeing
+  distance, fear, leadership, idling, work effort, ritual attendance and investigating
+  oddities.
+- **Religion generator** (`culture/ReligionSystem.ts`, `culture/Archetypes.ts`):
+  - **Founding:** each stored memory adds *belief pressure* to an archetype (rock, tree,
+    burned tree, flood, cloud, rebirth, fire, gold, potato, walking rock, giant head). A
+    religion forms only when pressure crosses a threshold, at least 3 villagers
+    witnessed it, no faith of that archetype exists, and a 90-second cooldown has passed.
+  - **What each faith gets:** a deterministic, readable name (e.g. *The Society of the
+    Sacred Pebble*, *The Church of the Wet Sock*), doctrine, a daily ritual, symbols, a
+    leader with a title, a sacred place, and a sash colour that its followers wear.
+  - **Life cycle:** followers recruit, hold rituals, argue with rivals in public, and
+    fade when ignored. At most 4 faiths are active at once.
+- **Sacred objects and monuments** (`culture/SacredSystem.ts`): an object becomes a
+  gathering place, then villagers walk over and place decorations one at a time (1 wood
+  each), build a shrine (12 wood, visible scaffolding), then a monument (24 wood). There
+  are eight monument styles. Damage to a sacred object upsets its followers. Capped at 10.
+- **Twelve surreal events** (`culture/SurrealEvents.ts`), data-driven on the existing
+  consequence engine. Each one has a real trigger, a state change, visuals, a history
+  entry and a cooldown:
+  - **Rock King:** a crowned rock, royal decrees with real effects, and a "Silent
+    Majesty" prayer.
+  - **Wet Sock Festival:** repeats every 2 days.
+  - **Holy Tree.**
+  - **Ash Resurrection:** its followers replant burned stumps.
+  - **Forbidden Well:** believers drink at the river instead, and rain purifies it.
+  - **Eternal Picnic:** picnickers stop working and snack more.
+  - **Upside-Down Day:** everyone walks backwards and farm output drops.
+  - **Cloud Trial:** benches, an effigy and a verdict. A guilty cloud gets rain booed for a day.
+  - **Sacred Potato:** a giant potato monument and smaller harvests.
+  - **Department of Miracles:** an office is built, villagers queue, and prayers become
+    forms with +20% reward.
+  - **Fire Appreciation Society:** a fire pit and Bonfire Night, with slightly higher
+    fire spread and stray embers.
+  - **Great Silence:** shrine visits stop, an OUT OF OFFICE monument goes up, and an "Is
+    God Still Employed?" prayer appears.
+  - **Pacing:** major events are at least 40 seconds apart.
+- **Mutation power** (`powers/MutationPower.ts`, `powers/MutationDefinitions.ts`):
+  data-driven, with three mutations:
+  - A villager gets a giant head.
+  - A tree turns golden: it can't burn or be chopped.
+  - A rock grows legs and wanders; it never blocks pathfinding.
+
+  Invalid targets cost nothing. Mutations persist in saves.
+- **The Book of Questionable Miracles** (`ui/HistoryBookPanel.ts`): a bounded, persisted
+  history (60 entries). Clicking an entry flies the camera there. It also has a Beliefs
+  tab (the religion inspector) and a Sacred Places tab. Clickable pins mark sacred sites
+  and open the sacred-object card.
+- **Notifications**: at most 2 prominent toasts, a priority queue, ×N grouping of
+  duplicates and expiry (`ui/NotificationQueue.ts`). Speech bubbles are capped at 3,
+  ranked by priority and camera distance.
+- **Visible world**:
+  - Expressive villagers: bigger silhouettes, eyes and mood mouths, job tools,
+    religion sashes and prophet hats.
+  - New group poses: ritual rings and processions, picnics, arguments, queues and juries.
+  - Village props: benches, a gathering circle, carts, clotheslines, a sign and flower beds.
+  - Earned improvements: gardens, lanterns, a market and an expanded shrine.
+  - Effects: ash under burned trees, blooming flowers around divine trees, lightning
+    shockwaves, mutation pulses, and breathing rain clouds.
+- **Saves**: version 2 with a v1→v2 migration (`persistence/Migrations.ts`). It fills
+  traits deterministically from villager ids, generates rock entities from the terrain,
+  and defaults all culture state.

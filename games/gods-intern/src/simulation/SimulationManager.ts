@@ -9,7 +9,16 @@ import { VillagerAI } from '../ai/VillagerAI';
 import { MissionManager } from '../missions/MissionManager';
 import { PowerManager } from '../powers/PowerManager';
 import { TerrainData } from '../world/TerrainGen';
-import { createInitialState } from '../world/WorldGen';
+import { createInitialState, generateRocks } from '../world/WorldGen';
+import { CultureSystem } from '../culture/CultureSystem';
+import { HistoryBook } from '../culture/History';
+import { MemorySystem } from '../culture/MemorySystem';
+import { ReligionSystem } from '../culture/ReligionSystem';
+import { SacredSystem } from '../culture/SacredSystem';
+import { SpeechDirector } from '../culture/Speech';
+import { SURREAL_EVENTS } from '../culture/SurrealEvents';
+import { migrateState } from '../persistence/Migrations';
+import type { TreeKind } from '../core/types';
 import { ConsequenceSystem } from './ConsequenceSystem';
 import { EnvironmentSystem } from './EnvironmentSystem';
 import { FaithSystem } from './FaithSystem';
@@ -39,6 +48,14 @@ export class Simulation {
   readonly missions: MissionManager;
   readonly consequences: ConsequenceSystem;
   readonly powers: PowerManager;
+  // ---- v0.2 culture layer ----
+  readonly speech: SpeechDirector;
+  readonly history: HistoryBook;
+  readonly memory: MemorySystem;
+  readonly sacredSys: SacredSystem;
+  readonly religion: ReligionSystem;
+  readonly surreal: ConsequenceSystem;
+  readonly culture: CultureSystem;
   /** Sandbox setting; not part of saved world state. */
   unlimitedEnergy = false;
   /** Rolling wind direction used by fire spread. */
@@ -48,11 +65,21 @@ export class Simulation {
 
   constructor(seed: number, state?: GameStateData) {
     this.terrain = new TerrainData(seed);
-    this.state = state ?? createInitialState(seed, this.terrain);
+    this.state = state ? migrateState(state) : createInitialState(seed, this.terrain);
+    this.ensureWorldFeatures();
     this.rng = new Rng(this.state.rngState);
     this.pathfinding = new Pathfinding(this.terrain);
+    // Order matters: memories are recorded before beliefs react, and beliefs
+    // before the surreal event rules that build on them.
+    this.speech = new SpeechDirector(this);
+    this.history = new HistoryBook(this);
+    this.memory = new MemorySystem(this);
+    this.sacredSys = new SacredSystem(this);
+    this.religion = new ReligionSystem(this);
     this.missions = new MissionManager(this);
     this.consequences = new ConsequenceSystem(this);
+    this.surreal = new ConsequenceSystem(this, SURREAL_EVENTS);
+    this.culture = new CultureSystem(this);
     this.powers = new PowerManager(this);
     this.faith.attach(this);
     this.rebuildIndexes();
@@ -60,9 +87,15 @@ export class Simulation {
 
   /** Swap in a different saved state for the same seed (load game). */
   replaceState(state: GameStateData): void {
-    this.state = state;
+    this.state = migrateState(state);
+    this.ensureWorldFeatures();
     this.rng = new Rng(state.rngState);
     this.rebuildIndexes();
+  }
+
+  /** Fill terrain-dependent data missing from older saves (v0.1 has no rock entities). */
+  private ensureWorldFeatures(): void {
+    if (!this.state.rocks.length) this.state.rocks = generateRocks(this.terrain, this.state.seed);
   }
 
   rebuildIndexes(): void {
@@ -113,6 +146,8 @@ export class Simulation {
     this.faith.update(this, dt);
     this.missions.update(dt);
     this.consequences.update(dt);
+    this.culture.update(dt);
+    this.surreal.update(dt);
     this.pruneDead();
     s.rngState = this.rng.state;
   }
@@ -239,8 +274,9 @@ export class Simulation {
     this.bus.emit('FAITH_CHANGED', { villageId: village.id, faith: village.faith, delta: village.faith - before });
   }
 
-  notify(text: string, kind: NotifyKind, sub?: string): void {
-    this.bus.emit('NOTIFY', { text, kind, sub });
+  /** Player-facing notification. Priority: 0 minor … 3 critical (drives the UI queue). */
+  notify(text: string, kind: NotifyKind, sub?: string, priority = 1): void {
+    this.bus.emit('NOTIFY', { text, kind, sub, priority });
   }
 
   /** God messages are rate-limited; priority ≥ 3 bypasses the cooldown. */
@@ -265,6 +301,33 @@ export class Simulation {
     let count = 0;
     for (const t of list) if (t >= since) count++;
     return count;
+  }
+
+  /** Spawn a tree (used by rituals and decrees). Returns null if the spot is unsuitable. */
+  plantTree(x: number, z: number, byPlayer: boolean, kind?: TreeKind): TreeData | null {
+    if (!this.terrain.isLand(x, z) || this.terrain.slopeAt(x, z) > 1.1 || this.buildingAt(x, z, 0.8)) return null;
+    if (this.state.trees.length >= CONFIG.trees.maxTrees) return null;
+    if (this.treesNear(x, z, CONFIG.trees.minSpacing, []).length) return null;
+    const tree: TreeData = {
+      id: this.state.trees.length,
+      kind: kind ?? (this.rng.next() < 0.3 ? 'bush' : 'oak'),
+      x,
+      z,
+      growth: 0.05,
+      growRate: 1 / 8,
+      health: 1,
+      burning: false,
+      charred: false,
+      charredTime: 0,
+      byPlayer,
+      scale: this.rng.range(0.85, 1.15),
+      rot: this.rng.range(0, Math.PI * 2),
+      removed: false,
+    };
+    this.state.trees.push(tree);
+    this.treeGrid.insert(tree.id, x, z);
+    this.bus.emit('TREE_PLANTED', { treeId: tree.id, x, z, byPlayer });
+    return tree;
   }
 
   addVillager(v: VillagerData): void {

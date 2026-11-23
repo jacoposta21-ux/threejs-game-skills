@@ -88,8 +88,10 @@ export class Weather {
       mesh.visible = true;
       mesh.position.set(c.x + Math.sin(elapsed * 0.6 + i) * 0.4, cloudY + Math.sin(elapsed * 1.1 + i) * 0.25, c.z);
       const s = (c.radius / 9.5) * (0.4 + 0.6 * ease);
-      mesh.scale.set(s, s * 0.75, s);
-      mesh.rotation.y = elapsed * 0.05 + i;
+      // Clouds breathe and churn while raining; they swell darker the longer they rain.
+      const breathe = 1 + Math.sin(elapsed * 2.2 + i) * 0.05;
+      mesh.scale.set(s * breathe, s * 0.75 * (2 - breathe), s * breathe);
+      mesh.rotation.y = elapsed * 0.08 + i;
       this.rainMat.opacity = 0.82;
 
       // Drops

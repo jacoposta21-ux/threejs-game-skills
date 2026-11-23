@@ -43,9 +43,12 @@ export interface VillagerTask {
   /** Activity sub-kind, e.g. 'farm' | 'chop' | 'repair' | 'drink-well' | 'drink-river'. */
   activity: string;
   arrived: boolean;
+  /** Optional point to face on arrival (rituals, trials, arguments). */
+  faceX?: number;
+  faceZ?: number;
 }
 
-export type ThoughtIcon = 'question' | 'alarm' | 'heart' | 'pray' | 'water' | 'food' | 'sleep' | null;
+export type ThoughtIcon = 'question' | 'alarm' | 'heart' | 'pray' | 'water' | 'food' | 'sleep' | 'idea' | 'music' | 'angry' | null;
 
 export interface VillagerData {
   id: string;
@@ -73,7 +76,25 @@ export interface VillagerData {
   deadTime: number;
   causeOfDeath: string | null;
   look: VillagerLook;
+  /** v0.2: 2 personality traits, belief, remembered events, mutation, honorific. */
+  traits: Trait[];
+  religionId: string | null;
+  memoryIds: string[];
+  mutation: MutationKind | null;
+  title: string | null;
 }
+
+export type Trait =
+  | 'curious'
+  | 'skeptical'
+  | 'superstitious'
+  | 'brave'
+  | 'cowardly'
+  | 'lazy'
+  | 'ambitious'
+  | 'devout'
+  | 'rebellious'
+  | 'dramatic';
 
 export interface VillagerLook {
   skin: number;
@@ -148,6 +169,154 @@ export interface TreeData {
   scale: number;
   rot: number;
   removed: boolean;
+  /** v0.2 Mutation: golden trees shimmer and do not burn. */
+  golden?: boolean;
+}
+
+/** v0.2: boulders are entities so they can be struck, crowned, worshipped or mutated. */
+export interface RockData {
+  id: number;
+  x: number;
+  z: number;
+  scale: number;
+  rot: number;
+  crowned: boolean;
+  hatTier: number;
+  walking: boolean;
+  targetX: number;
+  targetZ: number;
+  heading: number;
+}
+
+export interface DivineMemory {
+  id: string;
+  eventType: string;
+  timestamp: number;
+  position: Vector3Data;
+  targetEntityId?: string;
+  witnessIds: string[];
+  intensity: number;
+  emotionalImpact: number;
+  interpretation?: string;
+  villageId: string;
+  permanent: boolean;
+}
+
+export type RitualKind = 'gathering' | 'procession' | 'offering' | 'dance' | 'planting' | 'backwards' | 'bonfire';
+
+export interface RitualDefinition {
+  id: string;
+  name: string;
+  kind: RitualKind;
+  timeOfDay: number;
+  duration: number;
+  lastPerformedDay: number;
+  activeUntil: number;
+  x: number;
+  z: number;
+}
+
+export interface Religion {
+  id: string;
+  name: string;
+  archetype: string;
+  originEventId: string;
+  sacredEntityId?: string;
+  sacredLocation: Vector3Data;
+  followers: string[];
+  doctrine: string[];
+  rituals: RitualDefinition[];
+  symbols: string[];
+  influence: number;
+  createdAt: number;
+  color: number;
+  leaderId: string | null;
+  villageId: string;
+  active: boolean;
+}
+
+export type SacredKind = 'tree' | 'rock' | 'well' | 'building' | 'ground' | 'crop';
+
+export interface SacredObject {
+  id: string;
+  kind: SacredKind;
+  targetId: number;
+  x: number;
+  z: number;
+  label: string;
+  sacredness: number;
+  religionId: string | null;
+  stage: number; // 1 ordinary … 5 monument
+  decorations: number;
+  shrineProgress: number; // 0..1, stage-4 construction
+  monumentProgress: number; // 0..1, stage-5 construction
+  monument: string; // monument style key
+  createdAt: number;
+  visits: number;
+}
+
+export type MutationKind = 'giant-head' | 'golden-tree' | 'walking-rock';
+
+export interface MutationData {
+  id: string;
+  kind: MutationKind;
+  targetKind: 'villager' | 'tree' | 'rock';
+  targetId: string;
+  createdAt: number;
+}
+
+export interface HistoryEntry {
+  id: string;
+  day: number;
+  time: number;
+  title: string;
+  text: string;
+  villageId: string;
+  kind: string;
+  x?: number;
+  z?: number;
+}
+
+export interface Festival {
+  id: string;
+  name: string;
+  kind: string;
+  foundedDay: number;
+  everyDays: number;
+  lastDay: number;
+  x: number;
+  z: number;
+}
+
+export interface CultureState {
+  pressure: Record<string, number>;
+  lastReligionAt: number;
+  picnicUntil: number;
+  picnickers: string[];
+  picnicSpot: { x: number; z: number } | null;
+  upsideDownUntil: number;
+  cursedWell: { until: number; believers: string[] } | null;
+  festivals: Festival[];
+  festivalUntil: number;
+  officeBuilt: boolean;
+  officeProgress: number;
+  firePit: { x: number; z: number } | null;
+  fireRisk: number;
+  silence: boolean;
+  trial: { until: number; x: number; z: number; verdictGiven: boolean } | null;
+  rainBannedUntil: number;
+  potatoCult: boolean;
+  rockKingId: number;
+  lastRockSign: number;
+  decree: { kind: string; until: number } | null;
+  prosperityTime: number;
+  ignoredStreak: number;
+  improvements: string[];
+  argumentUntil: number;
+  lastMajorEvent: number;
+  mutationUnlockedNotified: boolean;
+  /** Ids of surreal events that have ever fired (for diagnostics/history). */
+  eventsFired: string[];
 }
 
 export type FireKind = 'tree' | 'building' | 'ground';
@@ -240,4 +409,12 @@ export interface GameStateData {
   tutorial: TutorialState;
   stats: StatsData;
   lastGodMessage: number;
+  // ---- v0.2 ----
+  rocks: RockData[];
+  memories: DivineMemory[];
+  religions: Religion[];
+  sacred: SacredObject[];
+  mutations: MutationData[];
+  history: HistoryEntry[];
+  culture: CultureState;
 }

@@ -3,6 +3,7 @@ import type { Simulation } from '../simulation/SimulationManager';
 import type { DivinePower } from './DivinePower';
 import { FirePower } from './FirePower';
 import { LightningPower } from './LightningPower';
+import { MutationPower } from './MutationPower';
 import { NaturePower } from './NaturePower';
 import { RainPower } from './RainPower';
 
@@ -25,13 +26,14 @@ export class PowerManager {
       lightning: new LightningPower(),
       nature: new NaturePower(),
       fire: new FirePower(),
+      mutation: new MutationPower(),
     };
   }
 
   check(id: PowerId, x: number, z: number): PowerResult {
     const s = this.sim.state;
     const power = this.powers[id];
-    if (!s.unlockedPowers.includes(id)) return { ok: false, reason: 'Finish the tutorial to unlock' };
+    if (!s.unlockedPowers.includes(id)) return { ok: false, reason: id === 'mutation' ? `Unlocks at ${CONFIG.powers.mutation.unlockChaos} Chaos` : 'Finish the tutorial to unlock' };
     if (s.cooldowns[id] > 0) return { ok: false, reason: 'Recharging…' };
     if (!this.sim.unlimitedEnergy && s.energy < power.energyCost) return { ok: false, reason: 'Not enough divine energy' };
     const reason = power.validate({ sim: this.sim, x, z });

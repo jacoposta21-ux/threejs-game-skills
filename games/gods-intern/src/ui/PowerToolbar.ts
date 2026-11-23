@@ -8,6 +8,7 @@ export const POWER_ACCENT: Record<PowerId, string> = {
   lightning: '#ffcf33',
   nature: '#4fbf5a',
   fire: '#ff7a33',
+  mutation: '#b86bff',
 };
 
 const EFFECTS: Record<PowerId, string> = {
@@ -15,6 +16,7 @@ const EFFECTS: Record<PowerId, string> = {
   lightning: 'Ignites trees · damages buildings · inspires faith',
   nature: 'Grows a tree · calms villagers · future wood',
   fire: 'Burns and spreads · rain stops it',
+  mutation: 'Villager → giant head · tree → gold · rock → legs',
 };
 
 /** Bottom power bar: selection, key hints, cost, cooldown sweep, lock and tooltip. */
@@ -50,7 +52,7 @@ export class PowerToolbar {
         const locked = !sim.state.unlockedPowers.includes(id);
         return `<h4>${p.name} <small>key ${index + 1}</small></h4><p>${p.description}</p>` +
           `<div class="tip-stats"><span>⚡ ${p.energyCost} energy</span><span>⟳ ${p.cooldown}s</span></div>` +
-          `<p style="margin-top:6px;opacity:.75">${locked ? '🔒 Unlocks after the tutorial' : EFFECTS[id]}</p>`;
+          `<p style="margin-top:6px;opacity:.75">${locked ? (id === 'mutation' ? `🔒 Unlocks at ${CONFIG.powers.mutation.unlockChaos} Chaos (now ${Math.floor(sim.state.chaos)})` : '🔒 Unlocks after the tutorial') : EFFECTS[id]}</p>`;
       });
       this.buttons.set(id, button);
       this.root.append(button);

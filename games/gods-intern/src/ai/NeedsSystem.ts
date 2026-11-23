@@ -1,6 +1,7 @@
 import { CONFIG } from '../core/Config';
 import type { VillagerData } from '../core/types';
 import type { Simulation } from '../simulation/SimulationManager';
+import { fearScale } from '../culture/Personality';
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
@@ -21,7 +22,7 @@ export class NeedsSystem {
       sim.villagersNear(fire.x, fire.z, cfg.fireFearRadius, this.near);
       for (const v of this.near) {
         const d = Math.hypot(v.position.x - fire.x, v.position.z - fire.z);
-        v.fear = clamp01(v.fear + 0.09 * fire.intensity * (1 - d / cfg.fireFearRadius) * dt);
+        v.fear = clamp01(v.fear + 0.09 * fearScale(v) * fire.intensity * (1 - d / cfg.fireFearRadius) * dt);
         if (d < 1.6) {
           v.health -= 0.2 * fire.intensity * dt;
           if (v.health <= 0) sim.ai.kill(sim, v, 'fire', fire.byPlayer);
@@ -33,7 +34,8 @@ export class NeedsSystem {
       if (!v.alive) continue;
       const village = sim.village(v.villageId);
       const resting = v.currentTask.state === 'RESTING' && v.currentTask.arrived;
-      const rate = resting ? 0.45 : 1;
+      const picnicking = v.currentTask.activity === 'picnic';
+      const rate = resting ? 0.45 : picnicking ? 1.35 : 1; // picnics are mostly snacking
       v.hunger = clamp01(v.hunger + cfg.hungerPerSec * rate * dt);
       v.thirst = clamp01(v.thirst + cfg.thirstPerSec * rate * dt);
       v.age += dt / CONFIG.time.dayLength;

@@ -19,7 +19,7 @@ export class FireSystem {
     let fuel: number = CONFIG.fire.groundFuel;
     if (kind === 'tree') {
       const tree = sim.tree(targetId);
-      if (!tree || tree.removed || tree.burning || tree.charred) return null;
+      if (!tree || tree.removed || tree.burning || tree.charred || tree.golden) return null;
       tree.burning = true;
       x = tree.x;
       z = tree.z;
@@ -123,13 +123,13 @@ export class FireSystem {
       if (!ended && fire.intensity < CONFIG.fire.extinguishBelow && fire.age > 0.4) {
         this.release(sim, fire, false);
         s.fires.splice(i, 1);
-        sim.bus.emit('FIRE_EXTINGUISHED', { fireId: fire.id, x: fire.x, z: fire.z, byRain: raining || moisture > 0.85 });
+        sim.bus.emit('FIRE_EXTINGUISHED', { fireId: fire.id, x: fire.x, z: fire.z, byRain: raining || moisture > 0.85, kind: fire.kind, targetId: fire.targetId, byPlayer: fire.byPlayer });
         continue;
       }
       if (ended || fire.fuel <= 0) {
         this.release(sim, fire, true);
         s.fires.splice(i, 1);
-        sim.bus.emit('FIRE_EXTINGUISHED', { fireId: fire.id, x: fire.x, z: fire.z, byRain: false });
+        sim.bus.emit('FIRE_EXTINGUISHED', { fireId: fire.id, x: fire.x, z: fire.z, byRain: false, kind: fire.kind, targetId: fire.targetId, byPlayer: fire.byPlayer });
         continue;
       }
 
@@ -149,7 +149,7 @@ export class FireSystem {
         const wind = d > 0.01 ? 1 + 0.55 * ((dx * windX + dz * windZ) / d) : 1;
         const targetMoisture = sim.moistureAt(tree.x, tree.z);
         const p =
-          CONFIG.fire.baseSpread * fire.intensity * (1 - d / R) * Math.max(0, 1 - targetMoisture * 1.25) * wind *
+          CONFIG.fire.baseSpread * (1 + s.culture.fireRisk) * fire.intensity * (1 - d / R) * Math.max(0, 1 - targetMoisture * 1.25) * wind *
           (tree.kind === 'pine' ? 1.25 : 1);
         if (sim.rng.next() < p) this.ignite(sim, 'tree', tree.id, fire.byPlayer, fire.id);
         if (s.fires.length >= CONFIG.fire.maxActive) break;

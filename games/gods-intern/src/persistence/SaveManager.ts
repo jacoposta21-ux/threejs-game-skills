@@ -1,5 +1,6 @@
 import type { GameStateData } from '../core/types';
 import { SAVE_VERSION } from '../world/WorldGen';
+import { migrateState } from './Migrations';
 
 export interface KeyValueStore {
   getItem(key: string): string | null;
@@ -72,10 +73,10 @@ export function validateState(s: unknown): s is GameStateData {
   return true;
 }
 
-/** Version migrations go here. Unknown future versions are rejected. */
+/** Version migrations. Unknown future versions are rejected. */
 function migrate(state: GameStateData): GameStateData | null {
-  if (state.version === SAVE_VERSION) return state;
-  return null;
+  if (state.version > SAVE_VERSION || state.version < 1) return null;
+  return migrateState(state);
 }
 
 export class SaveManager {

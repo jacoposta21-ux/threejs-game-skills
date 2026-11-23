@@ -1,103 +1,157 @@
-# God's Intern — verification report
+# God's Intern — verification report (v0.2, "The Divine Absurdity Update")
 
 All checks ran in a cloud Linux container **without a GPU**. Chromium rasterized with
-SwiftShader (software), so frame-rate numbers here are not meaningful: the game ran at
-about 3–10 fps in software. Pixel checks, renderer counts, gameplay and UI checks are valid.
-Real-GPU frame timing has **not** been measured yet (see Known limitations).
+SwiftShader (software), so frame rates here are not representative: about 10–17 fps in
+software. Pixel checks, renderer counts, CPU timings, gameplay and UI checks are valid.
+**60 fps on a real GPU has not been measured** (see Known limitations).
 
-## Commands and results
+## Baseline before changes (v0.1, commit `b7ccfac`)
+
+| Check | Result |
+| --- | --- |
+| `npx tsc --noEmit` | ✅ clean |
+| `npm run test:unit` | ✅ 22/22 |
+| `npm run build` | ✅ |
+| Real-input playtest (`tests/e2e/playtest.spec.ts`) | ✅ (last run on the same commit) |
+
+## Results after v0.2
 
 | Check | Command | Result |
 | --- | --- | --- |
 | Typecheck | `npx tsc --noEmit` | ✅ no errors |
-| Unit tests | `npm run test:unit` | ✅ 22/22 pass (~3 s) |
-| Production build | `npm run build` | ✅ `dist/` built, JS 755 kB (209 kB gzip), CSS 67 kB, fonts bundled locally |
-| Production runtime | `vite preview` + Chromium | ✅ 0 console errors, **0 external network requests**, page cannot scroll, tutorial starts |
-| Real-input playtest | `npm run test:e2e` (`tests/e2e/playtest.spec.ts`) | ✅ passes end to end (~5 min on software GL) |
-| Canvas inspector | `npm run inspect:canvas -- --manifest artifacts/evidence.json` | ✅ 8/8 declared states PASS, render budget OK |
-| Evidence manifest | `check_evidence.py --manifest artifacts/evidence.json` | ✅ 9 artifacts confirmed (8 captures + motion clip) |
+| Unit tests | `npm run test:unit` | ✅ **55/55** (22 existing + 33 new culture tests), ~4 s |
+| Production build | `npm run build` | ✅ JS 869 kB (247 kB gzip), CSS 73 kB |
+| Production runtime | `vite preview` + Chromium | ✅ 0 console errors, **0 external requests**, no page scroll, perf overlay hidden by default |
+| v0.1 real-input playtest | `tests/e2e/playtest.spec.ts` | ✅ still passes on v0.2 code (4.8 min) |
+| v0.2 real-input playthrough | `tests/e2e/culture.spec.ts` | ✅ passes (4.4 min) |
+| Canvas inspector | `npm run inspect:canvas -- --manifest artifacts/evidence.json` | ✅ 13/13 states PASS, render budget OK |
+| Evidence manifest | `check_evidence.py --manifest artifacts/evidence.json` | ✅ 13 captures confirmed |
+| UI at 1920×1080, 1366×768, 1280×720 | scripted capture with overlap check | ✅ no panel overlaps, no horizontal scroll, 0 errors |
 
-### Unit tests (`tests/unit/simulation.test.ts`)
+Regressions found and fixed during v0.2:
 
-These cover deterministic world generation; energy consumption, cooldowns and
-regeneration; rejected actions cost no energy (sea, inside a building, off-island, locked,
-insufficient energy); nature planting persistent trees; lightning igniting trees and
-frightening witnesses; rain moisture accumulation and well refill; a second rain on
-saturated soil flooding the village, which later recedes; rain extinguishing fire;
-fire spread never exceeding the active-fire cap; villagers fleeing fire; villagers moving
-to real destinations and consuming resources; **a 15-minute unattended soak** (no NaN,
-population ≥ 12, prayer history bounded); a thirst prayer generated from a real shortage
-and completed by rain; prayer de-duplication; the active-prayer cap; the GREEN prayer
-completed by planting 5 trees; FIRE, PANIC and FLOOD prayers completed through
-simulation state; a full save round-trip, after which the restored simulation keeps
-stepping identically; and corrupted, outdated and malformed saves rejected without throwing.
+- **Save round-trip non-determinism.** Speech-line selection consumed the gameplay RNG,
+  so a restored save diverged. Speech now uses a hash.
+- **Religion forming from a single event.** A religion formed from the very first
+  tutorial rain. Belief pressure now caps the witness factor, so a faith needs repeated
+  events, and no religion can form during the tutorial.
+- **Sacred site not tied to the struck object.** A religion founded by pressure wasn't
+  linked to the entity involved. Memories now carry `targetEntityId` into the sacred object.
+- **Plaza rock next to the blue house.** Lightning on the plaza rock also damaged the
+  house. The rock was moved.
+- **Different religions grouped as one toast.** Grouping merged "A NEW RELIGION!" toasts
+  for different faiths. Grouping now keys on title plus subtitle.
+- **Department of Miracles ignored the event gap.** It could fire right after another
+  major event. It now respects the 40-second gap.
 
-### Real-input browser playtest (`tests/e2e/playtest.spec.ts`)
+## New unit tests (`tests/unit/culture.test.ts`), mapped to the requested list
 
-This test drives the game the way a player does: keyboard, mouse clicks on projected
-world positions, wheel, and drag.
+| # | Requested | Test(s) |
+| --- | --- | --- |
+| 1 | Divine memory creation | *records witnessed events with witness ids…* |
+| 2 | Witness detection | *only counts villagers that are in range, alive and awake* |
+| 3 | Memory persistence | *decays ordinary memories, keeps permanent ones, and survives save/load*; *keeps the memory list bounded* |
+| 4 | Religion formation thresholds | *needs enough belief pressure and witnesses…* |
+| 5 | Religion deduplication | *deduplicates by archetype, keeps names unique and caps active religions* |
+| 6 | Sacred object lifecycle | *progress from gathering to decorations, shrine and monument through villager work*; *caps… and reacts when one is destroyed* |
+| 7 | Ritual scheduling | *schedules each ritual once per day at its time and applies its effect* |
+| 8 | Surreal event conditions | One test per event, A through L |
+| 9 | Event cooldowns | *respects cooldowns and the gap between major events* |
+| 10 | Mutation target validation | *validates targets and never charges for invalid ones*; *…rejects repeats* |
+| 11 | Mutation persistence | *mutations persist through save and load* |
+| 12 | Personality effects | *skeptics resist conversion…*; *cowards flee a fire the brave stay near*; *every villager has 1–2 compatible traits* |
+| 13 | History storage limits | *bounds the history book and collapses same-day duplicates* |
+| 14 | Notification queue limits | *shows at most two notifications, groups duplicates and prioritizes* |
+| 15 | v0.1 save migration | *loads a version 0.1 save and fills every new field* |
+| — | Three religions via different triggers | Rock King (lightning on a rock), Holy Tree (a fire put out by rain), Golden Tree (mutation) |
+| — | Long-run stability | 20-minute culture soak: all collections bounded, population stable |
 
-1. Fresh profile: intro titles, then a villager walks to the shrine and pleads "PLEASE! WE NEED WATER!", the THIRST prayer appears, Rain pulses, and the other powers are locked (pressing 4 is refused).
-2. Press `1`, click the well: a cloud spawns, energy drops, water rises, the prayer completes (+energy, approval).
-3. Rain again on the same spot: the flood passes its threshold, God's memo appears, and the tutorial ends with all powers unlocked.
-4. Nature on the river is rejected with a reason ("Too wet to plant here" / "Roots would drown") and no energy is spent; planting on dry ground adds trees.
-5. Lightning on a tree ignites it (`lightning:trees=1`), chaos rises, and "THE TREE HAS SPOKEN." fires. Rain then extinguishes it.
-6. Camera: wheel zoom changes distance, right-drag orbits, `D` pans, and clicking UI panels leaves the camera untouched.
-7. `Space` pauses (sim time frozen) and resumes. `Esc` opens the menu, then Save → Settings (toggle) → back → Load → confirm.
-8. In Look mode, clicking the well opens the Puddleton inspector, and `Esc` closes it.
-9. Zero console errors and zero page errors across the run.
+## Browser playthrough (`tests/e2e/culture.spec.ts`)
 
-The playtest found two real bugs, both now fixed. Confirming **Load** or **Restart**
-re-opened the pause menu instead of closing it. And on slow machines the tutorial's
-fallback could fire just before the flood it was waiting for.
+Everything uses real keyboard and mouse input, with one documented exception.
 
-## Visual evidence (desktop 1280×720, `docs/screenshots/`)
+1. **Start and tutorial.** Fresh profile. Press `1`, click the well, and the thirst
+   prayer is answered. Rain again, the village floods, and the tutorial completes.
+2. **Religious event.** Press `2`, click the plaza rock, and `surreal:rock-king` fires:
+   the rock is crowned, *The Brotherhood of His Rocky Majesty* is founded with 11
+   followers, and the sacred object *His Rocky Majesty* is created.
+3. **Sacred object.** Clicking its pin opens the sacred-object card.
+4. **Mutation.** The `grantChaos(30)` test hook unlocks Mutation deterministically
+   (gameplay Chaos alone depends on fire spread). This is the one non-input step. Press
+   `5`, click a visible tree, and it turns golden; *The Cult of the Shiny Bark* forms.
+5. **History book.** Open it with its button. It contains "A Rock Was Crowned King" and
+   "A Tree Turned to Gold". The Beliefs tab renders. Clicking an entry focuses the
+   camera, and `Esc` closes the book.
+6. **Save and reload.** Save from the menu, **navigate to a fresh page load**, and Load
+   from the menu.
+7. **Persistence confirmed.** The rock is still crowned and the tree still golden.
+   Religions, sacred labels, history length and mutation count are all identical.
+8. **No errors.** 0 console errors and 0 page errors.
 
-| State | Entropy (bits) | Edge density | Contrast | Draw calls | Triangles |
+History recorded in that run:
+Day 1, in order: The Shrine Was Expanded, The Brotherhood of His Rocky Majesty Was
+Founded, A Rock Was Crowned King, The Intern Discovered Mutation, A Tree Turned to Gold,
+The Cult of the Shiny Bark Was Founded, The Golden Tree.
+
+## Visual evidence (desktop 1280×720, run `v02-pass-1`)
+
+| State | Entropy (bits) | Edge density | Contrast | Budget |
+| --- | --- | --- | --- | --- |
+| active-play | 6.34 | 0.407 | 180 | ok |
+| tutorial | 6.71 | 0.403 | 201 | ok |
+| rain | 6.63 | 0.411 | 184 | ok |
+| forest-fire | 6.58 | 0.422 | 195 | ok |
+| flood | 6.54 | 0.401 | 186 | ok |
+| night | 5.89 | 0.387 | 220 | ok |
+| overview | 5.40 | 0.305 | 152 | ok |
+| inspector | 6.39 | 0.416 | 183 | ok |
+| **religion** | 6.41 | 0.393 | 192 | ok |
+| **monuments** | 6.54 | 0.460 | 191 | ok |
+| **mutations** | 6.46 | 0.379 | 192 | ok |
+| **culture-events** | 6.55 | 0.392 | 183 | ok |
+| **book** | 6.21 | 0.406 | 197 | ok |
+
+These are in `docs/screenshots/`, along with the v0.2 playthrough frames
+(`v02-playthrough-*.jpg`) and the 1920×1080 and 1366×768 layouts.
+
+## Performance observations
+
+| Scene | Draw calls | Triangles | JS per frame | Sim per step | Render submit (software GL) |
 | --- | --- | --- | --- | --- | --- |
-| active-play | 6.34 | 0.399 | 183.7 | 56 | 203k |
-| tutorial | 6.69 | 0.406 | 201.6 | 56 | 203k |
-| rain | 6.67 | 0.410 | 187.8 | 56 | 203k |
-| forest-fire | 6.21 | 0.396 | 185.0 | 56 | 203k |
-| flood | 6.50 | 0.398 | 196.1 | 56 | 203k |
-| night | 5.80 | 0.365 | 219.5 | 56 | 203k |
-| overview | 5.39 | 0.305 | 156.3 | 57 | 204k |
-| inspector | 6.37 | 0.407 | 186.2 | 56 | 203k |
+| Fresh start (production build) | 65 | 210k | — | — | — |
+| Busiest scene: every monument and the festival, low quality | 104 | 202k | 3.4 ms | 0.12 ms | 5.8 ms |
+| Busiest scene, high quality | 116 | 218k | 2.7 ms | 0.16 ms | 7.7 ms |
 
-Render budget (desktop): calls 56 of 300, triangles 204k of 750k, geometries 45 of 300,
-textures 4 of 60. All within budget.
-
-Motion: `artifacts/pass-2/motion-villagers-lightning.webm` (30 s, 960×540, local only).
-`docs/screenshots/motion-lightning-sequence.jpg` holds four frames from it showing:
-
-- Villagers moving between frames.
-- The clock advancing.
-- A lightning strike triggering "THE TREE HAS SPOKEN.", "SOMETHING EXPLODED!", "THE VILLAGE IS IN DANGER!" and a God memo.
-- Authored flames on the struck tree.
-
-## Visual scorecard (genre-mapped, self-assessed)
-
-| Category | Genre meaning | Score | Evidence |
-| --- | --- | --- | --- |
-| Art direction | Warm miniature diorama | 2.5 | One palette across terrain, buildings, UI (ivory, navy, gold); comedic tone in copy |
-| Hero | Village and villagers | 2 | Authored houses, well, farm, barn and shrine; instanced villagers with per-state poses and thought icons. Villagers are small at default zoom |
-| Obstacles | Disasters (fire, flood, lightning) | 2 | Flame meshes and particles, puddle discs, branching bolts, scorch smoke, charred stumps, rubble |
-| Interactables | Powers, prayers, readouts | 2.5 | Terrain-projected targeting ring (red when invalid); visible well level, crops, woodpile and food sacks; cooldown sweep |
-| World | Island | 2.5 | Mountain, cliffs, lake, river, forests, meadows, rocks, flowers, grass, birds, sky clouds |
-| Materials | Low-poly flat shading | 2 | Vertex-coloured facets, wetness tint, damage soot. No textures (deliberate), modest material variety |
-| Lighting | Day/night | 2 | Keyframed sun and sky, ACES tone mapping, shadows, glowing windows, fire lights, stars and fireflies |
-| VFX | Event VFX | 2 | Rain, splashes, sparkles, confetti, prayer motes, smoke, embers, lightning flash and shake |
-| UI/HUD | Commercial indie UI | 2.5 | Authored meters, power cards, prayer inbox, God memos, inspector, menus, tooltips |
-| Performance evidence | — | **1.5** | Renderer counts and budgets are measured, but there is **no real-GPU FPS measurement** |
-
-Average ≈ 2.15. This does **not** meet the repo's premium bar (≥ 2.3 with no category
-below 2), mainly because real-GPU performance evidence is missing.
+- **JavaScript cost is small.** About 3 ms per frame on the main thread, and a fixed
+  20 Hz simulation step of 0.1–0.2 ms, including all culture systems.
+- **Draw calls rose from 56 to 65–116.** New batches were added, and empty instanced
+  batches are now hidden so they cost nothing. Desktop budget is 300.
+- **Everything new is bounded:**
+  - culture rendering is about 40 instanced batches, rebuilt from state each frame;
+  - memories ≤ 80, history ≤ 60, sacred objects ≤ 10, active religions ≤ 4, decorations ≤ 8 each;
+  - active fires ≤ 70, the notification queue ≤ 6, visible speech bubbles ≤ 3.
+- **Pacing (headless, 30 simulated minutes):**
+  - *Idle player:* the Great Silence fires at 10.6 minutes, with 0.8 notifications per minute.
+  - *Chaotic player:* surreal events and new religions arrive in spaced bursts (no two
+    major events within 40 seconds), four religions form over 20 minutes, monuments
+    complete after about 15 minutes, and notifications average 2.6 per minute.
+- **Dev overlay.** Press backquote in development builds, or add `?debug` to any build.
+  It shows FPS, draw calls, triangles, simulation milliseconds, villagers, fires,
+  particles, religions, sacred objects, memories and active events. Hidden by default.
 
 ## Known limitations
 
-- **No real-GPU frame-rate measurement.** The container is software-rendered. Draw calls (~56) and triangles (~200k) are small, so 60 fps on an ordinary laptop is expected, but that's unverified. Auto quality steps down to medium/low when FPS falls below 38.
-- **One populated village.** The architecture (village IDs, settlement sites, mission per village) supports three, and the two extra meadows are flattened and empty.
-- **CrazyGames SDK not integrated.** The docs URL returned 404 during the build, so only the `platform/` boundary exists. No ads.
-- **Audio** is fully synthesized. It's functional but simple.
-- **Desktop only.** Narrow windows reflow, but there are no touch controls.
-- Main JS chunk is 755 kB (Three.js is most of it). It loads fine, but could be split.
+- **Real-GPU 60 fps is unverified.** The container renders in software only.
+- **Mutation in the browser test needed a Chaos hook** (`grantChaos`). In real play,
+  Chaos comes from lightning, fire, floods, religions and mutations.
+- **Religions are flavourful but simple.** Arguments are nonviolent and short;
+  conversion is probabilistic with the seeded RNG; there are no inter-faith politics yet.
+- **Monuments and decorations are procedural low-poly models.** The eight monument
+  styles share one building pipeline, and decoration placement follows a fixed ring
+  pattern around the sacred object.
+- **Speech is limited to short canned lines.** They're chosen by event and personality,
+  not generated.
+- **Still one populated village.** Belief, memory and sacred systems are keyed per village
+  and ready for more.
+- **CrazyGames SDK is still not integrated.** Only the platform boundary exists.
+- **The JS bundle is 869 kB** (247 kB gzip) and could be code-split.

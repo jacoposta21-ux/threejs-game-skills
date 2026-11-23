@@ -60,11 +60,24 @@ export const CONSEQUENCES: ConsequenceRule[] = [
     cooldown: 15,
     condition: (sim, e) => {
       const { village, distance } = sim.nearestVillage(e.x, e.z);
-      return !!village && distance < e.radius + 10 && village.water < 75 && !village.floodActive;
+      return !!village && distance < e.radius + 10 && village.water < 75 && !village.floodActive && sim.state.culture.rainBannedUntil < sim.state.time;
     },
     effects: (sim, e) => {
       const { village } = sim.nearestVillage(e.x, e.z);
       if (village) celebrate(sim, village.id, 'rain');
+    },
+  }),
+
+  rule({
+    id: 'rain-booed',
+    title: 'Rain Booed',
+    trigger: 'RAIN_STARTED',
+    cooldown: 20,
+    condition: (sim, e) => sim.state.culture.rainBannedUntil > sim.state.time && sim.nearestVillage(e.x, e.z).distance < e.radius + 12,
+    effects: (sim, e) => {
+      const crowd = sim.memory.witnesses(e.x, e.z, 22);
+      for (const v of crowd) v.happiness = Math.max(0, v.happiness - 0.03);
+      sim.speech.react(crowd, ['BOOOO!', 'THE CLOUD WAS CONVICTED!', 'GUILTY CLOUD!'], 2, 2);
     },
   }),
 

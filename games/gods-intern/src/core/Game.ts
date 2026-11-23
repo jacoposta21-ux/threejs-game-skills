@@ -4,6 +4,11 @@ import { CameraController } from '../camera/CameraController';
 import { VisualEffects } from '../effects/VisualEffects';
 import { BuildingRenderer } from '../entities/BuildingRenderer';
 import { VillagerRenderer } from '../entities/VillagerRenderer';
+import { CultureRenderer } from '../entities/CultureRenderer';
+import { VillageDecor } from '../world/VillageDecor';
+import { HistoryBookPanel, cultureTicker } from '../ui/HistoryBookPanel';
+import { PerfOverlay } from '../ui/PerfOverlay';
+import type { VillagerData } from './types';
 import { AUTOSAVE_KEY, browserStore, SaveManager, SAVE_KEY } from '../persistence/SaveManager';
 import { createPlatform, type GamePlatform } from '../platform/Platform';
 import { Simulation } from '../simulation/SimulationManager';
@@ -23,7 +28,7 @@ import { Vegetation } from '../world/Vegetation';
 import { Water } from '../world/Water';
 import { Weather } from '../world/Weather';
 import { createInitialState } from '../world/WorldGen';
-import { CONFIG, POWER_ORDER, type PowerId } from './Config';
+import { BASIC_POWERS, CONFIG, POWER_ORDER, type PowerId } from './Config';
 import { GameLoop } from './GameLoop';
 import { Rng } from './Rng';
 import { loadSettings, saveSettings, type QualityLevel, type Settings } from './Settings';
@@ -49,6 +54,14 @@ export class Game {
   private readonly weather: Weather;
   private readonly ambient: Ambient;
   private readonly vfx: VisualEffects;
+  private readonly culture: CultureRenderer;
+  private readonly decor: VillageDecor;
+  private readonly book = new HistoryBookPanel();
+  private readonly perf: PerfOverlay;
+  private pinTimer = 0;
+  private cpuMs = 0;
+  private glMs = 0;
+  private simMs = 0;
   private readonly dayNight: DayNightCycle;
   private readonly hud = new HUD();
   private readonly toolbar: PowerToolbar;
@@ -120,7 +133,10 @@ export class Game {
     this.weather = new Weather();
     this.ambient = new Ambient(this.sim.terrain, { x: village.centerX, z: village.centerZ });
     this.vfx = new VisualEffects(this.sim.bus, this.sim.terrain, () => this.sim.state);
-    this.scene.add(this.terrainMesh.mesh, this.water.group, this.vegetation.group, this.buildings.group, this.villagers.group, this.weather.group, this.ambient.group, this.vfx.group);
+    this.culture = new CultureRenderer(this.sim.terrain);
+    this.decor = new VillageDecor(this.sim.terrain, village, this.sim.state.buildings);
+    this.scene.add(this.terrainMesh.mesh, this.water.group, this.vegetation.group, this.buildings.group, this.villagers.group, this.weather.group, this.ambient.group, this.vfx.group, this.culture.group, this.decor.group);
+    this.perf = new PerfOverlay(import.meta.env.DEV || this.params.has('debug'), this.params.has('debug'));
 
     this.cam = new CameraController(this.camera, canvas, this.sim.terrain);
     this.cam.snap(village.centerX + 4, village.centerZ - 2, 62, 0.55, 0.88);
@@ -195,19 +211,38 @@ export class Game {
     if (!this.sim.state.tutorial.done && this.settings.tutorialSeen && this.sim.state.time < 200 && !this.params.has('tutorial')) {
       // Returning player on a fresh world: skip straight to the sandbox.
       this.sim.state.tutorial.done = true;
-      this.sim.powers.unlock(POWER_ORDER);
+      this.sim.powers.unlock(BASIC_POWERS);
       this.sim.notify('BACK FOR ANOTHER SHIFT?', 'info', 'All powers unlocked. Press ? in the menu for help.');
     } else if (this.sim.state.tutorial.done && this.sim.state.time > 120) {
       this.sim.notify('WELCOME BACK, INTERN', 'info', 'Your island was autosaved.');
     }
     this.tutorial.start();
-    if (this.sim.state.tutorial.done) this.sim.powers.unlock(POWER_ORDER);
+    if (this.sim.state.tutorial.done) this.sim.powers.unlock(BASIC_POWERS);
   }
 
   // ---------------------------------------------------------------- events
 
   private bindSimEvents(): void {
     const bus = this.sim.bus;
+    this.labels.faithLine = (v: VillagerData) => {
+      const r = v.religionId ? this.sim.state.religions.find((x) => x.id === v.religionId) : undefined;
+      const memories = v.memoryIds.length;
+      return `${r ? `Believer: ${r.name}` : 'No religion (yet)'}${memories ? ` · remembers ${memories} miracle${memories > 1 ? 's' : ''}` : ''}${v.mutation === 'giant-head' ? ' · enormous head' : ''}`;
+    };
+    this.labels.onPinClick = (id) => {
+      this.audio.click();
+      const sacred = this.sim.state.sacred.find((x) => x.id === id);
+      if (sacred) {
+        this.inspector.showSacred(this.sim, id);
+        this.cam.focus(sacred.x, sacred.z, 38, 1);
+      }
+    };
+    this.book.onFocus = (x, z) => {
+      this.audio.click();
+      this.cam.focus(x, z, 42, 1.1);
+    };
+    this.book.onSacred = (id) => this.labels.onPinClick(id);
+    this.book.onToggle = () => this.audio.click();
     const v3 = (x: number, z: number, dy = 2) => new THREE.Vector3(x, this.sim.terrain.heightAt(x, z) + dy, z);
     const log = (s: string) => {
       this.eventLog.push(s);
@@ -216,7 +251,7 @@ export class Game {
     this.unsubs.push(
       bus.on('NOTIFY', (e) => {
         log(`notify:${e.text}`);
-        this.notes.push(e.text, e.kind, e.sub);
+        this.notes.push(e.text, e.kind, e.sub, e.priority ?? 1);
       }),
       bus.on('GOD_MESSAGE', (e) => {
         log(`god:${e.text}`);
@@ -226,7 +261,7 @@ export class Game {
         log(`speech:${e.text}`);
         const id = e.villagerId;
         const tmp = new THREE.Vector3();
-        this.labels.speech(e.text, () => this.villagers.headPosition(id, tmp)?.add(new THREE.Vector3(0, 0.6, 0)) ?? null, e.duration);
+        this.labels.speech(e.text, () => this.villagers.headPosition(id, tmp)?.add(new THREE.Vector3(0, 0.6, 0)) ?? null, e.duration, true, e.priority ?? 1);
       }),
       bus.on('POWER_USED', (e) => {
         if (e.power === 'rain') this.audio.rainStart();
@@ -240,6 +275,25 @@ export class Game {
         this.cursorToast(e.reason, false);
         if (/energy/i.test(e.reason)) this.hud.flashLowEnergy();
       }),
+      bus.on('RELIGION_FOUNDED', (e) => {
+        log(`religion:${e.religion.name}`);
+        this.audio.choir();
+      }),
+      bus.on('SACRED_CREATED', (e) => log(`sacred:${e.sacred.label}`)),
+      bus.on('SACRED_STAGE', (e) => {
+        log(`stage:${e.sacred.label}:${e.stage}`);
+        this.audio.chime();
+      }),
+      bus.on('RITUAL_STARTED', (e) => {
+        log(`ritual:${e.ritual.name}`);
+        this.audio.celebrate();
+      }),
+      bus.on('MUTATION_APPLIED', (e) => {
+        log(`mutation:${e.mutation.kind}`);
+        this.audio.mutation();
+      }),
+      bus.on('SURREAL_EVENT', (e) => log(`surreal:${e.id}`)),
+      bus.on('HISTORY_ADDED', (e) => log(`history:${e.entry.title}`)),
       bus.on('LIGHTNING_STRUCK', (e) => {
         log(`lightning:trees=${e.treesIgnited}:buildings=${e.buildingsHit}`);
         this.audio.thunder();
@@ -314,6 +368,7 @@ export class Game {
       if (e.code === 'Escape') {
         e.preventDefault();
         if (this.menus.open) this.menus.close(true);
+        else if (this.book.open) this.book.close();
         else if (this.inspector.open) this.inspector.hide();
         else if (this.selected) this.select(null);
         else this.openMenu();
@@ -325,7 +380,10 @@ export class Game {
         this.setPaused(!this.paused);
       } else if (e.code === 'KeyF') {
         this.toggleSpeed();
-      } else if (/^Digit[0-4]$/.test(e.code) || /^Numpad[0-4]$/.test(e.code)) {
+      } else if (e.code === 'KeyB') {
+        this.audio.click();
+        this.book.toggle();
+      } else if (/^Digit[0-5]$/.test(e.code) || /^Numpad[0-5]$/.test(e.code)) {
         const n = Number(e.code.slice(-1));
         this.select(n === 0 ? null : POWER_ORDER[n - 1]);
       }
@@ -391,7 +449,15 @@ export class Game {
       this.sim.powers.activate(this.selected, this.ground.x, this.ground.z);
       return;
     }
-    // Look mode: inspect buildings or villagers.
+    // Look mode: inspect sacred places, buildings or villagers.
+    if (this.pickGround(x, y, this.ground)) {
+      const sacred = this.sim.sacredSys.nearest(this.ground.x, this.ground.z, 3);
+      if (sacred) {
+        this.audio.click();
+        this.inspector.showSacred(this.sim, sacred.id);
+        return;
+      }
+    }
     this.setNdc(x, y);
     this.raycaster.setFromCamera(this.ndc, this.camera);
     const hits = this.raycaster.intersectObjects(this.buildings.pickables, false);
@@ -468,8 +534,23 @@ export class Game {
 
   // ---------------------------------------------------------------- frame
 
+  private syncPins(): void {
+    const s = this.sim.state;
+    this.labels.syncPins(
+      s.sacred
+        .filter((x) => x.stage >= 2)
+        .map((x) => {
+          const r = x.religionId ? s.religions.find((q) => q.id === x.religionId) : undefined;
+          const lift = x.stage >= 5 ? 7.5 : x.kind === 'tree' ? 6 : 4.2;
+          return { id: x.id, label: x.label, stage: x.stage, x: x.x, y: this.sim.terrain.heightAt(x.x, x.z) + lift, z: x.z, color: r?.color ?? 0xf2c14e };
+        }),
+    );
+  }
+
   private simStep(dt: number): void {
+    const t0 = performance.now();
     this.sim.step(dt);
+    this.simMs = this.simMs * 0.9 + (performance.now() - t0) * 0.1;
     this.autosaveTimer -= dt;
     if (this.autosaveTimer <= 0) {
       this.autosaveTimer = CONFIG.autosaveInterval;
@@ -482,6 +563,7 @@ export class Game {
   }
 
   private render(dt: number, now: number, wallDt = dt): void {
+    const cpu0 = performance.now();
     this.frame++;
     const frozen = this.pausedForScreenshot;
     const animDt = this.reducedMotion || frozen ? 0 : dt;
@@ -527,7 +609,10 @@ export class Game {
     this.vegetation.sync(s.trees, sim.terrain, animDt, this.elapsed);
     const activePrayers = s.prayers.filter((p) => p.status === 'active').length;
     this.buildings.update(s.villages[0], night, activePrayers, this.elapsed, animDt);
-    this.villagers.update(s.villagers, sim.terrain, animDt, this.elapsed, this.reducedMotion);
+    const religionColors = new Map(s.religions.filter((r) => r.active).map((r) => [r.id, r.color] as [string, number]));
+    this.villagers.update(s.villagers, sim.terrain, animDt, this.elapsed, this.reducedMotion, religionColors, s.culture.upsideDownUntil > s.time);
+    this.culture.update(s, this.elapsed, night, this.reducedMotion);
+    this.decor.update(s.culture.improvements, night);
     this.weather.update(s.clouds, sim.terrain, animDt, this.elapsed, this.vfx.bits, night);
     this.ambient.update(this.elapsed, night, this.reducedMotion);
     this.vfx.update(s, animDt, this.elapsed, night, this.buildings.chimneys(this.chimneyTops));
@@ -538,12 +623,40 @@ export class Game {
     this.toolbar.update(sim, this.selected);
     this.prayers.update(sim);
     this.inspector.update(sim, dt);
+    this.book.update(sim);
+    this.notes.update();
+    this.pinTimer -= dt;
+    if (this.pinTimer <= 0) {
+      this.pinTimer = 0.4;
+      this.syncPins();
+      const ticker = cultureTicker(sim);
+      const node = $('#culture-ticker');
+      if (node.textContent !== ticker) node.textContent = ticker;
+      node.classList.toggle('hidden', !ticker);
+    }
     this.labels.update(this.camera, this.canvas.clientWidth, this.canvas.clientHeight);
     if (this.frame % 10 === 0) this.labels.renderTip();
     this.audio.update(dt, s.clouds.length, s.fires.length, night, this.paused || this.menus.open);
 
+    const gl0 = performance.now();
+    this.cpuMs = this.cpuMs * 0.9 + (gl0 - cpu0) * 0.1;
     this.renderer.render(this.scene, this.camera);
+    this.glMs = this.glMs * 0.9 + (performance.now() - gl0) * 0.1;
     this.trackPerformance(dt);
+    this.perf.update(dt, {
+      fps: this.fps,
+      calls: this.renderer.info.render.calls,
+      triangles: this.renderer.info.render.triangles,
+      villagers: s.villagers.filter((p) => p.alive).length,
+      fires: s.fires.length,
+      particles: this.vfx.glow.active + this.vfx.smoke.active + this.vfx.bits.active,
+      religions: s.religions.filter((r) => r.active).length,
+      events: cultureTicker(sim).split(' · ').filter(Boolean).length,
+      memories: s.memories.length,
+      sacred: s.sacred.length,
+      quality: this.quality,
+      simMs: this.simMs,
+    });
     this.publishDiagnostics(now);
   }
 
@@ -622,7 +735,7 @@ export class Game {
   private restart(): void {
     this.applyState(createInitialState(WORLD_SEED, this.sim.terrain));
     this.sim.state.tutorial.done = true;
-    this.sim.powers.unlock(POWER_ORDER);
+    this.sim.powers.unlock(BASIC_POWERS);
     this.sim.missions.autoGenerate = true;
     this.saves.clear(AUTOSAVE_KEY);
     this.sim.notify('A FRESH ISLAND', 'info', 'Day one again. Try to keep it that way.');
@@ -646,11 +759,12 @@ export class Game {
     this.vfx.clear();
     this.labels.clear();
     this.prayers.clear();
+    this.book.close();
     this.inspector.hide();
     this.notes.clear();
     this.tutorial.dispose();
     this.sim.missions.autoGenerate = state.tutorial.done;
-    if (state.tutorial.done) this.sim.powers.unlock(POWER_ORDER);
+    if (state.tutorial.done) this.sim.powers.unlock(BASIC_POWERS);
     this.tutorial.start();
   }
 
@@ -666,7 +780,7 @@ export class Game {
       const s = this.sim.state;
       s.tutorial.done = true;
       this.tutorial.dispose();
-      this.sim.powers.unlock(POWER_ORDER);
+      this.sim.powers.unlock(BASIC_POWERS);
       this.sim.missions.autoGenerate = true;
       s.time = CONFIG.time.dayLength * tod;
       this.selected = null;
@@ -744,6 +858,74 @@ export class Game {
             this.cam.snap(v().centerX + 4, v().centerZ - 2, 58, 0.55, 0.86);
             break;
           }
+          case 'religion':
+          case 'book': {
+            fresh();
+            warm(4);
+            this.stageRockKing(false);
+            if (name === 'book') this.book.show('history');
+            break;
+          }
+          case 'monuments': {
+            fresh();
+            warm(4);
+            this.stageRockKing(true);
+            const farm = this.sim.building(v().farmIds[0])!;
+            this.sim.state.culture.lastMajorEvent = -9999;
+            this.sim.bus.emit('FIRE_EXTINGUISHED', { fireId: 0, x: farm.x + 4, z: farm.z, byRain: true, kind: 'ground', targetId: -1, byPlayer: false });
+            for (const sc of this.sim.state.sacred) {
+              this.sim.sacredSys.addSacredness(sc, 12);
+              sc.shrineProgress = 1;
+              this.sim.sacredSys.addSacredness(sc, 0.1);
+              sc.monumentProgress = 1;
+              sc.decorations = 8;
+            }
+            this.sim.state.culture.festivalUntil = this.sim.state.time + 60;
+            this.sim.state.culture.improvements = ['gardens', 'lanterns', 'market', 'shrine-expansion'];
+            warm(3);
+            this.cam.snap(v().centerX + 6, v().centerZ + 1, 62, 0.55, 0.9);
+            break;
+          }
+          case 'mutations': {
+            fresh();
+            warm(6);
+            this.sim.unlimitedEnergy = true;
+            this.sim.powers.unlock(['mutation']);
+            const rock = this.sim.state.rocks[0];
+            const near = this.sim.state.villagers.filter((p) => p.alive).slice(0, 2);
+            near.forEach((p, i) => {
+              p.position.x = rock.x - 3 + i * 2;
+              p.position.z = rock.z + 3;
+              this.sim.ai.setIdle(p, 20);
+            });
+            this.sim.rebuildIndexes();
+            for (const p of near) {
+              this.sim.state.cooldowns.mutation = 0;
+              this.sim.powers.activate('mutation', p.position.x, p.position.z);
+            }
+            const tree = this.sim.state.trees.find((t) => !t.charred && t.growth >= 1 && Math.hypot(t.x - rock.x, t.z - rock.z) < 14 && Math.hypot(t.x - rock.x, t.z - rock.z) > 5)!;
+            this.sim.state.cooldowns.mutation = 0;
+            this.sim.powers.activate('mutation', tree.x, tree.z);
+            this.sim.state.cooldowns.mutation = 0;
+            this.sim.powers.activate('mutation', rock.x, rock.z);
+            this.sim.unlimitedEnergy = this.settings.unlimitedEnergy;
+            warm(6);
+            this.cam.snap(rock.x, rock.z, 34, 0.5, 0.78);
+            break;
+          }
+          case 'culture-events': {
+            fresh(0.55);
+            warm(3);
+            this.sim.state.culture.prosperityTime = 200;
+            warm(4);
+            for (let k = 0; k < 3; k++) this.sim.remember('rain-damage');
+            this.sim.state.culture.lastMajorEvent = -9999;
+            warm(4);
+            this.sim.state.culture.festivalUntil = this.sim.state.time + 60;
+            warm(8);
+            this.cam.snap(v().centerX - 4, v().centerZ, 60, 0.4, 0.9);
+            break;
+          }
           default:
             throw new Error(`Unknown test state: ${name}`);
         }
@@ -766,9 +948,42 @@ export class Game {
       },
       skipTutorial: () => this.tutorial.finish(true),
       simulate: (seconds: number) => warm(seconds),
+      /** Test-only: grant Chaos so Mutation can be exercised deterministically. */
+      grantChaos: (amount: number) => this.sim.addChaos(amount, 'Test grant'),
+      openBook: () => this.book.show('history'),
     };
     // Read-only state accessor for the browser playtest (positions of buildings/trees).
     (window as unknown as { __GI_STATE__?: () => unknown }).__GI_STATE__ = () => this.sim.state;
+  }
+
+  /** Deterministic Rock King scene: villagers on the plaza, lightning on the plaza rock, a ritual. */
+  private stageRockKing(complete: boolean): void {
+    const sim = this.sim;
+    const rock = sim.state.rocks[0];
+    const crowd = sim.state.villagers.filter((p) => p.alive).slice(0, 12);
+    crowd.forEach((p, i) => {
+      const a = (i / crowd.length) * Math.PI * 2;
+      p.position.x = rock.x + Math.cos(a) * 6;
+      p.position.z = rock.z + Math.sin(a) * 6;
+      sim.ai.setIdle(p, 4);
+    });
+    sim.rebuildIndexes();
+    sim.unlimitedEnergy = true;
+    sim.powers.activate('lightning', rock.x + 0.3, rock.z + 0.3);
+    sim.unlimitedEnergy = this.settings.unlimitedEnergy;
+    for (const f of [...sim.state.fires]) f.intensity = 0;
+    const r = sim.religion.byArchetype('rock');
+    const sacred = sim.sacredSys.find('rock', rock.id);
+    if (sacred) {
+      sim.sacredSys.addSacredness(sacred, 4);
+      sacred.decorations = 6;
+      sacred.shrineProgress = complete ? 1 : 0.5;
+    }
+    if (r) {
+      sim.religion.startRitual(r, r.rituals[0]);
+      for (let i = 0; i < 6 * CONFIG.sim.hz; i++) sim.step(1 / CONFIG.sim.hz);
+    }
+    this.cam.snap(rock.x - 2, rock.z + 1, 30, 0.35, 0.75);
   }
 
   private publishDiagnostics(now: number): void {
@@ -782,10 +997,23 @@ export class Game {
       frame: this.frame,
       elapsed: now,
       fps: Math.round(this.fps),
+      timing: { frameCpuMs: +this.cpuMs.toFixed(2), renderSubmitMs: +this.glMs.toFixed(2), simMs: +this.simMs.toFixed(3) },
       quality: this.quality,
       paused: this.paused,
       selected: this.selected,
       tutorial: { step: s.tutorial.step, done: s.tutorial.done },
+      culture: {
+        religions: s.religions.filter((r) => r.active).map((r) => ({ name: r.name, archetype: r.archetype, followers: r.followers.length })),
+        sacred: s.sacred.map((x) => ({ label: x.label, stage: x.stage, decorations: x.decorations, shrine: x.shrineProgress, monument: x.monumentProgress })),
+        memories: s.memories.length,
+        history: s.history.length,
+        historyTitles: s.history.slice(-8).map((h) => h.title),
+        mutations: s.mutations.map((m) => m.kind),
+        crownedRock: s.culture.rockKingId,
+        events: s.culture.eventsFired,
+        ticker: cultureTicker(this.sim),
+        bookOpen: this.book.open,
+      },
       sim: {
         time: s.time,
         day: this.sim.day,

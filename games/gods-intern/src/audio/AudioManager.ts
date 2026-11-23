@@ -236,6 +236,28 @@ export class AudioManager {
     for (let i = 0; i < 6; i++) this.tone(900 + Math.random() * 900, 0.12, 'square', 0.02, i * 0.07);
   }
 
+  /** Religion founded: a small heavenly choir. */
+  choir(): void {
+    if (!this.throttle('choir', 2)) return;
+    [261.63, 329.63, 392, 523.25].forEach((f, i) => {
+      this.tone(f, 1.6, 'sine', 0.05, i * 0.05);
+      this.tone(f * 1.005, 1.6, 'triangle', 0.025, i * 0.05 + 0.02);
+    });
+  }
+
+  chime(): void {
+    if (!this.throttle('chime', 0.6)) return;
+    this.tone(1318.5, 0.5, 'sine', 0.05);
+    this.tone(1975.5, 0.7, 'sine', 0.03, 0.08);
+  }
+
+  mutation(): void {
+    if (!this.throttle('mutation', 0.4)) return;
+    this.tone(220, 0.6, 'sawtooth', 0.04, 0, 880);
+    this.tone(330, 0.5, 'square', 0.025, 0.1, 110);
+    this.noiseBurst(0.4, 0.08, 'bandpass', 3000, 0.05, 4);
+  }
+
   godMessage(): void {
     if (!this.throttle('god', 0.8)) return;
     this.tone(196, 0.7, 'sawtooth', 0.04);
@@ -243,7 +265,7 @@ export class AudioManager {
     this.tone(146.83, 1.0, 'sine', 0.08);
   }
 
-  notify(kind: 'good' | 'bad' | 'info' | 'chaos'): void {
+  notify(kind: 'good' | 'bad' | 'info' | 'chaos' | 'culture'): void {
     if (!this.throttle(`n-${kind}`, 0.4)) return;
     if (kind === 'good') {
       this.tone(784, 0.18, 'triangle', 0.06);
@@ -251,6 +273,8 @@ export class AudioManager {
     } else if (kind === 'bad') {
       this.tone(311, 0.25, 'square', 0.035);
       this.tone(277, 0.3, 'square', 0.03, 0.12);
+    } else if (kind === 'culture') {
+      [587.33, 739.99, 880].forEach((f, i) => this.tone(f, 0.3, 'sine', 0.05, i * 0.09));
     } else if (kind === 'chaos') {
       this.tone(600, 0.3, 'sawtooth', 0.03, 0, 1200);
     } else {

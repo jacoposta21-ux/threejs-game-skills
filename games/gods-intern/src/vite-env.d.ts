@@ -10,6 +10,8 @@ interface ThreeGameTestHooks {
   worldToScreen(x: number, z: number): { x: number; y: number };
   skipTutorial(): void;
   simulate(seconds: number): void;
+  grantChaos(amount: number): void;
+  openBook(): void;
 }
 
 interface Window {

@@ -32,6 +32,30 @@ export const CONFIG = {
     lightning: { cost: 20, cooldown: 1.5, radius: 3.2 },
     nature: { cost: 10, cooldown: 0.3, radius: 1.4 },
     fire: { cost: 15, cooldown: 1.0, radius: 2.6 },
+    mutation: { cost: 25, cooldown: 4, radius: 2.4, unlockChaos: 25 },
+  },
+  /** v0.2 culture systems: memory, belief, sacred objects, surreal events. */
+  culture: {
+    maxMemories: 80,
+    memoryDecayPerSec: 0.0025,
+    storeImpact: 0.25, // weaker events produce reactions but no stored memory
+    permanentScore: 2.4, // impact × witnesses/3 above this never fades
+    villagerMemorySlots: 8,
+    perception: { minor: 14, notable: 24, dramatic: 34 },
+    religionThreshold: 1.6, // accumulated belief pressure per archetype
+    religionMinWitnesses: 3,
+    maxReligions: 4,
+    religionCooldown: 90,
+    religionFadeAge: 420,
+    maxSacred: 10,
+    stageThresholds: [1, 2.5, 5, 9], // sacredness to reach stage 2..5
+    maxDecorations: 8,
+    shrineWood: 12,
+    monumentWood: 24,
+    maxHistory: 60,
+    speechInterval: 1.2,
+    speechVillagerCooldown: 8,
+    rockWalkSpeed: 0.55,
   },
   cells: {
     size: 4,
@@ -118,5 +142,7 @@ export const CONFIG = {
   godMessageCooldown: 22,
 } as const;
 
-export type PowerId = 'rain' | 'lightning' | 'nature' | 'fire';
-export const POWER_ORDER: PowerId[] = ['rain', 'lightning', 'nature', 'fire'];
+export type PowerId = 'rain' | 'lightning' | 'nature' | 'fire' | 'mutation';
+export const POWER_ORDER: PowerId[] = ['rain', 'lightning', 'nature', 'fire', 'mutation'];
+/** Powers granted when the tutorial ends; Mutation unlocks through Chaos. */
+export const BASIC_POWERS: PowerId[] = ['rain', 'lightning', 'nature', 'fire'];

@@ -16,6 +16,12 @@ export const ICON = {
     `<path d="M12 22c-4.2 0-7-2.8-7-6.6 0-3.5 2.4-5.6 3.7-8.3.4 1.7 1.4 2.8 2.5 3.3-.3-3.4 1.3-6.4 4-8.4.2 3.2 1.6 4.8 3 6.6 1.2 1.6 1.8 3.2 1.8 5C20 19.2 16.6 22 12 22Z" fill="#ff8c42" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
      <path d="M12 21c-1.9 0-3.2-1.2-3.2-3 0-1.7 1.3-2.7 2.1-4 .5 1.4 1.4 1.9 2.1 2.1.6-.9.9-1.6.9-2.6 1 1 2 2.4 2 4.1 0 2-1.6 3.4-3.9 3.4Z" fill="#ffe066"/>`,
   ),
+  mutation: svg(
+    `<path d="M9 3c-2 3 2 4 0 7s2 4 0 7 2 4 0 4M15 3c2 3-2 4 0 7s-2 4 0 7-2 4 0 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+     <path d="M9 6.5h6M9 13.5h6M9 17.5h6" stroke="#b86bff" stroke-width="1.6" stroke-linecap="round"/><circle cx="18.5" cy="5" r="2.2" fill="#ffd23f" stroke="currentColor" stroke-width="1.2"/>`,
+  ),
+  book: svg(`<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z" fill="#fff2d6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 7h7M9 10.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="16.5" cy="14" r="1.6" fill="#f2c14e"/>`),
+  temple: svg(`<path d="M3 9 12 3l9 6H3z" fill="#f2c14e" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 9v9M9.5 9v9M14.5 9v9M19 9v9" stroke="currentColor" stroke-width="1.6"/><path d="M3 18h18v3H3z" fill="#fff2d6" stroke="currentColor" stroke-width="1.4"/>`),
   hand: svg(
     `<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11m0-1V4a1.5 1.5 0 0 1 3 0v7m0-5.5a1.5 1.5 0 0 1 3 0V12m0-3.5a1.5 1.5 0 0 1 3 0V15c0 4-3 7-7 7-3 0-4.6-1.2-6.4-3.5L3.3 15a1.6 1.6 0 0 1 2.4-2l2.3 2" fill="#fff2d6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`,
   ),

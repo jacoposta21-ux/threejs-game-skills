@@ -1,7 +1,8 @@
 import type { NotifyKind } from '../core/EventBus';
 import { $, el, escapeHtml } from './dom';
+import { NotificationQueue, type QueuedNotice } from './NotificationQueue';
 
-const BADGE: Record<NotifyKind, string> = { good: '✓', bad: '!', info: 'i', chaos: '?' };
+const BADGE: Record<NotifyKind, string> = { good: '✓', bad: '!', info: 'i', chaos: '?', culture: '✦' };
 const SIGNOFFS = [
   '— Sent from my cloud',
   '— God (out of office, reachable by thunder)',
@@ -10,62 +11,80 @@ const SIGNOFFS = [
   '— cc: Accounts Receivable, Heaven',
 ];
 
-interface Toast {
-  text: string;
-  kind: NotifyKind;
-  sub?: string;
-}
-
 /**
- * Notification queue (max 3 on screen, de-duplicated) and the God memo
- * channel (one at a time, queued, auto-dismissed).
+ * Renders the NotificationQueue (max 2 prominent toasts, priority ordering,
+ * "×N" duplicate grouping, expiry) and the God memo channel (one at a time).
+ * Important events are also recorded in the history book by the simulation,
+ * so nothing is lost when a low-priority toast expires unseen.
  */
 export class Notifications {
   private readonly root = $('#notifications');
   private readonly memoRoot = $('#god-memo');
-  private readonly queue: Toast[] = [];
-  private readonly visible: HTMLElement[] = [];
+  readonly queue = new NotificationQueue(2, 6);
+  private readonly nodes = new Map<QueuedNotice, HTMLElement>();
   private readonly memoQueue: string[] = [];
   private memoBusy = false;
   private signoff = 0;
-  private recent = new Map<string, number>();
   onShow: (kind: NotifyKind) => void = () => {};
   onMemo: () => void = () => {};
 
-  push(text: string, kind: NotifyKind, sub?: string): void {
-    const now = performance.now();
-    if (now - (this.recent.get(text) ?? -1e9) < 4000) return;
-    this.recent.set(text, now);
-    if (this.queue.length > 6) this.queue.shift();
-    this.queue.push({ text, kind, sub });
-    this.pump();
+  private now(): number {
+    return performance.now() / 1000;
   }
 
-  private pump(): void {
-    while (this.visible.length < 3 && this.queue.length) {
-      const t = this.queue.shift()!;
-      const node = el(
-        'div',
-        `toast ${t.kind}`,
-        `<span class="t-badge">${BADGE[t.kind]}</span><div><strong>${escapeHtml(t.text)}</strong>${t.sub ? `<small>${escapeHtml(t.sub)}</small>` : ''}</div>`,
-      );
-      this.root.append(node);
-      this.visible.push(node);
-      this.onShow(t.kind);
-      window.setTimeout(() => {
-        node.classList.add('out');
-        window.setTimeout(() => {
-          node.remove();
-          const i = this.visible.indexOf(node);
-          if (i >= 0) this.visible.splice(i, 1);
-          this.pump();
-        }, 350);
-      }, t.sub ? 4200 : 3200);
+  push(text: string, kind: NotifyKind, sub?: string, priority = 1): void {
+    const result = this.queue.push(text, kind, priority, this.now(), sub);
+    if (result === 'grouped') this.refreshCounts();
+    this.sync();
+  }
+
+  /** Called every frame: expire, promote and render. */
+  update(): void {
+    const { expired, shown } = this.queue.tick(this.now());
+    for (const n of expired) this.remove(n);
+    if (shown.length) this.sync();
+  }
+
+  private remove(n: QueuedNotice): void {
+    const node = this.nodes.get(n);
+    if (!node) return;
+    this.nodes.delete(n);
+    node.classList.add('out');
+    window.setTimeout(() => node.remove(), 350);
+  }
+
+  private refreshCounts(): void {
+    for (const [n, node] of this.nodes) {
+      const c = node.querySelector<HTMLElement>('.t-count');
+      if (c) {
+        c.textContent = n.count > 1 ? `×${n.count}` : '';
+        node.classList.remove('bump');
+        void node.offsetWidth;
+        if (n.count > 1) node.classList.add('bump');
+      }
     }
   }
 
+  private sync(): void {
+    // Anything visible in the queue but not yet rendered gets a node.
+    for (const n of this.queue.visible) {
+      if (this.nodes.has(n)) continue;
+      const kind = n.kind as NotifyKind;
+      const node = el(
+        'div',
+        `toast ${kind} p${n.priority}`,
+        `<span class="t-badge">${BADGE[kind] ?? 'i'}</span><div><strong>${escapeHtml(n.text)}<em class="t-count">${n.count > 1 ? `×${n.count}` : ''}</em></strong>${n.sub ? `<small>${escapeHtml(n.sub)}</small>` : ''}</div>`,
+      );
+      this.root.append(node);
+      this.nodes.set(n, node);
+      this.onShow(kind);
+    }
+    // Nodes whose notice was bumped back to waiting are removed (they will return).
+    for (const [n] of this.nodes) if (!this.queue.visible.includes(n)) this.remove(n);
+  }
+
   memo(text: string): void {
-    if (this.memoQueue.includes(text)) return;
+    if (this.memoQueue.includes(text) || this.memoQueue.length > 3) return;
     this.memoQueue.push(text);
     this.pumpMemo();
   }
@@ -93,7 +112,9 @@ export class Notifications {
   }
 
   clear(): void {
-    this.queue.length = 0;
+    this.queue.clear();
+    for (const node of this.nodes.values()) node.remove();
+    this.nodes.clear();
     this.memoQueue.length = 0;
   }
 }

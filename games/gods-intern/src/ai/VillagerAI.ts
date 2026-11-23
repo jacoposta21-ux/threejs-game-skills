@@ -1,6 +1,8 @@
 import { CONFIG } from '../core/Config';
 import type { BuildingData, ThoughtIcon, TreeData, VillageData, VillagerData, VillagerStateName } from '../core/types';
 import type { Simulation } from '../simulation/SimulationManager';
+import type { RitualDefinition } from '../core/types';
+import { fleeScale, has } from '../culture/Personality';
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
@@ -39,7 +41,9 @@ export class VillagerAI {
 
   private think(sim: Simulation, v: VillagerData): void {
     const task = v.currentTask;
-    const fire = this.nearestFire(sim, v.position.x, v.position.z, CONFIG.villager.fleeRadius);
+    // Personality and memory shape courage: cowards and fire survivors flee earlier.
+    const fireShy = sim.memory.recall(v, 'fire') + sim.memory.recall(v, 'survived-fire') > 0.25 ? 3 : 0;
+    const fire = this.nearestFire(sim, v.position.x, v.position.z, CONFIG.villager.fleeRadius * fleeScale(v) + fireShy);
     if (fire && task.state !== 'FLEEING') {
       this.flee(sim, v, fire.x, fire.z);
       return;
@@ -65,9 +69,15 @@ export class VillagerAI {
     const cfg = CONFIG.villager;
     const rng = sim.rng;
 
-    if (v.thirst > cfg.thirstSeek) {
+    const c = sim.state.culture;
+    const now = sim.state.time;
+    const rationing = c.decree?.kind === 'ration-water';
+    if (v.thirst > (rationing ? 0.68 : cfg.thirstSeek)) {
       const well = sim.building(village.wellId);
-      if (well && !well.destroyed && village.water >= 1) {
+      // Believers in the Forbidden Well walk to the river instead.
+      const cursed = !!c.cursedWell && c.cursedWell.believers.includes(v.id);
+      if (cursed) this.think_(v, 'alarm', 2);
+      if (well && !well.destroyed && village.water >= 1 && !cursed) {
         this.goTo(sim, v, 'SEEKING_WATER', 'drink-well', well, 2.5);
       } else {
         this.goDrinkRiver(sim, v);
@@ -92,6 +102,26 @@ export class VillagerAI {
       }
     }
 
+    // Culture-driven choices: picnics, royal naps, laziness.
+    if (c.picnicUntil > now && c.picnickers.includes(v.id) && c.picnicSpot) {
+      const a = rng.range(0, Math.PI * 2);
+      const r = rng.range(1, 4.5);
+      this.goToPoint(sim, v, 'IDLE', 'picnic', c.picnicSpot.x + Math.cos(a) * r, c.picnicSpot.z + Math.sin(a) * r, null, rng.range(14, 24));
+      v.currentTask.faceX = c.picnicSpot.x;
+      v.currentTask.faceZ = c.picnicSpot.z;
+      this.think_(v, 'heart', 3);
+      return;
+    }
+    if (c.decree?.kind === 'nap-day' && rng.chance(0.5)) {
+      this.setIdle(v, rng.range(6, 10));
+      this.think_(v, 'sleep', 5);
+      return;
+    }
+    if (has(v, 'lazy') && rng.chance(0.25)) {
+      this.setIdle(v, rng.range(5, 9));
+      return;
+    }
+
     // Repairs take priority for builders, and anyone may help occasionally.
     if (v.job === 'builder' || rng.chance(0.08)) {
       const damaged = this.findRepairTarget(sim, village);
@@ -107,13 +137,14 @@ export class VillagerAI {
       if (farm) {
         const ox = rng.range(-3.5, 3.5);
         const oz = rng.range(-2.5, 2.5);
-        this.goToPoint(sim, v, 'WORKING', 'farm', farm.x + ox, farm.z + oz, farm.id, rng.range(14, 24));
+        const effort = has(v, 'ambitious') ? 1.25 : has(v, 'lazy') ? 0.7 : 1;
+        this.goToPoint(sim, v, 'WORKING', 'farm', farm.x + ox, farm.z + oz, farm.id, rng.range(14, 24) * effort);
         return;
       }
     }
     if (job === 'woodcutter' || (job === 'builder' && village.wood < 40)) {
       const trees = sim.treesNear(village.centerX, village.centerZ, 36, this.nearTrees).filter(
-        (t) => t.growth >= 1 && !t.charred && !t.burning && t.kind !== 'bush' && t.health > 0.5,
+        (t) => t.growth >= 1 && !t.charred && !t.burning && !t.golden && t.kind !== 'bush' && t.health > 0.5 && !sim.sacredSys.find('tree', t.id),
       );
       if (trees.length) {
         const tree = trees[Math.floor(rng.next() * trees.length)];
@@ -123,8 +154,33 @@ export class VillagerAI {
       }
     }
 
+    // Curiosity: inspect the strangest thing nearby.
+    if (has(v, 'curious') && rng.chance(0.18)) {
+      const odd = this.somethingOdd(sim, v);
+      if (odd) {
+        this.goToPoint(sim, v, 'IDLE', 'investigate', odd.x + rng.range(-2, 2), odd.z + rng.range(-2, 2), null, rng.range(3, 6));
+        v.currentTask.faceX = odd.x;
+        v.currentTask.faceZ = odd.z;
+        this.think_(v, 'question', 4);
+        return;
+      }
+    }
+    // Believers visit their sacred place.
+    if (v.religionId && rng.chance(has(v, 'devout') ? 0.4 : 0.22)) {
+      const r = sim.state.religions.find((x) => x.id === v.religionId);
+      const sacred = r ? sim.religion.sacredOf(r) : undefined;
+      if (sacred) {
+        const a = rng.range(0, Math.PI * 2);
+        this.goToPoint(sim, v, 'PRAYING', 'pray-sacred', sacred.x + Math.cos(a) * 2.6, sacred.z + Math.sin(a) * 2.6, sim.state.sacred.indexOf(sacred), rng.range(5, 8));
+        v.currentTask.faceX = sacred.x;
+        v.currentTask.faceZ = sacred.z;
+        this.think_(v, 'pray', 6);
+        return;
+      }
+    }
+
     // Free time.
-    const roll = rng.next();
+    const roll = c.silence ? Math.max(0.71, rng.next()) : rng.next(); // the Great Silence empties the shrine
     const shrine = sim.building(village.shrineId);
     if (roll < 0.3) {
       const a = rng.range(0, Math.PI * 2);
@@ -163,8 +219,11 @@ export class VillagerAI {
   private act(sim: Simulation, v: VillagerData, dt: number): void {
     const task = v.currentTask;
     if (!task.arrived) {
-      const speed = this.speedFor(v);
-      if (this.walk(sim, v, speed * dt)) task.arrived = true;
+      const speed = this.speedFor(v) * (sim.state.culture.upsideDownUntil > sim.state.time ? 0.8 : 1);
+      if (this.walk(sim, v, speed * dt)) {
+        task.arrived = true;
+        if (task.faceX !== undefined && task.faceZ !== undefined) v.heading = Math.atan2(task.faceX - v.position.x, task.faceZ - v.position.z);
+      }
       return;
     }
     if (task.state === 'RESTING') return;
@@ -240,6 +299,28 @@ export class VillagerAI {
       case 'farm':
         v.happiness = clamp01(v.happiness + 0.02);
         break;
+      case 'decorate':
+      case 'construct':
+        sim.sacredSys.onWorkDone(v, task.activity, task.targetId);
+        break;
+      case 'construct-office':
+        sim.culture.onOfficeWork(v);
+        break;
+      case 'pray-sacred': {
+        const sacred = task.targetId !== null ? sim.state.sacred[task.targetId] : undefined;
+        if (sacred) {
+          sacred.visits++;
+          sim.sacredSys.addSacredness(sacred, 0.05);
+        }
+        v.faith = clamp01(v.faith + 0.03);
+        break;
+      }
+      case 'picnic':
+        v.happiness = clamp01(v.happiness + 0.03);
+        break;
+      case 'investigate':
+        sim.speech.say(v, INVESTIGATE_LINES[Math.floor(sim.state.time) % INVESTIGATE_LINES.length], 0);
+        break;
       default:
         break;
     }
@@ -289,8 +370,82 @@ export class VillagerAI {
 
   // ---------------- task helpers ----------------
 
+  // ---------------- culture hooks ----------------
+
+  /** Generic task assignment used by culture systems (decorating, festivals, trials…). */
+  assign(sim: Simulation, v: VillagerData, state: VillagerStateName, activity: string, x: number, z: number, targetId: number | null, timer: number, faceX?: number, faceZ?: number): boolean {
+    if (!v.alive) return false;
+    const ok = this.goToPoint(sim, v, state, activity, x, z, targetId, timer);
+    if (ok) {
+      v.currentTask.faceX = faceX;
+      v.currentTask.faceZ = faceZ;
+    }
+    return ok;
+  }
+
+  /** Join a ritual: ring gatherings, dances around the site, or a slow procession loop. */
+  attendRitual(sim: Simulation, v: VillagerData, ritual: RitualDefinition, x: number, z: number, index: number, count: number): void {
+    const a0 = (index / Math.max(1, count)) * Math.PI * 2;
+    const kneel = ritual.kind === 'gathering' || ritual.kind === 'offering' || ritual.kind === 'planting';
+    const state: VillagerStateName = kneel ? 'PRAYING' : 'CELEBRATING';
+    if (ritual.kind === 'procession' || ritual.kind === 'backwards') {
+      this.setTask(v, state, 'ritual', x, z, null, 4);
+      const pts: number[] = [];
+      for (let k = 0; k <= 8; k++) {
+        const a = a0 + (k / 8) * Math.PI * 2;
+        const p = sim.pathfinding.nearestWalkable(x + Math.cos(a) * 5.5, z + Math.sin(a) * 5.5);
+        if (p) pts.push(p.x, p.z);
+      }
+      const approach = sim.pathfinding.findPath(v.position.x, v.position.z, pts[0] ?? x, pts[1] ?? z) ?? [];
+      v.path = [...approach, ...pts];
+      v.pathIndex = 0;
+      v.currentTask.faceX = x;
+      v.currentTask.faceZ = z;
+      this.think_(v, 'music', ritual.duration);
+      return;
+    }
+    const r = ritual.kind === 'bonfire' ? 2.8 : 3.4;
+    this.assign(sim, v, state, 'ritual', x + Math.cos(a0) * r, z + Math.sin(a0) * r, null, ritual.duration, x, z);
+    this.think_(v, kneel ? 'pray' : 'music', ritual.duration);
+  }
+
+  /** Two villagers face off for a short public argument. */
+  argue(sim: Simulation, a: VillagerData, b: VillagerData, x: number, z: number): void {
+    this.assign(sim, a, 'IDLE', 'argue', x - 0.9, z, null, 7, x + 1, z);
+    this.assign(sim, b, 'IDLE', 'argue', x + 0.9, z, null, 7, x - 1, z);
+    this.think_(a, 'angry', 7);
+    this.think_(b, 'angry', 7);
+  }
+
+  /** The strangest nearby thing for curious villagers: mutations and sacred objects. */
+  private somethingOdd(sim: Simulation, v: VillagerData): { x: number; z: number } | null {
+    let best: { x: number; z: number } | null = null;
+    let bestD = 40;
+    const consider = (x: number, z: number) => {
+      const d = Math.hypot(x - v.position.x, z - v.position.z);
+      if (d < bestD) {
+        bestD = d;
+        best = { x, z };
+      }
+    };
+    for (const r of sim.state.rocks) if (r.walking || r.crowned) consider(r.x, r.z);
+    for (const m of sim.state.mutations) {
+      if (m.targetKind === 'tree') {
+        const t = sim.tree(Number(m.targetId));
+        if (t) consider(t.x, t.z);
+      } else if (m.targetKind === 'villager' && m.targetId !== v.id) {
+        const o = sim.villager(m.targetId);
+        if (o && o.alive) consider(o.position.x, o.position.z);
+      }
+    }
+    for (const s of sim.state.sacred) consider(s.x, s.z);
+    return best;
+  }
+
   private setTask(v: VillagerData, state: VillagerStateName, activity: string, x: number, z: number, targetId: number | null, timer: number): void {
     const t = v.currentTask;
+    t.faceX = undefined;
+    t.faceZ = undefined;
     t.state = state;
     t.activity = activity;
     t.targetX = x;
@@ -477,3 +632,5 @@ export class VillagerAI {
     return sim.villagersNear(x, z, r, this.near);
   }
 }
+
+const INVESTIGATE_LINES = ['WHAT IS THAT?', 'HUH.', 'I HAVE QUESTIONS.', 'SHOULD WE WORSHIP THIS?', 'THIS SEEMS ILLEGAL.'];

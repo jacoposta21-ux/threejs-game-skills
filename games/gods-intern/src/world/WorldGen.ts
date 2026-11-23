@@ -1,9 +1,12 @@
-import { CONFIG, POWER_ORDER } from '../core/Config';
+import { BASIC_POWERS, CONFIG } from '../core/Config';
+import { rollTraits } from '../culture/Personality';
+import { defaultCulture } from '../persistence/Migrations';
 import { Rng } from '../core/Rng';
 import type {
   BuildingData,
   BuildingType,
   GameStateData,
+  RockData,
   TreeData,
   TreeKind,
   VillageData,
@@ -12,7 +15,7 @@ import type {
 } from '../core/types';
 import { fbm, TerrainData, WATER_NONE } from './TerrainGen';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 const FIRST_NAMES = [
   'Gary', 'Brenda', 'Kevin', 'Doris', 'Nigel', 'Mildred', 'Barnaby', 'Agatha', 'Dave', 'Gertrude',
@@ -79,6 +82,11 @@ export function makeVillager(
       hairStyle: rng.int(0, 3) as 0 | 1 | 2 | 3,
       height: rng.range(0.9, 1.08),
     },
+    traits: rollTraits(rng),
+    religionId: null,
+    memoryIds: [],
+    mutation: null,
+    title: null,
   };
 }
 
@@ -246,8 +254,9 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
     time: CONFIG.time.dayLength * CONFIG.time.startTimeOfDay,
     nextId,
     energy: CONFIG.energy.start,
-    cooldowns: { rain: 0, lightning: 0, nature: 0, fire: 0 },
+    cooldowns: { rain: 0, lightning: 0, nature: 0, fire: 0, mutation: 0 },
     unlockedPowers: ['rain'],
+    // (Mutation joins BASIC_POWERS only after Chaos reaches its threshold.)
     approval: CONFIG.reputation.startApproval,
     chaos: CONFIG.reputation.startChaos,
     villages,
@@ -275,9 +284,40 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
       buildingsLost: 0,
     },
     lastGodMessage: -999,
+    rocks: generateRocks(terrain, seed),
+    memories: [],
+    religions: [],
+    sacred: [],
+    mutations: [],
+    history: [],
+    culture: defaultCulture(),
   };
 }
 
+/**
+ * Boulders as entities: one landmark rock on the village plaza plus a ring of
+ * boulders in the surrounding meadows. Deterministic for a seed.
+ */
+export function generateRocks(terrain: TerrainData, seed: number): RockData[] {
+  const site = terrain.sites[0];
+  const rocks: RockData[] = [];
+  const rng = new Rng(seed * 104729 + 3);
+  const add = (x: number, z: number, scale: number) =>
+    rocks.push({ id: rocks.length, x, z, scale, rot: rng.range(0, Math.PI * 2), crowned: false, hatTier: 0, walking: false, targetX: x, targetZ: z, heading: 0 });
+  add(site.x + 2, site.z - 5.5, 1.25); // the plaza rock: in full view, clear of houses and trees
+  for (let i = 0; i < 200 && rocks.length < 14; i++) {
+    const a = rng.range(0, Math.PI * 2);
+    const r = rng.range(18, 44);
+    const x = site.x + Math.cos(a) * r;
+    const z = site.z + Math.sin(a) * r;
+    if (!terrain.isLand(x, z) || terrain.slopeAt(x, z) > 0.8 || terrain.heightAt(x, z) > 12) continue;
+    if (terrain.waterAt(x + 2, z) || terrain.waterAt(x - 2, z) || terrain.waterAt(x, z + 2) || terrain.waterAt(x, z - 2)) continue;
+    if (rocks.some((o) => Math.hypot(o.x - x, o.z - z) < 7)) continue;
+    add(x, z, rng.range(0.85, 1.3));
+  }
+  return rocks;
+}
+
 export function allPowersUnlocked(state: GameStateData): boolean {
-  return POWER_ORDER.every((p) => state.unlockedPowers.includes(p));
+  return BASIC_POWERS.every((p) => state.unlockedPowers.includes(p));
 }

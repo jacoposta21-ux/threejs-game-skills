@@ -4,7 +4,10 @@ import type { TreeData, TreeKind } from '../core/types';
 import { build, flatMaterial, hashUnit, Part } from '../render/ModelKit';
 import { fbm, type TerrainData, WATER_NONE } from './TerrainGen';
 
-type VisualKind = TreeKind | 'stump';
+const BLOOM_CAP = 480;
+const BLOOM_COLORS = [0xff6b8b, 0xffd23f, 0xffffff, 0xb388ff, 0xff9f43];
+
+type VisualKind = TreeKind | 'stump' | 'goldOak' | 'goldPine';
 
 function oakGeometry(): THREE.BufferGeometry {
   return build([
@@ -85,10 +88,15 @@ export class Vegetation {
       pine: pineGeometry(),
       bush: bushGeometry(),
       stump: stumpGeometry(),
+      goldOak: oakGeometry(),
+      goldPine: pineGeometry(),
     };
     this.meshes = {} as Record<VisualKind, THREE.InstancedMesh>;
     for (const kind of Object.keys(geos) as VisualKind[]) {
-      const mat = flatMaterial();
+      const golden = kind === 'goldOak' || kind === 'goldPine';
+      const mat = golden
+        ? flatMaterial({ vertexColors: false, color: 0xf2c14e, metalness: 0.65, roughness: 0.28, emissive: 0x7a5200, emissiveIntensity: 0.45 })
+        : flatMaterial();
       if (kind !== 'stump') addSway(mat, this.uTime, kind === 'bush' ? 0.015 : 0.03);
       const mesh = new THREE.InstancedMesh(geos[kind], mat, cap);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -101,7 +109,18 @@ export class Vegetation {
       this.group.add(mesh);
     }
     this.addDecor(terrain);
+    this.bloom = new THREE.InstancedMesh(
+      build([Part.cyl(0.015, 0.015, 0.3, 3).at(0, 0.15, 0).color(0x4a8a35), Part.ico(0.1, 0).at(0, 0.33, 0).color(0xffffff), Part.cone(0.12, 0.12, 5).at(0.08, 0.05, 0).color(0x6db54a)]),
+      flatMaterial(),
+      BLOOM_CAP,
+    );
+    this.bloom.count = 0;
+    this.bloom.frustumCulled = false;
+    this.bloom.name = 'blooms';
+    this.group.add(this.bloom);
   }
+
+  private readonly bloom: THREE.InstancedMesh;
 
   /** Static scatter: flowers, grass tufts, rocks. Purely environmental dressing. */
   private addDecor(terrain: TerrainData): void {
@@ -185,10 +204,11 @@ export class Vegetation {
   sync(trees: TreeData[], terrain: TerrainData, dt: number, elapsed: number): void {
     this.uTime.value = elapsed;
     this.time.t = elapsed;
-    const counts: Record<VisualKind, number> = { oak: 0, pine: 0, bush: 0, stump: 0 };
+    const counts: Record<VisualKind, number> = { oak: 0, pine: 0, bush: 0, stump: 0, goldOak: 0, goldPine: 0 };
+    let blooms = 0;
     for (const tree of trees) {
       if (tree.removed) continue;
-      const kind: VisualKind = tree.charred ? 'stump' : tree.kind;
+      const kind: VisualKind = tree.charred ? 'stump' : tree.golden ? (tree.kind === 'pine' ? 'goldPine' : 'goldOak') : tree.kind;
       const mesh = this.meshes[kind];
       const slot = counts[kind]++;
       // Ease visual growth toward the logical growth with a springy overshoot.
@@ -210,17 +230,40 @@ export class Vegetation {
       if (tree.burning) {
         const flick = 0.5 + 0.5 * Math.sin(elapsed * 14 + tree.id);
         this.color.setRGB(0.55 + flick * 0.2, 0.28, 0.12);
-      } else if (kind === 'stump') {
-        this.color.setRGB(1, 1, 1);
+      } else if (kind === 'stump' || kind === 'goldOak' || kind === 'goldPine') {
+        const shimmer = kind === 'stump' ? 1 : 1 + Math.sin(elapsed * 3 + tree.id) * 0.08;
+        this.color.setRGB(shimmer, shimmer, shimmer);
       } else {
         const sick = 1 - tree.health;
         this.color.setRGB(1 + v + sick * 0.25, 1 + v * 0.6 - sick * 0.05, 1 + v - sick * 0.4);
       }
       mesh.setColorAt(slot, this.color);
+      // Divine planting transforms the ground: a ring of flowers blooms around player trees.
+      if (tree.byPlayer && !tree.charred && blooms < BLOOM_CAP - 6) {
+        const g = Math.min(1, vg * 1.2);
+        for (let k = 0; k < 6; k++) {
+          const a = k * 1.047 + tree.rot;
+          const r = 1.1 + hashUnit(tree.id * 7 + k) * 0.7;
+          const fx = tree.x + Math.cos(a) * r;
+          const fz = tree.z + Math.sin(a) * r;
+          this.dummy.position.set(fx, terrain.heightAt(fx, fz) - 0.02, fz);
+          this.dummy.rotation.set(0, a, 0);
+          this.dummy.scale.setScalar(Math.max(0.01, g) * (0.9 + hashUnit(k + tree.id) * 0.6));
+          this.dummy.updateMatrix();
+          this.bloom.setMatrixAt(blooms, this.dummy.matrix);
+          this.bloom.setColorAt(blooms, this.color.set(BLOOM_COLORS[(tree.id + k) % BLOOM_COLORS.length]));
+          blooms++;
+        }
+      }
     }
+    this.bloom.count = blooms;
+    this.bloom.visible = blooms > 0;
+    this.bloom.instanceMatrix.needsUpdate = true;
+    if (this.bloom.instanceColor) this.bloom.instanceColor.needsUpdate = true;
     for (const kind of Object.keys(this.meshes) as VisualKind[]) {
       const mesh = this.meshes[kind];
       mesh.count = counts[kind];
+      mesh.visible = counts[kind] > 0;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }

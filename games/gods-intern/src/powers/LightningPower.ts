@@ -34,13 +34,28 @@ export class LightningPower extends BasePower {
     sim.state.stats.lightningStrikes++;
 
     let treesIgnited = 0;
+    const survivorTreeIds: number[] = [];
     const trees = sim.treesNear(x, z, R, this.trees).filter((t) => !t.charred && !t.burning && t.growth > 0.2);
     trees.sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z));
-    trees.forEach((tree, i) => {
-      if (i === 0 || sim.rng.chance(0.55)) {
+    let first = true;
+    for (const tree of trees) {
+      if (tree.golden) {
+        survivorTreeIds.push(tree.id); // gold does not burn
+        continue;
+      }
+      if (first || sim.rng.chance(0.55)) {
         if (sim.fire.ignite(sim, 'tree', tree.id, true)) treesIgnited++;
-      } else tree.health = Math.max(0.2, tree.health - 0.3);
-    });
+      } else {
+        tree.health = Math.max(0.2, tree.health - 0.3);
+        survivorTreeIds.push(tree.id);
+      }
+      first = false;
+    }
+    // Rocks do not burn, but they do get noticed.
+    const rockIds = sim.state.rocks
+      .filter((r) => Math.hypot(r.x - x, r.z - z) <= R + 0.6 * r.scale)
+      .sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z))
+      .map((r) => r.id);
 
     let buildingsHit = 0;
     for (const b of sim.state.buildings) {
@@ -55,7 +70,7 @@ export class LightningPower extends BasePower {
     }
 
     // Dry grass can catch from a bare-ground strike.
-    if (!treesIgnited && !buildingsHit && sim.terrain.isLand(x, z) && sim.moistureAt(x, z) < 0.5 && sim.terrain.heightAt(x, z) > 1.1) {
+    if (!treesIgnited && !buildingsHit && !rockIds.length && sim.terrain.isLand(x, z) && sim.moistureAt(x, z) < 0.5 && sim.terrain.heightAt(x, z) > 1.1) {
       if (sim.rng.chance(0.45)) sim.fire.igniteGround(sim, x, z, true);
     }
 
@@ -95,6 +110,8 @@ export class LightningPower extends BasePower {
       witnesses,
       villageId: village?.id ?? null,
       distanceToVillage: distance,
+      rockIds,
+      survivorTreeIds,
     });
     if (witnesses >= 3 && village) {
       sim.bus.emit('MIRACLE_WITNESSED', { villageId: village.id, kind: 'lightning', witnesses, x, z });

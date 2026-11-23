@@ -33,6 +33,8 @@ export class VisualEffects {
   /** Authored flame tongues so fires read as fire even in a single frame. */
   private readonly flames: THREE.InstancedMesh;
   private readonly flameColor = new THREE.Color();
+  /** Expanding ground rings: lightning shockwaves, growth blooms, mutation pulses, foundings. */
+  private readonly rings: Array<{ mesh: THREE.Mesh; life: number; max: number; size: number }> = [];
   private readonly dummy = new THREE.Object3D();
   private fireAccum = new Map<number, number>();
   private chimneyTimer = 0;
@@ -73,8 +75,53 @@ export class VisualEffects {
     this.flames.renderOrder = 13;
     this.group.add(this.flames);
 
-    bus.on('LIGHTNING_STRUCK', (e) => this.lightning(e.x, e.y, e.z));
-    bus.on('TREE_PLANTED', (e) => this.sparkle(e.x, terrain.heightAt(e.x, e.z), e.z, 0x9dff6b, 26));
+    for (let i = 0; i < 8; i++) {
+      const mesh = new THREE.Mesh(
+        new THREE.RingGeometry(0.82, 1, 40).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      mesh.visible = false;
+      mesh.renderOrder = 14;
+      this.rings.push({ mesh, life: 0, max: 1, size: 1 });
+      this.group.add(mesh);
+    }
+    bus.on('LIGHTNING_STRUCK', (e) => {
+      this.lightning(e.x, e.y, e.z);
+      this.ring(e.x, e.y + 0.15, e.z, 0xbfd8ff, 9, 0.55);
+    });
+    bus.on('MUTATION_APPLIED', (e) => {
+      const y = terrain.heightAt(e.x, e.z);
+      this.ring(e.x, y + 0.12, e.z, 0xb86bff, 4, 0.9);
+      this.glow.burst({ x: e.x, y: y + 1.5, z: e.z, spread: 1.2, life: 1.3, size: 0.55, sizeEnd: 0.1, color: 0xe0b0ff, colorEnd: 0x9b4dff, gravity: -1.5, drag: 1 }, 40, 4);
+      this.bits.burst({ x: e.x, y: y + 2, z: e.z, life: 1.4, size: 0.3, color: 0xffd23f, colorEnd: 0xb86bff, gravity: 5, drag: 1 }, 30, 5);
+      this.onShake(0.25);
+    });
+    bus.on('RELIGION_FOUNDED', (e) => {
+      const { x, z } = e.religion.sacredLocation;
+      const y = terrain.heightAt(x, z);
+      this.ring(x, y + 0.15, z, e.religion.color, 12, 1.4);
+      this.glow.burst({ x, y: y + 3, z, spread: 1.5, life: 1.6, size: 0.55, sizeEnd: 0.1, color: 0xffe08a, colorEnd: 0xd99a1c, gravity: -0.5, drag: 0.8 }, 45, 6);
+    });
+    bus.on('SACRED_STAGE', (e) => {
+      const y = terrain.heightAt(e.sacred.x, e.sacred.z);
+      this.ring(e.sacred.x, y + 0.12, e.sacred.z, 0xf2c14e, 5, 1);
+      this.sparkle(e.sacred.x, y + 1, e.sacred.z, 0xf2c14e, 14);
+    });
+    bus.on('CONVERSION', (e) => {
+      void e;
+    });
+    bus.on('TREE_PLANTED', (e) => {
+      const y = terrain.heightAt(e.x, e.z);
+      this.sparkle(e.x, y, e.z, 0x9dff6b, e.byPlayer ? 34 : 12);
+      if (e.byPlayer) {
+        this.ring(e.x, y + 0.1, e.z, 0x7bd66b, 3.2, 1.1);
+        // A spiral of leaves rising around the sprout.
+        for (let k = 0; k < 18; k++) {
+          const a = (k / 18) * Math.PI * 4;
+          this.glow.emit({ x: e.x + Math.cos(a) * 0.9, y: y + 0.2 + k * 0.08, z: e.z + Math.sin(a) * 0.9, vy: 1.6, vx: -Math.sin(a) * 0.8, vz: Math.cos(a) * 0.8, life: 1.3, size: 0.45, sizeEnd: 0.1, color: 0xd8ff9a, colorEnd: 0x4fbf5a });
+        }
+      }
+    });
     bus.on('TREE_REGROWN', (e) => this.sparkle(e.x, terrain.heightAt(e.x, e.z), e.z, 0xc6ff9a, 10));
     bus.on('FIRE_STARTED', (e) => {
       if (e.byPlayer) this.glow.burst({ x: e.x, y: terrain.heightAt(e.x, e.z) + 1, z: e.z, life: 0.7, size: 1.4, sizeEnd: 0.2, color: 0xffe27a, colorEnd: 0xff5a1f, gravity: -2 }, 40, 4);
@@ -119,6 +166,16 @@ export class VisualEffects {
     this.glow.density = d;
     this.smoke.density = d;
     this.bits.density = d;
+  }
+
+  ring(x: number, y: number, z: number, color: number, size: number, life: number): void {
+    const r = this.rings.find((it) => it.life <= 0) ?? this.rings[0];
+    r.mesh.position.set(x, y, z);
+    (r.mesh.material as THREE.MeshBasicMaterial).color.set(color);
+    r.life = life;
+    r.max = life;
+    r.size = size;
+    r.mesh.visible = true;
   }
 
   sparkle(x: number, y: number, z: number, color: number, count: number): void {
@@ -204,6 +261,15 @@ export class VisualEffects {
       }
     }
     this.flash.intensity *= Math.exp(-dt * 9);
+    for (const r of this.rings) {
+      if (r.life <= 0) continue;
+      r.life -= dt;
+      const k = 1 - Math.max(0, r.life) / r.max;
+      const s = 0.3 + k * r.size;
+      r.mesh.scale.set(s, 1, s);
+      (r.mesh.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.85;
+      if (r.life <= 0) r.mesh.visible = false;
+    }
 
     // Fires.
     const fires = state.fires;

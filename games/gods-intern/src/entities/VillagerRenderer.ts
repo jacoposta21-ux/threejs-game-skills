@@ -4,7 +4,7 @@ import { build, flatMaterial, Part } from '../render/ModelKit';
 import type { TerrainData } from '../world/TerrainGen';
 
 const CAPACITY = 140;
-const ICONS: Exclude<ThoughtIcon, null>[] = ['question', 'alarm', 'heart', 'pray', 'water', 'food', 'sleep'];
+const ICONS: Exclude<ThoughtIcon, null>[] = ['question', 'alarm', 'heart', 'pray', 'water', 'food', 'sleep', 'idea', 'music', 'angry'];
 
 interface VisualState {
   x: number;
@@ -84,6 +84,32 @@ function drawIconAtlas(): THREE.CanvasTexture {
         ctx.arc(cx + 15, cy + 22, 6, 0, Math.PI * 2);
         ctx.fill();
         break;
+      case 'idea':
+        ctx.fillStyle = '#f2c14e';
+        ctx.beginPath();
+        ctx.arc(cx, cy - 6, 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#9aa4b8';
+        ctx.fillRect(cx - 9, cy + 12, 18, 12);
+        break;
+      case 'music':
+        ctx.fillStyle = '#8a6cff';
+        ctx.fillRect(cx + 2, cy - 26, 7, 40);
+        ctx.beginPath();
+        ctx.ellipse(cx - 6, cy + 16, 13, 10, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(cx + 2, cy - 26, 20, 8);
+        break;
+      case 'angry':
+        ctx.strokeStyle = '#e63946';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        for (const [ax, ay] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+          ctx.moveTo(cx + ax * 8, cy + ay * 8);
+          ctx.lineTo(cx + ax * 24, cy + ay * 24);
+        }
+        ctx.stroke();
+        break;
       case 'pray': {
         ctx.strokeStyle = '#e0a526';
         ctx.lineWidth = 7;
@@ -117,7 +143,7 @@ function drawIconAtlas(): THREE.CanvasTexture {
 export class VillagerRenderer {
   readonly group = new THREE.Group();
   readonly pickMesh: THREE.InstancedMesh;
-  private readonly parts: Record<'torso' | 'head' | 'armL' | 'armR' | 'legL' | 'legR' | 'hair' | 'bun' | 'hat' | 'belt', THREE.InstancedMesh>;
+  private readonly parts: Record<'torso' | 'head' | 'armL' | 'armR' | 'legL' | 'legR' | 'hair' | 'bun' | 'hat' | 'belt' | 'mouthSmile' | 'mouthFrown' | 'mouthO' | 'leaderHat' | 'axe' | 'hoe' | 'hammer', THREE.InstancedMesh>;
   private readonly visual = new Map<string, VisualState>();
   private readonly order: VillagerData[] = [];
   private readonly sprites: THREE.Sprite[] = [];
@@ -139,7 +165,21 @@ export class VillagerRenderer {
     const white = 0xffffff;
     const geos = {
       torso: build([Part.cyl(0.17, 0.23, 0.5, 7).at(0, 0.25, 0).color(white)]),
-      head: build([Part.ico(0.2, 1).at(0, 0.2, 0).color(white), Part.ico(0.045, 0).at(0, 0.18, 0.2).color(0xf0c0a0)]),
+      head: build([
+        Part.ico(0.2, 1).at(0, 0.2, 0).color(white),
+        Part.ico(0.045, 0).at(0, 0.18, 0.2).color(0xf0c0a0),
+        Part.ico(0.036, 0).at(-0.075, 0.245, 0.175).color(0x111111),
+        Part.ico(0.036, 0).at(0.075, 0.245, 0.175).color(0x111111),
+        Part.box(0.07, 0.018, 0.02).rot(0, 0, 0.15).at(-0.08, 0.3, 0.18).color(0x3a2a20),
+        Part.box(0.07, 0.018, 0.02).rot(0, 0, -0.15).at(0.08, 0.3, 0.18).color(0x3a2a20),
+      ]),
+      mouthSmile: build([Part.box(0.04, 0.02, 0.02).at(-0.04, 0.115, 0.185).rot(0, 0, 0).color(0x6b1e1e), Part.box(0.05, 0.02, 0.02).at(0, 0.1, 0.19).color(0x6b1e1e), Part.box(0.04, 0.02, 0.02).at(0.04, 0.115, 0.185).color(0x6b1e1e)]),
+      mouthFrown: build([Part.box(0.04, 0.02, 0.02).at(-0.04, 0.095, 0.185).color(0x6b1e1e), Part.box(0.05, 0.02, 0.02).at(0, 0.11, 0.19).color(0x6b1e1e), Part.box(0.04, 0.02, 0.02).at(0.04, 0.095, 0.185).color(0x6b1e1e)]),
+      mouthO: build([Part.ico(0.05, 0).scale(1, 1.25, 0.5).at(0, 0.1, 0.19).color(0x3a0f0f)]),
+      leaderHat: build([Part.cyl(0.3, 0.3, 0.03, 10).at(0, 0.36, 0).color(white), Part.cone(0.2, 0.6, 8).at(0, 0.66, 0).color(white), Part.ico(0.06, 0).at(0, 0.98, 0).color(0xf2c14e)]),
+      axe: build([Part.box(0.04, 0.6, 0.04).rot(0, 0, 0.6).at(0, 0.3, -0.24).color(0x8a6a44), Part.box(0.18, 0.12, 0.03).rot(0, 0, 0.6).at(0.18, 0.5, -0.24).color(0xb8c2c8)]),
+      hoe: build([Part.box(0.035, 0.85, 0.035).rot(0, 0, -0.5).at(0, 0.32, -0.24).color(0x8a6a44), Part.box(0.16, 0.04, 0.1).rot(0, 0, -0.5).at(-0.2, 0.68, -0.24).color(0x9aa4b8)]),
+      hammer: build([Part.box(0.035, 0.45, 0.035).at(0.16, 0.05, -0.22).color(0x8a6a44), Part.box(0.14, 0.08, 0.08).at(0.16, 0.28, -0.22).color(0x6e7a86)]),
       armL: build([Part.box(0.09, 0.36, 0.09).at(0, -0.18, 0).color(white), Part.ico(0.06, 0).at(0, -0.38, 0).color(0xf2c9a0)]),
       armR: build([Part.box(0.09, 0.36, 0.09).at(0, -0.18, 0).color(white), Part.ico(0.06, 0).at(0, -0.38, 0).color(0xf2c9a0)]),
       legL: build([Part.box(0.11, 0.36, 0.12).at(0, -0.18, 0).color(white), Part.box(0.12, 0.07, 0.18).at(0, -0.34, 0.03).color(0x3a2a20)]),
@@ -147,7 +187,7 @@ export class VillagerRenderer {
       hair: build([Part.sphere(0.215, 8, 4, Math.PI / 2).scale(1, 0.9, 1.05).at(0, 0.21, -0.02).color(white)]),
       bun: build([Part.sphere(0.215, 8, 4, Math.PI / 2).at(0, 0.21, -0.02).color(white), Part.ico(0.11, 0).at(0, 0.38, -0.16).color(white)]),
       hat: build([Part.cyl(0.34, 0.34, 0.03, 10).at(0, 0.3, 0).color(white), Part.cone(0.2, 0.28, 8).at(0, 0.45, 0).color(white)]),
-      belt: build([Part.cyl(0.235, 0.235, 0.07, 7).at(0, 0.04, 0).color(0x4a3426)]),
+      belt: build([Part.cyl(0.235, 0.235, 0.09, 7).at(0, 0.05, 0).color(white), Part.box(0.06, 0.52, 0.03).rot(0, 0, 0.75).at(0, 0.28, 0.2).color(white)]),
     };
     const material = flatMaterial({ roughness: 0.8 });
     this.parts = {} as typeof this.parts;
@@ -189,14 +229,14 @@ export class VillagerRenderer {
   headPosition(id: string, out: THREE.Vector3): THREE.Vector3 | null {
     const v = this.visual.get(id);
     if (!v) return null;
-    return out.set(v.x, v.y + 1.6, v.z);
+    return out.set(v.x, v.y + 2.05, v.z);
   }
 
   reset(): void {
     this.visual.clear();
   }
 
-  update(villagers: VillagerData[], terrain: TerrainData, dt: number, elapsed: number, reducedMotion: boolean): void {
+  update(villagers: VillagerData[], terrain: TerrainData, dt: number, elapsed: number, reducedMotion: boolean, religionColors: Map<string, number> = new Map(), backwards = false): void {
     const parts = this.parts;
     const m = this.m;
     this.order.length = 0;
@@ -290,7 +330,30 @@ export class VillagerRenderer {
         lean = 0.55 + hoe * 0.1;
         armL = -1.2 + hoe * 0.6;
         armR = -1.2 + hoe * 0.6;
-      } else if (state === 'WORKING' && v.currentTask.arrived && (act === 'chop' || act === 'repair')) {
+      } else if (act === 'picnic' && v.currentTask.arrived) {
+        hip = 0.16;
+        legL = -1.45;
+        legR = -1.35;
+        lean = -0.15;
+        armR = -0.9 + Math.sin(t * 2.5 + index) * 0.4; // snacking
+      } else if (act === 'argue' && v.currentTask.arrived) {
+        const g = Math.sin(t * 7 + index);
+        armL = -1.4 + g * 0.6;
+        armR = -0.5 - g * 0.6;
+        spreadL = 0.4;
+        lean = 0.12 + Math.max(0, g) * 0.1;
+        bob = Math.abs(Math.sin(t * 5 + index)) * 0.04;
+      } else if ((act === 'investigate' || act === 'queue' || act === 'trial') && v.currentTask.arrived) {
+        headTilt = act === 'investigate' ? Math.sin(t * 1.4 + index) * 0.5 : 0;
+        lean = act === 'investigate' ? 0.25 : 0;
+        if (act === 'queue') armR = -0.25 + Math.sin(t * 6 + index) * 0.15; // impatient tapping
+        if (act === 'trial') {
+          armL = -1.2;
+          armR = -1.2;
+          spreadL = -0.45;
+          spreadR = -0.45; // arms folded, judging
+        }
+      } else if (state === 'WORKING' && v.currentTask.arrived && (act === 'chop' || act === 'repair' || act === 'decorate' || act === 'construct' || act === 'construct-office')) {
         const chop = Math.sin(t * 6 + index);
         armL = -2.6 + (chop > 0 ? chop * 2 : 0);
         armR = armL;
@@ -314,9 +377,15 @@ export class VillagerRenderer {
       }
 
       const look = v.look;
-      const s = look.height * (v.age < 12 ? 0.62 + v.age * 0.02 : 1) * 1.25;
+      const s = look.height * (v.age < 12 ? 0.62 + v.age * 0.02 : 1) * 1.45;
+      // Upside-Down Day: everyone walks backwards.
+      const yaw = backwards && walking && v.alive ? vis.heading + Math.PI : vis.heading;
+      if (backwards && walking) {
+        legL = -legL;
+        legR = -legR;
+      }
       m.p.set(vis.x, vis.y + bob * s, vis.z);
-      m.e.set(lieDown ? -Math.PI / 2 : 0, vis.heading, 0, 'YXZ');
+      m.e.set(lieDown ? -Math.PI / 2 : 0, yaw, 0, 'YXZ');
       m.q.setFromEuler(m.e);
       m.s.set(s, s, s);
       m.base.compose(m.p, m.q, m.s);
@@ -327,13 +396,27 @@ export class VillagerRenderer {
       parts.torso.setMatrixAt(index, m.torso);
       parts.belt.setMatrixAt(index, m.torso);
       // Head.
+      const big = v.mutation === 'giant-head' ? 2.05 : 1;
       m.out.copy(m.torso).multiply(m.tmp.makeTranslation(0, 0.52, 0)).multiply(m.tmp.makeRotationY(headTilt));
+      if (big !== 1) m.out.multiply(m.tmp.makeScale(big, big, big));
       parts.head.setMatrixAt(index, m.out);
+      // Facial expression from mood.
+      const scared = v.alive && (state === 'FLEEING' || v.fear > 0.45 || act === 'argue');
+      const happy = v.alive && !scared && (v.happiness > 0.55 || state === 'CELEBRATING');
+      parts.mouthSmile.setMatrixAt(index, happy ? m.out : m.zero);
+      parts.mouthO.setMatrixAt(index, scared ? m.out : m.zero);
+      parts.mouthFrown.setMatrixAt(index, !happy && !scared ? m.out : m.zero);
+      const leader = !!v.title && v.alive;
+      parts.leaderHat.setMatrixAt(index, leader ? m.out : m.zero);
       const hairMesh = look.hairStyle === 2 ? parts.bun : look.hairStyle === 3 ? parts.hat : parts.hair;
       parts.hair.setMatrixAt(index, m.zero);
       parts.bun.setMatrixAt(index, m.zero);
       parts.hat.setMatrixAt(index, m.zero);
-      if (look.hairStyle !== 0) hairMesh.setMatrixAt(index, m.out);
+      if (look.hairStyle !== 0 && !leader) hairMesh.setMatrixAt(index, m.out);
+      // Job tool on the back makes roles readable from the default camera.
+      parts.axe.setMatrixAt(index, v.job === 'woodcutter' && v.age >= 12 ? m.torso : m.zero);
+      parts.hoe.setMatrixAt(index, v.job === 'farmer' && v.age >= 12 ? m.torso : m.zero);
+      parts.hammer.setMatrixAt(index, v.job === 'builder' && v.age >= 12 ? m.torso : m.zero);
       // Arms.
       m.out.copy(m.torso).multiply(m.tmp.makeTranslation(-0.25, 0.44, 0)).multiply(m.tmp.makeRotationZ(-spreadL)).multiply(m.tmp.makeRotationX(armL));
       parts.armL.setMatrixAt(index, m.out);
@@ -353,7 +436,11 @@ export class VillagerRenderer {
       parts.head.setColorAt(index, this.color.set(look.skin).multiplyScalar(pale));
       parts.legL.setColorAt(index, this.color.set(look.pants));
       parts.legR.setColorAt(index, this.color);
-      parts.belt.setColorAt(index, this.color.set(0xffffff));
+      // Believers wear a sash in their religion's color.
+      const faithColor = v.religionId ? religionColors.get(v.religionId) : undefined;
+      parts.belt.setColorAt(index, this.color.set(faithColor ?? 0x4a3426));
+      parts.leaderHat.setColorAt(index, this.color.set(faithColor ?? 0x8a6cff));
+      for (const mouth of [parts.mouthSmile, parts.mouthFrown, parts.mouthO, parts.axe, parts.hoe, parts.hammer]) mouth.setColorAt(index, this.color.set(0xffffff));
       hairMesh.setColorAt(index, this.color.set(look.hairStyle === 3 ? 0xd9b25a : look.hair));
 
       // Thought icon.

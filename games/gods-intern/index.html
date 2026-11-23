@@ -55,12 +55,14 @@
           </div>
         </div>
         <div class="hud-right">
+          <button class="icon-btn" id="btn-book" type="button" title="The Book of Questionable Miracles (B)"><span data-icon="book"></span><span id="book-badge" class="badge hidden">0</span></button>
           <button class="icon-btn" id="btn-speed" type="button" title="Simulation speed (F)"><span data-icon="speed"></span><b id="speed-label">1×</b></button>
           <button class="icon-btn" id="btn-pause" type="button" title="Pause (Space)"><span data-icon="pause"></span></button>
           <button class="icon-btn" id="btn-settings" type="button" title="Menu (Esc)"><span data-icon="gear"></span></button>
         </div>
       </header>
 
+      <div id="culture-ticker" class="ui hidden"></div>
       <div id="notifications" class="ui" aria-live="polite"></div>
       <div id="god-memo" class="ui" aria-live="assertive"></div>
 
@@ -73,6 +75,8 @@
       </aside>
 
       <aside id="inspector" class="ui panel hidden" aria-live="polite"></aside>
+      <aside id="book" class="ui panel hidden" aria-label="The Book of Questionable Miracles"></aside>
+      <div id="perf" class="hidden"></div>
 
       <nav id="toolbar" class="ui" aria-label="Divine powers"></nav>
       <div id="tool-tip" class="ui hidden"></div>

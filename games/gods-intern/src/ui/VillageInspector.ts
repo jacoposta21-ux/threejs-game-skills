@@ -3,6 +3,8 @@ import type { BuildingData } from '../core/types';
 import type { Simulation } from '../simulation/SimulationManager';
 import { $, escapeHtml, icon } from './dom';
 import type { IconName } from './Icons';
+import { STAGE_NAMES } from '../culture/SacredSystem';
+import { CONFIG as C } from '../core/Config';
 
 const BUILDING_INFO: Record<BuildingData['type'], { name: string; role: string }> = {
   house: { name: 'House', role: 'Villagers sleep here at night. Each house shelters 4.' },
@@ -16,15 +18,59 @@ const BUILDING_INFO: Record<BuildingData['type'], { name: string; role: string }
 export class VillageInspector {
   private readonly root = $('#inspector');
   private villageId: string | null = null;
+  private sacredId: string | null = null;
   private buildingId: number | null = null;
   private timer = 0;
   onClose: () => void = () => {};
 
   get open(): boolean {
-    return this.villageId !== null;
+    return this.villageId !== null || this.sacredId !== null;
+  }
+
+  /** Sacred object card: stage, sacredness, religion, decorations and what comes next. */
+  showSacred(sim: Simulation, sacredId: string): void {
+    this.villageId = null;
+    this.sacredId = sacredId;
+    this.root.classList.remove('hidden');
+    this.renderSacred(sim);
+  }
+
+  private renderSacred(sim: Simulation): void {
+    const s = sim.state.sacred.find((x) => x.id === this.sacredId);
+    if (!s) return this.hide();
+    const r = s.religionId ? sim.state.religions.find((x) => x.id === s.religionId) : undefined;
+    const t = C.culture.stageThresholds;
+    const next =
+      s.stage < 2 ? `Gathering place at sacredness ${t[0]}`
+        : s.stage < 3 ? `Decorations begin at sacredness ${t[1]}`
+          : s.stage < 4 ? `Shrine construction at sacredness ${t[2]}`
+            : s.shrineProgress < 1 ? `Shrine ${Math.round(s.shrineProgress * 100)}% built (needs wood)`
+              : s.stage < 5 ? `Monument at sacredness ${t[3]}`
+                : s.monumentProgress < 1 ? `Monument ${Math.round(s.monumentProgress * 100)}% built (needs wood)` : 'Complete. A landmark of your mistakes.';
+    const followers = r ? r.followers.length : 0;
+    const color = r ? `#${r.color.toString(16).padStart(6, '0')}` : '#f2c14e';
+    this.root.innerHTML = `
+      <div class="insp-head">
+        <div><h3>${escapeHtml(s.label)}</h3><small>${icon('temple')} ${STAGE_NAMES[s.stage]} · Sacred ${s.kind}</small></div>
+        <button class="insp-close" type="button" aria-label="Close">${icon('close')}</button>
+      </div>
+      <div class="stage-track">${[1, 2, 3, 4, 5].map((n) => `<span class="${n <= s.stage ? 'on' : ''}" title="${STAGE_NAMES[n]}">${n}</span>`).join('')}</div>
+      <div class="stat-grid">
+        ${this.stat('Sacred', 'faith', Math.min(s.sacredness, 10), 10, s.sacredness.toFixed(1), false)}
+        ${this.stat('Décor', 'temple', s.decorations, C.culture.maxDecorations, String(s.decorations), false)}
+        ${this.stat('Visits', 'people', Math.min(s.visits, 40), 40, String(s.visits), false)}
+        ${this.stat('Faithful', 'heart', followers, Math.max(1, sim.state.villagers.length), String(followers), false)}
+      </div>
+      <div class="insp-building" style="border-left:5px solid ${color}"><b>${r ? escapeHtml(r.name) : 'No active faith'}</b><br><span style="opacity:.8">${r ? escapeHtml(r.doctrine[0]) : 'Remembered, but nobody worships here right now.'}</span></div>
+      <ul class="problems"><li class="ok">${escapeHtml(next)}</li></ul>`;
+    this.root.querySelector('.insp-close')?.addEventListener('click', () => {
+      this.hide();
+      this.onClose();
+    });
   }
 
   show(sim: Simulation, villageId: string, buildingId: number | null): void {
+    this.sacredId = null;
     this.villageId = villageId;
     this.buildingId = buildingId;
     this.root.classList.remove('hidden');
@@ -33,16 +79,18 @@ export class VillageInspector {
 
   hide(): void {
     this.villageId = null;
+    this.sacredId = null;
     this.buildingId = null;
     this.root.classList.add('hidden');
   }
 
   update(sim: Simulation, dt: number): void {
-    if (!this.villageId) return;
+    if (!this.open) return;
     this.timer -= dt;
     if (this.timer > 0) return;
     this.timer = 0.5;
-    this.render(sim);
+    if (this.sacredId) this.renderSacred(sim);
+    else this.render(sim);
   }
 
   private stat(name: string, iconName: IconName, value: number, max: number, label: string, warn: boolean): string {

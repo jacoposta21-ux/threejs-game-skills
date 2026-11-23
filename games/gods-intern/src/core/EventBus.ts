@@ -1,7 +1,7 @@
 import type { PowerId } from './Config';
-import type { BuildingType, FireKind, PrayerData } from './types';
+import type { BuildingType, DivineMemory, FireKind, HistoryEntry, MutationData, PrayerData, Religion, RitualDefinition, SacredObject } from './types';
 
-export type NotifyKind = 'good' | 'bad' | 'info' | 'chaos';
+export type NotifyKind = 'good' | 'bad' | 'info' | 'chaos' | 'culture';
 
 /** Every gameplay event and its typed payload. */
 export interface GameEvents {
@@ -19,10 +19,12 @@ export interface GameEvents {
     witnesses: number;
     villageId: string | null;
     distanceToVillage: number;
+    rockIds: number[];
+    survivorTreeIds: number[];
   };
   FIRE_STARTED: { fireId: number; x: number; z: number; kind: FireKind; byPlayer: boolean };
   FIRE_SPREAD: { fromId: number; fireId: number; x: number; z: number; kind: FireKind };
-  FIRE_EXTINGUISHED: { fireId: number; x: number; z: number; byRain: boolean };
+  FIRE_EXTINGUISHED: { fireId: number; x: number; z: number; byRain: boolean; kind: FireKind; targetId: number; byPlayer: boolean };
   TREE_PLANTED: { treeId: number; x: number; z: number; byPlayer: boolean };
   TREE_BURNED: { treeId: number; x: number; z: number };
   TREE_REGROWN: { treeId: number; x: number; z: number };
@@ -47,9 +49,22 @@ export interface GameEvents {
   VILLAGERS_CELEBRATE: { villageId: string; x: number; z: number; reason: string };
   MIRACLE_WITNESSED: { villageId: string; kind: string; witnesses: number; x: number; z: number };
   CONSEQUENCE_TRIGGERED: { id: string; title: string };
-  NOTIFY: { text: string; kind: NotifyKind; sub?: string };
+  NOTIFY: { text: string; kind: NotifyKind; sub?: string; priority?: number };
   GOD_MESSAGE: { text: string; priority: number };
-  SPEECH: { villagerId: string; text: string; duration: number };
+  SPEECH: { villagerId: string; text: string; duration: number; priority?: number };
+  // ---- v0.2 culture ----
+  MEMORY_CREATED: { memory: DivineMemory };
+  RELIGION_FOUNDED: { religion: Religion };
+  RELIGION_FADED: { religion: Religion; reason: string };
+  CONVERSION: { villagerId: string; religionId: string };
+  SACRED_CREATED: { sacred: SacredObject };
+  SACRED_STAGE: { sacred: SacredObject; stage: number };
+  SACRED_DAMAGED: { sacred: SacredObject; reason: string };
+  RITUAL_STARTED: { religionId: string; ritual: RitualDefinition; x: number; z: number; attendees: number };
+  RITUAL_COMPLETED: { religionId: string; ritual: RitualDefinition; attendees: number };
+  MUTATION_APPLIED: { mutation: MutationData; x: number; z: number };
+  HISTORY_ADDED: { entry: HistoryEntry };
+  SURREAL_EVENT: { id: string; title: string; x: number; z: number };
   TUTORIAL_STEP: { step: number };
   POWERS_UNLOCKED: { powers: PowerId[] };
 }

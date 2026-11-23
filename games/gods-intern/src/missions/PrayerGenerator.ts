@@ -26,6 +26,14 @@ export class PrayerGenerator {
       data: { approvalReward: def.reward.approval },
     };
     def.init?.(sim, village, prayer);
+    // The Department of Miracles: everything now comes with forms.
+    if (sim.state.culture.officeBuilt && sim.state.culture.officeProgress >= 1) {
+      const form = 10 + (sim.state.nextId % 89);
+      prayer.title = `Form ${form}-B: ${prayer.title}`;
+      prayer.description = `${prayer.description} (Submitted in triplicate.)`;
+      prayer.reward = Math.round(prayer.reward * 1.2);
+      if (prayer.expiresAt !== undefined) prayer.expiresAt += 30;
+    }
     return prayer;
   }
 
