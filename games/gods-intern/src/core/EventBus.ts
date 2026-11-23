@@ -80,6 +80,8 @@ export interface GameEvents {
   CHALLENGE_COMPLETED: { id: string; title: string; rewardText: string };
   CAMERA_VISIT: { villageId: string };
   PILGRIMAGE_COMPLETED: { villagerId: string; sacredId: string; fromId: string };
+  /** A believer finished praying/visiting at a sacred place (locals and pilgrims). */
+  SACRED_VISITED: { villagerId: string; sacredId: string; villageId: string };
   TUTORIAL_STEP: { step: number };
   POWERS_UNLOCKED: { powers: PowerId[] };
 }

@@ -172,7 +172,8 @@ export class ReligionSystem {
 
     // Founding followers: witnesses first, weighted by personality.
     const witnesses = (o.memory?.witnessIds ?? []).map((wid) => sim.villager(wid)).filter((v): v is VillagerData => !!v && v.alive);
-    const pool = witnesses.length >= 2 || !o.recruitFromVillage ? witnesses : sim.state.villagers.filter((v) => v.alive);
+    // v0.3: a faith is born in one village; extra recruits come from that village only.
+    const pool = witnesses.length >= 2 || !o.recruitFromVillage ? witnesses : sim.state.villagers.filter((v) => v.alive && v.villageId === religion.villageId);
     const ranked = [...pool].sort((x, y) => conversionWeight(y) + y.faith - (conversionWeight(x) + x.faith));
     for (const v of ranked) {
       if (v.religionId && v.religionId !== id) continue;
@@ -209,7 +210,7 @@ export class ReligionSystem {
     v.faith = Math.min(1, v.faith + 0.08);
     if (announce) this.sim.bus.emit('CONVERSION', { villagerId: v.id, religionId: religion.id });
     const village = sim.village(v.villageId);
-    if (elsewhere && !present && village && religion.active) sim.civ.announceSpread(religion, village, via);
+    if (announce && elsewhere && !present && village && religion.active) sim.civ.announceSpread(religion, village, via);
   }
 
   private pickLeader(r: Religion): void {

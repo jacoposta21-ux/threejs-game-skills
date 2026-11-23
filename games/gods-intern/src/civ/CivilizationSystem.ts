@@ -733,6 +733,7 @@ export class CivilizationSystem {
           sim.sacredSys.addSacredness(sacred, 0.8);
           sim.ai.pray(sim, v, sacred.x, sacred.z, 8);
           sim.bus.emit('PILGRIMAGE_COMPLETED', { villagerId: v.id, sacredId: sacred.id, fromId: plan.originId });
+          sim.bus.emit('SACRED_VISITED', { villagerId: v.id, sacredId: sacred.id, villageId: plan.originId });
           if (!sim.state.history.some((h) => h.title === 'The First Pilgrimage')) {
             sim.history.add('The First Pilgrimage', `${v.name} walked from ${sim.village(plan.originId)?.name} to pray at ${sacred.label}. Their feet have opinions.`, { kind: 'religion', villageId: host.id, x: sacred.x, z: sacred.z });
           }

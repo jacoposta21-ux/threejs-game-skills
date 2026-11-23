@@ -165,6 +165,7 @@ export function addSettlement(state: GameStateData, terrain: TerrainData, siteId
     }
     state.villagers.push(v);
   });
+  village.population = plan.jobs.length;
 
   // Clear any old trees standing where the new buildings and plaza are (older saves).
   for (const t of state.trees) {

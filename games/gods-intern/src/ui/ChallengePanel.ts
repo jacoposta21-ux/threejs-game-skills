@@ -81,7 +81,7 @@ export class ChallengePanel {
 
   /** Celebratory completion toast (non-blocking; clicks pass through). */
   celebrate(title: string, reward: string): void {
-    this.toast.innerHTML = `<div class="ct-burst" aria-hidden="true">${'<i></i>'.repeat(12)}</div><small>${icon('trophy')} Challenge complete</small><b>${escapeHtml(title)}</b><span>${escapeHtml(reward)}</span>`;
+    this.toast.innerHTML = `<div class="ct-burst" aria-hidden="true">${'<i></i>'.repeat(12)}</div><small>${icon('trophy')} Divine challenge completed!</small><b>${escapeHtml(title.toUpperCase())}</b><span>Reward: ${escapeHtml(reward)}</span>`;
     this.toast.classList.remove('hidden', 'leaving');
     void this.toast.offsetWidth;
     this.toast.classList.add('show');
@@ -159,7 +159,7 @@ export class ChallengePanel {
     const st = sim.challenges.state(d.id);
     const locked = st.status === 'locked';
     const pinned = sim.state.civ.pinned.includes(d.id);
-    const lockText = d.difficulty === 'medium' ? 'Unlocks after the tutorial' : 'Unlocks after completing any 3 challenges';
+    const lockText = d.difficulty === 'medium' ? 'Unlocks after the tutorial.' : 'Unlocks after completing any 3 challenges.';
     const rewards = [
       d.reward.energy ? `+${d.reward.energy} energy` : '',
       d.reward.approval ? `${d.reward.approval > 0 ? '+' : ''}${d.reward.approval} approval` : '',

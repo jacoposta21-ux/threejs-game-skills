@@ -299,6 +299,7 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
     civ: defaultCivState(),
   };
   // v0.3: Drizzleville and Rockbottom.
+  village.population = villagers.length;
   addSettlement(state, terrain, 'v2');
   addSettlement(state, terrain, 'v3');
   return state;

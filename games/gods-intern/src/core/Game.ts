@@ -208,7 +208,9 @@ export class Game {
       (dt, now, wall) => this.render(dt, now, wall),
       () => (this.paused || this.pausedForScreenshot || this.menus.open ? 0 : this.speed),
     );
-    this.installTestHooks();
+    // Test hooks can fast-forward the simulation and stage scenes, so they are only
+    // installed in development builds or when explicitly requested with ?test.
+    if (import.meta.env.DEV || this.params.has('test')) this.installTestHooks();
     this.resize();
   }
 

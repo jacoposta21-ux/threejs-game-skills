@@ -90,6 +90,7 @@ export class ChallengeSystem {
     for (const def of CHALLENGES) {
       const st = this.state(def.id);
       if (st.status === 'locked' || st.status === 'completed') continue;
+      def.tick?.(this.sim, st);
       for (const o of def.objectives) {
         if (o.kind !== 'duration' || !o.holds) continue;
         st.held = o.holds(this.sim) ? st.held + dt : 0;

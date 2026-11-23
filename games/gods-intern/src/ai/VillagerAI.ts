@@ -339,6 +339,7 @@ export class VillagerAI {
         if (sacred) {
           sacred.visits++;
           sim.sacredSys.addSacredness(sacred, 0.05);
+          if (v.religionId && (!sacred.religionId || sacred.religionId === v.religionId)) sim.bus.emit('SACRED_VISITED', { villagerId: v.id, sacredId: sacred.id, villageId: v.villageId });
         }
         v.faith = clamp01(v.faith + 0.03);
         break;
