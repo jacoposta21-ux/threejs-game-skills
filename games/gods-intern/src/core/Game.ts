@@ -281,7 +281,7 @@ export class Game {
     const v3 = (x: number, z: number, dy = 2) => new THREE.Vector3(x, this.sim.terrain.heightAt(x, z) + dy, z);
     const log = (s: string) => {
       this.eventLog.push(s);
-      if (this.eventLog.length > 40) this.eventLog.shift();
+      if (this.eventLog.length > 120) this.eventLog.shift();
     };
     this.unsubs.push(
       bus.on('NOTIFY', (e) => {
@@ -763,6 +763,9 @@ export class Game {
       sacred: s.sacred.length,
       quality: this.quality,
       simMs: this.simMs,
+      caravans: s.civ.caravans.length,
+      travellers: s.villagers.filter((p) => p.alive && p.travel).length,
+      rituals: s.religions.filter((r) => r.active && r.rituals.some((x) => x.activeUntil > s.time)).length,
     });
     this.publishDiagnostics(now);
   }
@@ -1237,6 +1240,13 @@ export class Game {
       elapsed: now,
       fps: Math.round(this.fps),
       timing: { frameCpuMs: +this.cpuMs.toFixed(2), renderSubmitMs: +this.glMs.toFixed(2), simMs: +this.simMs.toFixed(3) },
+      counts: {
+        villagers: s.villagers.filter((p) => p.alive).length,
+        caravans: s.civ.caravans.length,
+        travellers: s.villagers.filter((p) => p.alive && p.travel).length,
+        rituals: s.religions.filter((r) => r.active && r.rituals.some((x) => x.activeUntil > s.time)).length,
+        particles: this.vfx.glow.active + this.vfx.smoke.active + this.vfx.bits.active,
+      },
       quality: this.quality,
       paused: this.paused,
       selected: this.selected,

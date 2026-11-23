@@ -2,7 +2,13 @@
 
 > God is on vacation. You're in charge.
 
-**Version 0.2 — The Divine Absurdity Update.** The villagers now *remember* what you do,
+**Version 0.3 — The Divine Civilization Update.** Three villages now share the island:
+Puddleton (farmers), Drizzleville (river traders) and Rockbottom (miners). They trade,
+migrate, spread their faiths, form friendships and rivalries, and notice exactly how
+evenly you hand out miracles. Twenty optional Divine Challenges reward experimentation.
+See [What's new in 0.3](#whats-new-in-03).
+
+Version 0.2 (The Divine Absurdity Update) made villagers *remember* what you do,
 misunderstand it, found religions around it, decorate it, build monuments to it and hold
 festivals about it. See [What's new in 0.2](#whats-new-in-02).
 
@@ -36,7 +42,9 @@ Chromium with `PW_CHROMIUM_PATH=/path/to/chrome npm run test:e2e`.
 | Left click | Use the selected power / inspect in Look mode |
 | `1` `2` `3` `4` | Rain, Lightning, Nature, Fire |
 | `5` | Mutation (unlocks at 25 Chaos) |
-| `B` | The Book of Questionable Miracles (history, beliefs, sacred places) |
+| `B` | The Book of Questionable Miracles (history, civilization, beliefs, sacred places) |
+| `C` | Divine Challenges (filter by category, pin up to 3, choose your title) |
+| `V` | Villages: selector (click to fly there) and side-by-side comparison |
 | `` ` `` | Performance overlay (development builds, or any build with `?debug`) |
 | `0` / `Esc` | Look mode (hover villagers, click buildings) |
 | Right drag | Orbit camera |
@@ -111,6 +119,8 @@ villagers, and the cause stays visible in the world.*
 ```
 src/
   core/        Config, typed EventBus, seeded Rng, SpatialGrid, GameLoop (fixed step), Game (composition root), Settings
+  civ/         v0.3: CivilizationSystem (favor, diplomacy, trade, migration, visits, pilgrimages, spread),
+               Relations, ChallengeDefinitions (20), ChallengeSystem
   world/       TerrainGen (pure heightfield), WorldGen (initial state), Terrain/Water/Vegetation/Weather/Ambient/DayNightCycle (Three.js)
   simulation/  SimulationManager, EnvironmentSystem (moisture/flood/clouds/trees), FireSystem, VillageSystem, FaithSystem,
                ConsequenceSystem + ConsequenceDefinitions (data-driven rules)
@@ -222,7 +232,7 @@ and covered by `tests/unit/culture.test.ts`.
 
   Invalid targets cost nothing. Mutations persist in saves.
 - **The Book of Questionable Miracles** (`ui/HistoryBookPanel.ts`): a bounded, persisted
-  history (60 entries). Clicking an entry flies the camera there. It also has a Beliefs
+  history (80 entries since v0.3). Clicking an entry flies the camera there. It also has a Beliefs
   tab (the religion inspector) and a Sacred Places tab. Clickable pins mark sacred sites
   and open the sacred-object card.
 - **Notifications**: at most 2 prominent toasts, a priority queue, ×N grouping of
@@ -239,3 +249,166 @@ and covered by `tests/unit/culture.test.ts`.
 - **Saves**: version 2 with a v1→v2 migration (`persistence/Migrations.ts`). It fills
   traits deterministically from villager ids, generates rock entities from the terrain,
   and defaults all culture state.
+
+## What's new in 0.3
+
+The civilization layer lives in `src/civ/` (DOM-free, saved, and covered by
+`tests/unit/civilization.test.ts`). The village layouts are in `src/world/Settlements.ts`.
+
+### Three villages, three economies
+| Village | Culture | Start pop | Strengths | Weaknesses |
+| --- | --- | --- | --- | --- |
+| Puddleton | Farmers | 20 | Farms ×1.15 | Average at everything else |
+| Drizzleville | River traders (stilts, teal roofs, nets, boats, walkways) | 16 | Well refill ×1.6, fishery, open to trade and new faiths | Floods hurt crops ×1.5 |
+| Rockbottom | Miners (log cabins, quarry, mine carts, cairns, raised stone shrine) | 14 | Quarry stone, monuments ×1.35 sacredness | Farms ×0.6, stubborn about religion |
+
+- **Separate stores.** Every village has its own food, water, wood and stone, plus its own
+  well, storehouse, shrine and homes. Miners and fishers are new jobs.
+- **Village identity** (`VillageIdentity`): culture, openness, religious tolerance,
+  divine favor, preferred resources, dominant religion, and economic multipliers.
+- **Getting around.** A plank bridge crosses the river. Dirt roads follow the real A*
+  routes between plazas. The population is capped at 90.
+
+### Relationships (`civ/Relations.ts`)
+- **Scale and bands.** Scores run from −100 to 100: Allied ≥60, Friendly 20–59,
+  Neutral −19–19, Rival −59 to −20, Hostile ≤−60.
+- **Bounded changes.** A single cause moves a score by at most 6 points.
+- **Drift.** Every 5 s each relationship drifts (at most 0.5) toward a structural
+  target. The target rises with shared dominant faith (+25) and recent trade and aid. It
+  falls with different faiths (−18), theological rivalry, and unequal divine favor.
+- **Events.**
+  - Completed trades: +3.
+  - Aid: +6.
+  - Visits: +1.
+  - Cross-village theological arguments: −2.
+  - Favoritism: −5.
+  - Harm done next to a favored neighbour (envy): −1.
+- **Effects by band.**
+  - Trade appetite: allied ×1.6, friendly ×1.2, rival ×0.5. Hostile suspends trade.
+  - Friends send emergency aid and receive visitors.
+  - Rivals mock each other and push their shrines in a monument race.
+  - Allies join each other's festivals; rivals throw louder ones out of spite.
+  - Hostile villages spread propaganda, and visits and pilgrimages between them stop.
+  - There is no combat.
+
+### Trade (`CivilizationSystem.planTrade`)
+- **Planning.** Every 12 s (after the tutorial) the planner looks for the best
+  surplus→need exchange. Surplus is anything above 1.3× the comfort level. Need is
+  anything below comfort; preferred resources add appetite. At most 3 caravans travel at
+  once. The destination pays in something it has spare, preferably something the origin
+  wants.
+- **Caravans travel physically.** One or two merchants carry a crate coloured by the
+  cargo. They walk the A* route (over the bridge when needed), barter at the
+  destination's storehouse, and walk home.
+- **Conservation rules (tested).**
+  - Cargo leaves the origin's stock at departure.
+  - Cargo is added to the destination at arrival.
+  - Payment leaves the destination at the exchange and enters the origin's stock when
+    the last merchant is home.
+  - If merchants die, no route is found, or the trip exceeds 200 s, whatever the cart
+    carries goes back to its owner. Undelivered cargo and already-collected payment
+    both go to the origin.
+  - Amounts are clipped to available room at departure. Anything that no longer fits
+    at arrival stays on the cart and is refunded.
+- **Commentary.** Messages name the real amounts ("DRIZZLEVILLE TRADED 15 WATER FOR 6
+  WOOD."). After the 3rd trade, "PUDDLETON HAS INVENTED SHIPPING FEES." (+10% price).
+  Rich Puddleton starts "EXPORTING LUXURY CARROTS" (+30% food price).
+
+### Migration
+- **How often.** Every 30 s, with a global cooldown of 70 s, at most one adult considers
+  moving.
+- **Push score** (reasons to leave): unhappiness, hunger, thirst, fear, being a
+  religious minority in an intolerant village, and the potato situation.
+- **Pull score** (reasons to pick a destination): prosperity, happiness, openness, a
+  shared faith, and friendly relations.
+- **Blocked moves.** Nobody moves into a hostile village or a full one. No village
+  shrinks below 5 people.
+- **Same entity.** The migrant walks over with a bindle and changes village on arrival.
+  Name, traits, memories, faith, mutation and age are kept.
+
+### Religion across villages
+- **How faiths travel.** Merchants, visitors, migrants and pilgrims carry their faith.
+  Shared miracles convert witnesses too.
+- **Conversion odds** for a faith born elsewhere are scaled by (0.4 + local tolerance) ×
+  relationship factor (allied 1.4 … hostile 0.3). A village's dominant faith resists
+  newcomers.
+- **Spread events.** The first believer in a new village emits `RELIGION_SPREAD` and
+  writes history. Theological arguments between villages build rivalries.
+- **Pilgrimages.** Once a sacred place reaches stage 3, believers from other villages
+  make pilgrimages to it. Each one adds sacredness.
+
+### Divine favor and favoritism
+- **Recording.** Interventions are recorded per village, with positive and negative
+  tracked separately over a rolling 5-minute window. Approval is still tracked on its
+  own.
+  - Positive: rain on a needy village +6 (otherwise +2), Nature tree +2, rain putting
+    out a fire +4, answered prayer +10.
+  - Negative: ignored prayer −6, lightning nearby −4/−8/−10, your fire −4, flood after
+    your rain −8, destroyed building −8.
+- **Jealousy.** When one village's positive favor leads another's by 40 or more (with a
+  2-minute cooldown), the overlooked village files a complaint:
+  - "DRIZZLEVILLE HAS FILED A FORMAL COMPLAINT AGAINST HEAVEN."
+  - "ROCKBOTTOM BELIEVES GOD HAS A FAVORITE CHILD."
+  - "PUDDLETON DEMANDS EQUAL OPPORTUNITY MIRACLES."
+
+  Its happiness drops, relations with the favorite sour, it pours effort into its own
+  shrine, and it sends an *Equal Opportunity Miracles* prayer. That prayer completes
+  when it receives 15 favor.
+- **Resentment.** A village that takes most of the divine harm gains fear and loses
+  faith.
+
+### Divine Challenges (`civ/ChallengeDefinitions.ts`, `civ/ChallengeSystem.ts`, key `C`)
+Twenty optional challenges in five categories (Miracle, Civilization, Cultural, Chaos,
+Diplomacy):
+- **Easy (available from the start):** Let There Be Rain, Amateur Botanist,
+  Firefighter of the Year, The First Believers, Divine Tourist.
+- **Medium (after the tutorial):** The Rock Has Spoken, Golden Age, International
+  Relations, The Traveling Merchant, Cultural Exchange, New Neighbors, Equal
+  Opportunity God, The Great Pilgrimage, The Monumental Mistake.
+- **Hard (after any 3 completed):** Three Gods One Island, Diplomatic Disaster, The
+  Peace Treaty, The Golden Kingdom, The Divine Bureaucracy, The Worst Intern Ever.
+
+How progress and rewards work:
+- **What objectives read.** Every objective reads authoritative state (`state`), counts
+  real events (`counter`), or measures continuous time (`duration`).
+- **No pre-filling or farming.** Counters advance only while a challenge is unlocked
+  and not yet completed.
+- **Duration objectives reset to 0 when interrupted.** They do not pause.
+- **Rewards.** Energy, approval, chaos, cosmetic titles (Certified Rain Technician,
+  Supreme Rock Consultant, Divine Human Resources Manager, Assistant to the Regional
+  God, Employee of the Apocalypse, …) and cosmetics (Golden Lightning, Rainbow Rain, a
+  Statue of the Intern in Puddleton, a gold desk nameplate). History entries too.
+- **No duplicates.** Rewards are applied exactly once; a saved `rewardApplied` flag
+  guards them.
+- **Panel.** Filter by category and pin up to 3; pinned challenges show in a compact
+  widget. Pick your title. Completion shows a non-modal confetti toast: "DIVINE
+  CHALLENGE COMPLETED!"
+
+### Navigation and history
+- `V` opens the village selector, which flies the camera to a village, next to a compact
+  comparison table:
+  - population, food, water, wood, stone and prosperity;
+  - dominant religion;
+  - divine favor (+/−);
+  - emergencies;
+  - relationship meters;
+  - caravans on the road.
+- The Book has a new **Civilization** chapter: foundings, first trade, first migration,
+  faith spreads, alliances, rivalries, monuments and challenges. Clicking an entry flies
+  the camera there.
+- The performance overlay (`` ` ``) and `window.__THREE_GAME_DIAGNOSTICS__` now also
+  report caravans, travellers, rituals and particles.
+
+### Saves
+- **Version 3.** Older saves migrate deterministically. A v0.1 or v0.2 save keeps
+  Puddleton, its villagers, faiths, sacred places, mutations, memories, monuments,
+  history and resources.
+- **New villages in old saves.** Drizzleville and Rockbottom are founded exactly as in a
+  new world (same seed-derived layout). A "New Neighbors Arrived" entry is added to the
+  history.
+- **Persisted.** Identities, relationships, caravans in transit (with their cargo),
+  travellers mid-route, favor events, challenge progress, titles, cosmetics and pins.
+
+### Test hooks
+`window.__THREE_GAME_TEST_HOOKS__` is installed only in development builds or with
+`?test`. Production players cannot use it to fast-forward or complete challenges.

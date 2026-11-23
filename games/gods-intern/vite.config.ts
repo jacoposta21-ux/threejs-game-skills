@@ -13,6 +13,16 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
-    chunkSizeWarningLimit: 900,
+    // three.js (~85% of the bundle) goes in its own long-cacheable vendor chunk, so game
+    // updates do not re-download the engine. Both chunks load in parallel via modulepreload.
+    chunkSizeWarningLimit: 750,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules/three/')) return 'three';
+          return undefined;
+        },
+      },
+    },
   },
 });

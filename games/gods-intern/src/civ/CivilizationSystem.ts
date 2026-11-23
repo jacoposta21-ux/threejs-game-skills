@@ -110,7 +110,7 @@ export class CivilizationSystem {
     bus.on('TREE_PLANTED', (e) => {
       if (!e.byPlayer) return;
       const v = near(e.x, e.z, 20);
-      if (v) this.favor(v.id, 1.5, 'tree');
+      if (v) this.favor(v.id, 2, 'tree');
     });
     bus.on('FIRE_EXTINGUISHED', (e) => {
       if (!e.byRain) return;

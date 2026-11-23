@@ -1,157 +1,161 @@
-# God's Intern — verification report (v0.2, "The Divine Absurdity Update")
+# God's Intern — verification report (v0.3, "The Divine Civilization Update")
 
 All checks ran in a cloud Linux container **without a GPU**. Chromium rasterized with
-SwiftShader (software), so frame rates here are not representative: about 10–17 fps in
-software. Pixel checks, renderer counts, CPU timings, gameplay and UI checks are valid.
-**60 fps on a real GPU has not been measured** (see Known limitations).
+SwiftShader (software), so frame rates measured here are **not** representative. The
+pixel checks, renderer counts, CPU/simulation timings and gameplay/UI checks are valid.
+**60 FPS on a typical desktop GPU has not been measured.** It is a target, not a
+verified result. The v0.2 report is kept in [`VERIFICATION-v0.2.md`](VERIFICATION-v0.2.md).
 
-## Baseline before changes (v0.1, commit `b7ccfac`)
+## Baseline before v0.3 (v0.2 + single-file build, commit `064d6af`)
 
 | Check | Result |
 | --- | --- |
 | `npx tsc --noEmit` | ✅ clean |
-| `npm run test:unit` | ✅ 22/22 |
-| `npm run build` | ✅ |
-| Real-input playtest (`tests/e2e/playtest.spec.ts`) | ✅ (last run on the same commit) |
+| Unit tests | ✅ 55/55 |
+| Production bundle | JS 868.98 kB (247.46 kB gzip), one chunk |
 
-## Results after v0.2
+## Results after v0.3
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Typecheck | `npx tsc --noEmit` | ✅ no errors |
-| Unit tests | `npm run test:unit` | ✅ **55/55** (22 existing + 33 new culture tests), ~4 s |
-| Production build | `npm run build` | ✅ JS 869 kB (247 kB gzip), CSS 73 kB |
-| Production runtime | `vite preview` + Chromium | ✅ 0 console errors, **0 external requests**, no page scroll, perf overlay hidden by default |
-| v0.1 real-input playtest | `tests/e2e/playtest.spec.ts` | ✅ still passes on v0.2 code (4.8 min) |
-| v0.2 real-input playthrough | `tests/e2e/culture.spec.ts` | ✅ passes (4.4 min) |
-| Canvas inspector | `npm run inspect:canvas -- --manifest artifacts/evidence.json` | ✅ 13/13 states PASS, render budget OK |
-| Evidence manifest | `check_evidence.py --manifest artifacts/evidence.json` | ✅ 13 captures confirmed |
-| UI at 1920×1080, 1366×768, 1280×720 | scripted capture with overlap check | ✅ no panel overlaps, no horizontal scroll, 0 errors |
+| Typecheck (src + tests) | `npx tsc --noEmit -p .` | ✅ no errors |
+| Unit tests | `npm run test:unit` | ✅ **76/76**: 55 existing + 21 new in `tests/unit/civilization.test.ts` (~8 s) |
+| v0.1 real-input playtest | `tests/e2e/playtest.spec.ts` | ✅ passes (5.2 min), after one test-timing fix (see below) |
+| v0.2 real-input playthrough | `tests/e2e/culture.spec.ts` | ✅ passes unchanged (4.5 min) |
+| **v0.3 playthrough** | `tests/e2e/civilization.spec.ts` | ✅ passes (9.6 min) |
+| Canvas inspector | `node scripts/inspect-threejs-canvas.mjs --manifest artifacts/evidence.json --url "http://127.0.0.1:5188/?fresh=1&quality=high" --seed 42` | ✅ **19/19** states PASS, render budget ok. The 13 v0.2 states plus `civilization`, `trade`, `rockbottom`, `drizzleville`, `villages` and `challenges` |
+| Evidence manifest | `python3 ../../skills/threejs-game-director/scripts/check_evidence.py . --manifest artifacts/evidence.json` | ✅ 19 captures confirmed (run `v03-pass-1`) |
+| Production build | `npm run build` | ✅ two chunks (see Bundle) |
+| Single-file build | `npm run build:single` → `dist-single/index.html` | ✅ 1.34 MB. Loads from `file://` with 0 console errors and 0 external requests; 3 villages populated; test hooks absent |
 
-Regressions found and fixed during v0.2:
+## New unit tests mapped to the requested list
 
-- **Save round-trip non-determinism.** Speech-line selection consumed the gameplay RNG,
-  so a restored save diverged. Speech now uses a hash.
-- **Religion forming from a single event.** A religion formed from the very first
-  tutorial rain. Belief pressure now caps the witness factor, so a faith needs repeated
-  events, and no religion can form during the tutorial.
-- **Sacred site not tied to the struck object.** A religion founded by pressure wasn't
-  linked to the entity involved. Memories now carry `targetEntityId` into the sacred object.
-- **Plaza rock next to the blue house.** Lightning on the plaza rock also damaged the
-  house. The rock was moved.
-- **Different religions grouped as one toast.** Grouping merged "A NEW RELIGION!" toasts
-  for different faiths. Grouping now keys on title plus subtitle.
-- **Department of Miracles ignored the event gap.** It could fire right after another
-  major event. It now respects the 40-second gap.
-
-## New unit tests (`tests/unit/culture.test.ts`), mapped to the requested list
-
-| # | Requested | Test(s) |
+| # | Requested | Test |
 | --- | --- | --- |
-| 1 | Divine memory creation | *records witnessed events with witness ids…* |
-| 2 | Witness detection | *only counts villagers that are in range, alive and awake* |
-| 3 | Memory persistence | *decays ordinary memories, keeps permanent ones, and survives save/load*; *keeps the memory list bounded* |
-| 4 | Religion formation thresholds | *needs enough belief pressure and witnesses…* |
-| 5 | Religion deduplication | *deduplicates by archetype, keeps names unique and caps active religions* |
-| 6 | Sacred object lifecycle | *progress from gathering to decorations, shrine and monument through villager work*; *caps… and reacts when one is destroyed* |
-| 7 | Ritual scheduling | *schedules each ritual once per day at its time and applies its effect* |
-| 8 | Surreal event conditions | One test per event, A through L |
-| 9 | Event cooldowns | *respects cooldowns and the gap between major events* |
-| 10 | Mutation target validation | *validates targets and never charges for invalid ones*; *…rejects repeats* |
-| 11 | Mutation persistence | *mutations persist through save and load* |
-| 12 | Personality effects | *skeptics resist conversion…*; *cowards flee a fire the brave stay near*; *every villager has 1–2 compatible traits* |
-| 13 | History storage limits | *bounds the history book and collapses same-day duplicates* |
-| 14 | Notification queue limits | *shows at most two notifications, groups duplicates and prioritizes* |
-| 15 | v0.1 save migration | *loads a version 0.1 save and fills every new field* |
-| — | Three religions via different triggers | Rock King (lightning on a rock), Holy Tree (a fire put out by rain), Golden Tree (mutation) |
-| — | Long-run stability | 20-minute culture soak: all collections bounded, population stable |
+| 1 | Village initialization | `1.` three villages; 20/16/14 villagers; distinct identities; styled buildings; quarry and fishery; relations for each pair; overland routes between all villages |
+| 2 | Resource independence | `2.` a soaked well raises only its own village's water; a miner's stone goes only to Rockbottom |
+| 3 | Relationship calculations | `3.` changes are bounded per cause and clamped to ±100; negative causes are recorded; shared faith versus split faith (Δ43); recent trade raises the target |
+| 4 | Relationship thresholds | `4.` exact category boundaries; `RELATIONSHIP_CHANGED` fires only on transitions |
+| 5 | Trade eligibility | `5.` surplus→need deal; hostile pairs suspended; no deal without surplus; aid only between friends in an emergency |
+| 6 | Resource conservation | `6.` full physical round trip over the bridge with production frozen; totals (including goods on the road) are checked every simulated second |
+| 7 | Trade interruption | `7.` merchants die outbound → cargo refunded; die inbound → payment still reaches the origin; save/load mid-trip → completes with no duplicates |
+| 8 | Migration eligibility | `8.` push and pull scores; hostile or full destinations refused; cooldown; villages of ≤5 never lose people |
+| 9 | Migration completion | `9 & 10.` the villager physically walks to Rockbottom and is rehomed there; populations update |
+| 10 | Identity preservation | `9 & 10.` the same object keeps its id, name, traits, memories, mutation and age; no duplicates |
+| 11 | Cross-village religion spreading | `11.` a travelling believer converts someone in Drizzleville → exactly one `RELIGION_SPREAD`; relations scale conversion (allied > 4× hostile) |
+| 12 | Religious rivalry | `12.` an argument across villages costs −2 and adds a rivalry; different dominant faiths drift relations down |
+| 13 | Divine favor calculations | `13.` real rain and lightning produce +/− favor; separate sums; rolling window; balance clamp; bounded log |
+| 14 | Favoritism detection | `14.` complaint text, Equal Treatment prayer, relation penalty, cooldown; the prayer completes on real favor |
+| 15 | Challenge unlocking | `15.` easy → medium after the tutorial → hard after 3 real completions |
+| 16 | Challenge progress | `16.` locked challenges ignore events; progress is read from player-grown trees |
+| 17 | Challenge completion | `17, 18 & 19.` Divine Tourist completes from camera dwell; one `CHALLENGE_COMPLETED` |
+| 18 | Reward application | same test: energy, approval, title, selected title, history |
+| 19 | Duplicate reward prevention | same test: re-apply, re-emit and keep updating → no change; completed challenges can't be pinned |
+| 20 | Duration-based challenges | `20.` Equal Opportunity: time accumulates, **resets** on imbalance, then completes after 120 s |
+| 21 | Challenge persistence | `21.` status, `rewardApplied`, held seconds, titles, pins and visited survive save/load; no re-grant |
+| 22 | Save migration from v0.2 | `22.` Puddleton villagers, religion, sacred place and history kept; 16+14 settlers added; ids unique; idempotent on re-save |
+| 23 | Save migration from v0.1 | `23.` same through v1→v2→v3 |
+| 24 | Long-running stability | `24.` 30 simulated minutes with an intervention every minute: caps, bounds, finite values, unique ids, ≥1 trade, no village wiped out |
 
-## Browser playthrough (`tests/e2e/culture.spec.ts`)
+## Browser playthrough (`tests/e2e/civilization.spec.ts`)
 
-Everything uses real keyboard and mouse input, with one documented exception.
+Real mouse and keyboard drive navigation, the village selector, the challenge panel,
+filters, pins, the settings menu, divine powers, the Book, and save/reload/load.
 
-1. **Start and tutorial.** Fresh profile. Press `1`, click the well, and the thirst
-   prayer is answered. Rain again, the village floods, and the tutorial completes.
-2. **Religious event.** Press `2`, click the plaza rock, and `surreal:rock-king` fires:
-   the rock is crowned, *The Brotherhood of His Rocky Majesty* is founded with 11
-   followers, and the sacred object *His Rocky Majesty* is created.
-3. **Sacred object.** Clicking its pin opens the sacred-object card.
-4. **Mutation.** The `grantChaos(30)` test hook unlocks Mutation deterministically
-   (gameplay Chaos alone depends on fire spread). This is the one non-input step. Press
-   `5`, click a visible tree, and it turns golden; *The Cult of the Shiny Bark* forms.
-5. **History book.** Open it with its button. It contains "A Rock Was Crowned King" and
-   "A Tree Turned to Gold". The Beliefs tab renders. Clicking an entry focuses the
-   camera, and `Esc` closes the book.
-6. **Save and reload.** Save from the menu, **navigate to a fresh page load**, and Load
-   from the menu.
-7. **Persistence confirmed.** The rock is still crowned and the tree still golden.
-   Religions, sacred labels, history length and mutation count are all identical.
-8. **No errors.** 0 console errors and 0 page errors.
+| Requested | How it is verified | Run result |
+| --- | --- | --- |
+| All three villages render | diagnostics show 3 populated villages and ≥6 buildings each; the inspector captures `rockbottom`, `drizzleville` and `civilization` pass the pixel checks | ✅ |
+| Villagers move autonomously | real time, 6 s, no fast-forward: positions compared, movers in ≥2 villages | ✅ 15 moved (pre-dawn start) |
+| Camera navigation | hold `D` → camera pans; `V` → click each village chip → camera arrives within 8 units | ✅ |
+| A challenge progresses and completes | Divine Tourist via real navigation → toast "DIVINE TOURIST"; title shown in the profile | ✅ |
+| Rewards applied once | `rewardApplied`, a single title entry, no repeated completion events | ✅ |
+| Divine favoritism produces a reaction | 22 trees planted with real clicks around Puddleton → `FAVORITISM` → the jealous village complains and an Equal Opportunity prayer appears | ✅ Drizzleville complained (Puddleton favor 40) |
+| A trade expedition completes | merchants seen walking in real time, then fast-forward until a trade completes | ✅ after 45 simulated s |
+| A relationship changes / a villager migrates / a religion spreads | religion founded with a real lightning click on the plaza rock; then fast-forward until a category change, a migration and a spread | ✅ within 150 simulated s: Drizzleville↔Rockbottom became Friendly; 2 migrations; 2 faith spreads; 8 trades |
+| History records it | Book → Civilization tab shows the summary, "The First Trade" and "Was Founded" | ✅ |
+| Save/load preserves the new systems | menu Save → reload page → Load: relations, challenges, titles, pins, stats, caravans, villager count and unique ids equal | ✅ |
+| No runtime errors | console and page errors collected for the whole run | ✅ 0 |
 
-History recorded in that run:
-Day 1, in order: The Shrine Was Expanded, The Brotherhood of His Rocky Majesty Was
-Founded, A Rock Was Crowned King, The Intern Discovered Mutation, A Tree Turned to Gold,
-The Cult of the Shiny Bark Was Founded, The Golden Tree.
+By the end of the run, 8 challenges had completed naturally:
+- Amateur Botanist, The First Believers and Divine Tourist;
+- International Relations, The Traveling Merchant, Cultural Exchange, New Neighbors and The Great Pilgrimage.
 
-## Visual evidence (desktop 1280×720, run `v02-pass-1`)
+Screenshots and metrics are in `artifacts/playtest-v03/`.
 
-| State | Entropy (bits) | Edge density | Contrast | Budget |
+### Test shortcuts (all reported)
+- **Skipped tutorial.** `?skipTutorial=1` starts after the tutorial; the tutorial is
+  covered by the other two specs.
+- **Fast-forward.** `simulate(seconds)` advances the real fixed-step simulation for slow
+  social processes: trade round trips, migration, religious spread and relationship
+  drift. Same code path, just more steps per frame.
+- **Starting a trade.** The spec first follows a caravan the villages started on their
+  own. Only if none is on the road does it call `planTrade()`, which runs the real
+  planner immediately instead of after its 12 s timer.
+- **Unlimited energy.** Turned on through the real Settings menu so energy does not cap
+  the tree-planting spree.
+- **Unit tests stage some conditions directly.** Examples: setting stock levels, moving
+  a preacher next to Drizzleville, freezing production to isolate trade conservation,
+  and favor calls for the duration test. The mechanics under test (planner, AI travel,
+  conversion, detection, challenge tracking) always run unmodified.
+- **v0.1 spec change.** `playtest.spec.ts` now accepts the `FLASH FLOOD!` notification
+  (emitted only at flood ≥ 0.25) as an alternative to sampling the flood level. With
+  three villages, software rendering is slower and diagnostics sample less often, so
+  the flood peak (0.56 measured headless) fell between samples; the notification was
+  on screen in the failure capture.
+
+## Bundle
+
+| | Before (v0.2) | After (v0.3) |
+| --- | --- | --- |
+| JavaScript | 868.98 kB / 247.46 kB gzip, 1 chunk | **948.6 kB / 273.6 kB gzip** in 2 chunks: `index` 380.8 kB (129.0 gzip) + `three` 567.9 kB (144.6 gzip) |
+| CSS | — | 43.4 kB (9.7 kB gzip) |
+
+- **Why it grew.** About +80 kB of new game code (civilization systems, challenges,
+  panels, settlements, decor).
+- **The split.** three.js was split into its own vendor chunk with `manualChunks`. The
+  entry `modulepreload`s it, so both load in parallel. Engine bytes stay cached across
+  game updates, and no single chunk exceeds 600 kB.
+- **Lazy loading was investigated and not adopted.**
+  - three.js is needed for the first frame.
+  - The new panels are a few kB each.
+  - `lil-gui` is not imported at all.
+  - Deferring a few kB of UI would add a loading path without a measurable win, so it
+    was not done (reliability over size).
+
+## Performance observations (SwiftShader, 1280×720, high quality)
+
+| State | Draw calls | Triangles | Sim ms/step (avg, browser) | Frame CPU ms |
 | --- | --- | --- | --- | --- |
-| active-play | 6.34 | 0.407 | 180 | ok |
-| tutorial | 6.71 | 0.403 | 201 | ok |
-| rain | 6.63 | 0.411 | 184 | ok |
-| forest-fire | 6.58 | 0.422 | 195 | ok |
-| flood | 6.54 | 0.401 | 186 | ok |
-| night | 5.89 | 0.387 | 220 | ok |
-| overview | 5.40 | 0.305 | 152 | ok |
-| inspector | 6.39 | 0.416 | 183 | ok |
-| **religion** | 6.41 | 0.393 | 192 | ok |
-| **monuments** | 6.54 | 0.460 | 191 | ok |
-| **mutations** | 6.46 | 0.379 | 192 | ok |
-| **culture-events** | 6.55 | 0.392 | 183 | ok |
-| **book** | 6.21 | 0.406 | 197 | ok |
+| active-play (Puddleton) | 95 | 248k | 0.62 | 3.3 |
+| civilization (whole island, 2 caravans, 4 travellers) | 124 | 256k | 0.65 | 3.0 |
+| overview | 122 | 256k | 0.79 | 2.8 |
+| rockbottom close-up | 69 | 241k | 0.36 | 3.0 |
 
-These are in `docs/screenshots/`, along with the v0.2 playthrough frames
-(`v02-playthrough-*.jpg`) and the 1920×1080 and 1366×768 layouts.
-
-## Performance observations
-
-| Scene | Draw calls | Triangles | JS per frame | Sim per step | Render submit (software GL) |
-| --- | --- | --- | --- | --- | --- |
-| Fresh start (production build) | 65 | 210k | — | — | — |
-| Busiest scene: every monument and the festival, low quality | 104 | 202k | 3.4 ms | 0.12 ms | 5.8 ms |
-| Busiest scene, high quality | 116 | 218k | 2.7 ms | 0.16 ms | 7.7 ms |
-
-- **JavaScript cost is small.** About 3 ms per frame on the main thread, and a fixed
-  20 Hz simulation step of 0.1–0.2 ms, including all culture systems.
-- **Draw calls rose from 56 to 65–116.** New batches were added, and empty instanced
-  batches are now hidden so they cost nothing. Desktop budget is 300.
-- **Everything new is bounded:**
-  - culture rendering is about 40 instanced batches, rebuilt from state each frame;
-  - memories ≤ 80, history ≤ 60, sacred objects ≤ 10, active religions ≤ 4, decorations ≤ 8 each;
-  - active fires ≤ 70, the notification queue ≤ 6, visible speech bubbles ≤ 3.
-- **Pacing (headless, 30 simulated minutes):**
-  - *Idle player:* the Great Silence fires at 10.6 minutes, with 0.8 notifications per minute.
-  - *Chaotic player:* surreal events and new religions arrive in spaced bursts (no two
-    major events within 40 seconds), four religions form over 20 minutes, monuments
-    complete after about 15 minutes, and notifications average 2.6 per minute.
-- **Dev overlay.** Press backquote in development builds, or add `?debug` to any build.
-  It shows FPS, draw calls, triangles, simulation milliseconds, villagers, fires,
-  particles, religions, sacred objects, memories and active events. Hidden by default.
+- **Simulation cost in Node.** A headless 20-minute three-village run took about
+  0.05 ms per 20 Hz step on average (max about 6 ms during A* path bursts). The browser
+  numbers above include instrumentation.
+- **Where the time goes.** Frame time in this container is dominated by software
+  rasterization (`renderSubmitMs` 20–27 ms); CPU-side work is about 3 ms per frame.
+- **Limits.**
+  - Population is capped at 90.
+  - At most 3 caravans and 4 active religions.
+  - At most 1 migration per 70 s.
+  - Diplomacy updates every 5 s; favoritism checks every 5 s.
+  - The favor log is bounded to 240 events.
+  - History is bounded to 80 entries.
+- **Staggering.** Challenge checks run every 0.5 s (durations per tick). All are
+  staggered and cheap.
+- **New monitoring.** `window.__THREE_GAME_DIAGNOSTICS__.counts` and the `` ` `` overlay
+  now report villagers, caravans, travellers, rituals and particles.
 
 ## Known limitations
-
-- **Real-GPU 60 fps is unverified.** The container renders in software only.
-- **Mutation in the browser test needed a Chaos hook** (`grantChaos`). In real play,
-  Chaos comes from lightning, fire, floods, religions and mutations.
-- **Religions are flavourful but simple.** Arguments are nonviolent and short;
-  conversion is probabilistic with the seeded RNG; there are no inter-faith politics yet.
-- **Monuments and decorations are procedural low-poly models.** The eight monument
-  styles share one building pipeline, and decoration placement follows a fixed ring
-  pattern around the sacred object.
-- **Speech is limited to short canned lines.** They're chosen by event and personality,
-  not generated.
-- **Still one populated village.** Belief, memory and sacred systems are keyed per village
-  and ready for more.
-- **CrazyGames SDK is still not integrated.** Only the platform boundary exists.
-- **The JS bundle is 869 kB** (247 kB gzip) and could be code-split.
+- **Frame rate.** Real-GPU FPS not measured; 60 FPS is unverified.
+- **Mobile.** Mobile layout was checked only by CSS breakpoints. The new panels are
+  usable at narrow widths but were not tested on a touch device.
+- **Village-specific events.** Some v0.2 surreal events and the Department of Miracles
+  remain Puddleton-centred by design. They now trigger prayers only for Puddleton.
+- **Long challenges.** Several hard challenges (The Golden Kingdom, The Worst Intern
+  Ever, The Peace Treaty, Diplomatic Disaster) are reachable through normal mechanics
+  but take long, deliberate play. Their objectives are covered by the unit-tested
+  tracking machinery, not each by an end-to-end run.
+- **CrazyGames SDK.** Still not integrated; see the README.

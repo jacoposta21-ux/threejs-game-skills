@@ -13,6 +13,9 @@ export interface PerfSample {
   sacred: number;
   quality: string;
   simMs: number;
+  caravans: number;
+  travellers: number;
+  rituals: number;
 }
 
 /**
@@ -47,6 +50,6 @@ export class PerfOverlay {
     this.root.innerHTML =
       row('FPS', Math.round(s.fps)) + row('Quality', s.quality) + row('Draw calls', s.calls) + row('Triangles', `${Math.round(s.triangles / 1000)}k`) +
       row('Sim ms/frame', s.simMs.toFixed(2)) + row('Villagers', s.villagers) + row('Fires', s.fires) + row('Particles', s.particles) +
-      row('Religions', s.religions) + row('Sacred', s.sacred) + row('Memories', s.memories) + row('Active events', s.events);
+      row('Caravans', s.caravans) + row('Travellers', s.travellers) + row('Rituals', s.rituals) + row('Religions', s.religions) + row('Sacred', s.sacred) + row('Memories', s.memories) + row('Active events', s.events);
   }
 }

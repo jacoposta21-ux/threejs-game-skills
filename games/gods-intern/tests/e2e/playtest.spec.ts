@@ -121,7 +121,14 @@ test('first minute, powers, consequences and UI through real input', async ({ pa
   // --- Too much rain: a second cloud floods the village and ends the tutorial.
   await expect.poll(async () => (await diag(page)).sim.clouds, { timeout: 20_000 }).toBe(0);
   await clickWorld(page, well.x, well.z);
-  await expect.poll(async () => (await diag(page)).sim.flood, { timeout: 30_000 }).toBeGreaterThan(0.25);
+  // The flood peak can fall between diagnostic samples on slow software rendering, so accept
+  // either the sampled level or the FLOOD_STARTED notification (emitted only at level ≥ 0.25).
+  await expect
+    .poll(async () => {
+      const d = await diag(page);
+      return d.sim.flood > 0.25 || d.events.some((e: string) => e.startsWith('notify:FLASH FLOOD'));
+    }, { timeout: 30_000 })
+    .toBe(true);
   await expect.poll(async () => (await diag(page)).events.join('|')).toContain('god:');
   await shot('03-flood');
   await expect.poll(async () => (await diag(page)).tutorial.done, { timeout: 120_000 }).toBe(true);
