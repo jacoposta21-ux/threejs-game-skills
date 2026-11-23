@@ -1,0 +1,43 @@
+import type { PrayerData, VillageData, VillagerData } from '../core/types';
+import type { Simulation } from '../simulation/SimulationManager';
+import type { MissionDefinition } from './MissionDefinitions';
+
+/** Builds prayer records and picks the villager who carries the prayer to the shrine. */
+export class PrayerGenerator {
+  private counter = 0;
+
+  create(sim: Simulation, def: MissionDefinition, village: VillageData): PrayerData {
+    this.counter = Math.max(this.counter, sim.state.prayers.length) + 1;
+    const prayer: PrayerData = {
+      id: `prayer-${sim.nextId()}`,
+      title: def.title,
+      description: def.description,
+      objective: def.objective,
+      villageId: village.id,
+      type: def.type,
+      priority: def.priority,
+      status: 'active',
+      createdAt: sim.state.time,
+      expiresAt: sim.state.time + def.expiry,
+      reward: def.reward.energy,
+      progress: 0,
+      targetX: village.centerX,
+      targetZ: village.centerZ,
+      data: { approvalReward: def.reward.approval },
+    };
+    def.init?.(sim, village, prayer);
+    return prayer;
+  }
+
+  /** The most faithful available villager walks to the shrine and pleads. */
+  pickMessenger(sim: Simulation, village: VillageData): VillagerData | null {
+    let best: VillagerData | null = null;
+    for (const v of sim.state.villagers) {
+      if (!v.alive || v.villageId !== village.id || v.age < 10) continue;
+      const st = v.currentTask.state;
+      if (st === 'FLEEING' || st === 'PRAYING' || (st === 'RESTING' && v.currentTask.arrived)) continue;
+      if (!best || v.faith > best.faith) best = v;
+    }
+    return best;
+  }
+}

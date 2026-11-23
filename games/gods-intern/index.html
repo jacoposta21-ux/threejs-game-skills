@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#1d2747" />
+    <meta name="description" content="God is on vacation. You're in charge. A 3D god sandbox about divine incompetence." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cellipse cx='16' cy='9' rx='11' ry='4' fill='none' stroke='%23f2c14e' stroke-width='3'/%3E%3Ccircle cx='16' cy='21' r='8' fill='%231d2747'/%3E%3C/svg%3E" />
+    <title>God's Intern</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="game-canvas" aria-label="God's Intern island" tabindex="0"></canvas>
+      <div id="screen-flash"></div>
+      <div id="world-labels"></div>
+
+      <header id="hud" class="ui">
+        <div class="hud-left">
+          <div class="brand" title="God's Intern">
+            <span class="brand-halo"></span>
+            <div>
+              <strong>GOD'S INTERN</strong>
+              <small>Temporary Divine Management</small>
+            </div>
+          </div>
+          <div class="chip clock" id="hud-clock" title="Day and time">
+            <span class="clock-icon" id="hud-clock-icon"></span>
+            <span><b id="hud-day">Day 1</b><em id="hud-time">07:12</em></span>
+          </div>
+          <div class="chip" id="hud-pop" title="Population">
+            <span class="chip-icon" data-icon="people"></span><b id="hud-pop-value">20</b>
+          </div>
+        </div>
+        <div class="hud-center">
+          <div class="meter energy" id="hud-energy" title="Divine Energy — regenerates over time">
+            <span class="meter-icon" data-icon="energy"></span>
+            <div class="meter-body">
+              <div class="meter-label"><span>Divine Energy</span><b id="hud-energy-value">100</b></div>
+              <div class="bar"><i id="hud-energy-bar"></i><s id="hud-energy-ghost"></s></div>
+            </div>
+          </div>
+          <div class="meter approval" id="hud-approval" title="God's Approval — helpfulness">
+            <span class="meter-icon" data-icon="halo"></span>
+            <div class="meter-body">
+              <div class="meter-label"><span>Approval</span><b id="hud-approval-value">50</b></div>
+              <div class="bar"><i id="hud-approval-bar"></i></div>
+            </div>
+          </div>
+          <div class="meter chaos" id="hud-chaos" title="Chaos Reputation — unpredictability">
+            <span class="meter-icon" data-icon="chaos"></span>
+            <div class="meter-body">
+              <div class="meter-label"><span>Chaos</span><b id="hud-chaos-value">0</b></div>
+              <div class="bar"><i id="hud-chaos-bar"></i></div>
+            </div>
+          </div>
+        </div>
+        <div class="hud-right">
+          <button class="icon-btn" id="btn-speed" type="button" title="Simulation speed (F)"><span data-icon="speed"></span><b id="speed-label">1×</b></button>
+          <button class="icon-btn" id="btn-pause" type="button" title="Pause (Space)"><span data-icon="pause"></span></button>
+          <button class="icon-btn" id="btn-settings" type="button" title="Menu (Esc)"><span data-icon="gear"></span></button>
+        </div>
+      </header>
+
+      <div id="notifications" class="ui" aria-live="polite"></div>
+      <div id="god-memo" class="ui" aria-live="assertive"></div>
+
+      <aside id="prayer-panel" class="ui panel">
+        <button class="panel-head" id="prayer-toggle" type="button" aria-expanded="true">
+          <span class="panel-title"><span data-icon="faith"></span>Prayer Inbox <b id="prayer-count">0</b></span>
+          <span class="chev" data-icon="chevron"></span>
+        </button>
+        <div class="panel-body" id="prayer-list"></div>
+      </aside>
+
+      <aside id="inspector" class="ui panel hidden" aria-live="polite"></aside>
+
+      <nav id="toolbar" class="ui" aria-label="Divine powers"></nav>
+      <div id="tool-tip" class="ui hidden"></div>
+      <div id="cursor-toast" class="hidden"></div>
+      <div id="villager-tip" class="hidden"></div>
+
+      <div id="tutorial-title" class="hidden"></div>
+      <div id="tutorial-hint" class="ui hidden"></div>
+      <button id="tutorial-skip" class="ui hidden" type="button">Skip tutorial</button>
+
+      <div id="paused-badge" class="hidden"><span data-icon="pause"></span> PAUSED</div>
+
+      <div id="modal-root" class="hidden"></div>
+
+      <div id="loading">
+        <div class="loading-card">
+          <span class="brand-halo big"></span>
+          <h1>GOD'S INTERN</h1>
+          <p>Generating universe…</p>
+          <div class="loading-bar"><i></i></div>
+        </div>
+      </div>
+      <noscript>God's Intern needs JavaScript and WebGL.</noscript>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
