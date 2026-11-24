@@ -119,7 +119,12 @@ export class PossessionSystem {
     const nx = v.position.x + p.dirX * speed * dt;
     const nz = v.position.z + p.dirZ * speed * dt;
     v.heading = Math.atan2(p.dirX, p.dirZ);
-    if (sim.pathfinding.isWalkable(nx, nz) && !sim.buildingAt(nx, nz, 0.2)) {
+    // Blocked by walls and buildings, but always allowed to step *away* from one
+    // (villagers often stand inside a building's footprint radius, e.g. at the well).
+    const b = sim.buildingAt(nx, nz, 0.2);
+    const escaping = !!b && Math.hypot(nx - b.x, nz - b.z) > Math.hypot(v.position.x - b.x, v.position.z - b.z);
+    const walkable = sim.pathfinding.isWalkable(nx, nz) || (!sim.pathfinding.isWalkable(v.position.x, v.position.z) && sim.terrain.isLand(nx, nz));
+    if (walkable && (!b || escaping)) {
       v.position.x = nx;
       v.position.z = nz;
       v.position.y = sim.terrain.walkHeightAt(nx, nz);

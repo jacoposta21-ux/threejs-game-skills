@@ -187,7 +187,7 @@ export class Simulation {
   step(dt: number): void {
     const s = this.state;
     s.time += dt;
-    if (this.unlimitedEnergy && s.mode === 'creative') s.energy = CONFIG.energy.max;
+    if (this.unlimitedEnergy) s.energy = CONFIG.energy.max; // engine flag; the Game only enables it in Creative Mode
     else s.energy = Math.min(CONFIG.energy.max, s.energy + CONFIG.energy.regen * (this.career.overtimeActive() ? CONFIG.career.overtime.regenMult : 1) * dt);
     for (const key of Object.keys(s.cooldowns) as Array<keyof typeof s.cooldowns>) {
       s.cooldowns[key] = Math.max(0, s.cooldowns[key] - dt);
