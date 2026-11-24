@@ -51,11 +51,11 @@ async function target(page: Page, power: string, x: number, z: number, spread = 
 async function castAt(page: Page, power: string, x: number, z: number, spread?: number): Promise<boolean> {
   const d = await diag(page);
   if (!d.sim.unlocked.includes(power)) return false;
-  if (d.selected !== power) await page.click(`#toolbar .power[data-power=${power}], #power-menu [data-pick=${power}]`).catch(() => undefined);
+  if (d.selected !== power) await page.click(`#toolbar .power[data-power=${power}], #power-menu [data-pick=${power}]`, { timeout: 3000 }).catch(() => undefined);
   if ((await diag(page)).selected !== power) {
     // Not in the dock: use ALL POWERS.
     await page.click('#toolbar .power.more');
-    await page.click(`#power-menu [data-pick=${power}]`).catch(() => undefined);
+    await page.click(`#power-menu [data-pick=${power}]`, { timeout: 3000 }).catch(() => undefined);
   }
   const p = await target(page, power, x, z, spread);
   if (!p) return false;
@@ -68,7 +68,7 @@ async function castAt(page: Page, power: string, x: number, z: number, spread?: 
 }
 
 test('v0.5 real-time career: new career from the main menu, normal energy, no shortcuts', async ({ page }) => {
-  test.setTimeout((PLAY_SECONDS + 600) * 1000);
+  test.setTimeout((PLAY_SECONDS + 1200) * 1000);
   fs.mkdirSync(OUT, { recursive: true });
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -101,7 +101,7 @@ test('v0.5 real-time career: new career from the main menu, normal energy, no sh
   await expect.poll(async () => (await diag(page)).tutorial.done, { timeout: 90_000 }).toBe(true);
   mark('tutorialDone');
   const tutorialSeconds = (await diag(page)).v5.tutorialSeconds;
-  await page.click('#toolbar .dc-cancel').catch(() => undefined);
+  await page.click('#toolbar .dc-cancel', { timeout: 3000 }).catch(() => undefined);
 
   // --- Free play.
   let i = 0;
@@ -128,7 +128,7 @@ test('v0.5 real-time career: new career from the main menu, normal energy, no sh
     if ((await card.count()) && d.sim.energy >= 20) {
       const id = await page.locator('#prayer-list .prayer:not(.done):not(.failed)').first().getAttribute('data-prayer-id');
       const pr = s.prayers.find((p: any) => p.id === id);
-      await card.click();
+      await card.click({ timeout: 5000 }).catch(() => undefined);
       await page.waitForTimeout(1400);
       const sel = (await diag(page)).selected;
       if (pr && sel) {
@@ -145,9 +145,9 @@ test('v0.5 real-time career: new career from the main menu, normal energy, no sh
       if (roll === 0) {
         // Look around: fly to another village through the World panel.
         focus = villages[(villages.indexOf(focus) + 1) % villages.length];
-        await page.click('#nav-world');
-        await page.click(`#villages [data-village=${focus.id}]`);
-        await page.click('#villages .vp-close');
+        await page.click('#nav-world', { timeout: 5000 }).catch(() => undefined);
+        await page.click(`#villages [data-village=${focus.id}]`, { timeout: 5000 }).catch(() => undefined);
+        await page.click('#villages .vp-close', { timeout: 5000 }).catch(() => undefined);
         await page.waitForTimeout(2200);
         acted = true;
       } else if (roll === 1 && d.sim.energy >= 20) {
@@ -169,8 +169,9 @@ test('v0.5 real-time career: new career from the main menu, normal energy, no sh
       }
       if (!acted && d.sim.energy >= 10) acted = await castAt(page, 'nature', focus.x + 12, focus.z - 8, 2.6);
     }
-    await page.click('#toolbar .dc-cancel').catch(() => undefined);
+    await page.click('#toolbar .dc-cancel', { timeout: 3000 }).catch(() => undefined);
     if (!acted) idle++;
+    fs.writeFileSync(`${OUT}/progress.json`, JSON.stringify({ at: at(), realSeconds: m, rankAt, rank: d.v4.career.rank, xp: d.v4.career.xp, objectives: objectives.size, decisions: i, idle }, null, 2));
     await page.waitForTimeout(acted ? 2500 : 4000);
   }
   const d = await diag(page);

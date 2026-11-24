@@ -97,8 +97,8 @@ test('first minute, powers, consequences and UI through real input', async ({ pa
   await expect.poll(async () => (await diag(page)).events.join('|')).toContain('speech:PLEASE! WE NEED WATER!');
   await expect(page.locator('.power[data-power=rain]')).toHaveClass(/highlight/);
   // v0.5: the four starter powers are in the dock from the start; Mutation is visibly locked.
-  await expect(page.locator('.power[data-power=fire]')).not.toHaveClass(/locked/);
-  await expect(page.locator('.power[data-power=mutation]')).toHaveClass(/locked/);
+  await expect(page.locator('.power[data-power=fire]')).not.toHaveClass(/(^| )locked( |$)/);
+  await expect(page.locator('.power[data-power=mutation]')).toHaveClass(/(^| )locked( |$)/);
   await shot('01-tutorial-prayer');
 
   // Locked powers refuse selection.

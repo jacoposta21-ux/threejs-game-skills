@@ -2,6 +2,22 @@
 
 > God is on vacation. You're in charge.
 
+**Version 0.5 — Less UI, More God (final pre-launch).** The game is easier to read and
+paces its unlocks properly:
+- **A calmer screen.** Four indicators at the top (Energy, Career, Approval, Chaos), a
+  power dock at the bottom, a navigation rail on the left (World, Career, Challenges,
+  History) and prayers on the right.
+- **Clear targeting.** Select a power and a bar tells you what to click, whether the
+  target is valid, and shows Raise/Lower or Accelerate/Slow buttons and a **Cancel**
+  button.
+- **A rebalanced career.** Four powers at the start; Mutation in about 5–10 minutes,
+  Tornado in about 10–15, and the rest over several hours. There is no more rank-skipping
+  from early bonuses.
+- **A short onboarding** (about 30 seconds), contextual tips, a main menu, Possession
+  touch controls and a reduced-motion setting.
+
+See [What's new in 0.5](#whats-new-in-05).
+
 **Version 0.4 — The Heavenly Polish Update.** You now have a career:
 - **Promotions.** Earn Divine Experience and climb from *Unpaid Intern* to *God of
   Questionable Decisions*.
@@ -39,38 +55,30 @@ npm run test:unit  # simulation unit tests (vitest, no browser)
 npm run test:e2e   # real-input browser playtest (Playwright)
 ```
 
-URL flags (handy for testing): `?fresh` ignores the autosave, `?tutorial` forces the
-tutorial, `?skipTutorial` skips it, `?quality=low|medium|high` pins graphics quality.
+The game opens on the main menu. URL flags (handy for testing) skip it: `?play`
+continues the saved world, `?fresh` starts a new world, `?tutorial` forces the onboarding,
+`?skipTutorial` skips it, and `?quality=low|medium|high` pins graphics quality.
 
 If Playwright's own browser download isn't available, point the e2e run at an installed
 Chromium with `PW_CHROMIUM_PATH=/path/to/chrome npm run test:e2e`.
 
 ## Controls
 
+Everything works with the mouse or touch alone; keys are optional shortcuts.
+
 | Input | Action |
 | --- | --- |
-| Left click | Use the selected power / inspect in Look mode |
-| `1`–`6` | Quick power slots (assign any power in the power menu) |
-| `G` / `Tab` | All 13 powers, by category (Creation, Weather, Destruction, Reality, Life) |
-| `T` | Terraform raise/lower · Time Warp fast/slow |
-| `J` | Heavenly Career (rank path, Heaven's inbox, Divine Overtime) |
-| `O` | Divine Overtime (rank 10) |
-| `K` / `H` | Cinematic mode / screenshot mode (any key exits) |
-| `P` | Pause menu (also `Esc`) · Career ↔ Creative Mode |
-| Possession | `WASD` or tap to walk · `E` interact · `Q` leave |
-| Touch | Tap to cast or inspect · one-finger drag pans · pinch zooms · twist rotates |
-| `B` | The Book of Questionable Miracles (history, civilization, beliefs, sacred places) |
-| `C` | Divine Challenges (filter by category, pin up to 3, choose your title) |
-| `V` | Villages: selector (click to fly there) and side-by-side comparison |
-| `` ` `` | Performance overlay (development builds, or any build with `?debug`) |
-| `0` / `Esc` | Look mode (hover villagers, click buildings) |
-| Right drag | Orbit camera |
-| Wheel | Zoom |
-| `W` `A` `S` `D` / arrows / middle drag | Pan |
-| `Q` / `E` | Spin camera |
-| `Space` | Pause / resume |
-| `F` | Simulation speed 1× / 2× / 3× |
-| `Esc` | Close panel → deselect → pause menu |
+| Click a power in the dock | Select it; the bar above the dock says what to click |
+| Click the island | Cast the selected power · with no power selected: inspect what you clicked |
+| **Cancel** button / `Esc` | Put the power away |
+| **ALL POWERS** / `G` | Every power by category: what it does, how to use it, how to unlock it; put any power in any dock slot |
+| Rail: World / Career / Challenges / History | One panel at a time; click the island to close it |
+| Prayer card: Focus / suggested power | Fly there / pick the usual fix (you still cast it) |
+| Top bar: Energy, Approval, Chaos | Click for an explanation |
+| Drag · right-drag · wheel | Pan · rotate · zoom |
+| Touch | Tap to cast or inspect · drag pans · pinch zooms · twist rotates |
+| Possession | On-screen pad, **Interact** and **Leave body** buttons (or `WASD`, `E`, `Q`) |
+| Optional keys | `1`–`7` dock · `T` power mode · `V` `J` `C` `B` panels · `Space` pause · `F` speed · `P` menu · `K`/`H` cinematic/screenshot |
 
 ## Design brief
 
@@ -186,10 +194,14 @@ an energy and approval reward. There's one active prayer per type per village an
 
 ## CrazyGames
 
-`src/platform/Platform.ts` is the integration boundary, and gameplay calls only that
-interface. The official SDK docs could not be reached while this was built, so **no SDK
-calls are made yet**. Implement a `GamePlatform` against the current official docs before
-enabling it. The build has no external runtime requests and needs no login or keys.
+`src/platform/Platform.ts` implements CrazyGames HTML5 SDK v3. It uses:
+- lifecycle: `init`, `loadingStart`/`loadingStop`, `gameplayStart`/`gameplayStop`;
+- `happytime` (rate-limited);
+- the `muteAudio` setting.
+
+The SDK script loads only when hosted on CrazyGames (or with `?platform=crazygames`).
+Standalone builds make no external requests. There are no ads; Basic Launch disallows
+them. See [docs/SUBMISSION-CHECKLIST.md](docs/SUBMISSION-CHECKLIST.md).
 
 ## What's new in 0.2
 
@@ -583,3 +595,67 @@ docs.crazygames.com:
   or `local`, so standalone play makes no external requests.
 - No ads are implemented.
 - `P` opens the menu because CrazyGames discourages relying on `Esc`.
+
+## What's new in 0.5
+
+### Interface (`src/ui/`)
+- **HUD** (`HUD.ts`): Energy (current/max, refill timer, cost preview), Career,
+  Approval and Chaos, each with a word as well as a number. Approval and Chaos explain
+  themselves when clicked.
+- **Navigation rail**: World, Career, Challenges and History, plus Help, Menu, Pause and
+  Speed. One side panel at a time. Clicking the island closes the panel, and that click
+  does nothing else. Labels collapse to icons on small screens.
+- **Power dock** (`PowerToolbar.ts`): 7 slots (6 on narrow screens). Each slot shows icon,
+  name and cost, plus its state in words ("Locked", "Need 20", "2.4s"). The targeting bar
+  shows how to use the power, whether the target is valid, mode buttons and **Cancel**.
+- **All Powers**: Creation, Weather, Destruction and Reality, each power with what it
+  does, how to use it, its unlock requirement and progress, and its mastery goals. A
+  "Put in dock" button assigns slots by mouse or touch. Combos stay secret.
+- **World** (`VillagePanel.ts`):
+  - a card per village with a plain-language headline ("Drizzleville is running out of
+    food.");
+  - happiness and prosperity, divine favor and dominant religion;
+  - expandable resources; clicking a card flies there;
+  - diplomacy in words, religion distribution, caravans.
+- **Inspector** (`VillageInspector.ts`):
+  - villagers: activity in plain words, mood, personality, religion, needs and memories,
+    and "Follow with camera";
+  - buildings, sacred objects and monuments (with their origin), villages, caravans
+    (through their merchants) and disaster sites.
+- **Prayers** (`PrayerPanel.ts`): two cards at most, the rest in an inbox. Each card says
+  who asks, what they want, the suggested power, the reward (XP and energy) and the
+  urgency.
+- **Notifications** (`Notifications.ts`): three tiers. Critical stays longer; important
+  is short; ambient is one quiet line. Repeats are grouped.
+- **Main menu** (`MainMenu.ts`): over the living island, with Continue (only with a
+  career save), New Career, Creative Mode and Settings. It asks before overwriting a
+  career.
+- **Onboarding** (`Tutorial.ts`): about 30 seconds, with no skip. Contextual tips
+  (`Tips.ts`) appear once each and are listed under Help.
+- **Settings**: Reduced motion and Camera shake are new. Unlimited energy and reduced
+  cooldowns appear only in Creative Mode.
+
+### Career rebalance (`src/career/`, `CONFIG.career`)
+- Every XP source is in one table, `CONFIG.career.xp`, with the v0.4 values in comments.
+  `docs/VERIFICATION.md` has the before/after table.
+- First use of a power now gives +5 energy instead of XP. Challenges, discoveries,
+  consequences and religions are worth less.
+- Promotions refill energy, raise Approval and add the rank title.
+- Mutation unlocks at the "probation review" (620 XP), or sooner with high Chaos.
+- **Mastery** (`Mastery.ts`): 22 optional goals across the 13 powers, detected from
+  existing events. Benevolent and chaotic goals are mixed.
+- Thresholds are fitted to deterministic headless bots (`tests/progression/`).
+
+### Saves (version 5)
+v4 saves migrate without demotion. The rank and every unlocked power are kept, and XP is
+raised to the new threshold of the rank already held. No promotion is replayed. Quick
+slots grow from 6 to 7.
+
+### Tests
+- `tests/unit/progression.test.ts`: pacing bots and the v4 → v5 migration.
+- `tests/progression/run.test.ts` (opt-in, `PROGRESSION=1`): 5-hour bot report.
+- `tests/progression/stability.test.ts` (opt-in, `STABILITY=1`): 75-minute accelerated
+  stability run.
+- `tests/e2e/v05-visual.spec.ts`: the 20 verification screenshots, layout collision
+  checks and the possession touch pad.
+- `tests/e2e/v05-career.spec.ts`: real-time Career playthrough with no shortcuts.

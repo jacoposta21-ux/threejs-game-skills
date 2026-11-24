@@ -80,7 +80,7 @@ test('v0.2: tutorial, a crowned rock, mutation, the history book, and persistenc
   await page.keyboard.press('Escape');
 
   // --- Mutation: v0.5 unlocks it at the career "probation review" (test hook grants that XP deterministically).
-  await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.grantXp(620));
+  await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.grantXp(700));
   await expect.poll(async () => (await diag(page)).sim.unlocked, { timeout: 30_000 }).toContain('mutation');
   // A grown tree that is on screen, clear of the HUD, with no villager close enough to be picked instead.
   const tree = await page.evaluate(() => {

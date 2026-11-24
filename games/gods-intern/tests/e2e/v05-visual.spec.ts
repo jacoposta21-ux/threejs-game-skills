@@ -236,7 +236,10 @@ async function mobile(browser: Browser, name: string, file: string, possess: boo
     const box = (await up.boundingBox())!;
     const cdp = await ctx.newCDPSession(page);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2, id: 1 }] });
-    await page.waitForTimeout(1500);
+    await expect.poll(async () => {
+      const now = await page.evaluate((v) => (window as any).__GI_STATE__().villagers.find((x: any) => x.id === v).position, id);
+      return Math.hypot(now.x - before.x, now.z - before.z);
+    }, { timeout: 20_000 }).toBeGreaterThan(0.5);
     await shot(page, '19-possession-touch.png', 'Possession: on-screen pad, Interact and Leave', 'possess() hook to start');
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     const after = await page.evaluate((v) => (window as any).__GI_STATE__().villagers.find((x: any) => x.id === v).position, id);

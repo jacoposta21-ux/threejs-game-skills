@@ -49,7 +49,7 @@ export const CONFIG = {
     // large one-time rewards that unlocked several ranks in the first few minutes).
     thresholds: [0, 880, 1150, 1420, 1650, 2000, 2500, 3200, 4000, 5000],
     /** Mutation unlocks at this XP (a "probation review") or at its Chaos threshold, whichever comes first. */
-    mutationXp: 620,
+    mutationXp: 700,
     /** Every XP source in one place (audit table in docs/VERIFICATION.md). v0.4 values in comments. */
     xp: {
       training: 10, // 25

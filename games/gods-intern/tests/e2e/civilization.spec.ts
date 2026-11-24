@@ -178,21 +178,18 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
   expect(planted).toBeGreaterThanOrEqual(20);
   report.treesPlanted = planted;
   await page.keyboard.press('Digit0');
-  let favLine = '';
+  // The FAVORITISM event can scroll out of the 120-line diagnostics log during the planting
+  // loop, so v0.5 checks its lasting result in the state: an Equal Opportunity prayer from a
+  // jealous village (and the complaint in the log when it is still there).
   let complaint = '';
   await expect
     .poll(async () => {
-      const ev = (await diag(page)).events;
-      favLine ||= ev.find((e) => e.startsWith('favoritism:')) ?? '';
-      complaint ||= ev.find((e) => /FORMAL COMPLAINT AGAINST HEAVEN|FAVORITE CHILD/.test(e)) ?? '';
-      return favLine;
-    }, { timeout: 40_000 })
-    .toContain('favoritism:jealousy');
-  const jealous = favLine.split(':')[2];
+      complaint ||= (await diag(page)).events.find((e) => /favoritism:jealousy|FORMAL COMPLAINT AGAINST HEAVEN|FAVORITE CHILD/.test(e)) ?? '';
+      return (await state(page)).prayers.some((q: any) => q.type === 'EQUAL_TREATMENT');
+    }, { timeout: 60_000 })
+    .toBe(true);
+  const jealous = (await state(page)).prayers.find((q: any) => q.type === 'EQUAL_TREATMENT').villageId;
   expect(['v2', 'v3']).toContain(jealous);
-  expect(complaint).not.toBe('');
-  // v0.5 shows two prayer cards and keeps the rest in the inbox, so check the prayer itself.
-  await expect.poll(async () => (await diag(page)).sim.prayers).toContain('EQUAL_TREATMENT');
   d = await diag(page);
   report.favoritism = { jealous, puddletonFavor: d.civ.villages[0].favorPos };
   await shot('04-favoritism');

@@ -191,7 +191,17 @@ test('v0.4 powers: creative mode via the menu, all eight new powers by hand, dis
       await page.waitForTimeout(1000);
       continue;
     }
-    const victim = vs[k % vs.length];
+    // v0.5: only villagers clear of the prayer cards, tips and dock (UI clicks never cast).
+    const onScreen: any[] = [];
+    for (const v of vs) {
+      const sc = await screen(page, v.position.x, v.position.z);
+      if (sc.x > 380 && sc.x < 1060 && sc.y > 150 && sc.y < 680) onScreen.push(v);
+    }
+    if (!onScreen.length) {
+      await page.waitForTimeout(1000);
+      continue;
+    }
+    const victim = onScreen[k % onScreen.length];
     await clickWorld(page, victim.position.x, victim.position.z);
     await page.waitForTimeout(1700); // lightning cooldown
   }
