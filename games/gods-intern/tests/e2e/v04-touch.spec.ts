@@ -96,6 +96,11 @@ test('v0.4 touch: tap, cast, pan, pinch, rotate and the power menu in mobile lan
 
   // Inspect by tap in Look mode (no hover needed).
   await page.locator('#toolbar .power.inspect').tap();
+  // Fly back to Puddleton with the village selector (touch), then tap its well.
+  await page.locator('#btn-villages').tap();
+  await page.locator('#villages [data-village=v1]').tap();
+  await page.locator('#btn-villages').tap();
+  await page.waitForTimeout(2500);
   const p2 = await page.evaluate(([x, z]) => window.__THREE_GAME_TEST_HOOKS__!.worldToScreen(x, z), [well.x, well.z + 0.5] as const);
   await page.touchscreen.tap(p2.x, p2.y);
   await expect(page.locator('#inspector')).toBeVisible({ timeout: 10_000 });

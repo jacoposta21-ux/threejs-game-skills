@@ -57,7 +57,7 @@ async function castNear(page: Page, power: string, x: number, z: number, tries =
       const h = window.__THREE_GAME_TEST_HOOKS__!;
       for (let k = 0; k < (n as number); k++) {
         const a = k * 2.4;
-        const r = k * 0.6;
+        const r = Math.sqrt(k) * 2.2;
         const cx = (px as number) + Math.cos(a) * r;
         const cz = (pz as number) + Math.sin(a) * r;
         const sc = h.worldToScreen(cx, cz);
@@ -120,12 +120,24 @@ test('v0.4 powers: creative mode via the menu, all eight new powers by hand, dis
   await shot('10-tornado');
 
   // --- Freeze on a burning tree (Fire first, then Freeze): Cold Reception territory.
-  const tree = s.trees.find((t: any) => !t.removed && t.growth >= 1 && !t.golden && Math.hypot(t.x - P.centerX, t.z - P.centerZ) > 16 && Math.hypot(t.x - P.centerX, t.z - P.centerZ) < 26);
+  // A grown tree that is on screen (clear of the HUD), not too close to the houses.
+  const tree = await page.evaluate(([cx, cz]) => {
+    const st = (window as any).__GI_STATE__();
+    const h = window.__THREE_GAME_TEST_HOOKS__!;
+    return st.trees.find((t: any) => {
+      if (t.removed || t.growth < 1 || t.golden || t.charred) return false;
+      const d = Math.hypot(t.x - cx, t.z - cz);
+      if (d < 12 || d > 30) return false;
+      const sc = h.worldToScreen(t.x, t.z);
+      return sc.x > 380 && sc.x < innerWidth - 380 && sc.y > 160 && sc.y < innerHeight - 220;
+    });
+  }, [P.centerX, P.centerZ] as const);
+  expect(tree).toBeTruthy();
   await page.keyboard.press('Digit4');
   await clickWorld(page, tree.x, tree.z);
   await page.waitForTimeout(1500);
   await pick(page, 'freeze');
-  await castNear(page, 'freeze', tree.x, tree.z, 8);
+  await castNear(page, 'freeze', tree.x, tree.z, 30);
   await expect.poll(async () => (await diag(page)).v4.discoveries, { timeout: 15_000 }).toContain('steam-thaw');
   await page.waitForTimeout(1500);
   await shot('11-freeze');
@@ -148,19 +160,19 @@ test('v0.4 powers: creative mode via the menu, all eight new powers by hand, dis
   await focus(page, 'v3');
   await pick(page, 'terraform');
   const edits0 = (await diag(page)).v4.terrainEdits;
-  const hill = await castNear(page, 'terraform', R.centerX + 20, R.centerZ + 12);
+  const hill = await castNear(page, 'terraform', R.centerX, R.centerZ, 400);
   await page.waitForTimeout(1300); // cooldown
   await clickWorld(page, hill.x, hill.z);
   await page.keyboard.press('KeyT');
   await expect(page.locator('.mode-chip')).toContainText('Lower');
   await page.waitForTimeout(1300);
-  await castNear(page, 'terraform', hill.x - 10, hill.z + 6);
+  await castNear(page, 'terraform', hill.x, hill.z, 400);
   await expect.poll(async () => (await diag(page)).v4.terrainEdits).toBeGreaterThanOrEqual(edits0 + 2);
   await shot('14-terraform');
 
   // --- Meteor (with its warning) far from the plaza.
   await pick(page, 'meteor');
-  await castNear(page, 'meteor', R.centerX + 18, R.centerZ - 14);
+  await castNear(page, 'meteor', R.centerX + 10, R.centerZ - 8, 400);
   await page.waitForTimeout(1200);
   await shot('15-meteor-warning');
   await expect.poll(async () => (await diag(page)).events.join('|'), { timeout: 20_000 }).toContain('meteor:');
@@ -170,11 +182,18 @@ test('v0.4 powers: creative mode via the menu, all eight new powers by hand, dis
   // --- A real death (lightning on a villager), then Resurrection on the grave.
   await focus(page, 'v1');
   await page.keyboard.press('Digit2');
-  for (let k = 0; k < 12 && (await diag(page)).v4.graves === 0; k++) {
-    const vs = (await state(page)).villagers.filter((v: any) => v.alive && v.villageId === 'v1');
+  for (let k = 0; k < 30 && (await diag(page)).v4.graves === 0; k++) {
+    // A villager standing still (working, praying or idling at a spot), so the strike lands on them.
+    const vs = (await state(page)).villagers.filter(
+      (v: any) => v.alive && v.villageId === 'v1' && v.currentTask.arrived && v.currentTask.state !== 'RESTING' && v.currentTask.state !== 'FLEEING' && v.currentTask.timer > 1.5,
+    );
+    if (!vs.length) {
+      await page.waitForTimeout(1000);
+      continue;
+    }
     const victim = vs[k % vs.length];
     await clickWorld(page, victim.position.x, victim.position.z);
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(1700); // lightning cooldown
   }
   expect((await diag(page)).v4.graves).toBeGreaterThan(0);
   const grave = (await state(page)).graveyard[0];
