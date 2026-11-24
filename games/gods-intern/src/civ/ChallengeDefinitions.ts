@@ -63,6 +63,10 @@ export const COSMETIC_LABEL: Record<string, string> = {
   'rainbow-rain': 'Rainbow Rain',
   'intern-statue': 'Statue of the Intern',
   'gold-nameplate': 'Gold Desk Nameplate',
+  'employee-plaque': 'Employee of the Month Plaque',
+  'cosmic-aura': 'Cosmic Aura',
+  'golden-badge': 'Golden Career Badge',
+  'god-monument': 'Monument of the Intern',
 };
 
 /** The twenty divine challenges. Every objective reads real simulation state or real events. */
@@ -329,6 +333,149 @@ export const CHALLENGES: ChallengeDefinition[] = [
       { id: 'alive', label: 'Villages still functioning', target: 3, kind: 'state', value: (sim) => sim.state.villages.filter((v) => v.population >= 5 && v.prosperity >= 0.35).length },
     ],
     reward: { chaos: 5, approval: -5, title: 'Employee of the Apocalypse' },
+  },
+  // ======================= v0.4 (new powers and career) =======================
+  {
+    id: 'wind-management',
+    title: 'Wind Management',
+    description: 'Hit a village with a Tornado, then let it recover: no destroyed buildings and everything repaired.',
+    category: 'Miracle',
+    difficulty: 'medium',
+    unlock: (sim) => sim.state.unlockedPowers.includes('tornado'),
+    objectives: [{ id: 'recovered', label: 'Villages recovered after a tornado', target: 1, kind: 'counter' }],
+    reward: { energy: 30, approval: 6, title: 'Certified Wind Manager' },
+    on: {
+      TORNADO_DAMAGE: (sim, e, st) => {
+        const v = nearVillage(sim, e.x, e.z, 10);
+        if (v && e.buildings > 0) st.counters[`hit:${v.id}`] = sim.state.time;
+      },
+    },
+    tick: (sim, st) => {
+      for (const key of Object.keys(st.counters)) {
+        if (!key.startsWith('hit:')) continue;
+        const id = key.slice(4);
+        if (sim.state.time - st.counters[key] < 10) continue; // the storm must have passed
+        if (sim.state.effects.some((e) => e.kind === 'tornado')) continue;
+        const owned = sim.state.buildings.filter((b) => b.villageId === id);
+        if (owned.every((b) => !b.destroyed && b.health >= 95)) {
+          delete st.counters[key];
+          bump(st, 'recovered');
+        } else if (sim.state.time - st.counters[key] > 900) delete st.counters[key];
+      }
+    },
+  },
+  {
+    id: 'cold-reception',
+    title: 'Cold Reception',
+    description: 'Put out a fire with Freeze.',
+    category: 'Miracle',
+    difficulty: 'medium',
+    unlock: (sim) => sim.state.unlockedPowers.includes('freeze'),
+    objectives: [{ id: 'frozen', label: 'Fires put out by frost', target: 1, kind: 'counter' }],
+    reward: { energy: 25, approval: 3, title: 'Chief Refrigeration Officer' },
+    on: { FIRE_EXTINGUISHED: (_sim, e, st) => e.byFreeze && bump(st, 'frozen') },
+  },
+  {
+    id: 'unqualified-astronaut',
+    title: 'Unqualified Astronaut',
+    description: 'Levitate five different villagers with Gravity.',
+    category: 'Chaos',
+    difficulty: 'medium',
+    unlock: (sim) => sim.state.unlockedPowers.includes('gravity'),
+    objectives: [{ id: 'floaters', label: 'Villagers levitated', target: 5, kind: 'counter' }],
+    reward: { chaos: 5, energy: 25, title: 'Head of Space Program (Unaccredited)' },
+    on: {
+      VILLAGER_LEVITATED: (_sim, e, st) => {
+        if (st.counters[`v:${e.villagerId}`]) return;
+        st.counters[`v:${e.villagerId}`] = 1;
+        bump(st, 'floaters');
+      },
+    },
+  },
+  {
+    id: 'department-geography',
+    title: 'Department of Geography',
+    description: 'Successfully reshape the land with Terraform three times.',
+    category: 'Civilization',
+    difficulty: 'medium',
+    unlock: (sim) => sim.state.unlockedPowers.includes('terraform'),
+    objectives: [{ id: 'edits', label: 'Terrain changes', target: 3, kind: 'counter' }],
+    reward: { energy: 25, approval: 3, title: 'Regional Cartographer' },
+    on: { POWER_USED: (_sim, e, st) => e.power === 'terraform' && bump(st, 'edits') },
+  },
+  {
+    id: 'time-suggestion',
+    title: 'Time Is a Suggestion',
+    description: 'Let villagers finish construction work inside a fast Time Warp.',
+    category: 'Civilization',
+    difficulty: 'medium',
+    unlock: (sim) => sim.state.unlockedPowers.includes('timewarp'),
+    objectives: [{ id: 'built', label: 'Construction finished in fast time', target: 1, kind: 'counter' }],
+    reward: { energy: 30, approval: 4, title: 'Temporal Project Manager' },
+    on: { CONSTRUCTION_IN_WARP: (_sim, _e, st) => bump(st, 'built') },
+  },
+  {
+    id: 'employee-of-the-month',
+    title: 'Employee of the Month',
+    description: 'Reach Career Rank 5: Regional Deity.',
+    category: 'Civilization',
+    difficulty: 'medium',
+    objectives: [{ id: 'rank', label: 'Career rank', target: 5, kind: 'state', value: (sim) => sim.state.career.rank }],
+    reward: { energy: 30, approval: 5, cosmetic: 'employee-plaque' },
+  },
+  {
+    id: 'undercover-management',
+    title: 'Undercover Management',
+    description: 'Possess a villager and walk them into another village.',
+    category: 'Diplomacy',
+    difficulty: 'medium',
+    unlock: (sim) => sim.state.unlockedPowers.includes('possession'),
+    objectives: [{ id: 'visit', label: 'Foreign villages visited while possessing', target: 1, kind: 'counter' }],
+    reward: { energy: 30, approval: 4, title: 'Undercover Boss' },
+    on: {
+      POSSESSED_VISIT: (sim, e, st) => {
+        if (sim.villager(e.villagerId)?.villageId !== e.villageId) bump(st, 'visit');
+      },
+    },
+  },
+  {
+    id: 'big-rock-problem',
+    title: 'The Big Rock Problem',
+    description: 'A meteor becomes culture: its fragment turns sacred or a faith forms around it.',
+    category: 'Cultural',
+    difficulty: 'medium',
+    unlock: (sim) => sim.state.unlockedPowers.includes('meteor'),
+    objectives: [{ id: 'cult', label: 'Meteor-born cultural events', target: 1, kind: 'counter' }],
+    reward: { chaos: 8, approval: 3, title: 'Director of Astronomical Incidents' },
+    on: {
+      RELIGION_FOUNDED: (_sim, e, st) => e.religion.archetype === 'meteor' && bump(st, 'cult'),
+      SACRED_CREATED: (sim, e, st) => {
+        if (e.sacred.kind === 'rock' && sim.state.rocks[e.sacred.targetId]?.meteorite) bump(st, 'cult');
+      },
+    },
+  },
+  {
+    id: 'clerical-error',
+    title: 'Death Was a Clerical Error',
+    description: 'Resurrect a villager.',
+    category: 'Cultural',
+    difficulty: 'medium',
+    unlock: (sim) => sim.state.unlockedPowers.includes('resurrection'),
+    objectives: [{ id: 'revived', label: 'Villagers resurrected', target: 1, kind: 'counter' }],
+    reward: { approval: 8, energy: 30, title: 'Head of Paperwork Corrections' },
+    on: { VILLAGER_RESURRECTED: (_sim, _e, st) => bump(st, 'revived') },
+  },
+  {
+    id: 'gods-worst-nightmare',
+    title: "God's Worst Nightmare",
+    description: 'Reach Career Rank 10 while all three villages still have at least 5 people.',
+    category: 'Chaos',
+    difficulty: 'hard',
+    objectives: [
+      { id: 'rank', label: 'Career rank', target: 10, kind: 'state', value: (sim) => sim.state.career.rank },
+      { id: 'alive', label: 'Villages still active', target: 3, kind: 'state', value: (sim) => sim.state.villages.filter((v) => v.population >= 5).length },
+    ],
+    reward: { chaos: 10, approval: 10, title: 'Permanent Replacement' },
   },
 ];
 

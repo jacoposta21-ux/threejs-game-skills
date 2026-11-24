@@ -1,6 +1,6 @@
-import { BASIC_POWERS, CONFIG } from '../core/Config';
+import { BASIC_POWERS, CONFIG, POWER_ORDER, type PowerId } from '../core/Config';
 import { rollTraits } from '../culture/Personality';
-import { defaultCivState, defaultCulture } from '../persistence/Migrations';
+import { defaultCivState, defaultCulture, defaultV4State } from '../persistence/Migrations';
 import { addSettlement, identityFor } from './Settlements';
 import { FOOTPRINT } from './Footprints';
 import { Rng } from '../core/Rng';
@@ -17,7 +17,7 @@ import type {
 } from '../core/types';
 import { fbm, TerrainData, WATER_NONE } from './TerrainGen';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 const FIRST_NAMES = [
   'Gary', 'Brenda', 'Kevin', 'Doris', 'Nigel', 'Mildred', 'Barnaby', 'Agatha', 'Dave', 'Gertrude',
@@ -254,7 +254,7 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
     time: CONFIG.time.dayLength * CONFIG.time.startTimeOfDay,
     nextId,
     energy: CONFIG.energy.start,
-    cooldowns: { rain: 0, lightning: 0, nature: 0, fire: 0, mutation: 0 },
+    cooldowns: Object.fromEntries(POWER_ORDER.map((id) => [id, 0])) as Record<PowerId, number>,
     unlockedPowers: ['rain'],
     // (Mutation joins BASIC_POWERS only after Chaos reaches its threshold.)
     approval: CONFIG.reputation.startApproval,
@@ -297,6 +297,7 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
     history: [],
     culture: defaultCulture(),
     civ: defaultCivState(),
+    ...defaultV4State(),
   };
   // v0.3: Drizzleville and Rockbottom.
   village.population = villagers.length;

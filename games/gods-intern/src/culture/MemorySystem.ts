@@ -30,9 +30,19 @@ const INTERPRETATION: Record<string, string> = {
   'mutation-walking-rock': 'The rock has places to be.',
   'mutation-giant-head': 'His head knows things.',
   'crop-survived': 'The potato endures.',
+  meteor: 'The sky threw a rock at us. It must have meant something.',
+  tornado: 'The wind took the furniture. The wind has taste.',
+  freeze: 'The ground went crunchy for an afternoon.',
+  gravity: 'For a moment, nobody weighed anything.',
+  resurrection: 'Death turned out to be negotiable.',
 };
 
 const REACTIONS: Record<string, string[]> = {
+  meteor: ['THE SKY THREW A ROCK!', 'RUN! NO, LOOK! NO, RUN!'],
+  tornado: ['THE WIND TOOK MY CHAIR!', 'IT IS DANCING!'],
+  freeze: ['MY TOES!', 'WHY IS THE GRASS CRUNCHY?'],
+  gravity: ['I AM FLOATING!', 'MY FEET ARE ON STRIKE!'],
+  resurrection: ['THEY ARE BACK?!', 'IS THAT ALLOWED?'],
   lightning: ['WHAT WAS THAT?!', 'I THINK GOD IS NEW.', 'WHO DID THAT?!'],
   'lightning-rock': ['THE ROCK GLOWED!', 'WHAT DID THE ROCK DO?!'],
   'lightning-tree': ['THE TREE HAS SPOKEN!', 'FIRE FROM THE SKY!'],
@@ -51,7 +61,7 @@ const REACTIONS: Record<string, string[]> = {
 };
 
 /** Events that count toward "too many unusual interventions" (Upside-Down Day). */
-const WEIRD = new Set(['lightning', 'lightning-rock', 'lightning-tree', 'lightning-building', 'flood', 'smiting', 'mutation-giant-head', 'mutation-golden-tree', 'mutation-walking-rock', 'fire-started']);
+const WEIRD = new Set(['meteor', 'tornado', 'gravity', 'resurrection', 'lightning', 'lightning-rock', 'lightning-tree', 'lightning-building', 'flood', 'smiting', 'mutation-giant-head', 'mutation-golden-tree', 'mutation-walking-rock', 'fire-started']);
 
 /**
  * Persistent collective memory. Significant events are recorded with the ids

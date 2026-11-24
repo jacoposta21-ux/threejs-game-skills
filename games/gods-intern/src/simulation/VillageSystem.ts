@@ -50,7 +50,7 @@ export class VillageSystem {
       const c = sim.state.culture;
       // Culture: Upside-Down Day slows everyone; the potato cult is reluctant to harvest relatives.
       const cultureFactor = (c.upsideDownUntil > sim.state.time ? 0.65 : 1) * (c.potatoCult && sim.religion.byArchetype('potato') ? 0.8 : 1);
-      farm.cropGrowth += CONFIG.farm.baseGrowth * moistureFactor * workerFactor * cultureFactor * (flood > 0.25 ? 0.3 : 1) * dt;
+      farm.cropGrowth += CONFIG.farm.baseGrowth * moistureFactor * workerFactor * cultureFactor * (flood > 0.25 ? 0.3 : 1) * dt * sim.effects.growthFactor(farm.x, farm.z);
       if (flood > 0.25) {
         farm.cropHealth = Math.max(0.1, farm.cropHealth - CONFIG.flood.cropDamagePerSec * village.identity.floodSensitivity * dt);
         const last = this.cropWarn.get(farm.id) ?? -99;

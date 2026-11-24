@@ -30,6 +30,11 @@
           <div class="chip" id="hud-pop" title="Population">
             <span class="chip-icon" data-icon="people"></span><b id="hud-pop-value">20</b>
           </div>
+          <button class="chip career" id="career-chip" type="button" title="Heavenly Career (J)">
+            <span class="career-rank" id="career-rank">1</span>
+            <span class="career-body"><b id="career-title">Unpaid Intern</b><span class="bar"><i id="career-bar"></i></span><small id="career-next"></small></span>
+            <span id="xp-float" class="hidden"></span>
+          </button>
         </div>
         <div class="hud-center">
           <div class="meter energy" id="hud-energy" title="Divine Energy — regenerates over time">
@@ -79,6 +84,12 @@
       <aside id="inspector" class="ui panel hidden" aria-live="polite"></aside>
       <aside id="book" class="ui panel hidden" aria-label="The Book of Questionable Miracles"></aside>
       <aside id="challenges" class="ui panel hidden" aria-label="Divine Challenges"></aside>
+      <aside id="career" class="ui panel hidden" aria-label="Heavenly Career"></aside>
+      <div id="power-menu" class="ui panel hidden" aria-label="All divine powers"></div>
+      <div id="promo-toast" class="ui hidden" aria-live="polite"></div>
+      <div id="possess-hud" class="ui hidden" aria-live="polite"></div>
+      <div id="mode-badge" class="ui hidden"></div>
+      <button id="cine-exit" class="ui hidden" type="button">Exit cinematic mode (any key)</button>
       <aside id="villages" class="ui panel hidden" aria-label="Villages overview"></aside>
       <div id="challenge-pins" class="ui hidden" aria-label="Pinned challenges"></div>
       <div id="challenge-toast" class="ui hidden" aria-live="polite"></div>

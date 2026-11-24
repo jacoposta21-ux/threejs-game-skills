@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SAVE_VERSION } from '../../src/world/WorldGen';
 import { CONFIG } from '../../src/core/Config';
 import type { GameStateData, VillagerData } from '../../src/core/types';
 import { conversionWeight } from '../../src/culture/Personality';
@@ -580,7 +581,7 @@ describe('save compatibility', () => {
     if (!loaded.ok) return;
     const sim = new Simulation(SEED, loaded.state);
     const s = sim.state;
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(SAVE_VERSION);
     expect(s.rocks.length).toBeGreaterThan(5);
     expect(s.culture.festivals).toEqual([]);
     expect(s.cooldowns.mutation).toBe(0);

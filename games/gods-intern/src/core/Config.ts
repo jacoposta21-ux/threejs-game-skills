@@ -33,6 +33,21 @@ export const CONFIG = {
     nature: { cost: 10, cooldown: 0.3, radius: 1.4 },
     fire: { cost: 15, cooldown: 1.0, radius: 2.6 },
     mutation: { cost: 25, cooldown: 4, radius: 2.4, unlockChaos: 25 },
+    // ---- v0.4 ----
+    tornado: { cost: 30, cooldown: 12, radius: 5, duration: 14, speed: 3.2 },
+    freeze: { cost: 25, cooldown: 8, radius: 8, duration: 30 },
+    gravity: { cost: 25, cooldown: 8, radius: 7, duration: 12 },
+    terraform: { cost: 15, cooldown: 1.2, radius: 4, step: 1.1, maxDelta: 4 },
+    timewarp: { cost: 30, cooldown: 12, radius: 9, duration: 25, fast: 2.5, slow: 0.35 },
+    possession: { cost: 35, cooldown: 30, radius: 2.5, duration: 45 },
+    meteor: { cost: 60, cooldown: 40, radius: 8, warning: 3 },
+    resurrection: { cost: 50, cooldown: 25, radius: 4, graveTtl: 900, maxGraves: 12 },
+  },
+  /** v0.4 Heavenly Career. */
+  career: {
+    thresholds: [0, 100, 250, 450, 750, 1150, 1700, 2400, 3300, 4500],
+    overtime: { duration: 30, cooldown: 180, cooldownMult: 0.25, regenMult: 4 },
+    maxEffects: 8,
   },
   /** v0.2 culture systems: memory, belief, sacred objects, surreal events. */
   culture: {
@@ -161,7 +176,21 @@ export const CONFIG = {
   godMessageCooldown: 22,
 } as const;
 
-export type PowerId = 'rain' | 'lightning' | 'nature' | 'fire' | 'mutation';
-export const POWER_ORDER: PowerId[] = ['rain', 'lightning', 'nature', 'fire', 'mutation'];
+export type PowerId =
+  | 'rain' | 'lightning' | 'nature' | 'fire' | 'mutation'
+  | 'tornado' | 'freeze' | 'gravity' | 'terraform' | 'timewarp' | 'possession' | 'meteor' | 'resurrection';
+export const POWER_ORDER: PowerId[] = ['rain', 'lightning', 'nature', 'fire', 'mutation', 'tornado', 'freeze', 'gravity', 'terraform', 'timewarp', 'possession', 'meteor', 'resurrection'];
+export type PowerCategory = 'Creation' | 'Weather' | 'Destruction' | 'Reality' | 'Life';
+export const POWER_CATEGORY: Record<PowerId, PowerCategory> = {
+  nature: 'Creation', terraform: 'Creation',
+  rain: 'Weather', tornado: 'Weather', freeze: 'Weather',
+  lightning: 'Destruction', fire: 'Destruction', meteor: 'Destruction',
+  mutation: 'Reality', gravity: 'Reality', timewarp: 'Reality',
+  possession: 'Life', resurrection: 'Life',
+};
+/** Career rank that unlocks each v0.4 power (Career Mode). */
+export const POWER_UNLOCK_RANK: Partial<Record<PowerId, number>> = {
+  tornado: 2, freeze: 3, gravity: 4, terraform: 5, timewarp: 6, possession: 7, meteor: 8, resurrection: 9,
+};
 /** Powers granted when the tutorial ends; Mutation unlocks through Chaos. */
 export const BASIC_POWERS: PowerId[] = ['rain', 'lightning', 'nature', 'fire'];

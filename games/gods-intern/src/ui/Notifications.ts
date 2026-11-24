@@ -22,7 +22,7 @@ export class Notifications {
   private readonly memoRoot = $('#god-memo');
   readonly queue = new NotificationQueue(2, 6);
   private readonly nodes = new Map<QueuedNotice, HTMLElement>();
-  private readonly memoQueue: string[] = [];
+  private readonly memoQueue: Array<{ text: string; from: string }> = [];
   private memoBusy = false;
   private signoff = 0;
   onShow: (kind: NotifyKind) => void = () => {};
@@ -83,21 +83,21 @@ export class Notifications {
     for (const [n] of this.nodes) if (!this.queue.visible.includes(n)) this.remove(n);
   }
 
-  memo(text: string): void {
-    if (this.memoQueue.includes(text) || this.memoQueue.length > 3) return;
-    this.memoQueue.push(text);
+  memo(text: string, from = 'GOD'): void {
+    if (this.memoQueue.some((m) => m.text === text) || this.memoQueue.length > 3) return;
+    this.memoQueue.push({ text, from });
     this.pumpMemo();
   }
 
   private pumpMemo(): void {
     if (this.memoBusy || !this.memoQueue.length) return;
     this.memoBusy = true;
-    const text = this.memoQueue.shift()!;
+    const { text, from } = this.memoQueue.shift()!;
     const sign = SIGNOFFS[this.signoff++ % SIGNOFFS.length];
     const node = el(
       'div',
       'memo',
-      `<header><span>Urgent memo</span><span>From: GOD · To: Intern</span></header><p>${escapeHtml(text)}</p><footer>${sign}</footer>`,
+      `<header><span>Urgent memo</span><span>From: ${escapeHtml(from)} · To: Intern</span></header><p>${escapeHtml(text)}</p><footer>${sign}</footer>`,
     );
     this.memoRoot.append(node);
     this.onMemo();

@@ -200,4 +200,21 @@ export const MISSIONS: MissionDefinition[] = [
     progress: (sim, v, p) => clamp01(sim.civ.favorSum(v.id, 1, 0, p.createdAt) / 15),
     complete: (sim, v, p) => sim.civ.favorSum(v.id, 1, 0, p.createdAt) >= 15,
   },
+  {
+    // v0.4: after a tornado rearranges the village.
+    type: 'WIND',
+    title: 'The Furniture Situation',
+    description: 'The wind has opinions about where our chairs go.',
+    objective: 'Let the storm pass and get every building back above 60% (rain on fires helps)',
+    plea: 'PLEASE ASK THE WIND TO STOP REARRANGING OUR FURNITURE.',
+    priority: 2,
+    reward: { energy: 20, approval: 6 },
+    expiry: 240,
+    trigger: (sim, v) => sim.recentCount(`tornado:${v.id}`, 60) > 0,
+    progress: (sim, v) => {
+      const owned = sim.state.buildings.filter((b) => b.villageId === v.id);
+      return clamp01(owned.filter((b) => !b.destroyed && b.health >= 60).length / Math.max(1, owned.length));
+    },
+    complete: (sim, v) => !sim.state.effects.some((e) => e.kind === 'tornado') && sim.state.buildings.filter((b) => b.villageId === v.id).every((b) => !b.destroyed && b.health >= 60),
+  },
 ];

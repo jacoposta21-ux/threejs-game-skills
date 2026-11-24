@@ -140,6 +140,47 @@ export const ARCHETYPES: Record<string, Archetype> = {
     sacredKind: 'ground',
     shouts: ['IS YOUR HEAD BIGGER?', 'HIS HEAD IS A SIGN!', 'I WANT ONE.'],
   },
+  // ---- v0.4 ----
+  meteor: {
+    nouns: ['the Extremely Large Rock', 'the Sky Pebble', 'the Warm Visitor'],
+    doctrine: ['Look up. Then run.', 'The big rock was a gift. A heavy gift.', 'Every crater is a doorway (do not use it).'],
+    ritual: { name: 'Impact Anniversary', kind: 'gathering', timeOfDay: 0.55, duration: 22 },
+    symbols: ['comet', 'crater'],
+    color: 0xff7a33,
+    monument: 'obelisk',
+    sacredKind: 'rock',
+    shouts: ['THE SKY THREW A ROCK!', 'IT IS WARM. IT IS HOLY.', 'WHO ORDERED THIS?!'],
+  },
+  tornado: {
+    nouns: ['the Sacred Spin', 'the Celestial Vacuum', 'the Dancing Wind'],
+    doctrine: ['The wind rearranges what we hold too tightly.', 'Spin three times before dinner.', 'Do not argue with a vacuum.'],
+    ritual: { name: 'The Great Twirl', kind: 'dance', timeOfDay: 0.5, duration: 20 },
+    symbols: ['spiral', 'leaf'],
+    color: 0x9ad7d0,
+    monument: 'cloud-effigy',
+    sacredKind: 'ground',
+    shouts: ['THE SKY IS DANCING!', 'IT TOOK MY CHAIR!', 'A ROTATING SPIRIT!'],
+  },
+  ice: {
+    nouns: ['the Eternal Ice Cube', 'the Frozen Puddle', 'the Cold Shoulder'],
+    doctrine: ['Stay cool.', 'Melting is a sin. A slow one.', 'Every summer is a test.'],
+    ritual: { name: 'Shiver Circle', kind: 'gathering', timeOfDay: 0.4, duration: 18 },
+    symbols: ['snowflake', 'cube'],
+    color: 0x8fd3ff,
+    monument: 'obelisk',
+    sacredKind: 'ground',
+    shouts: ['THE GROUND IS CRUNCHY!', 'MY TOES ARE A RELIGIOUS EXPERIENCE!'],
+  },
+  returned: {
+    nouns: ['the Second Breakfast', 'the One Who Came Back', 'the Clerical Error'],
+    doctrine: ['Death is a temporary leave of absence.', 'Always keep the paperwork.', 'Be kind to ghosts. They return.'],
+    ritual: { name: 'Welcome Back Party', kind: 'bonfire', timeOfDay: 0.6, duration: 20 },
+    symbols: ['candle', 'door'],
+    color: 0xfff1b8,
+    monument: 'memorial-garden',
+    sacredKind: 'ground',
+    shouts: ['THEY CAME BACK!', 'IS THAT ALLOWED?', 'I OWED THEM MONEY.'],
+  },
 };
 
 /** Which archetype a remembered event feeds. Events not listed never found religions. */
@@ -156,6 +197,10 @@ export const ARCHETYPE_OF: Record<string, string> = {
   'mutation-walking-rock': 'walking',
   'mutation-giant-head': 'head',
   'crop-survived': 'potato',
+  meteor: 'meteor',
+  tornado: 'tornado',
+  freeze: 'ice',
+  resurrection: 'returned',
 };
 
 /** Pairs of opposing claims used when believers argue in public. */

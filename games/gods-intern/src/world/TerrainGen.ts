@@ -313,6 +313,59 @@ export class TerrainData {
     return h;
   }
 
+  // ---------------- v0.4 terrain editing ----------------
+
+  private baseHeights: Float32Array | null = null;
+
+  /** Smooth bump (cosine falloff) used by Terraform and meteor craters. */
+  static falloff(d: number, radius: number): number {
+    if (d >= radius) return 0;
+    return 0.5 + 0.5 * Math.cos((d / radius) * Math.PI);
+  }
+
+  /** Offset an edit would add at a point (for limit checks). */
+  editOffsetAt(edits: ReadonlyArray<{ x: number; z: number; radius: number; delta: number }>, x: number, z: number): number {
+    let sum = 0;
+    for (const e of edits) sum += e.delta * TerrainData.falloff(Math.hypot(x - e.x, z - e.z), e.radius);
+    return sum;
+  }
+
+  /**
+   * Re-apply a list of edits on top of the generated heightfield. Deterministic:
+   * the same list always produces the same terrain (used by save/load). Water
+   * classification is not changed: edits are kept away from water by the power.
+   * Returns the bounding box of touched vertices (or null when nothing changed).
+   */
+  applyEdits(edits: ReadonlyArray<{ x: number; z: number; radius: number; delta: number }>): { x0: number; z0: number; x1: number; z1: number } | null {
+    if (!this.baseHeights) {
+      if (!edits.length) return null;
+      this.baseHeights = this.heights.slice();
+    }
+    this.heights.set(this.baseHeights);
+    if (!edits.length) return { x0: -this.half, z0: -this.half, x1: this.half, z1: this.half };
+    let box: { x0: number; z0: number; x1: number; z1: number } | null = null;
+    const v = this.verts;
+    for (const e of edits) {
+      const r = e.radius;
+      const ix0 = Math.max(0, Math.floor((e.x - r + this.half) / this.step));
+      const ix1 = Math.min(v - 1, Math.ceil((e.x + r + this.half) / this.step));
+      const iz0 = Math.max(0, Math.floor((e.z - r + this.half) / this.step));
+      const iz1 = Math.min(v - 1, Math.ceil((e.z + r + this.half) / this.step));
+      for (let iz = iz0; iz <= iz1; iz++) {
+        for (let ix = ix0; ix <= ix1; ix++) {
+          const x = -this.half + ix * this.step;
+          const z = -this.half + iz * this.step;
+          const f = TerrainData.falloff(Math.hypot(x - e.x, z - e.z), r);
+          if (f > 0) this.heights[iz * v + ix] += e.delta * f;
+        }
+      }
+      box = box
+        ? { x0: Math.min(box.x0, e.x - r), z0: Math.min(box.z0, e.z - r), x1: Math.max(box.x1, e.x + r), z1: Math.max(box.z1, e.z + r) }
+        : { x0: e.x - r, z0: e.z - r, x1: e.x + r, z1: e.z + r };
+    }
+    return box;
+  }
+
   /** The bridge under a point, if any. */
   bridgeAt(x: number, z: number): { deck: number } | null {
     for (const b of this.bridges) {

@@ -218,8 +218,10 @@ export class CultureRenderer {
     for (const r of state.rocks) {
       const y = this.h(r.x, r.z);
       const bob = r.walking ? Math.abs(Math.sin(t * 6 + r.id)) * 0.12 : 0;
-      const lift = r.walking ? 0.6 * r.scale : 0;
-      B.rock.add(r.x, y + 0.25 * r.scale + lift + bob, r.z, r.walking ? r.heading : r.rot, r.scale, r.scale, r.scale);
+      // v0.4: Gravity lifts rocks; floating rocks hover forever with a slow bob.
+      const float = (r.lift ?? 0) + (r.floating ? 1.6 + Math.sin(t * 1.3 + r.id) * 0.25 : 0);
+      const lift = (r.walking ? 0.6 * r.scale : 0) + float;
+      B.rock.add(r.x, y + 0.25 * r.scale + lift + bob, r.z, r.walking ? r.heading : r.rot + float * 0.4, r.scale, r.scale, r.scale);
       if (r.walking) {
         const sw = Math.sin(t * 6 + r.id) * 0.5;
         const cs = Math.cos(r.heading);
@@ -227,8 +229,8 @@ export class CultureRenderer {
         for (const side of [-1, 1]) {
           const ox = cs * 0.35 * side * r.scale;
           const oz = -sn * 0.35 * side * r.scale;
-          B.leg.add(r.x + ox, y + 0.62 * r.scale + bob, r.z + oz, r.heading, r.scale, r.scale, r.scale, undefined, sw * side);
-          B.eye.add(r.x + ox * 0.7 + sn * 0.75 * r.scale, y + 0.95 * r.scale + bob, r.z + oz * 0.7 + cs * 0.75 * r.scale, r.heading, r.scale);
+          B.leg.add(r.x + ox, y + 0.62 * r.scale + bob + float, r.z + oz, r.heading, r.scale, r.scale, r.scale, undefined, sw * side);
+          B.eye.add(r.x + ox * 0.7 + sn * 0.75 * r.scale, y + 0.95 * r.scale + bob + float, r.z + oz * 0.7 + cs * 0.75 * r.scale, r.heading, r.scale);
         }
       }
       if (r.crowned) {

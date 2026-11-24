@@ -24,7 +24,7 @@ export interface GameEvents {
   };
   FIRE_STARTED: { fireId: number; x: number; z: number; kind: FireKind; byPlayer: boolean };
   FIRE_SPREAD: { fromId: number; fireId: number; x: number; z: number; kind: FireKind };
-  FIRE_EXTINGUISHED: { fireId: number; x: number; z: number; byRain: boolean; kind: FireKind; targetId: number; byPlayer: boolean };
+  FIRE_EXTINGUISHED: { fireId: number; x: number; z: number; byRain: boolean; kind: FireKind; targetId: number; byPlayer: boolean; byFreeze?: boolean };
   TREE_PLANTED: { treeId: number; x: number; z: number; byPlayer: boolean };
   TREE_BURNED: { treeId: number; x: number; z: number };
   TREE_REGROWN: { treeId: number; x: number; z: number };
@@ -50,7 +50,7 @@ export interface GameEvents {
   MIRACLE_WITNESSED: { villageId: string; kind: string; witnesses: number; x: number; z: number };
   CONSEQUENCE_TRIGGERED: { id: string; title: string };
   NOTIFY: { text: string; kind: NotifyKind; sub?: string; priority?: number };
-  GOD_MESSAGE: { text: string; priority: number };
+  GOD_MESSAGE: { text: string; priority: number; from?: string };
   SPEECH: { villagerId: string; text: string; duration: number; priority?: number };
   // ---- v0.2 culture ----
   MEMORY_CREATED: { memory: DivineMemory };
@@ -79,6 +79,23 @@ export interface GameEvents {
   CHALLENGE_UNLOCKED: { id: string };
   CHALLENGE_COMPLETED: { id: string; title: string; rewardText: string };
   CAMERA_VISIT: { villageId: string };
+  // ---- v0.4 ----
+  XP_GAINED: { amount: number; reason: string; total: number };
+  PROMOTED: { rank: number; title: string; unlocks: string[] };
+  COMBO_DISCOVERED: { id: string; name: string; x: number; z: number };
+  EFFECT_STARTED: { id: number; kind: string; x: number; z: number };
+  EFFECT_ENDED: { id: number; kind: string };
+  TORNADO_DAMAGE: { x: number; z: number; buildings: number; trees: number };
+  METEOR_IMPACT: { x: number; z: number; buildings: number; trees: number; killed: number };
+  TERRAIN_CHANGED: { x: number; z: number; radius: number; delta: number; villageId: string | null };
+  VILLAGER_LEVITATED: { villagerId: string };
+  VILLAGER_RESURRECTED: { villagerId: string; name: string; x: number; z: number };
+  POSSESSION_STARTED: { villagerId: string };
+  POSSESSION_ENDED: { villagerId: string; visited: string[] };
+  POSSESSED_VISIT: { villagerId: string; villageId: string };
+  CONSTRUCTION_IN_WARP: { villageId: string; kind: string };
+  OVERTIME_STARTED: { until: number };
+  HEAVEN_MESSAGE: { id: string; from: string; text: string };
   PILGRIMAGE_COMPLETED: { villagerId: string; sacredId: string; fromId: string };
   /** A believer finished praying/visiting at a sacred place (locals and pilgrims). */
   SACRED_VISITED: { villagerId: string; sacredId: string; villageId: string };

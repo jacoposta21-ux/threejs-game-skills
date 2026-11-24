@@ -19,9 +19,17 @@ export class VillagerAI {
   private readonly near: VillagerData[] = [];
 
   update(sim: Simulation, dt: number): void {
+    const possessed = sim.state.possession?.villagerId;
     for (const v of sim.state.villagers) {
       if (!v.alive) {
         v.deadTime += dt;
+        continue;
+      }
+      // v0.4: the player is driving this one (PossessionSystem moves them).
+      if (v.id === possessed) continue;
+      // v0.4: floating villagers can only flail.
+      if ((v.lift ?? 0) > 0.6) {
+        if (v.thoughtTimer > 0 && (v.thoughtTimer -= dt) <= 0) v.thought = null;
         continue;
       }
       if (v.thoughtTimer > 0) {
@@ -237,6 +245,9 @@ export class VillagerAI {
 
   private act(sim: Simulation, v: VillagerData, dt: number): void {
     const task = v.currentTask;
+    // v0.4 local time (Time Warp, frost): scales walking and work, never the global step.
+    const local = sim.effects.timeFactor(v.position.x, v.position.z);
+    dt *= local;
     if (!task.arrived) {
       const speed = this.speedFor(v) * (sim.state.culture.upsideDownUntil > sim.state.time ? 0.8 : 1);
       if (this.walk(sim, v, speed * dt)) {
@@ -260,6 +271,9 @@ export class VillagerAI {
     const village = sim.village(v.villageId);
     const task = v.currentTask;
     if (!village) return this.setIdle(v, 1);
+    if ((task.activity === 'repair' || task.activity === 'construct' || task.activity === 'construct-office' || task.activity === 'decorate') && (sim.effects.at('timewarp', v.position.x, v.position.z)?.factor ?? 1) > 1) {
+      sim.bus.emit('CONSTRUCTION_IN_WARP', { villageId: village.id, kind: task.activity });
+    }
     switch (task.activity) {
       case 'drink-well':
         if (village.water >= 1) {
@@ -288,6 +302,7 @@ export class VillagerAI {
         v.hunger = Math.max(0, v.hunger - 0.35);
         break;
       case 'chop': {
+        v.carry = { kind: 'wood', until: sim.state.time + 5 };
         const tree = task.targetId !== null ? sim.tree(task.targetId) : undefined;
         if (tree && !tree.charred && !tree.burning) {
           village.wood = Math.min(CONFIG.village.maxWood, village.wood + 4);
@@ -316,14 +331,17 @@ export class VillagerAI {
         break;
       }
       case 'farm':
+        v.carry = { kind: 'food', until: sim.state.time + 5 };
         v.happiness = clamp01(v.happiness + 0.02);
         break;
       case 'mine': {
+        v.carry = { kind: 'stone', until: sim.state.time + 5 };
         const slow = sim.state.culture.upsideDownUntil > sim.state.time ? 0.65 : 1;
         village.stone = Math.min(CONFIG.civ.maxStock.stone, village.stone + 3 * slow);
         break;
       }
       case 'fish':
+        v.carry = { kind: 'food', until: sim.state.time + 5 };
         // Fishing ignores drought but suffers in floods (the fish are everywhere, which is somehow worse).
         village.food = Math.min(CONFIG.village.maxFood, village.food + 2.6 * (village.floodActive ? 0.4 : 1));
         break;

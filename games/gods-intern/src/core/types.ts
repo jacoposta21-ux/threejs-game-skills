@@ -84,6 +84,12 @@ export interface VillagerData {
   title: string | null;
   /** v0.3: set while away from home. */
   travel?: TravelPlan | null;
+  /** v0.4: height above ground while levitating (gravity power). */
+  lift?: number;
+  /** v0.4: visual carry item after work, until this sim time. */
+  carry?: { kind: 'wood' | 'stone' | 'food' | 'water'; until: number } | null;
+  /** v0.4: returned from the dead. */
+  resurrected?: boolean;
 }
 
 export type Trait =
@@ -215,6 +221,10 @@ export interface RockData {
   targetX: number;
   targetZ: number;
   heading: number;
+  /** v0.4 */
+  lift?: number;
+  floating?: boolean;
+  meteorite?: boolean;
 }
 
 export interface DivineMemory {
@@ -527,4 +537,102 @@ export interface GameStateData {
   culture: CultureState;
   // ---- v0.3 ----
   civ: CivState;
+  // ---- v0.4 ----
+  mode: GameMode;
+  career: CareerState;
+  effects: PowerEffect[];
+  terrainEdits: TerrainEdit[];
+  graveyard: DeceasedRecord[];
+  discoveries: Discovery[];
+  possession: PossessionState | null;
+  heaven: HeavenState;
+  craters: Crater[];
+}
+
+// ---------------- v0.4 ----------------
+
+export type GameMode = 'career' | 'creative';
+
+export interface CareerState {
+  xp: number;
+  rank: number; // 1..10
+  /** Deduplication ledger: award key → times awarded (and last time, for windows). */
+  awarded: Record<string, { n: number; t: number }>;
+  promotions: Array<{ rank: number; t: number }>;
+  overtimeUntil: number;
+  overtimeReadyAt: number;
+  usedPowers: string[];
+  finalReview: boolean;
+}
+
+export type EffectKind = 'tornado' | 'freeze' | 'gravity' | 'timewarp' | 'meteor';
+
+export interface PowerEffect {
+  id: number;
+  kind: EffectKind;
+  x: number;
+  z: number;
+  radius: number;
+  startedAt: number;
+  until: number;
+  /** tornado heading; timewarp factor; meteor impact time; freeze strength. */
+  dirX?: number;
+  dirZ?: number;
+  factor?: number;
+  impactAt?: number;
+  /** ids already affected (levitated villagers, frozen fires) to avoid double counting. */
+  touched?: string[];
+  done?: boolean;
+}
+
+export interface TerrainEdit {
+  x: number;
+  z: number;
+  radius: number;
+  delta: number;
+}
+
+export interface DeceasedRecord {
+  villager: VillagerData;
+  diedAt: number;
+  x: number;
+  z: number;
+  cause: string;
+}
+
+export interface Discovery {
+  id: string;
+  t: number;
+}
+
+export interface PossessionState {
+  villagerId: string;
+  until: number;
+  dirX: number;
+  dirZ: number;
+  visited: string[];
+  bumps: number;
+  startedAt: number;
+}
+
+export interface HeavenMessage {
+  id: string;
+  from: string;
+  text: string;
+  t: number;
+}
+
+export interface HeavenState {
+  archive: HeavenMessage[];
+  sent: Record<string, number>;
+  lastAt: number;
+  lastReviewAt: number;
+}
+
+export interface Crater {
+  x: number;
+  z: number;
+  radius: number;
+  t: number;
+  fragmentRockId: number;
 }

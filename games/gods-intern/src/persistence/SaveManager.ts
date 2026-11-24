@@ -10,6 +10,12 @@ export interface KeyValueStore {
 
 export const SAVE_KEY = 'gods-intern.save';
 export const AUTOSAVE_KEY = 'gods-intern.autosave';
+
+/** v0.4: Career and Creative progress live in separate save slots. Career keeps the original keys. */
+export function slotKey(mode: 'career' | 'creative', auto: boolean): string {
+  if (mode === 'career') return auto ? AUTOSAVE_KEY : SAVE_KEY;
+  return auto ? 'gods-intern.creative.autosave' : 'gods-intern.creative.save';
+}
 export const SETTINGS_KEY = 'gods-intern.settings';
 
 export interface SaveEnvelope {

@@ -13,6 +13,11 @@ export interface MenuActions {
   applySettings(s: Settings): void;
   fullscreen(): void;
   click(): void;
+  // v0.4
+  mode(): 'career' | 'creative';
+  switchMode(mode: 'career' | 'creative'): void;
+  cinematic(): void;
+  screenshot(): void;
 }
 
 /** Pause menu, settings, how-to-play and confirmation dialogs (one modal at a time). */
@@ -70,7 +75,7 @@ export class Menus {
     const hasSave = this.actions.hasSave();
     node.innerHTML = `
       <h2>${icon('pause')} Paused</h2>
-      <p class="sub">The universe is on hold. Take your time, intern.</p>
+      <p class="sub">The universe is on hold. Take your time, intern. <b class="mode-pill ${this.actions.mode()}">${this.actions.mode() === 'creative' ? 'Creative Mode' : 'Career Mode'}</b></p>
       <div class="menu-list">
         <button class="btn primary" data-a="resume" type="button">${icon('play')} Resume</button>
         <button class="btn" data-a="save" type="button">Save Game</button>
@@ -78,6 +83,8 @@ export class Menus {
         ${this.actions.hasAutosave() ? '<button class="btn" data-a="auto" type="button">Load Autosave</button>' : ''}
         <button class="btn" data-a="settings" type="button">${icon('gear')} Settings</button>
         <button class="btn" data-a="help" type="button">${icon('question')} How to Play</button>
+        <button class="btn" data-a="mode" type="button">${icon('star')} ${this.actions.mode() === 'creative' ? 'Back to Career Mode' : 'Creative Mode (sandbox)'}</button>
+        <div class="btn-pair"><button class="btn" data-a="cine" type="button">${icon('film')} Cinematic</button><button class="btn" data-a="shot" type="button">${icon('camera')} Screenshot</button></div>
         <button class="btn" data-a="fullscreen" type="button">${icon('fullscreen')} Fullscreen</button>
         <button class="btn danger" data-a="restart" type="button">Restart World</button>
       </div>
@@ -100,6 +107,28 @@ export class Menus {
     node.querySelector('[data-a=settings]')!.addEventListener('click', () => this.settings(() => this.pause()));
     node.querySelector('[data-a=help]')!.addEventListener('click', () => this.help(() => this.pause()));
     node.querySelector('[data-a=fullscreen]')!.addEventListener('click', () => this.actions.fullscreen());
+    node.querySelector('[data-a=cine]')!.addEventListener('click', () => {
+      this.closeAll();
+      this.actions.cinematic();
+    });
+    node.querySelector('[data-a=shot]')!.addEventListener('click', () => {
+      this.closeAll();
+      this.actions.screenshot();
+    });
+    node.querySelector('[data-a=mode]')!.addEventListener('click', () => {
+      const to = this.actions.mode() === 'creative' ? 'career' : 'creative';
+      this.confirm(
+        to === 'creative' ? 'Open Creative Mode?' : 'Return to Career Mode?',
+        to === 'creative'
+          ? 'Every power, optional unlimited energy. Creative has its own save slot and never gives career XP. Your career is saved first.'
+          : 'Your creative island is saved in its own slot. Career progress continues where you left it.',
+        to === 'creative' ? 'Go creative' : 'Back to work',
+        () => {
+          this.actions.switchMode(to);
+          this.closeAll();
+        },
+      );
+    });
     node.querySelector('[data-a=restart]')!.addEventListener('click', () => {
       this.confirm('Restart the world?', 'The island returns to day one. Villagers will not remember you. (They will.)', 'Restart', () => {
         this.actions.restart();
@@ -121,12 +150,16 @@ export class Menus {
       <h2>${icon('gear')} Settings</h2>
       <p class="sub">Saved automatically on this device.</p>
       ${range('masterVolume', 'Master volume', 'Everything you hear', 0, 1, 0.05)}
-      ${range('sfxVolume', 'Sound effects', 'Thunder, crackles, chimes', 0, 1, 0.05)}
+      ${range('sfxVolume', 'Effects', 'Powers, thunder, crackles', 0, 1, 0.05)}
+      ${range('musicVolume', 'Music', 'A small, worried music box', 0, 1, 0.05)}
+      ${range('ambientVolume', 'Ambience', 'Waves, wind, rain, birds', 0, 1, 0.05)}
+      ${range('uiVolume', 'Interface', 'Clicks, chimes, promotions', 0, 1, 0.05)}
       <div class="setting"><div>Graphics quality<small>Shadows, particles, resolution</small></div><div class="seg">${qualities
         .map((q) => `<button type="button" data-q="${q}" class="${s.quality === q ? 'on' : ''}">${q[0].toUpperCase() + q.slice(1)}</button>`)
         .join('')}</div></div>
       ${range('cameraSensitivity', 'Camera sensitivity', 'Rotate, pan and zoom speed', 0.3, 2, 0.1)}
-      ${toggle('unlimitedEnergy', 'Unlimited divine energy', 'Sandbox mode. God will never know.')}
+      ${toggle('unlimitedEnergy', 'Unlimited divine energy', 'Creative Mode only. Career Mode always uses normal energy.')}
+      ${toggle('reducedCooldowns', 'Reduced cooldowns', 'Creative Mode only. Cooldowns ×0.25.')}
       ${toggle('reducedShake', 'Reduced camera shake', 'Calmer lightning strikes')}
       <div class="btn-row"><button class="btn primary" data-a="done" type="button">Done</button></div>`;
     node.querySelectorAll<HTMLInputElement>('input[type=range]').forEach((input) => {
@@ -137,7 +170,7 @@ export class Menus {
     });
     node.querySelectorAll<HTMLButtonElement>('[data-t]').forEach((b) => {
       b.addEventListener('click', () => {
-        const key = b.dataset.t as 'unlimitedEnergy' | 'reducedShake';
+        const key = b.dataset.t as 'unlimitedEnergy' | 'reducedShake' | 'reducedCooldowns';
         s[key] = !s[key];
         b.classList.toggle('on', s[key]);
         b.setAttribute('aria-pressed', String(s[key]));
@@ -165,14 +198,21 @@ export class Menus {
           <li><kbd>Right drag</kbd> rotate</li><li><kbd>Wheel</kbd> zoom</li>
           <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>Middle drag</kbd> pan</li><li><kbd>Q</kbd>/<kbd>E</kbd> spin</li></ul></section>
         <section><h4>Powers</h4><ul>
-          <li><kbd>1</kbd> Rain — water, crops, firefighting</li><li><kbd>2</kbd> Lightning — dramatic. Flammable.</li>
-          <li><kbd>3</kbd> Nature — instant trees, calm villagers</li><li><kbd>4</kbd> Fire — please don't</li></ul></section>
+          <li><kbd>1</kbd>–<kbd>6</kbd> quick slots · <kbd>G</kbd> all 13 powers</li><li>Assign any power to a slot in the power menu</li>
+          <li><kbd>T</kbd> Terraform raise/lower · Time Warp fast/slow</li><li>New powers unlock with promotions (<kbd>J</kbd> career)</li></ul></section>
+        <section><h4>Career</h4><ul>
+          <li>Earn Divine Experience from prayers, challenges, discoveries and drama</li><li>Combine powers to discover secret interactions</li>
+          <li>Rank 10 unlocks <kbd>O</kbd> Divine Overtime</li></ul></section>
+        <section><h4>Possession</h4><ul>
+          <li><kbd>WASD</kbd> or tap to walk</li><li><kbd>E</kbd> interact · <kbd>Q</kbd> leave</li></ul></section>
+        <section><h4>Touch</h4><ul>
+          <li>Tap to use a power or inspect</li><li>Drag to pan · pinch to zoom · twist to rotate</li></ul></section>
         <section><h4>Prayers</h4><ul>
           <li>Villagers pray at the shrine when something is wrong.</li><li>Fix the underlying problem — any way you like.</li>
           <li>Answered prayers refill energy and raise Approval.</li></ul></section>
         <section><h4>Controls</h4><ul>
           <li><kbd>Left click</kbd> use power</li><li><kbd>0</kbd>/<kbd>Esc</kbd> Look mode · click buildings to inspect</li>
-          <li><kbd>Space</kbd> pause · <kbd>F</kbd> speed</li><li>Every miracle has consequences.</li></ul></section>
+          <li><kbd>Space</kbd> pause · <kbd>F</kbd> speed · <kbd>P</kbd> menu</li><li><kbd>K</kbd> cinematic · <kbd>H</kbd> screenshot mode</li><li>Every miracle has consequences.</li></ul></section>
       </div>
       <div class="btn-row"><button class="btn primary" data-a="done" type="button">Got it</button></div>`;
     node.querySelector('[data-a=done]')!.addEventListener('click', () => this.close(true));

@@ -13,7 +13,10 @@ import { relationKey } from '../world/Settlements';
 import { HistoryBookPanel, cultureTicker } from '../ui/HistoryBookPanel';
 import { PerfOverlay } from '../ui/PerfOverlay';
 import type { VillagerData } from './types';
-import { AUTOSAVE_KEY, browserStore, SaveManager, SAVE_KEY } from '../persistence/SaveManager';
+import { browserStore, SaveManager, slotKey } from '../persistence/SaveManager';
+import { PowerEffectsRenderer } from '../effects/PowerEffectsRenderer';
+import { CareerPanel } from '../ui/CareerPanel';
+import { PROMOTION_LINES, RANK_TITLES } from '../career/CareerSystem';
 import { createPlatform, type GamePlatform } from '../platform/Platform';
 import { Simulation } from '../simulation/SimulationManager';
 import { $, hydrateIcons } from '../ui/dom';
@@ -32,12 +35,13 @@ import { Vegetation } from '../world/Vegetation';
 import { Water } from '../world/Water';
 import { Weather } from '../world/Weather';
 import { createInitialState } from '../world/WorldGen';
-import { BASIC_POWERS, CONFIG, POWER_ORDER, type PowerId } from './Config';
+import { BASIC_POWERS, CONFIG, type PowerId } from './Config';
 import { GameLoop } from './GameLoop';
 import { Rng } from './Rng';
 import { loadSettings, saveSettings, type QualityLevel, type Settings } from './Settings';
 
 export const WORLD_SEED = 42;
+const PROMO_LINES: Record<number, string> = Object.fromEntries(RANK_TITLES.map((_, i) => [i + 1, PROMOTION_LINES[i] ?? '']));
 /** Merchant pack colors by cargo. */
 const RESOURCE_COLOR: Record<string, number> = { food: 0xe8a13a, water: 0x4fa3e0, wood: 0x9b6a3e, stone: 0x9aa0a6 };
 type Quality = Exclude<QualityLevel, 'auto'>;
@@ -62,6 +66,15 @@ export class Game {
   private readonly vfx: VisualEffects;
   private readonly culture: CultureRenderer;
   private readonly decors: VillageDecor[];
+  private readonly powerFx: PowerEffectsRenderer;
+  private readonly careerUi = new CareerPanel();
+  /** Camera view saved before possession / cinematic mode. */
+  private savedView: { x: number; z: number; d: number; yaw: number; pitch: number } | null = null;
+  /** Possession: walk-to target (click/tap), or null when steering with keys. */
+  private walkTarget: { x: number; z: number } | null = null;
+  private cinematic = false;
+  private screenshotMode = false;
+  private possessLabelKey = '';
   private readonly challengesUi = new ChallengePanel();
   private readonly villagesUi = new VillagePanel();
   private readonly packColors = new Map<string, number>();
@@ -109,6 +122,9 @@ export class Game {
   /** Recent player-facing messages, exposed to diagnostics for automated checks. */
   private readonly eventLog: string[] = [];
   private readonly params = new URLSearchParams(window.location.search);
+  /** Keys currently held (possession steering). */
+  private readonly heldKeys = new Set<string>();
+  private readonly tmpV = new THREE.Vector3();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     hydrateIcons();
@@ -126,11 +142,15 @@ export class Game {
     // Simulation: resume the autosave if there is one, unless ?fresh.
     let initial;
     if (!this.params.has('fresh')) {
-      const res = this.saves.load(AUTOSAVE_KEY);
+      const res = this.saves.load(slotKey(this.settings.mode, true));
       if (res.ok && res.state.seed === WORLD_SEED) initial = res.state;
     }
     this.sim = new Simulation(WORLD_SEED, initial);
-    this.sim.unlimitedEnergy = this.settings.unlimitedEnergy;
+    if (!initial && this.settings.mode === 'creative') {
+      this.sim.state.mode = 'creative';
+      this.sim.applyMode();
+    }
+    this.applyModeOptions();
 
     const village = this.sim.state.villages[0];
     this.dayNight = new DayNightCycle(this.scene);
@@ -149,7 +169,9 @@ export class Game {
     this.vfx = new VisualEffects(this.sim.bus, this.sim.terrain, () => this.sim.state);
     this.culture = new CultureRenderer(this.sim.terrain);
     this.decors = this.sim.state.villages.map((v) => new VillageDecor(this.sim.terrain, v, this.sim.state.buildings));
-    this.scene.add(this.terrainMesh.mesh, this.water.group, this.vegetation.group, this.buildings.group, this.villagers.group, this.weather.group, this.ambient.group, this.vfx.group, this.culture.group, buildBridges(this.sim.terrain), ...this.decors.map((d) => d.group));
+    this.powerFx = new PowerEffectsRenderer(this.sim.terrain, this.vfx);
+    this.scene.add(this.terrainMesh.mesh, this.water.group, this.vegetation.group, this.buildings.group, this.villagers.group, this.weather.group, this.ambient.group, this.vfx.group, this.culture.group, buildBridges(this.sim.terrain), this.powerFx.group, ...this.decors.map((d) => d.group));
+    if (this.sim.state.terrainEdits.length) this.refreshTerrainVisuals(-80, -80, 80, 80);
     this.perf = new PerfOverlay(import.meta.env.DEV || this.params.has('debug'), this.params.has('debug'));
 
     this.cam = new CameraController(this.camera, canvas, this.sim.terrain);
@@ -157,8 +179,23 @@ export class Game {
     this.vfx.onShake = (a) => this.cam.addShake(a);
     this.vfx.onFlash = (a) => this.screenFlash(a);
 
-    this.toolbar = new PowerToolbar(this.sim);
+    this.toolbar = new PowerToolbar(this.sim, this.settings.quickSlots);
     this.toolbar.onSelect = (id) => this.select(id);
+    this.toolbar.onSlotsChanged = (slots) => {
+      this.audio.uiClick();
+      this.settings.quickSlots = slots;
+      saveSettings(this.store, this.settings);
+    };
+    this.toolbar.onToggleMode = () => this.toggleSubMode();
+    this.toolbar.onMenu = (open) => {
+      this.audio.click();
+      if (open) this.closeDrawers('powers');
+    };
+    this.careerUi.onToggle = (open) => {
+      this.audio.click();
+      if (open) this.closeDrawers('career');
+    };
+    this.careerUi.onOvertime = () => this.startOvertime();
     this.toolbar.onHover = () => this.audio.hover();
     this.prayers.onFocus = (p) => {
       this.audio.click();
@@ -172,11 +209,15 @@ export class Game {
     this.menus = new Menus({
       resume: () => this.setPaused(false),
       restart: () => this.restart(),
-      save: () => this.saves.save(this.sim.state, SAVE_KEY),
-      load: () => this.loadFrom(SAVE_KEY),
-      hasSave: () => this.saves.has(SAVE_KEY),
-      hasAutosave: () => this.saves.has(AUTOSAVE_KEY),
-      loadAutosave: () => this.loadFrom(AUTOSAVE_KEY),
+      save: () => this.saves.save(this.sim.state, slotKey(this.sim.state.mode, false)),
+      load: () => this.loadFrom(slotKey(this.sim.state.mode, false)),
+      hasSave: () => this.saves.has(slotKey(this.sim.state.mode, false)),
+      hasAutosave: () => this.saves.has(slotKey(this.sim.state.mode, true)),
+      loadAutosave: () => this.loadFrom(slotKey(this.sim.state.mode, true)),
+      mode: () => this.sim.state.mode,
+      switchMode: (mode) => this.switchMode(mode),
+      cinematic: () => this.setCinematic(true),
+      screenshot: () => this.setScreenshotMode(true),
       settings: () => this.settings,
       applySettings: (s) => this.applySettings(s),
       fullscreen: () => this.toggleFullscreen(),
@@ -210,7 +251,9 @@ export class Game {
     );
     // Test hooks can fast-forward the simulation and stage scenes, so they are only
     // installed in development builds or when explicitly requested with ?test.
-    if (import.meta.env.DEV || this.params.has('test')) this.installTestHooks();
+    // v0.4: compile-time only. Production builds contain no test hooks at all
+    // (import.meta.env.DEV is replaced by `false` and the call is dead-code eliminated).
+    if (import.meta.env.DEV) this.installTestHooks();
     this.resize();
   }
 
@@ -290,7 +333,7 @@ export class Game {
       }),
       bus.on('GOD_MESSAGE', (e) => {
         log(`god:${e.text}`);
-        this.notes.memo(e.text);
+        this.notes.memo(e.text, e.from ?? 'GOD');
       }),
       bus.on('SPEECH', (e) => {
         log(`speech:${e.text}`);
@@ -363,6 +406,75 @@ export class Game {
           if (well && Math.hypot(well.x - e.x, well.z - e.z) <= e.radius) this.labels.float('Well filling!', v3(well.x, well.z, 3.5), 'water');
         }
       }),
+      // ---- v0.4 career, powers, discoveries ----
+      bus.on('XP_GAINED', (e) => {
+        log(`xp:${e.amount}:${e.reason}`);
+        this.careerUi.xp(e.amount);
+      }),
+      bus.on('PROMOTED', (e) => {
+        log(`promoted:${e.rank}`);
+        this.careerUi.promoted(e.rank, e.title, e.unlocks, PROMO_LINES[e.rank] ?? '');
+        this.audio.promotion();
+        this.platform.celebrate();
+      }),
+      bus.on('COMBO_DISCOVERED', (e) => {
+        log(`combo:${e.id}`);
+        this.audio.discovery();
+        this.vfx.sparkle(e.x, this.sim.terrain.heightAt(e.x, e.z) + 1, e.z, 0xb86bff, 30);
+      }),
+      bus.on('HEAVEN_MESSAGE', (e) => log(`heaven:${e.id}`)),
+      bus.on('POWER_USED', (e) => {
+        log(`power:${e.power}`);
+        if (e.power === 'tornado') this.audio.tornado();
+        if (e.power === 'freeze') this.audio.freeze();
+        if (e.power === 'gravity') this.audio.gravity();
+        if (e.power === 'timewarp') this.audio.timewarp(this.sim.powers.timewarp.mode === 'fast');
+        if (e.power === 'meteor') this.audio.meteorIncoming();
+      }),
+      bus.on('METEOR_IMPACT', (e) => {
+        log(`meteor:${e.buildings}:${e.trees}`);
+        this.powerFx.meteorImpact(e.x, e.z);
+        this.audio.meteorImpact();
+        this.cam.addShake(1.1);
+        this.screenFlash(0.7);
+      }),
+      bus.on('TERRAIN_CHANGED', (e) => {
+        log(`terrain:${e.delta > 0 ? 'raise' : 'lower'}`);
+        const r = e.radius + 2;
+        this.refreshTerrainVisuals(e.x - r, e.z - r, e.x + r, e.z + r);
+        this.powerFx.terraform(e.x, e.z, e.radius, e.delta > 0);
+        this.audio.terraform(e.delta > 0);
+      }),
+      bus.on('VILLAGER_RESURRECTED', (e) => {
+        log(`resurrected:${e.name}`);
+        this.powerFx.resurrection(e.x, e.z);
+        this.audio.resurrection();
+      }),
+      bus.on('POSSESSION_STARTED', () => {
+        log('possess:start');
+        this.audio.possession(true);
+        this.savedView ??= this.cam.snapshot();
+        this.cam.keysEnabled = false;
+        this.cam.minDistance = 10;
+        this.walkTarget = null;
+        this.select(null);
+      }),
+      bus.on('POSSESSION_ENDED', (e) => {
+        log(`possess:end:${e.visited.join(',')}`);
+        this.audio.possession(false);
+        this.cam.keysEnabled = true;
+        this.cam.minDistance = 18;
+        this.walkTarget = null;
+        const v = this.savedView;
+        this.savedView = null;
+        if (v) this.cam.focus(v.x, v.z, v.d, 1.2, v.yaw, v.pitch);
+        $('#possess-hud').classList.add('hidden');
+      }),
+      bus.on('OVERTIME_STARTED', () => {
+        this.audio.promotion();
+        this.screenFlash(0.4);
+      }),
+      bus.on('CHALLENGE_UNLOCKED', () => undefined),
       // ---- v0.3 civilization ----
       bus.on('TRADE_STARTED', (e) => log(`trade-start:${e.caravan.originId}>${e.caravan.destId}:${e.caravan.cargo.resource}`)),
       bus.on('TRADE_COMPLETED', (e) => {
@@ -425,12 +537,35 @@ export class Game {
       this.click(e.clientX, e.clientY);
     });
 
+    window.addEventListener('keydown', (e) => this.heldKeys.add(e.code));
+    window.addEventListener('keyup', (e) => this.heldKeys.delete(e.code));
+    window.addEventListener('blur', () => this.heldKeys.clear());
     window.addEventListener('keydown', (e) => {
       if (e.repeat && e.code !== 'KeyW' && e.code !== 'KeyA' && e.code !== 'KeyS' && e.code !== 'KeyD') return;
       if (e.target instanceof HTMLInputElement) return;
-      if (e.code === 'Escape') {
+      if (this.cinematic || this.screenshotMode) {
+        e.preventDefault();
+        this.setCinematic(false);
+        this.setScreenshotMode(false);
+        return;
+      }
+      if (this.sim.state.possession && !this.menus.open) {
+        if (e.code === 'KeyQ' || e.code === 'Escape') {
+          e.preventDefault();
+          this.sim.possession.end('the intern let go');
+          return;
+        }
+        if (e.code === 'KeyE') {
+          const what = this.sim.possession.interact();
+          if (what) this.cursorToast(what, true, true);
+          return;
+        }
+      }
+      if (e.code === 'Escape' || e.code === 'KeyP') {
         e.preventDefault();
         if (this.menus.open) this.menus.close(true);
+        else if (this.toolbar.menuOpen) this.toolbar.closeMenu();
+        else if (this.careerUi.open) this.careerUi.close();
         else if (this.book.open) this.book.close();
         else if (this.challengesUi.open) this.challengesUi.close();
         else if (this.villagesUi.open) this.villagesUi.close();
@@ -451,9 +586,22 @@ export class Game {
         this.challengesUi.toggle();
       } else if (e.code === 'KeyV') {
         this.villagesUi.toggle();
-      } else if (/^Digit[0-5]$/.test(e.code) || /^Numpad[0-5]$/.test(e.code)) {
+      } else if (/^Digit[0-6]$/.test(e.code) || /^Numpad[0-6]$/.test(e.code)) {
         const n = Number(e.code.slice(-1));
-        this.select(n === 0 ? null : POWER_ORDER[n - 1]);
+        this.select(n === 0 ? null : (this.toolbar.slot(n - 1) ?? null));
+      } else if (e.code === 'KeyG' || e.code === 'Tab') {
+        e.preventDefault();
+        this.toolbar.toggleMenu();
+      } else if (e.code === 'KeyT') {
+        this.toggleSubMode();
+      } else if (e.code === 'KeyJ') {
+        this.careerUi.toggle();
+      } else if (e.code === 'KeyO') {
+        this.startOvertime();
+      } else if (e.code === 'KeyK') {
+        this.setCinematic(true);
+      } else if (e.code === 'KeyH') {
+        this.setScreenshotMode(true);
       }
     });
 
@@ -483,7 +631,9 @@ export class Game {
   }
 
   /** Only one left-hand drawer at a time (book, challenges, villages). */
-  private closeDrawers(keep: 'book' | 'challenges' | 'villages'): void {
+  private closeDrawers(keep: 'book' | 'challenges' | 'villages' | 'career' | 'powers'): void {
+    if (keep !== 'career') this.careerUi.close();
+    if (keep !== 'powers') this.toolbar.closeMenu();
     if (keep !== 'book' && this.book.open) this.book.close();
     if (keep !== 'challenges') this.challengesUi.close();
     if (keep !== 'villages') this.villagesUi.close();
@@ -530,7 +680,7 @@ export class Game {
   select(id: PowerId | null): void {
     if (id && !this.sim.state.unlockedPowers.includes(id)) {
       this.audio.reject();
-      this.cursorToast('Finish the tutorial to unlock', false, true);
+      this.cursorToast(this.sim.powers.lockReason(id) ?? 'Locked', false, true);
       return;
     }
     this.selected = this.selected === id ? null : id;
@@ -540,6 +690,16 @@ export class Game {
   }
 
   private click(x: number, y: number): void {
+    if (this.cam.touchGesture) return; // a touch drag/pinch, not a tap
+    if (this.cinematic || this.screenshotMode) {
+      this.setCinematic(false);
+      this.setScreenshotMode(false);
+      return;
+    }
+    if (this.sim.state.possession) {
+      if (this.pickGround(x, y, this.ground)) this.walkTarget = { x: this.ground.x, z: this.ground.z };
+      return;
+    }
     if (this.selected) {
       if (!this.pickGround(x, y, this.ground)) return;
       this.sim.powers.activate(this.selected, this.ground.x, this.ground.z);
@@ -655,7 +815,7 @@ export class Game {
   }
 
   private autosave(): void {
-    this.saves.save(this.sim.state, AUTOSAVE_KEY);
+    this.saves.save(this.sim.state, slotKey(this.sim.state.mode, true));
   }
 
   private render(dt: number, now: number, wallDt = dt): void {
@@ -668,6 +828,34 @@ export class Game {
     const s = sim.state;
 
     this.resize();
+    // v0.4 possession: keys/taps steer the villager; the camera follows close behind.
+    const pv = this.sim.possession.villager;
+    if (pv && !frozen) {
+      let dx = 0;
+      let dz = 0;
+      if (this.heldKeys.has('KeyW') || this.heldKeys.has('ArrowUp')) dz -= 1;
+      if (this.heldKeys.has('KeyS') || this.heldKeys.has('ArrowDown')) dz += 1;
+      if (this.heldKeys.has('KeyA') || this.heldKeys.has('ArrowLeft')) dx -= 1;
+      if (this.heldKeys.has('KeyD') || this.heldKeys.has('ArrowRight')) dx += 1;
+      let wx = 0;
+      let wz = 0;
+      if (dx || dz) {
+        this.walkTarget = null;
+        // Camera-relative: forward is away from the camera.
+        const yaw = this.cam.yaw;
+        wx = dx * Math.cos(yaw) + dz * Math.sin(yaw);
+        wz = -dx * Math.sin(yaw) + dz * Math.cos(yaw);
+      } else if (this.walkTarget) {
+        wx = this.walkTarget.x - pv.position.x;
+        wz = this.walkTarget.z - pv.position.z;
+        if (Math.hypot(wx, wz) < 0.6) {
+          this.walkTarget = null;
+          wx = wz = 0;
+        }
+      }
+      this.sim.possession.steer(wx, wz);
+      this.cam.track(pv.position.x, pv.position.y, pv.position.z, pv.heading, dt);
+    }
     if (!frozen) this.cam.update(dt);
     this.tutorial.update(this.paused || this.menus.open || frozen ? 0 : wallDt);
 
@@ -711,8 +899,11 @@ export class Game {
       const res = c.phase === 'outbound' ? c.cargo.resource : c.payment?.resource ?? c.cargo.resource;
       for (const id of c.merchantIds) this.packColors.set(id, RESOURCE_COLOR[res] ?? 0xc8a46a);
     }
-    this.villagers.update(s.villagers, sim.terrain, animDt, this.elapsed, this.reducedMotion, religionColors, s.culture.upsideDownUntil > s.time, this.packColors);
+    this.villagers.update(s.villagers, sim.terrain, animDt, this.elapsed, this.reducedMotion, religionColors, s.culture.upsideDownUntil > s.time, this.packColors, s.time);
     this.culture.update(s, this.elapsed, night, this.reducedMotion);
+    const possessedPos = pv ? this.tmpV.set(pv.position.x, pv.position.y, pv.position.z) : null;
+    this.powerFx.resurrectionSelected = this.selected === 'resurrection';
+    this.powerFx.update(s, animDt, this.elapsed, this.reducedMotion, possessedPos);
     const unlocks = [...s.culture.improvements, ...s.civ.cosmetics];
     for (const d of this.decors) d.update(unlocks, night);
     this.weather.rainbow = s.civ.cosmetics.includes('rainbow-rain');
@@ -730,7 +921,9 @@ export class Game {
     this.inspector.update(sim, dt);
     this.book.update(sim);
     this.villagesUi.update(sim);
-    this.challengesUi.update(sim, wallDt, this.book.open || this.villagesUi.open);
+    this.careerUi.update(sim, wallDt);
+    this.updateOverlays(sim);
+    this.challengesUi.update(sim, wallDt, this.book.open || this.villagesUi.open || this.careerUi.open || this.toolbar.menuOpen);
     this.notes.update();
     this.pinTimer -= dt;
     if (this.pinTimer <= 0) {
@@ -809,10 +1002,10 @@ export class Game {
   private applySettings(s: Settings, persist = true): void {
     const qualityChanged = s.quality !== this.settings.quality;
     this.settings = s;
-    this.audio.setVolumes(s.masterVolume, s.sfxVolume);
+    this.audio.setVolumes(s.masterVolume, s.sfxVolume, s.musicVolume, s.ambientVolume, s.uiVolume);
     this.cam.sensitivity = s.cameraSensitivity;
     this.cam.reducedShake = s.reducedShake;
-    this.sim.unlimitedEnergy = s.unlimitedEnergy;
+    this.applyModeOptions();
     if (qualityChanged) this.applyQuality(s.quality === 'auto' ? 'high' : s.quality);
     if (persist) saveSettings(this.store, s);
   }
@@ -842,13 +1035,121 @@ export class Game {
 
   // ---------------------------------------------------------------- world reset / load
 
-  private restart(): void {
-    this.applyState(createInitialState(WORLD_SEED, this.sim.terrain));
+  private restart(mode = this.sim.state.mode): void {
+    const fresh = createInitialState(WORLD_SEED, this.sim.terrain);
+    fresh.mode = mode;
+    this.applyState(fresh);
     this.sim.state.tutorial.done = true;
     this.sim.powers.unlock(BASIC_POWERS);
+    this.sim.applyMode();
+    this.sim.career.applyUnlocks();
     this.sim.missions.autoGenerate = true;
-    this.saves.clear(AUTOSAVE_KEY);
-    this.sim.notify('A FRESH ISLAND', 'info', 'Day one again. Try to keep it that way.');
+    this.saves.clear(slotKey(mode, true));
+    this.refreshTerrainVisuals(-80, -80, 80, 80);
+    this.sim.notify('A FRESH ISLAND', 'info', mode === 'creative' ? 'Creative Mode: every power, no career on the line.' : 'Day one again. Try to keep it that way.');
+  }
+
+  /** Career ↔ Creative: save the current slot, then open the other mode's autosave (or a new island). */
+  private switchMode(mode: 'career' | 'creative'): void {
+    if (mode === this.sim.state.mode) return;
+    this.autosave();
+    this.settings.mode = mode;
+    saveSettings(this.store, this.settings);
+    const res = this.saves.load(slotKey(mode, true));
+    if (res.ok && res.state.seed === WORLD_SEED && res.state.mode === mode) {
+      this.applyState(res.state);
+      this.refreshTerrainVisuals(-80, -80, 80, 80);
+      this.sim.notify(mode === 'creative' ? 'CREATIVE MODE' : 'CAREER MODE', 'info', 'Welcome back to this slot.');
+    } else this.restart(mode);
+    this.applyModeOptions();
+  }
+
+  /** Creative-only options: unlimited energy and reduced cooldowns never apply to Career Mode. */
+  private applyModeOptions(): void {
+    const creative = this.sim.state.mode === 'creative';
+    this.sim.unlimitedEnergy = creative && this.settings.unlimitedEnergy;
+    this.sim.reducedCooldowns = creative && this.settings.reducedCooldowns;
+  }
+
+  /** Terrain mesh, ground clutter and grounding after heightfield edits (local box). */
+  private refreshTerrainVisuals(x0: number, z0: number, x1: number, z1: number): void {
+    this.terrainMesh.updateRegion(x0, z0, x1, z1);
+    this.vegetation.reground(this.sim.terrain, x0, z0, x1, z1);
+  }
+
+  private toggleSubMode(): void {
+    if (this.selected === 'terraform') {
+      const t = this.sim.powers.terraform;
+      t.mode = t.mode === 'raise' ? 'lower' : 'raise';
+      this.cursorToast(t.mode === 'raise' ? 'Terraform: raise' : 'Terraform: lower', true, true);
+    } else if (this.selected === 'timewarp') {
+      const t = this.sim.powers.timewarp;
+      t.mode = t.mode === 'fast' ? 'slow' : 'fast';
+      this.cursorToast(t.mode === 'fast' ? 'Time Warp: fast' : 'Time Warp: slow', true, true);
+    } else return;
+    this.audio.uiClick();
+  }
+
+  private startOvertime(): void {
+    if (!this.sim.career.startOvertime()) {
+      this.audio.reject();
+      this.cursorToast(this.sim.state.career.rank < 10 && this.sim.state.mode === 'career' ? 'Divine Overtime unlocks at rank 10' : 'Overtime is recharging', false, true);
+    }
+  }
+
+  setCinematic(on: boolean): void {
+    if (on === this.cinematic) return;
+    this.cinematic = on;
+    document.body.classList.toggle('cinematic', on);
+    $('#cine-exit').classList.toggle('hidden', !on);
+    if (on) {
+      this.savedView = this.cam.snapshot();
+      this.select(null);
+      this.closeDrawers('book');
+      this.book.close();
+    } else if (this.savedView && !this.sim.state.possession) {
+      const v = this.savedView;
+      this.savedView = null;
+      this.cam.focus(v.x, v.z, v.d, 1.2, v.yaw, v.pitch);
+    }
+    this.cam.cinematic = on;
+  }
+
+  setScreenshotMode(on: boolean): void {
+    if (on === this.screenshotMode) return;
+    this.screenshotMode = on;
+    document.body.classList.toggle('screenshot', on);
+    if (on) this.cursorToast('Screenshot mode · any key or click to exit', true, true);
+  }
+
+  /** Possession HUD, mode badge and overtime glow. */
+  private updateOverlays(sim: Simulation): void {
+    const p = sim.state.possession;
+    const hud = $('#possess-hud');
+    if (p) {
+      const v = sim.villager(p.villagerId);
+      const left = Math.max(0, Math.ceil(p.until - sim.state.time));
+      const key = `${p.villagerId}|${left}|${p.visited.length}`;
+      if (v && key !== this.possessLabelKey) {
+        this.possessLabelKey = key;
+        const village = sim.village(v.villageId);
+        hud.innerHTML = `<div><small>Possessing · ${left}s</small><b>${v.name}</b><span>${v.traits.join(' · ')} · ${village?.name ?? ''}</span></div>
+          <p><kbd>WASD</kbd>/tap to walk · <kbd>E</kbd> interact · <kbd>Q</kbd> leave</p>
+          <div class="ph-btns"><button type="button" data-pe>Interact</button><button type="button" data-pq>Leave</button></div>`;
+        hud.querySelector('[data-pe]')?.addEventListener('click', () => {
+          const what = sim.possession.interact();
+          if (what) this.cursorToast(what, true, true);
+        });
+        hud.querySelector('[data-pq]')?.addEventListener('click', () => sim.possession.end('the intern let go'));
+      }
+      hud.classList.remove('hidden');
+    } else hud.classList.add('hidden');
+    const badge = $('#mode-badge');
+    const creative = sim.state.mode === 'creative';
+    badge.classList.toggle('hidden', !creative);
+    if (creative && badge.textContent !== 'CREATIVE MODE · no career XP') badge.textContent = 'CREATIVE MODE · no career XP';
+    document.body.classList.toggle('overtime', sim.career.overtimeActive());
+    document.body.classList.toggle('aura', sim.state.civ.cosmetics.includes('cosmic-aura'));
   }
 
   private loadFrom(key: string): boolean {

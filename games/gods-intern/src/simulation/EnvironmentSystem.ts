@@ -68,7 +68,7 @@ export class EnvironmentSystem {
     for (const tree of s.trees) {
       if (tree.removed) continue;
       if (tree.growth < 1 && !tree.charred && tree.growRate > 0) {
-        tree.growth = Math.min(1, tree.growth + tree.growRate * dt);
+        tree.growth = Math.min(1, tree.growth + tree.growRate * dt * sim.effects.growthFactor(tree.x, tree.z));
       }
       if (tree.charred) {
         tree.charredTime += dt;

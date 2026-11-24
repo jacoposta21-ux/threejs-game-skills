@@ -49,59 +49,17 @@ export class TerrainMesh {
    */
   constructor(private readonly terrain: TerrainData, buildings: BuildingData[], centers: Array<{ id: string; x: number; z: number }>, roads: number[] = []) {
     const seg = terrain.segments;
-    const v = terrain.verts;
     const triCount = seg * seg * 2;
     const positions = new Float32Array(triCount * 9);
     this.baseColors = new Float32Array(triCount * 9);
     this.triCell = new Uint16Array(triCount);
-    const paths = [...this.pathSegments(buildings, centers), ...roads];
-    const color = new THREE.Color();
-    let t = 0;
-    const h = terrain.heights;
-    for (let iz = 0; iz < seg; iz++) {
-      for (let ix = 0; ix < seg; ix++) {
-        const i00 = iz * v + ix;
-        const i10 = i00 + 1;
-        const i01 = i00 + v;
-        const i11 = i01 + 1;
-        const x0 = -terrain.half + ix * terrain.step;
-        const z0 = -terrain.half + iz * terrain.step;
-        const x1 = x0 + terrain.step;
-        const z1 = z0 + terrain.step;
-        // Alternate the diagonal for a less gridded facet pattern.
-        const flip = (ix + iz) % 2 === 0;
-        const tris = flip
-          ? [
-              [x0, h[i00], z0, x0, h[i01], z1, x1, h[i10], z0],
-              [x1, h[i10], z0, x0, h[i01], z1, x1, h[i11], z1],
-            ]
-          : [
-              [x0, h[i00], z0, x0, h[i01], z1, x1, h[i11], z1],
-              [x0, h[i00], z0, x1, h[i11], z1, x1, h[i10], z0],
-            ];
-        for (const tri of tris) {
-          positions.set(tri, t * 9);
-          const cx = (tri[0] + tri[3] + tri[6]) / 3;
-          const cy = (tri[1] + tri[4] + tri[7]) / 3;
-          const cz = (tri[2] + tri[5] + tri[8]) / 3;
-          // Classify by the whole quad's relief so both triangles agree (no checkerboard).
-          const quadRelief = Math.max(h[i00], h[i10], h[i01], h[i11]) - Math.min(h[i00], h[i10], h[i01], h[i11]);
-          this.colorFor(cx, cy, cz, quadRelief * 0.85, paths, centers, color);
-          for (let k = 0; k < 3; k++) {
-            this.baseColors[t * 9 + k * 3] = color.r;
-            this.baseColors[t * 9 + k * 3 + 1] = color.g;
-            this.baseColors[t * 9 + k * 3 + 2] = color.b;
-          }
-          const n = CONFIG.cells.count;
-          const ccx = Math.min(n - 1, Math.max(0, Math.floor((cx + terrain.half) / CONFIG.cells.size)));
-          const ccz = Math.min(n - 1, Math.max(0, Math.floor((cz + terrain.half) / CONFIG.cells.size)));
-          this.triCell[t] = ccz * n + ccx;
-          t++;
-        }
-      }
-    }
+    this.paths = [...this.pathSegments(buildings, centers), ...roads];
+    this.centers = centers;
+    this.positions = positions;
+    this.fillQuads(0, 0, seg - 1, seg - 1);
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    this.posAttr = new THREE.BufferAttribute(positions, 3);
+    geometry.setAttribute('position', this.posAttr);
     this.colors = new THREE.BufferAttribute(this.baseColors.slice(), 3);
     this.colors.setUsage(THREE.DynamicDrawUsage);
     geometry.setAttribute('color', this.colors);
@@ -161,6 +119,76 @@ if (uCursor.w > 0.0) {
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.receiveShadow = true;
     this.mesh.name = 'terrain';
+  }
+
+  private paths: number[] = [];
+  private centers: Array<{ id: string; x: number; z: number }> = [];
+  private positions!: Float32Array;
+  private posAttr!: THREE.BufferAttribute;
+
+  /** Write positions, base colors and cell ids for a range of quads (inclusive). */
+  private fillQuads(qx0: number, qz0: number, qx1: number, qz1: number): void {
+    const terrain = this.terrain;
+    const seg = terrain.segments;
+    const v = terrain.verts;
+    const h = terrain.heights;
+    const color = new THREE.Color();
+    for (let iz = qz0; iz <= qz1; iz++) {
+      for (let ix = qx0; ix <= qx1; ix++) {
+        let t = (iz * seg + ix) * 2;
+        const i00 = iz * v + ix;
+        const i10 = i00 + 1;
+        const i01 = i00 + v;
+        const i11 = i01 + 1;
+        const x0 = -terrain.half + ix * terrain.step;
+        const z0 = -terrain.half + iz * terrain.step;
+        const x1 = x0 + terrain.step;
+        const z1 = z0 + terrain.step;
+        // Alternate the diagonal for a less gridded facet pattern.
+        const flip = (ix + iz) % 2 === 0;
+        const tris = flip
+          ? [
+              [x0, h[i00], z0, x0, h[i01], z1, x1, h[i10], z0],
+              [x1, h[i10], z0, x0, h[i01], z1, x1, h[i11], z1],
+            ]
+          : [
+              [x0, h[i00], z0, x0, h[i01], z1, x1, h[i11], z1],
+              [x0, h[i00], z0, x1, h[i11], z1, x1, h[i10], z0],
+            ];
+        for (const tri of tris) {
+          this.positions.set(tri, t * 9);
+          const cx = (tri[0] + tri[3] + tri[6]) / 3;
+          const cy = (tri[1] + tri[4] + tri[7]) / 3;
+          const cz = (tri[2] + tri[5] + tri[8]) / 3;
+          // Classify by the whole quad's relief so both triangles agree (no checkerboard).
+          const quadRelief = Math.max(h[i00], h[i10], h[i01], h[i11]) - Math.min(h[i00], h[i10], h[i01], h[i11]);
+          this.colorFor(cx, cy, cz, quadRelief * 0.85, this.paths, this.centers, color);
+          for (let k = 0; k < 3; k++) {
+            this.baseColors[t * 9 + k * 3] = color.r;
+            this.baseColors[t * 9 + k * 3 + 1] = color.g;
+            this.baseColors[t * 9 + k * 3 + 2] = color.b;
+          }
+          const n = CONFIG.cells.count;
+          const ccx = Math.min(n - 1, Math.max(0, Math.floor((cx + terrain.half) / CONFIG.cells.size)));
+          const ccz = Math.min(n - 1, Math.max(0, Math.floor((cz + terrain.half) / CONFIG.cells.size)));
+          this.triCell[t] = ccz * n + ccx;
+          t++;
+        }
+      }
+    }
+  }
+
+  /** v0.4: rebuild the mesh inside a world-space box after the heightfield changed (Terraform, craters). */
+  updateRegion(x0: number, z0: number, x1: number, z1: number): void {
+    const terrain = this.terrain;
+    const seg = terrain.segments;
+    const q = (w: number) => Math.min(seg - 1, Math.max(0, Math.floor((w + terrain.half) / terrain.step)));
+    this.fillQuads(q(x0) - 1 < 0 ? 0 : q(x0) - 1, q(z0) - 1 < 0 ? 0 : q(z0) - 1, Math.min(seg - 1, q(x1) + 1), Math.min(seg - 1, q(z1) + 1));
+    this.posAttr.needsUpdate = true;
+    this.mesh.geometry.computeVertexNormals();
+    (this.colors.array as Float32Array).set(this.baseColors);
+    this.colors.needsUpdate = true;
+    this.wetTimer = 0;
   }
 
   /** Straight dirt paths from each building door to its village plaza. */

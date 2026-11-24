@@ -4,6 +4,7 @@ import { build, flatMaterial, Part } from '../render/ModelKit';
 import type { TerrainData } from '../world/TerrainGen';
 
 const CAPACITY = 140;
+const CARRY_COLOR: Record<string, number> = { wood: 0x9b6a3e, stone: 0x9aa0a6, food: 0xe8a13a, water: 0x4fa3e0 };
 const ICONS: Exclude<ThoughtIcon, null>[] = ['question', 'alarm', 'heart', 'pray', 'water', 'food', 'sleep', 'idea', 'music', 'angry'];
 
 interface VisualState {
@@ -13,6 +14,7 @@ interface VisualState {
   heading: number;
   phase: number;
   speed: number;
+  lift?: number;
 }
 
 function drawIconAtlas(): THREE.CanvasTexture {
@@ -143,7 +145,7 @@ function drawIconAtlas(): THREE.CanvasTexture {
 export class VillagerRenderer {
   readonly group = new THREE.Group();
   readonly pickMesh: THREE.InstancedMesh;
-  private readonly parts: Record<'torso' | 'head' | 'armL' | 'armR' | 'legL' | 'legR' | 'hair' | 'bun' | 'hat' | 'belt' | 'mouthSmile' | 'mouthFrown' | 'mouthO' | 'leaderHat' | 'axe' | 'hoe' | 'hammer' | 'pick' | 'rod' | 'pack' | 'bindle' | 'staff', THREE.InstancedMesh>;
+  private readonly parts: Record<'torso' | 'head' | 'armL' | 'armR' | 'legL' | 'legR' | 'hair' | 'bun' | 'hat' | 'belt' | 'mouthSmile' | 'mouthFrown' | 'mouthO' | 'leaderHat' | 'axe' | 'hoe' | 'hammer' | 'pick' | 'rod' | 'pack' | 'bindle' | 'staff' | 'carry', THREE.InstancedMesh>;
   private readonly visual = new Map<string, VisualState>();
   private readonly order: VillagerData[] = [];
   private readonly sprites: THREE.Sprite[] = [];
@@ -197,6 +199,7 @@ export class VillagerRenderer {
         Part.box(0.05, 0.4, 0.05).at(0.12, 0.34, -0.17).color(0x6b4a2a),
       ]),
       bindle: build([Part.box(0.03, 0.9, 0.03).rot(0, 0, 0.9).at(0.12, 0.62, -0.18).color(0x7a5a34), Part.ico(0.15, 1).at(-0.22, 0.92, -0.18).color(white)]),
+      carry: build([Part.box(0.42, 0.26, 0.3).at(0, 0.28, 0.42).color(white), Part.box(0.46, 0.04, 0.34).at(0, 0.42, 0.42).color(0x6b4a2a)]),
       staff: build([Part.box(0.04, 1.3, 0.04).at(0.3, 0.2, 0.06).color(0x8a6a44), Part.box(0.24, 0.16, 0.012).at(0.42, 0.78, 0.06).color(white)]),
       belt: build([Part.cyl(0.235, 0.235, 0.09, 7).at(0, 0.05, 0).color(white), Part.box(0.06, 0.52, 0.03).rot(0, 0, 0.75).at(0, 0.28, 0.2).color(white)]),
     };
@@ -247,7 +250,7 @@ export class VillagerRenderer {
     this.visual.clear();
   }
 
-  update(villagers: VillagerData[], terrain: TerrainData, dt: number, elapsed: number, reducedMotion: boolean, religionColors: Map<string, number> = new Map(), backwards = false, packColors: Map<string, number> = new Map()): void {
+  update(villagers: VillagerData[], terrain: TerrainData, dt: number, elapsed: number, reducedMotion: boolean, religionColors: Map<string, number> = new Map(), backwards = false, packColors: Map<string, number> = new Map(), simTime = 0): void {
     const parts = this.parts;
     const m = this.m;
     this.order.length = 0;
@@ -269,7 +272,9 @@ export class VillagerRenderer {
       vis.speed += ((dt > 0 ? moved / dt : 0) - vis.speed) * Math.min(1, dt * 8);
       vis.x = nx;
       vis.z = nz;
-      vis.y = terrain.walkHeightAt(nx, nz);
+      // v0.4: levitation (Gravity) lifts the whole body smoothly.
+      vis.lift = (vis.lift ?? 0) + ((v.lift ?? 0) - (vis.lift ?? 0)) * Math.min(1, dt * 6);
+      vis.y = terrain.walkHeightAt(nx, nz) + vis.lift;
       let dh = v.heading - vis.heading;
       dh = Math.atan2(Math.sin(dh), Math.cos(dh));
       vis.heading += dh * Math.min(1, dt * 10);
@@ -374,6 +379,21 @@ export class VillagerRenderer {
           armR = -1.6;
           lean = 0.2;
         }
+      } else if ((vis.lift ?? 0) > 0.3) {
+        // Floating: arms out, legs kicking slowly, gentle spin.
+        spreadL = 1.2 + Math.sin(t * 3 + index) * 0.3;
+        spreadR = 1.2 + Math.cos(t * 3 + index) * 0.3;
+        legL = Math.sin(t * 4 + index) * 0.6;
+        legR = -legL;
+        headTilt = Math.sin(t * 1.5) * 0.5;
+      } else if (state === 'IDLE' && act === '' && v.traits.includes('lazy') && v.currentTask.timer > 1.5) {
+        // Lazy villagers sit down whenever possible.
+        hip = 0.14;
+        legL = 1.5;
+        legR = 1.5;
+        lean = -0.15;
+        armL = -0.3;
+        armR = -0.3;
       } else {
         // Idle: breathing, occasional head turn, chatting gestures near the well.
         bob = Math.sin(t * 2 + index) * 0.01;
@@ -387,6 +407,13 @@ export class VillagerRenderer {
         }
       }
 
+      const carrying = !!v.carry && v.carry.until > simTime && v.alive;
+      if (carrying && walking) {
+        armL = -1.2;
+        armR = -1.2;
+        spreadL = 0.15;
+        spreadR = 0.15;
+      }
       const look = v.look;
       const s = look.height * (v.age < 12 ? 0.62 + v.age * 0.02 : 1) * 1.45;
       // Upside-Down Day: everyone walks backwards.
@@ -433,6 +460,7 @@ export class VillagerRenderer {
       parts.rod.setMatrixAt(index, v.job === 'fisher' && v.age >= 12 && !trip ? m.torso : m.zero);
       // Travellers are readable at a glance: merchants carry crates, migrants a bindle, pilgrims a banner staff.
       parts.pack.setMatrixAt(index, trip === 'trade' ? m.torso : m.zero);
+      parts.carry.setMatrixAt(index, carrying && !trip ? m.torso : m.zero);
       parts.bindle.setMatrixAt(index, trip === 'migrate' || trip === 'visit' ? m.torso : m.zero);
       parts.staff.setMatrixAt(index, trip === 'pilgrim' ? m.torso : m.zero);
       // Arms.
@@ -461,6 +489,7 @@ export class VillagerRenderer {
       for (const mouth of [parts.mouthSmile, parts.mouthFrown, parts.mouthO, parts.axe, parts.hoe, parts.hammer, parts.pick, parts.rod]) mouth.setColorAt(index, this.color.set(0xffffff));
       parts.pack.setColorAt(index, this.color.set(packColors.get(v.id) ?? 0xc8a46a));
       parts.bindle.setColorAt(index, this.color.set(0xd96a5a));
+      parts.carry.setColorAt(index, this.color.set(carrying ? CARRY_COLOR[v.carry!.kind] : 0xffffff));
       parts.staff.setColorAt(index, this.color.set(faithColor ?? 0xf2c14e));
       hairMesh.setColorAt(index, this.color.set(look.hairStyle === 3 ? 0xd9b25a : look.hair));
 

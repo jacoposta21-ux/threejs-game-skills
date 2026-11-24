@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SAVE_VERSION } from '../../src/world/WorldGen';
 import { CONFIG } from '../../src/core/Config';
 import type { GameStateData, ResourceKind, VillagerData } from '../../src/core/types';
 import { RESOURCES } from '../../src/civ/CivilizationSystem';
@@ -89,7 +90,7 @@ describe('v0.3 villages and economies', () => {
   it('1. initializes three distinct villages with 50 villagers and pairwise relations', () => {
     const sim = new Simulation(SEED);
     const s = sim.state;
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(SAVE_VERSION);
     expect(s.villages.map((v) => v.name)).toEqual(['Puddleton', 'Drizzleville', 'Rockbottom']);
     const pop = (id: string) => s.villagers.filter((v) => v.alive && v.villageId === id).length;
     expect([pop('v1'), pop('v2'), pop('v3')]).toEqual([20, 16, 14]);
@@ -740,7 +741,7 @@ describe('v0.3 save migration', () => {
 
   function checkUpgraded(sim: Simulation, puddletonIds: string[]): void {
     const s = sim.state;
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(SAVE_VERSION);
     expect(s.villages.map((v) => v.id)).toEqual(['v1', 'v2', 'v3']);
     // Puddleton and its people are untouched.
     for (const id of puddletonIds) expect(sim.villager(id)?.villageId).toBe('v1');
@@ -751,7 +752,7 @@ describe('v0.3 save migration', () => {
     s.buildings.forEach((b, i) => expect(b.id).toBe(i));
     expect(s.villages[0].identity.culture).toBe('agricultural');
     expect(Object.keys(s.civ.relations).length).toBe(3);
-    expect(Object.keys(s.civ.challenges).length).toBe(20);
+    expect(Object.keys(s.civ.challenges).length).toBe(30); // 20 from v0.3 + 10 from v0.4
     expect(s.history.some((h) => h.title === 'New Neighbors Arrived')).toBe(true);
     run(sim, 60);
     for (const v of s.villages) for (const r of RESOURCES) expect(Number.isFinite(v[r])).toBe(true);

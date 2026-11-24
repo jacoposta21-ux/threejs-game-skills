@@ -1,4 +1,7 @@
 import type { CivState, CultureState, GameStateData, VillagerData } from '../core/types';
+import { POWER_ORDER } from '../core/Config';
+import { defaultCareer } from '../career/CareerSystem';
+import { defaultHeaven } from '../career/HeavenSystem';
 import { identityFor } from '../world/Settlements';
 import { traitsFromId } from '../culture/Personality';
 
@@ -98,5 +101,20 @@ export function migrateState(state: GameStateData): GameStateData {
   const st = s.stats as unknown as Record<string, number>;
   for (const k of ['tradesCompleted', 'tradesFailed', 'migrations', 'religionSpreads', 'prayersAfterOffice']) if (typeof st[k] !== 'number') st[k] = 0;
   s.civ = { ...defaultCivState(), ...((s.civ as Partial<CivState>) ?? {}) };
+  // v3 → v4: Heavenly Career, new powers, effects, terrain edits, graveyard, discoveries.
+  // Deterministic and additive: nothing existing is reset.
+  const d = defaultV4State();
+  const anyS = s as GameStateData & Partial<Record<string, unknown>>;
+  if (anyS.mode !== 'career' && anyS.mode !== 'creative') s.mode = d.mode;
+  s.career = { ...defaultCareer(), ...((anyS.career as object) ?? {}) };
+  for (const k of ['effects', 'terrainEdits', 'graveyard', 'discoveries', 'craters'] as const) if (!Array.isArray(anyS[k])) (s as unknown as Record<string, unknown>)[k] = [];
+  if (anyS.possession === undefined) s.possession = null;
+  s.heaven = { ...defaultHeaven(), ...((anyS.heaven as object) ?? {}) };
+  for (const id of POWER_ORDER) if (typeof s.cooldowns[id] !== 'number') s.cooldowns[id] = 0;
+  if (s.version < 4) s.version = 4;
   return s;
+}
+
+export function defaultV4State(): Pick<GameStateData, 'mode' | 'career' | 'effects' | 'terrainEdits' | 'graveyard' | 'discoveries' | 'possession' | 'heaven' | 'craters'> {
+  return { mode: 'career', career: defaultCareer(), effects: [], terrainEdits: [], graveyard: [], discoveries: [], possession: null, heaven: defaultHeaven(), craters: [] };
 }

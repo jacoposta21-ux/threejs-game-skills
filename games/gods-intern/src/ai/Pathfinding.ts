@@ -32,15 +32,29 @@ export class Pathfinding {
     this.parent = new Int32Array(n);
     this.stamp = new Uint32Array(n);
     this.closed = new Uint32Array(n);
-    for (let cz = 0; cz < this.dim; cz++) {
-      for (let cx = 0; cx < this.dim; cx++) {
+    this.terrain = terrain;
+    this.refreshTerrain(-this.half, -this.half, this.half, this.half);
+  }
+
+  private readonly terrain: TerrainData;
+
+  /** v0.4: re-classify walkable cells inside a world-space box after terrain edits (local, not full-world). */
+  refreshTerrain(x0: number, z0: number, x1: number, z1: number, buildings?: BuildingData[]): void {
+    const terrain = this.terrain;
+    const c0x = Math.max(0, Math.floor((x0 + this.half) / this.cell) - 1);
+    const c1x = Math.min(this.dim - 1, Math.ceil((x1 + this.half) / this.cell) + 1);
+    const c0z = Math.max(0, Math.floor((z0 + this.half) / this.cell) - 1);
+    const c1z = Math.min(this.dim - 1, Math.ceil((z1 + this.half) / this.cell) + 1);
+    for (let cz = c0z; cz <= c1z; cz++) {
+      for (let cx = c0x; cx <= c1x; cx++) {
         const x = -this.half + (cx + 0.5) * this.cell;
         const z = -this.half + (cz + 0.5) * this.cell;
         const ok = (terrain.isLand(x, z) && terrain.slopeAt(x, z) < 1.15) || !!terrain.bridgeAt(x, z);
         this.terrainBlocked[cz * this.dim + cx] = ok ? 0 : 1;
       }
     }
-    this.blocked.set(this.terrainBlocked);
+    if (buildings) this.rebuildObstacles(buildings);
+    else this.blocked.set(this.terrainBlocked);
   }
 
   rebuildObstacles(buildings: BuildingData[]): void {

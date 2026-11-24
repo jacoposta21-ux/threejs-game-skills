@@ -15,6 +15,13 @@ import { CultureSystem } from '../culture/CultureSystem';
 import { CivilizationSystem } from '../civ/CivilizationSystem';
 import { ChallengeSystem } from '../civ/ChallengeSystem';
 import { ensureRelations } from '../civ/Relations';
+import { CareerSystem } from '../career/CareerSystem';
+import { HeavenSystem } from '../career/HeavenSystem';
+import { EffectsSystem } from '../powers/EffectsSystem';
+import { ComboSystem } from '../powers/ComboSystem';
+import { PossessionSystem, ResurrectionSystem } from '../powers/LifeSystems';
+import { POWER_ORDER } from '../core/Config';
+import type { TerrainEdit } from '../core/types';
 import { HistoryBook } from '../culture/History';
 import { MemorySystem } from '../culture/MemorySystem';
 import { ReligionSystem } from '../culture/ReligionSystem';
@@ -63,6 +70,15 @@ export class Simulation {
   // ---- v0.3 civilization layer ----
   readonly civ: CivilizationSystem;
   readonly challenges: ChallengeSystem;
+  // ---- v0.4 ----
+  readonly effects: EffectsSystem;
+  readonly combos: ComboSystem;
+  readonly possession: PossessionSystem;
+  readonly resurrect: ResurrectionSystem;
+  readonly career: CareerSystem;
+  readonly heaven: HeavenSystem;
+  /** Creative Mode option (not saved in world state). */
+  reducedCooldowns = false;
   /** Sandbox setting; not part of saved world state. */
   unlimitedEnergy = false;
   /** Rolling wind direction used by fire spread. */
@@ -75,6 +91,7 @@ export class Simulation {
     this.state = state ? migrateState(state) : createInitialState(seed, this.terrain);
     this.ensureWorldFeatures();
     this.rng = new Rng(this.state.rngState);
+    this.terrain.applyEdits(this.state.terrainEdits);
     this.pathfinding = new Pathfinding(this.terrain);
     // Order matters: memories are recorded before beliefs react, and beliefs
     // before the surreal event rules that build on them.
@@ -89,7 +106,14 @@ export class Simulation {
     this.culture = new CultureSystem(this);
     this.civ = new CivilizationSystem(this);
     this.challenges = new ChallengeSystem(this);
+    this.effects = new EffectsSystem(this);
+    this.combos = new ComboSystem(this);
+    this.possession = new PossessionSystem(this);
+    this.resurrect = new ResurrectionSystem(this);
+    this.heaven = new HeavenSystem(this);
     this.powers = new PowerManager(this);
+    this.career = new CareerSystem(this);
+    this.applyMode();
     this.faith.attach(this);
     this.rebuildIndexes();
   }
@@ -101,6 +125,10 @@ export class Simulation {
     ensureRelations(this.state);
     this.civ.onStateReplaced();
     this.challenges.ensureStates();
+    const box = this.terrain.applyEdits(this.state.terrainEdits);
+    if (box) this.pathfinding.refreshTerrain(box.x0, box.z0, box.x1, box.z1);
+    this.applyMode();
+    this.career.applyUnlocks();
     this.rng = new Rng(state.rngState);
     this.rebuildIndexes();
   }
@@ -159,8 +187,8 @@ export class Simulation {
   step(dt: number): void {
     const s = this.state;
     s.time += dt;
-    if (this.unlimitedEnergy) s.energy = CONFIG.energy.max;
-    else s.energy = Math.min(CONFIG.energy.max, s.energy + CONFIG.energy.regen * dt);
+    if (this.unlimitedEnergy && s.mode === 'creative') s.energy = CONFIG.energy.max;
+    else s.energy = Math.min(CONFIG.energy.max, s.energy + CONFIG.energy.regen * (this.career.overtimeActive() ? CONFIG.career.overtime.regenMult : 1) * dt);
     for (const key of Object.keys(s.cooldowns) as Array<keyof typeof s.cooldowns>) {
       s.cooldowns[key] = Math.max(0, s.cooldowns[key] - dt);
     }
@@ -178,7 +206,11 @@ export class Simulation {
     this.culture.update(dt);
     this.surreal.update(dt);
     this.civ.update(dt);
-    this.challenges.update(dt);
+    if (s.mode === 'career') this.challenges.update(dt);
+    this.effects.update(dt);
+    this.possession.update(dt);
+    this.career.update();
+    this.heaven.update(dt);
     this.pruneDead();
     s.rngState = this.rng.state;
   }
@@ -359,6 +391,40 @@ export class Simulation {
     this.treeGrid.insert(tree.id, x, z);
     this.bus.emit('TREE_PLANTED', { treeId: tree.id, x, z, byPlayer });
     return tree;
+  }
+
+  /** Creative Mode: every power, no Career progress. Career Mode: unlocks follow rank. */
+  applyMode(): void {
+    if (this.state.mode === 'creative') this.powers.unlock(POWER_ORDER);
+  }
+
+  /**
+   * v0.4 Terraform/crater: record the edit (bounded list, saved), re-apply terrain,
+   * refresh navigation locally and re-ground everything. `force` skips nothing but
+   * is used by the meteor (already validated its own protection rules).
+   */
+  applyTerrainEdit(edit: TerrainEdit, force = false): void {
+    const s = this.state;
+    s.terrainEdits.push(edit);
+    // Bounded: merge the oldest edits by baking is not possible without base data, so cap the count.
+    if (s.terrainEdits.length > 80) s.terrainEdits.shift();
+    this.terrain.applyEdits(s.terrainEdits);
+    const r = edit.radius + 1;
+    this.pathfinding.refreshTerrain(edit.x - r, edit.z - r, edit.x + r, edit.z + r, s.buildings);
+    for (const v of s.villagers) {
+      if (Math.hypot(v.position.x - edit.x, v.position.z - edit.z) < r) v.position.y = this.terrain.walkHeightAt(v.position.x, v.position.z);
+    }
+    const { village, distance } = this.nearestVillage(edit.x, edit.z);
+    const vid = village && distance < village.radius + 12 ? village.id : null;
+    if (vid && !force) {
+      for (const p of this.villagersNear(edit.x, edit.z, 14, [])) {
+        if (p.thought === null) {
+          p.thought = 'question';
+          p.thoughtTimer = 3;
+        }
+      }
+    }
+    this.bus.emit('TERRAIN_CHANGED', { x: edit.x, z: edit.z, radius: edit.radius, delta: edit.delta, villageId: vid });
   }
 
   addVillager(v: VillagerData): void {

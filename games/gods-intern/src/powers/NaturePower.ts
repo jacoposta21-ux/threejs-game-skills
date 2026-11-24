@@ -37,6 +37,7 @@ export class NaturePower extends BasePower {
     const stump = sim.treesNear(x, z, CONFIG.trees.minSpacing, this.trees).find((t) => t.charred);
     let tree: TreeData;
     if (stump) {
+      sim.combos.trigger('phoenix-forest', x, z);
       tree = stump;
       tree.charred = false;
       tree.kind = kind;

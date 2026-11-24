@@ -73,6 +73,25 @@ function addSway(material: THREE.MeshStandardMaterial, uTime: { value: number },
 }
 
 export class Vegetation {
+  /** Ground clutter positions (x, z, y offset) for re-grounding after terrain edits. */
+  private detail: Array<{ mesh: THREE.InstancedMesh; pts: Array<[number, number, number]> }> = [];
+  private readonly regroundMatrix = new THREE.Matrix4();
+
+  /** v0.4: move flowers, grass and rocks inside a box back onto the (edited) ground. */
+  reground(terrain: TerrainData, x0: number, z0: number, x1: number, z1: number): void {
+    for (const d of this.detail) {
+      let changed = false;
+      d.pts.forEach(([x, z, off], i) => {
+        if (x < x0 || x > x1 || z < z0 || z > z1) return;
+        d.mesh.getMatrixAt(i, this.regroundMatrix);
+        this.regroundMatrix.elements[13] = terrain.heightAt(x, z) + off;
+        d.mesh.setMatrixAt(i, this.regroundMatrix);
+        changed = true;
+      });
+      if (changed) d.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
   readonly group = new THREE.Group();
   readonly uTime = { value: 0 };
   private readonly meshes: Record<VisualKind, THREE.InstancedMesh>;
@@ -185,6 +204,11 @@ export class Vegetation {
       rMesh.setMatrixAt(i, this.dummy.matrix);
       rMesh.setColorAt(i, this.color.setHSL(0.08, 0.06 + rand() * 0.06, 0.5 + rand() * 0.15));
     });
+    this.detail = [
+      { mesh: fMesh, pts: flowers.map(([x, z]) => [x, z, 0] as [number, number, number]) },
+      { mesh: gMesh, pts: grass.map(([x, z]) => [x, z, -0.03] as [number, number, number]) },
+      { mesh: rMesh, pts: rocks.map(([x, z, s]) => [x, z, -0.1 * s] as [number, number, number]) },
+    ];
     fMesh.name = 'flowers';
     gMesh.name = 'grass';
     rMesh.name = 'rocks';

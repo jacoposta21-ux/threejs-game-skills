@@ -91,17 +91,18 @@ export class FireSystem {
 
     for (let i = s.fires.length - 1; i >= 0; i--) {
       const fire = s.fires[i];
-      fire.age += dt;
+      const fdt = dt * sim.effects.timeFactor(fire.x, fire.z);
+      fire.age += fdt;
       const moisture = sim.moistureAt(fire.x, fire.z);
       const raining = this.inRain(sim, fire.x, fire.z);
       const flood = sim.floodAt(fire.x, fire.z);
 
-      fire.intensity += CONFIG.fire.growPerSec * dt * Math.max(0, 1 - moisture * 1.15);
+      fire.intensity += CONFIG.fire.growPerSec * fdt * Math.max(0, 1 - moisture * 1.15);
       if (raining) fire.intensity -= CONFIG.rain.fireDampPerSec * dt;
       if (moisture > 0.85) fire.intensity -= 0.12 * dt;
       if (flood > 0.2) fire.intensity -= 0.4 * dt;
       fire.intensity = Math.min(1, fire.intensity);
-      fire.fuel -= Math.max(0.15, fire.intensity) * dt;
+      fire.fuel -= Math.max(0.15, fire.intensity) * fdt;
 
       let ended = false;
       if (fire.kind === 'building') {
@@ -123,7 +124,7 @@ export class FireSystem {
       if (!ended && fire.intensity < CONFIG.fire.extinguishBelow && fire.age > 0.4) {
         this.release(sim, fire, false);
         s.fires.splice(i, 1);
-        sim.bus.emit('FIRE_EXTINGUISHED', { fireId: fire.id, x: fire.x, z: fire.z, byRain: raining || moisture > 0.85, kind: fire.kind, targetId: fire.targetId, byPlayer: fire.byPlayer });
+        sim.bus.emit('FIRE_EXTINGUISHED', { fireId: fire.id, x: fire.x, z: fire.z, byRain: raining || moisture > 0.85, kind: fire.kind, targetId: fire.targetId, byPlayer: fire.byPlayer, byFreeze: sim.effects.freezeAt(fire.x, fire.z) > 0 });
         continue;
       }
       if (ended || fire.fuel <= 0) {
