@@ -277,7 +277,7 @@ test('v0.4 powers: creative mode via the menu, all eight new powers by hand, dis
   await page.locator('[data-a=ok]').click();
   await expect.poll(async () => (await diag(page)).events.join('|')).toContain('notify:GAME LOADED');
   const loaded = await state(page);
-  expect(loaded.version).toBe(4);
+  expect(loaded.version).toBe(5);
   expect(loaded.terrainEdits).toEqual(saved.terrainEdits);
   expect(loaded.discoveries).toEqual(saved.discoveries);
   expect(loaded.villagers.length).toBe(saved.villagers.length);

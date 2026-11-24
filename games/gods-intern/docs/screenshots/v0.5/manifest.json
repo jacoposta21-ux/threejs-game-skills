@@ -1,0 +1,135 @@
+[
+  {
+    "file": "01-main-menu.png",
+    "viewport": "1600x900",
+    "state": "main menu (no career save: no Continue)"
+  },
+  {
+    "file": "02-new-career-intro.png",
+    "viewport": "1600x900",
+    "state": "New Career onboarding intro"
+  },
+  {
+    "file": "03-default-hud.png",
+    "viewport": "1600x900",
+    "state": "default HUD after onboarding"
+  },
+  {
+    "file": "04-selected-power.png",
+    "viewport": "1600x900",
+    "state": "Lightning selected: targeting bar with Cancel"
+  },
+  {
+    "file": "05-targeting-preview.png",
+    "viewport": "1600x900",
+    "state": "targeting preview over a rock (valid target)"
+  },
+  {
+    "file": "06-all-powers.png",
+    "viewport": "1600x900",
+    "state": "All Powers panel"
+  },
+  {
+    "file": "07-locked-power.png",
+    "viewport": "1600x900",
+    "state": "Meteor locked: requirement and progress"
+  },
+  {
+    "file": "08-world.png",
+    "viewport": "1600x900",
+    "state": "World panel: three village cards"
+  },
+  {
+    "file": "09-villager-inspector.png",
+    "viewport": "1600x900",
+    "state": "villager inspector with needs and memories"
+  },
+  {
+    "file": "10-prayers.png",
+    "viewport": "1600x900",
+    "state": "prayer cards and compact inbox",
+    "staged": "simulate(240) to accumulate prayers"
+  },
+  {
+    "file": "11-career.png",
+    "viewport": "1600x900",
+    "state": "Career panel path"
+  },
+  {
+    "file": "12-challenges.png",
+    "viewport": "1600x900",
+    "state": "Challenges: Recommended"
+  },
+  {
+    "file": "13-history.png",
+    "viewport": "1600x900",
+    "state": "History: events"
+  },
+  {
+    "file": "14-promotion.png",
+    "viewport": "1600x900",
+    "state": "promotion ceremony",
+    "staged": "grantXp to the next threshold"
+  },
+  {
+    "file": "15-creative.png",
+    "viewport": "1600x900",
+    "state": "Creative Mode: every power available"
+  },
+  {
+    "file": "16-settings.png",
+    "viewport": "1600x900",
+    "state": "Settings with graphics, volumes, reduced motion, camera shake"
+  },
+  {
+    "file": "vp-1920x1080.png",
+    "viewport": "1920x1080",
+    "state": "creative HUD at 1920x1080"
+  },
+  {
+    "file": "vp-1366x768.png",
+    "viewport": "1366x768",
+    "state": "creative HUD at 1366x768"
+  },
+  {
+    "file": "vp-1280x720.png",
+    "viewport": "1280x720",
+    "state": "creative HUD at 1280x720"
+  },
+  {
+    "file": "vp-1024x768.png",
+    "viewport": "1024x768",
+    "state": "creative HUD at 1024x768"
+  },
+  {
+    "file": "17-phone-landscape.png",
+    "viewport": "863x360",
+    "state": "Pixel 7 landscape: default HUD"
+  },
+  {
+    "file": "17-phone-landscape-targeting.png",
+    "viewport": "863x360",
+    "state": "Pixel 7 landscape: Rain selected"
+  },
+  {
+    "file": "17-phone-landscape-world.png",
+    "viewport": "863x360",
+    "state": "Pixel 7 landscape: World panel"
+  },
+  {
+    "file": "19-possession-touch.png",
+    "viewport": "863x360",
+    "state": "Possession: on-screen pad, Interact and Leave",
+    "staged": "possess() hook to start"
+  },
+  {
+    "file": "18-tablet-landscape.png",
+    "viewport": "1180x820",
+    "state": "tablet landscape 1180x820 (iPad Air class)"
+  },
+  {
+    "file": "20-portrait.png",
+    "viewport": "390x844",
+    "state": "portrait phone: rotate prompt"
+  }
+]

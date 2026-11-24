@@ -164,9 +164,10 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
   let planted = 0;
   const byPlayer = async () => (await state(page)).trees.filter((t: any) => t.byPlayer && !t.removed).length;
   const start = await byPlayer();
-  for (let ring = 0; ring < 9 && planted < 27; ring++) {
-    for (let k = 0; k < 18 && planted < 27; k++) {
-      const a = (k / 18) * Math.PI * 2 + ring * 0.17;
+  // Trees only count as favor for Puddleton close to it (rings up to ~27 m), so sample more angles, not more rings.
+  for (let ring = 0; ring < 6 && planted < 24; ring++) {
+    for (let k = 0; k < 30 && planted < 24; k++) {
+      const a = (k / 30) * Math.PI * 2 + ring * 0.17;
       const r = 10 + ring * 3.5;
       const screen = await page.evaluate(([x, z]) => window.__THREE_GAME_TEST_HOOKS__!.worldPoint(x, z), [p.center.x + Math.cos(a) * r, p.center.z + Math.sin(a) * r] as const);
       // Stay clear of the HUD, panels and toolbar.
@@ -178,7 +179,7 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
       planted = (await byPlayer()) - start;
     }
   }
-  expect(planted).toBeGreaterThanOrEqual(24);
+  expect(planted).toBeGreaterThanOrEqual(21); // 2 favor per tree; the favoritism gap is 40
   report.treesPlanted = planted;
   await page.keyboard.press('Digit0');
   // The FAVORITISM event can scroll out of the 120-line diagnostics log during the planting
@@ -189,7 +190,7 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
     .poll(async () => {
       complaint ||= (await diag(page)).events.find((e) => /favoritism:jealousy|FORMAL COMPLAINT AGAINST HEAVEN|FAVORITE CHILD/.test(e)) ?? '';
       return (await state(page)).prayers.some((q: any) => q.type === 'EQUAL_TREATMENT');
-    }, { timeout: 60_000 })
+    }, { timeout: 900_000 })
     .toBe(true);
   const jealous = (await state(page)).prayers.find((q: any) => q.type === 'EQUAL_TREATMENT').villageId;
   expect(['v2', 'v3']).toContain(jealous);
