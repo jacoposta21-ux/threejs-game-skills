@@ -40,3 +40,12 @@ export function formatClock(timeOfDay: number): string {
   const m = minutes % 60;
   return `${String(h).padStart(2, '0')}:${String(Math.floor(m / 10) * 10).padStart(2, '0')}`;
 }
+
+/**
+ * v0.5: panels rebuild their HTML only when the pointer is not over them (or when a
+ * rebuild is forced by the panel's own button), so a click never lands on a node that
+ * was replaced between press and release.
+ */
+export function mayRebuild(root: HTMLElement, forced: boolean): boolean {
+  return forced || !root.matches(':hover');
+}

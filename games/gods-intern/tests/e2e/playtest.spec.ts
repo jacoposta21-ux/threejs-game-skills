@@ -96,11 +96,13 @@ test('first minute, powers, consequences and UI through real input', async ({ pa
   await expect.poll(async () => (await diag(page)).sim.prayers).toContain('THIRST');
   await expect.poll(async () => (await diag(page)).events.join('|')).toContain('speech:PLEASE! WE NEED WATER!');
   await expect(page.locator('.power[data-power=rain]')).toHaveClass(/highlight/);
-  await expect(page.locator('.power[data-power=fire]')).toHaveClass(/locked/);
+  // v0.5: the four starter powers are in the dock from the start; Mutation is visibly locked.
+  await expect(page.locator('.power[data-power=fire]')).not.toHaveClass(/locked/);
+  await expect(page.locator('.power[data-power=mutation]')).toHaveClass(/locked/);
   await shot('01-tutorial-prayer');
 
   // Locked powers refuse selection.
-  await page.keyboard.press('Digit4');
+  await page.keyboard.press('Digit5');
   expect((await diag(page)).selected).toBeNull();
 
   // --- Select rain with the keyboard and click the well.
@@ -116,9 +118,10 @@ test('first minute, powers, consequences and UI through real input', async ({ pa
   await shot('02-rain');
   await expect.poll(async () => (await diag(page)).sim.water, { timeout: 30_000 }).toBeGreaterThan(waterBefore + 20);
   await expect.poll(async () => (await diag(page)).sim.prayersAnswered, { timeout: 30_000 }).toBe(1);
-  await expect.poll(async () => (await diag(page)).tutorial.step).toBe(4);
+  // v0.5: onboarding ends shortly after the first miracle and the villagers' reaction.
+  await expect.poll(async () => (await diag(page)).tutorial.done, { timeout: 60_000 }).toBe(true);
 
-  // --- Too much rain: a second cloud floods the village and ends the tutorial.
+  // --- Too much rain: a second cloud floods the village.
   await expect.poll(async () => (await diag(page)).sim.clouds, { timeout: 20_000 }).toBe(0);
   await clickWorld(page, well.x, well.z);
   // The flood peak can fall between diagnostic samples on slow software rendering, so accept
@@ -131,7 +134,6 @@ test('first minute, powers, consequences and UI through real input', async ({ pa
     .toBe(true);
   await expect.poll(async () => (await diag(page)).events.join('|')).toContain('god:');
   await shot('03-flood');
-  await expect.poll(async () => (await diag(page)).tutorial.done, { timeout: 120_000 }).toBe(true);
   expect((await diag(page)).sim.unlocked).toEqual(expect.arrayContaining(['rain', 'lightning', 'nature', 'fire']));
 
   // --- Invalid action costs nothing.
@@ -210,7 +212,7 @@ test('first minute, powers, consequences and UI through real input', async ({ pa
   await expect(page.locator('#menu-status')).toContainText('Saved');
   await page.locator('[data-a=settings]').click();
   await expect(page.locator('.modal h2')).toContainText('Settings');
-  await page.locator('[data-t=unlimitedEnergy]').click();
+  await expect(page.locator('[data-t=unlimitedEnergy]')).toHaveCount(0); // Creative-only option
   await shot('05-settings');
   await page.keyboard.press('Escape');
   await expect(page.locator('.modal h2')).toContainText('Paused');
@@ -223,7 +225,8 @@ test('first minute, powers, consequences and UI through real input', async ({ pa
   await page.keyboard.press('Digit0');
   await clickWorld(page, well.x, well.z + 0.3);
   await expect.poll(async () => (await diag(page)).inspectorOpen).toBe(true);
-  await expect(page.locator('#inspector h3')).toHaveText('Puddleton');
+  await expect(page.locator('#inspector h3')).toHaveText('Village Well');
+  await expect(page.locator('#inspector')).toContainText('Puddleton');
   await shot('06-inspector');
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await diag(page)).inspectorOpen).toBe(false);

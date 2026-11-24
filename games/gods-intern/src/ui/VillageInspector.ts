@@ -1,7 +1,7 @@
 import { CONFIG } from '../core/Config';
 import type { BuildingData, VillagerData } from '../core/types';
 import type { Simulation } from '../simulation/SimulationManager';
-import { $, escapeHtml, icon } from './dom';
+import { $, escapeHtml, icon, mayRebuild } from './dom';
 import { STAGE_NAMES } from '../culture/SacredSystem';
 import { villageHeadline } from './VillagePanel';
 
@@ -145,7 +145,7 @@ export class VillageInspector {
     if (!t) return;
     const html = t.kind === 'sacred' ? this.sacredHtml(sim, t.id) : t.kind === 'villager' ? this.villagerHtml(sim, t.id) : t.kind === 'site' ? this.siteHtml(t) : this.villageHtml(sim, t.villageId, t.buildingId);
     if (html === null) return this.hide();
-    if (html === this.key) return;
+    if (html === this.key || !mayRebuild(this.root, this.key === '')) return;
     this.key = html;
     this.root.innerHTML = html;
   }

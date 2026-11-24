@@ -1,7 +1,7 @@
 import { RANK_TITLES, RANK_UNLOCKS } from '../career/CareerSystem';
 import { CONFIG } from '../core/Config';
 import type { Simulation } from '../simulation/SimulationManager';
-import { $, escapeHtml, icon, setText } from './dom';
+import { $, escapeHtml, icon, setText, mayRebuild } from './dom';
 
 type Tab = 'path' | 'inbox';
 
@@ -126,7 +126,7 @@ export class CareerPanel {
     if (!this.open) return;
     const h = sim.state.heaven;
     const key = `${this.tab}|${c.xp}|${c.rank}|${h.archive.length}|${sim.career.overtimeAvailable()}|${sim.career.overtimeActive()}|${sim.state.mode}|${sim.state.unlockedPowers.length}`;
-    if (key === this.key) return;
+    if (key === this.key || !mayRebuild(this.root, this.key === '')) return;
     this.key = key;
     const t = CONFIG.career.thresholds;
     const overtime = c.rank >= 10 || creative

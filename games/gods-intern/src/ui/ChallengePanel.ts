@@ -1,7 +1,7 @@
 import { COSMETIC_LABEL, type ChallengeDefinition } from '../civ/ChallengeDefinitions';
 import type { PowerId } from '../core/Config';
 import type { Simulation } from '../simulation/SimulationManager';
-import { $, escapeHtml, icon } from './dom';
+import { $, escapeHtml, icon, mayRebuild } from './dom';
 
 export type ChallengeView = 'Recommended' | 'Miracles' | 'Civilization' | 'Culture' | 'Chaos' | 'Advanced' | 'Completed';
 const VIEWS: ChallengeView[] = ['Recommended', 'Miracles', 'Civilization', 'Culture', 'Chaos', 'Advanced', 'Completed'];
@@ -171,7 +171,7 @@ export class ChallengePanel {
     if (!this.open) return;
     const defs = sim.challenges.definitions;
     const key = `${this.view}|${civ.pinned.join()}|${civ.selectedTitle}|${civ.titles.length}|${sim.state.unlockedPowers.length}|${defs.map((d) => `${sim.challenges.state(d.id).status}${sim.challenges.progress(d).map((p) => Math.floor(p.value)).join('.')}`).join()}`;
-    if (key === this.key) return;
+    if (key === this.key || !mayRebuild(this.root, this.key === '')) return;
     this.key = key;
     const status = (d: ChallengeDefinition) => sim.challenges.state(d.id).status;
     const list =

@@ -2,7 +2,7 @@ import { ARCHETYPES } from '../culture/Archetypes';
 import { STAGE_NAMES } from '../culture/SacredSystem';
 import type { Simulation } from '../simulation/SimulationManager';
 import { COMBOS } from '../powers/ComboSystem';
-import { $, el, escapeHtml, icon } from './dom';
+import { $, el, escapeHtml, icon, mayRebuild } from './dom';
 
 type Tab = 'history' | 'civ' | 'beliefs' | 'sacred' | 'discoveries';
 
@@ -95,7 +95,7 @@ export class HistoryBookPanel {
     if (!this.open) return;
     this.seen = s.history.length;
     const key = `${this.tab}|${s.history.length}|${s.stats.tradesCompleted}|${s.stats.migrations}|${s.history[s.history.length - 1]?.id}|${s.religions.map((r) => `${r.id}${r.followers.length}${r.active}`).join()}|${s.sacred.map((x) => `${x.stage}${x.decorations}${x.shrineProgress.toFixed(1)}${x.monumentProgress.toFixed(1)}`).join()}`;
-    if (key === this.renderKey) return;
+    if (key === this.renderKey || !mayRebuild(this.root, this.renderKey === '')) return;
     this.renderKey = key;
     this.root.innerHTML = `
       <header class="side-head">

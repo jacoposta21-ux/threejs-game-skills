@@ -24,7 +24,7 @@ type Civ = {
 };
 type Diag = {
   frame: number;
-  sim: { approval: number; energy: number; unlocked: string[] };
+  sim: { approval: number; energy: number; unlocked: string[]; prayers: string[] };
   camera: { x: number; z: number; distance: number };
   civ: Civ;
   events: string[];
@@ -105,9 +105,9 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
     }, { timeout: 20_000 })
     .toBeGreaterThan(1);
   await page.keyboard.up('KeyD');
-  await page.keyboard.press('KeyV');
+  await page.locator('#nav-world').click();
   await expect(page.locator('#villages')).toBeVisible();
-  await expect(page.locator('#villages .vp-table')).toContainText('Rockbottom');
+  await expect(page.locator('#villages .vp-cards')).toContainText('Rockbottom');
   await shot('01-villages-panel');
   for (const id of ['v3', 'v2', 'v1']) {
     await page.locator(`#villages [data-village=${id}]`).click();
@@ -124,27 +124,30 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
   await expect(page.locator('#challenge-toast')).toContainText('DIVINE TOURIST');
   await shot('02-challenge-complete');
   d = await diag(page);
-  expect(d.civ.challenges.titles).toEqual(['Divine Tourist']);
+  expect(d.civ.challenges.titles).toContain('Divine Tourist');
   expect(d.civ.challenges.rewardApplied['divine-tourist']).toBe(true);
   const approvalAfterReward = d.sim.approval;
   await page.keyboard.press('Escape');
   await expect(page.locator('#villages')).toBeHidden();
 
   // --- 4. Challenge panel with real input: filter and pin.
-  await page.keyboard.press('KeyC');
+  await page.locator('#nav-challenges').click();
   await expect(page.locator('#challenges')).toBeVisible();
-  await expect(page.locator('#challenges .ch-title')).toHaveText('Divine Tourist');
-  await page.locator('#challenges [data-filter=Miracle]').click();
-  // v0.4: 6 Miracle challenges (Wind Management and Cold Reception were added).
-  await expect(page.locator('#challenges .ch-card')).toHaveCount(6);
-  // v0.4 pins starter goals after training; make room so the pin limit (3) leaves a slot.
-  await page.locator('#challenges [data-filter=All]').click();
-  for (const id of (await diag(page)).civ.challenges.pinned) await page.locator(`#challenges [data-pin=${id}]`).click();
-  await page.locator('#challenges [data-filter=Miracle]').click();
-  await page.locator('#challenges [data-pin=amateur-botanist]').click();
+  // v0.5: the default view only recommends challenges the current powers can achieve.
+  await expect(page.locator('#challenges [data-filter=Recommended]')).toHaveClass(/on/);
+  await expect(page.locator('#challenges .side-body')).not.toContainText('Big Rock Problem');
+  await page.locator('#challenges [data-filter=Completed]').click();
+  await expect(page.locator('#challenges .ch-card[data-id=divine-tourist]')).toBeVisible();
+  await page.locator('#challenges [data-filter=Advanced]').click();
+  await expect(page.locator('#challenges .ch-card[data-id=big-rock-problem]')).toContainText('Meteor');
+  // One recommended goal was pinned automatically; the player adds their own.
+  const auto = (await diag(page)).civ.challenges.pinned;
+  expect(auto.length).toBe(1);
+  await page.locator('#challenges [data-filter=Miracles]').click();
+  if (!auto.includes('amateur-botanist')) await page.locator('#challenges [data-pin=amateur-botanist]').click();
   await page.locator('#challenges [data-filter=Civilization]').click();
   await page.locator('#challenges [data-pin=traveling-merchant]').click();
-  await expect.poll(async () => (await diag(page)).civ.challenges.pinned).toEqual(['amateur-botanist', 'traveling-merchant']);
+  await expect.poll(async () => (await diag(page)).civ.challenges.pinned).toEqual(expect.arrayContaining(['amateur-botanist', 'traveling-merchant']));
   await shot('03-challenges-panel');
   await page.keyboard.press('Escape');
   await expect(page.locator('#challenge-pins')).toBeVisible();
@@ -152,11 +155,7 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
 
   // --- 5. Divine favoritism: lavish Puddleton with trees (real clicks), ignore the others.
   // Sandbox setting via the real settings menu so energy does not limit the planting spree.
-  await page.locator('#btn-settings').click();
-  await page.locator('[data-a=settings]').click();
-  await page.locator('[data-t=unlimitedEnergy]').click();
-  await page.locator('[data-a=done]').click();
-  await page.locator('[data-a=resume]').click();
+  // (v0.4 toggled "unlimited energy" here; it only ever applied to Creative Mode, so v0.5 hides it in Career.)
   const p = d.civ.villages[0];
   await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.focusVillage('v1'));
   await page.waitForTimeout(1500);
@@ -192,7 +191,8 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
   const jealous = favLine.split(':')[2];
   expect(['v2', 'v3']).toContain(jealous);
   expect(complaint).not.toBe('');
-  await expect(page.locator('#prayer-list')).toContainText('Equal Opportunity Miracles');
+  // v0.5 shows two prayer cards and keeps the rest in the inbox, so check the prayer itself.
+  await expect.poll(async () => (await diag(page)).sim.prayers).toContain('EQUAL_TREATMENT');
   d = await diag(page);
   report.favoritism = { jealous, puddletonFavor: d.civ.villages[0].favorPos };
   await shot('04-favoritism');
@@ -243,7 +243,7 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
   report.approval = { afterTouristReward: approvalAfterReward, now: d.sim.approval };
 
   // --- 8. The History Book's civilization chapter records it.
-  await page.locator('#btn-book').click();
+  await page.locator('#nav-history').click();
   await page.locator('#book [data-tab=civ]').click();
   await expect(page.locator('#book .civ-summary')).toBeVisible();
   await expect(page.locator('#book .chronicle')).toContainText('The First Trade');
@@ -256,14 +256,14 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
   await page.locator('[data-a=save]').click();
   await expect(page.locator('#menu-status')).toContainText('Saved');
   const saved = await state(page);
-  await page.goto('/?quality=low');
+  await page.goto('/?quality=low&play=1');
   await page.waitForFunction(() => ((window.__THREE_GAME_DIAGNOSTICS__ as any)?.frame ?? 0) > 10);
   await page.keyboard.press('Escape');
   await page.locator('[data-a=load]').click();
   await page.locator('[data-a=ok]').click();
   await expect.poll(async () => (await diag(page)).events.join('|')).toContain('notify:GAME LOADED');
   const loaded = await state(page);
-  expect(loaded.version).toBe(4); // v0.4 schema
+  expect(loaded.version).toBe(5); // v0.5 schema
   expect(loaded.villages.length).toBe(3);
   expect(loaded.villagers.length).toBe(saved.villagers.length);
   expect(new Set(loaded.villagers.map((v: any) => v.id)).size).toBe(loaded.villagers.length);

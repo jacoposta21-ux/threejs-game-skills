@@ -36,7 +36,7 @@ export class AudioManager {
   /** Call from a user gesture. Safe to call repeatedly. */
   unlock(): void {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      if ((this.ctx.state as string) === 'interrupted' || (this.ctx.state === 'suspended' && !this.pausedByGame)) void this.ctx.resume();
       return;
     }
     const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -154,7 +154,10 @@ export class AudioManager {
     this.musicBus.gain.value = this.musicVolume;
   }
 
+  private pausedByGame = false;
+
   suspend(paused: boolean): void {
+    this.pausedByGame = paused;
     if (!this.ctx) return;
     if (paused) void this.ctx.suspend();
     else void this.ctx.resume();

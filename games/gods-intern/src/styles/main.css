@@ -14,7 +14,7 @@
   --gap: 12px;
   --panel-bg: rgba(251, 245, 230, 0.97);
   --panel-line: rgba(29, 39, 71, 0.12);
-  --glass: rgba(24, 32, 60, 0.82);
+  --glass: rgba(24, 32, 60, 0.9);
   --glass-line: rgba(242, 193, 78, 0.28);
   --cream: #fbf5e6;
   --muted: rgba(29, 39, 71, 0.68);
@@ -171,7 +171,6 @@ button:focus-visible,
   color: var(--cream);
   text-align: left;
   box-shadow: 0 6px 18px rgba(10, 14, 30, 0.25);
-  backdrop-filter: blur(6px);
   transition: border-color 0.2s;
 }
 .ind:hover,
@@ -2197,7 +2196,6 @@ body.possessing #tip-card {
   background: rgba(251, 245, 230, 0.1);
   color: var(--cream);
   text-align: left;
-  backdrop-filter: blur(4px);
 }
 .mm-btn b {
   font: 600 20px/1.1 var(--display);

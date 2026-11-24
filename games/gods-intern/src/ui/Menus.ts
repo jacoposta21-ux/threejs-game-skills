@@ -20,6 +20,7 @@ export interface MenuActions {
   screenshot(): void;
   // v0.5
   mainMenu(): void;
+  fullscreenAllowed(): boolean;
 }
 
 /** Pause menu, settings, how-to-play and confirmation dialogs (one modal at a time). */
@@ -87,7 +88,7 @@ export class Menus {
         <button class="btn" data-a="help" type="button">${icon('question')} How to Play</button>
         <button class="btn" data-a="mode" type="button">${icon('star')} ${this.actions.mode() === 'creative' ? 'Back to Career Mode' : 'Creative Mode (sandbox)'}</button>
         <div class="btn-pair"><button class="btn" data-a="cine" type="button">${icon('film')} Cinematic</button><button class="btn" data-a="shot" type="button">${icon('camera')} Screenshot</button></div>
-        <button class="btn" data-a="fullscreen" type="button">${icon('fullscreen')} Fullscreen</button>
+        ${this.actions.fullscreenAllowed() ? `<button class="btn" data-a="fullscreen" type="button">${icon('fullscreen')} Fullscreen</button>` : ''}
         <button class="btn" data-a="main" type="button">Main menu</button>
         <button class="btn danger" data-a="restart" type="button">Restart World</button>
       </div>
@@ -109,7 +110,7 @@ export class Menus {
     });
     node.querySelector('[data-a=settings]')!.addEventListener('click', () => this.settings(() => this.pause()));
     node.querySelector('[data-a=help]')!.addEventListener('click', () => this.help(() => this.pause()));
-    node.querySelector('[data-a=fullscreen]')!.addEventListener('click', () => this.actions.fullscreen());
+    node.querySelector('[data-a=fullscreen]')?.addEventListener('click', () => this.actions.fullscreen());
     node.querySelector('[data-a=cine]')!.addEventListener('click', () => {
       this.closeAll();
       this.actions.cinematic();

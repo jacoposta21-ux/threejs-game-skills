@@ -101,7 +101,7 @@ export class PrayerPanel {
     this.root.classList.toggle('empty', active.length === 0);
     this.root.classList.toggle('compact', this.compact);
     $('#prayer-toggle').classList.toggle('has-more', rest.length > 0);
-    setText($('#prayer-more'), rest.length ? `+${rest.length} more` : active.length ? 'All shown' : 'No prayers');
+    setText($('#prayer-more'), rest.length ? `+${rest.length} in inbox` : active.length ? '' : 'None right now');
     const keep = new Set(expanded.map((p) => p.id));
     for (const p of expanded) {
       let card = this.cards.get(p.id);

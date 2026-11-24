@@ -554,7 +554,6 @@ button {
   display: grid;
   place-items: center;
   background: rgba(17, 22, 44, 0.55);
-  backdrop-filter: blur(4px);
   animation: fade-in 0.2s ease;
 }
 .modal {

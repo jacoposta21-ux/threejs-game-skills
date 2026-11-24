@@ -56,10 +56,9 @@ test('v0.2: tutorial, a crowned rock, mutation, the history book, and persistenc
   const s0 = await state(page);
   const well = s0.buildings[s0.villages[0].wellId];
   await clickWorld(page, well.x, well.z);
+  await expect.poll(async () => (await diag(page)).tutorial.done, { timeout: 120_000 }).toBe(true);
   await expect.poll(async () => (await diag(page)).sim.prayersAnswered, { timeout: 180_000 }).toBe(1);
-  await expect.poll(async () => (await diag(page)).sim.clouds, { timeout: 90_000 }).toBe(0);
-  await clickWorld(page, well.x, well.z);
-  await expect.poll(async () => (await diag(page)).tutorial.done, { timeout: 240_000 }).toBe(true);
+  await page.keyboard.press('Digit0');
 
   // --- Religious event: lightning on the plaza rock in front of the village.
   const rock = (await state(page)).rocks[0];
@@ -80,8 +79,8 @@ test('v0.2: tutorial, a crowned rock, mutation, the history book, and persistenc
   await expect(page.locator('#inspector h3')).toHaveText('His Rocky Majesty');
   await page.keyboard.press('Escape');
 
-  // --- Mutation: unlocked through Chaos (test hook grants the rest deterministically).
-  await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.grantChaos(30));
+  // --- Mutation: v0.5 unlocks it at the career "probation review" (test hook grants that XP deterministically).
+  await page.evaluate(() => window.__THREE_GAME_TEST_HOOKS__!.grantXp(620));
   await expect.poll(async () => (await diag(page)).sim.unlocked, { timeout: 30_000 }).toContain('mutation');
   // A grown tree that is on screen, clear of the HUD, with no villager close enough to be picked instead.
   const tree = await page.evaluate(() => {
@@ -105,7 +104,8 @@ test('v0.2: tutorial, a crowned rock, mutation, the history book, and persistenc
   await shot('02-golden-tree');
 
   // --- The Book of Questionable Miracles.
-  await page.locator('#btn-book').click();
+  await page.keyboard.press('Digit0');
+  await page.locator('#nav-history').click();
   await expect(page.locator('#book')).toBeVisible();
   await expect(page.locator('#book .chronicle')).toContainText('A Rock Was Crowned King');
   await expect(page.locator('#book .chronicle')).toContainText('A Tree Turned to Gold');
@@ -124,7 +124,7 @@ test('v0.2: tutorial, a crowned rock, mutation, the history book, and persistenc
   await page.locator('[data-a=save]').click();
   await expect(page.locator('#menu-status')).toContainText('Saved');
   const before = await state(page);
-  await page.goto('/?quality=low');
+  await page.goto('/?quality=low&play=1');
   await page.waitForFunction(() => ((window.__THREE_GAME_DIAGNOSTICS__ as any)?.frame ?? 0) > 10);
   await page.keyboard.press('Escape');
   await page.locator('[data-a=load]').click();

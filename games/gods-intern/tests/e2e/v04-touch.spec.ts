@@ -31,9 +31,9 @@ test('v0.4 touch: tap, cast, pan, pinch, rotate and the power menu in mobile lan
   const vw = pixel.viewport.width;
   const vh = pixel.viewport.height;
 
-  // Layout: no horizontal scroll, toolbar fully on screen.
+  // Layout: no horizontal scroll, dock fully on screen.
   const layout = await page.evaluate(() => {
-    const tb = document.querySelector('#toolbar')!.getBoundingClientRect();
+    const tb = document.querySelector('#toolbar .dock-row')!.getBoundingClientRect();
     return { sw: document.documentElement.scrollWidth, iw: innerWidth, tb: { l: tb.left, r: tb.right, t: tb.top, b: tb.bottom }, ih: innerHeight };
   });
   expect(layout.sw).toBeLessThanOrEqual(layout.iw);
@@ -94,12 +94,13 @@ test('v0.4 touch: tap, cast, pan, pinch, rotate and the power menu in mobile lan
   await expect.poll(async () => (await diag(page)).selected).toBe('nature');
   await expect(page.locator('#power-menu')).toBeHidden();
 
-  // Inspect by tap in Look mode (no hover needed).
-  await page.locator('#toolbar .power.inspect').tap();
-  // Fly back to Puddleton with the village selector (touch), then tap its well.
-  await page.locator('#btn-villages').tap();
+  // v0.5: Cancel (on-screen) returns to inspect mode; no hover needed.
+  await page.locator('#toolbar .dc-cancel').tap();
+  await expect.poll(async () => (await diag(page)).selected).toBeNull();
+  // Fly back to Puddleton with the World panel (touch), then tap its well.
+  await page.locator('#nav-world').tap();
   await page.locator('#villages [data-village=v1]').tap();
-  await page.locator('#btn-villages').tap();
+  await page.locator('#villages .vp-close').tap();
   await page.waitForTimeout(2500);
   const p2 = await page.evaluate(([x, z]) => window.__THREE_GAME_TEST_HOOKS__!.worldToScreen(x, z), [well.x, well.z + 0.5] as const);
   await page.touchscreen.tap(p2.x, p2.y);

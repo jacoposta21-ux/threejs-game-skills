@@ -25,11 +25,19 @@ export interface GamePlatform {
   celebrate(): void;
   /** Whether the host wants us to pause gameplay on tab visibility changes ourselves. */
   readonly handlesVisibility: boolean;
+  /** v0.5: the host provides fullscreen (CrazyGames forbids a custom fullscreen button). */
+  readonly hostFullscreen: boolean;
+  /** v0.5: host-forced mute (CrazyGames `game.settings.muteAudio`); takes priority over our volumes. */
+  readonly muted: boolean;
+  onMuteChange: (muted: boolean) => void;
 }
 
 export class StandalonePlatform implements GamePlatform {
   readonly name = 'standalone';
   readonly handlesVisibility = false;
+  readonly hostFullscreen = false;
+  readonly muted = false;
+  onMuteChange: (muted: boolean) => void = () => {};
   async init(): Promise<void> {}
   loadingStart(): void {}
   loadingStop(): void {}
@@ -41,7 +49,15 @@ export class StandalonePlatform implements GamePlatform {
 interface CrazySdk {
   init(): Promise<void>;
   environment: 'local' | 'crazygames' | 'disabled';
-  game: { loadingStart(): void; loadingStop(): void; gameplayStart(): void; gameplayStop(): void; happytime(): void };
+  game: {
+    loadingStart(): void;
+    loadingStop(): void;
+    gameplayStart(): void;
+    gameplayStop(): void;
+    happytime(): void;
+    settings?: { muteAudio?: boolean; disableChat?: boolean };
+    addSettingsChangeListener?(fn: (s: { muteAudio?: boolean }) => void): void;
+  };
 }
 
 const SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
@@ -49,6 +65,9 @@ const SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';
 export class CrazyGamesPlatform implements GamePlatform {
   readonly name = 'crazygames';
   readonly handlesVisibility = true;
+  readonly hostFullscreen = true;
+  muted = false;
+  onMuteChange: (muted: boolean) => void = () => {};
   private sdk: CrazySdk | null = null;
   private playing = false;
   private lastHappy = -1e9;
@@ -68,7 +87,15 @@ export class CrazyGamesPlatform implements GamePlatform {
       if (!sdk) return;
       await sdk.init();
       // Only talk to the SDK where it is enabled; elsewhere every call would throw.
-      if (sdk.environment === 'crazygames' || sdk.environment === 'local') this.sdk = sdk;
+      if (sdk.environment === 'crazygames' || sdk.environment === 'local') {
+        this.sdk = sdk;
+        // muteAudio must take priority over in-game volume settings (Full Launch requirement).
+        this.muted = !!sdk.game.settings?.muteAudio;
+        sdk.game.addSettingsChangeListener?.((s) => {
+          this.muted = !!s.muteAudio;
+          this.onMuteChange(this.muted);
+        });
+      }
     } catch {
       this.sdk = null; // stay fully playable without the platform
     }

@@ -243,6 +243,7 @@ export class Game {
       fullscreen: () => this.toggleFullscreen(),
       click: () => this.audio.click(),
       mainMenu: () => this.toMainMenu(),
+      fullscreenAllowed: () => !this.platform.hostFullscreen,
     });
     this.mainMenu = new MainMenu({
       career: () => this.slotInfo('career'),
@@ -292,6 +293,8 @@ export class Game {
   async start(): Promise<void> {
     this.platform.loadingStart();
     await this.platform.init();
+    this.platform.onMuteChange = () => this.applySettings(this.settings, false);
+    this.applySettings(this.settings, false);
     // Compile shaders before revealing the world to avoid a first-frame hitch.
     this.renderer.compile(this.scene, this.camera);
     this.loop.start();
@@ -595,6 +598,9 @@ export class Game {
     const unlock = () => this.audio.unlock();
     window.addEventListener('pointerdown', unlock, { capture: true });
     window.addEventListener('keydown', unlock, { capture: true });
+    // iOS: an "interrupted" AudioContext may only resume inside a touchend/click gesture.
+    window.addEventListener('touchend', unlock, { capture: true });
+    window.addEventListener('click', unlock, { capture: true });
 
     canvas.addEventListener('pointermove', (e) => {
       this.pointer.x = e.clientX;
@@ -1222,7 +1228,7 @@ export class Game {
   private applySettings(s: Settings, persist = true): void {
     const qualityChanged = s.quality !== this.settings.quality;
     this.settings = s;
-    this.audio.setVolumes(s.masterVolume, s.sfxVolume, s.musicVolume, s.ambientVolume, s.uiVolume);
+    this.audio.setVolumes(this.platform.muted ? 0 : s.masterVolume, s.sfxVolume, s.musicVolume, s.ambientVolume, s.uiVolume);
     this.cam.sensitivity = s.cameraSensitivity;
     this.cam.reducedShake = s.reducedShake || !s.cameraShake;
     this.reducedMotion = s.reducedMotion;

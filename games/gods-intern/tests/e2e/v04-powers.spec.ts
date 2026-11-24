@@ -164,7 +164,7 @@ test('v0.4 powers: creative mode via the menu, all eight new powers by hand, dis
   await page.waitForTimeout(1300); // cooldown
   await clickWorld(page, hill.x, hill.z);
   await page.keyboard.press('KeyT');
-  await expect(page.locator('.mode-chip')).toContainText('Lower');
+  await expect(page.locator('#toolbar .dc-modes button.on')).toContainText('Lower');
   await page.waitForTimeout(1300);
   await castNear(page, 'terraform', hill.x, hill.z, 400);
   await expect.poll(async () => (await diag(page)).v4.terrainEdits).toBeGreaterThanOrEqual(edits0 + 2);
@@ -239,7 +239,7 @@ test('v0.4 powers: creative mode via the menu, all eight new powers by hand, dis
   await page.locator('[data-a=save]').click();
   await expect(page.locator('#menu-status')).toContainText('Saved');
   const saved = await state(page);
-  await page.goto('/?quality=low');
+  await page.goto('/?quality=low&play=1');
   await page.waitForFunction(() => ((window.__THREE_GAME_DIAGNOSTICS__ as any)?.frame ?? 0) > 10 && !!(window as any).__GI_STATE__);
   expect((await diag(page)).v4.mode).toBe('creative'); // the game reopens the last mode's slot
   await page.keyboard.press('KeyP');

@@ -3,7 +3,7 @@ import { CONFIG } from '../core/Config';
 import type { Simulation } from '../simulation/SimulationManager';
 import type { VillageData } from '../core/types';
 import { relationKey } from '../world/Settlements';
-import { $, escapeHtml, formatClock, icon } from './dom';
+import { $, escapeHtml, formatClock, icon, mayRebuild } from './dom';
 
 const CULTURE_LABEL = { agricultural: 'Agricultural village', mountain: 'Mountain mining village', riverside: 'Riverside fishing village' } as const;
 
@@ -89,7 +89,7 @@ export class VillagePanel {
     const s = sim.state;
     const r = (n: number) => Math.round(n);
     const key = `${[...this.expanded].join()}|${Math.floor(sim.timeOfDay * 48)}|` + s.villages.map((v) => `${v.population}${r(v.food / 4)}${r(v.water / 4)}${r(v.wood / 4)}${r(v.stone / 4)}${r(v.prosperity * 20)}${r(v.happiness * 20)}${v.identity.dominantReligionId}${r(v.identity.divineFavor / 4)}${villageHeadline(sim, v).text}`).join('|') + `|${Object.values(s.civ.relations).map((x) => x.category).join()}|${s.civ.caravans.map((c) => c.id + c.phase).join()}|${s.religions.filter((x) => x.active).map((x) => x.followers.length).join()}`;
-    if (key === this.key) return;
+    if (key === this.key || !mayRebuild(this.root, this.key === '')) return;
     this.key = key;
     const meter = (label: string, value: number, text: string, warn: boolean) => `<div class="vp-meter ${warn ? 'warn' : ''}"><span>${label}</span><div class="bar"><i style="width:${Math.max(0, Math.min(100, value * 100))}%"></i></div><b>${text}</b></div>`;
     const religionOf = (v: VillageData) => (v.identity.dominantReligionId ? s.religions.find((x) => x.id === v.identity.dominantReligionId && x.active) : undefined);

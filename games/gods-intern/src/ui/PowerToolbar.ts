@@ -1,7 +1,7 @@
 import { RANK_TITLES } from '../career/CareerSystem';
 import { CONFIG, POWER_CATEGORY, POWER_ORDER, POWER_UNLOCK_RANK, type PowerCategory, type PowerId } from '../core/Config';
 import type { Simulation } from '../simulation/SimulationManager';
-import { $, el, escapeHtml, icon, setText } from './dom';
+import { $, el, escapeHtml, icon, setText, mayRebuild } from './dom';
 import { ICON } from './Icons';
 
 export const POWER_ACCENT: Record<PowerId, string> = {
@@ -337,7 +337,7 @@ export class PowerToolbar {
   private renderMenu(sim: Simulation, selected: PowerId | null): void {
     const s = sim.state;
     const key = `${s.unlockedPowers.join()}|${this.slots.join()}|${selected}|${this.assigning}|${s.career.xp}|${Object.keys(s.career.awarded).length}|${s.mode}`;
-    if (key === this.menuKey) return;
+    if (key === this.menuKey || !mayRebuild(this.menu, this.menuKey === '')) return;
     this.menuKey = key;
     const card = (id: PowerId) => {
       const p = sim.powers.powers[id];
