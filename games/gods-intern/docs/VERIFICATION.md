@@ -6,9 +6,11 @@ software rendering, so frame rates here are not representative.
 - **Measured frame rate here:** about 1–2.5 fps under SwiftShader.
 - **Valid here:**
   - layout, input paths, pixel captures and UI collision checks;
-  - CPU and simulation timings;
-  - real-time gameplay pacing, because the simulation runs at a fixed 20 Hz on wall
-    time and is not tied to the frame rate.
+  - CPU and simulation timings.
+- **Not valid here: real-time pacing in the browser.** The loop caps simulation
+  catch-up at 0.1 s per frame. At ~1 fps the island runs at about 5–12% speed, so
+  pacing comes from the headless bots (section 3) and must be confirmed on real
+  hardware.
 - **Not measured:** real-GPU frame rate. 60 FPS is a target, not a result.
 - **Touch:** only Chromium mobile emulation was tested.
 
@@ -37,7 +39,7 @@ Thresholds (cumulative XP per rank):
 | Rank | v0.4 | v0.5 | Unlock |
 | --- | ---: | ---: | --- |
 | 1 | 0 | 0 | Rain, Lightning, Nature, Fire |
-| — | (rank 4 or 25 Chaos) | **620** (or 527 with ≥ 60 Chaos) | Mutation ("probation review") |
+| — | (rank 4 or 25 Chaos) | **700** (or 595 with ≥ 60 Chaos) | Mutation ("probation review") |
 | 2 | 100 | 880 | Tornado |
 | 3 | 250 | 1150 | Freeze |
 | 4 | 450 | 1420 | Gravity |
@@ -94,32 +96,36 @@ seeds 7 and 11. The opt-in run writes `artifacts/progression/report-*.json`; onl
 
 | Unlock | Target | Benevolent (7 / 11) | Exploratory (7 / 11) | Chaotic (7 / 11) |
 | --- | --- | --- | --- | --- |
-| Mutation | 5–10 | 3.4 / 3.4 | 4.4 / 4.8 | 4.3 / 4.7 |
-| Tornado | 8–12 | 10.8 / 8.8 | 9.3 / 8.0 | 16.4 / 19.6 |
-| Freeze | 15–20 | 17.0 / 21.3 | 13.1 / 13.5 | 31.9 / 33.5 |
-| Gravity | 25–35 | 25.9 / 47.4 | 20.0 / 18.8 | 50.4 / 63.2 |
-| Terraform | 40–50 | 34.9 / 57.8 | 28.0 / 31.0 | 71.3 / 84.2 |
-| Time Warp | 60–80 | 54.2 / 76.2 | 41.2 / 41.4 | 114 / 120 |
-| Possession | 90–120 | 89.3 / 105.7 | 69.8 / 80.6 | 187 / 184 |
-| Meteor | 120–180 | 134.6 / 161.7 | 113.2 / 133.2 | 297 / 280 |
-| Resurrection | 180–240 | 177.2 / 216.3 | 160.9 / 179.0 | > 300 |
-| Overtime (rank 10) | ~300 | ~240 / ~300 | ~120–180 | > 300 |
+| Mutation | 5–10 | 5.3 / 5.0 | 4.6 / 5.9 | 5.5 / 6.2 |
+| Tornado | 8–12 | 9.8 / 13.0 | 9.3 / 8.0 | 11.0 / 19.6 |
+| Freeze | 15–20 | 13.8 / 36.3 | 13.1 / 12.2 | 20.8 / 33.5 |
+| Gravity | 25–35 | 55.0 / 54.9 | 20.0 / 20.8 | 37.8 / 63.2 |
+| Terraform | 40–50 | 65.0 / 63.4 | 28.0 / 28.8 | 56.2 / 84.2 |
+| Time Warp | 60–80 | 82.5 / 80.2 | 41.2 / 40.8 | 96.9 / 120.1 |
+| Possession | 90–120 | 99.2 / 105.9 | 69.8 / 61.7 | 176 / 184 |
+| Meteor | 120–180 | 137.8 / 156.3 | 113.2 / 106.5 | 289 / 280 |
+| Resurrection | 180–240 | 180.3 / 207.9 | 160.9 / 145.2 | > 300 |
+| Overtime (rank 10) | ~300 | 243 / 271 | 212 / 195 | > 300 (rank 8) |
 
 | Measure (5 h, seed 7) | Benevolent | Exploratory | Chaotic | Destructive spam |
 | --- | ---: | ---: | ---: | ---: |
-| Final XP | 6674 | 6790 | 3264 | **843** |
+| Final XP | 6232 | 6790 | 3326 | **843** |
 | Final rank | 10 | 10 | 8 | **1** |
-| Challenges | 23 | 27 | 18 | 12 |
-| Idle decisions | 647 / 1800 | 141 / 1800 | 0 / 1800 | 0 / 1800 |
-| Share of casts on the single most-used spot | 0.23 | 0.06 | 0.10 | 1.00 |
+| Challenges | 25 | 27 | 21 | 12 |
+| Idle decisions (nothing useful to do) | 556 / 1800 | 141 / 1800 | 0 / 1800 | 0 / 1800 |
+| Share of casts on the single most-used spot | 0.26 | 0.06 | 0.11 | 1.00 |
 
 How to read this:
 - **Helpful and curious play** lands close to the targets.
+  - Exploratory play runs ahead in the mid game (Gravity at about 20 min instead of 25–35).
+  - The benevolent bot runs behind, because it idles when nothing needs help: Gravity at
+    about 55 min.
+  - The middle of the curve is where real-player data matters most.
 - **Chaotic play** progresses steadily, but at about half the speed.
 - **Destructive repetition** at one spot plateaus at about 840 XP. It never reaches
   rank 2, so repetition is not the fastest path.
-- **Mutation** arrives a little before its 5–10 minute target for these bots. A human
-  is slower in the first minutes (see section 4).
+- **Mutation** arrives at 4.6–6.2 minutes with its threshold at 700 XP (620 XP gave
+  3.4–4.8).
 
 `tests/unit/progression.test.ts` runs a 25-minute version on every unit run and asserts:
 - Mutation arrives between 200 and 720 s, and Tornado before 17 minutes;
@@ -137,7 +143,49 @@ How to read this:
 It uses read-only helpers only: the state and diagnostics readers, `worldToScreen` and
 `canCast`.
 
-CAREER_RESULTS
+Run of 22 real minutes, from clicking **NEW CAREER** (`artifacts/v05-career/normal-play.json`):
+
+| Measure | Result |
+| --- | --- |
+| Time to first miracle | **30 s** |
+| Onboarding (mandatory) | **27 s** measured in game; done at 56 s wall time (includes page/frame latency) |
+| First challenge completed | **2:03** (Let There Be Rain) |
+| First cultural event | **3:28** (a religion was founded) |
+| Rank after 5 / 10 / 20 min | 1 / 1 / 1 |
+| XP after 22 min | 451 |
+| Challenges completed | 9 |
+| Discoveries | 3 (Rock Epiphany, Sauna Diplomacy, Monsoon Gardening) |
+| Meaningful objectives (challenges, discoveries, cultural events, religions) | **17** |
+| Mutation / Tornado | **Not reached in 22 minutes** |
+
+**This run does not measure human pacing.**
+- The game loop deliberately caps catch-up at 0.1 s of simulation per rendered frame,
+  so a stalling device slows down instead of spiralling.
+- At this container's ~1 fps software rendering, the island therefore advanced only
+  **about 0.05–0.12 game seconds per real second**.
+- So 22 real minutes covered only a few minutes of game time.
+- On any device rendering at 10 fps or more, the simulation runs in real time.
+
+**Other reasons the later milestones were not reached here.**
+- The container renders at about 1 fps, so each scripted action takes about 30 s.
+  Playwright waits for frames, and diagnostics refresh every 5 frames.
+- The "player" made only **42 actions in 22 minutes** (about 2 per minute) and earned
+  about 10.7 XP per action.
+- A person at 60 fps typically acts every 5–10 s. Energy allows one 15-energy cast
+  about every 3 s.
+- The headless bots act every 10 simulated seconds and reach Mutation at 4.6–6.2 min
+  and Tornado at 8–13 min.
+
+**What this run does and does not show.**
+- The first minutes deliver what the spec asked for, within real time: a miracle at
+  30 s, a reaction, a goal, a challenge at 2 min and a cultural event at 3.5 min.
+- It cannot confirm the 5–10 minute Mutation target for humans. **This is an open item
+  for the human playtest.**
+- If players report Mutation taking longer than 10 minutes, lower
+  `CONFIG.career.mutationXp`. It is 700 now; 620 gave 3.4–4.8 min with the bots.
+- The late game was tested separately with the accelerated bots (section 3), labelled
+  as such.
+
 
 ## 5. Long-session stability (ACCELERATED, headless)
 
@@ -294,7 +342,6 @@ See [SUBMISSION-CHECKLIST.md](SUBMISSION-CHECKLIST.md). In summary:
   [PLAYTEST-CHECKLIST.md](PLAYTEST-CHECKLIST.md) for the device list.
 - **Bot pacing is a model.** Human pacing needs the human playtest.
 - Chaotic play unlocks later powers at about half the pace of helpful play.
-- Mutation can arrive slightly before 5 minutes for very active players.
 - Faded religions accumulate slowly in long saves.
 - The onboarding is mandatory by design. CrazyGames' quality guidelines (not
   requirements) suggest a skippable onboarding.

@@ -641,7 +641,7 @@ docs.crazygames.com:
 - First use of a power now gives +5 energy instead of XP. Challenges, discoveries,
   consequences and religions are worth less.
 - Promotions refill energy, raise Approval and add the rank title.
-- Mutation unlocks at the "probation review" (620 XP), or sooner with high Chaos.
+- Mutation unlocks at the "probation review" (700 XP), or sooner with high Chaos.
 - **Mastery** (`Mastery.ts`): 22 optional goals across the 13 powers, detected from
   existing events. Benevolent and chaotic goals are mixed.
 - Thresholds are fitted to deterministic headless bots (`tests/progression/`).

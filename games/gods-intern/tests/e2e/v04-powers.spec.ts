@@ -47,7 +47,13 @@ async function focus(page: Page, villageId: string) {
   await page.keyboard.press('KeyV');
   await page.locator(`#villages [data-village=${villageId}]`).click();
   await page.keyboard.press('KeyV');
-  await page.waitForTimeout(1800);
+  // v0.5: wait until the camera has actually arrived (slow software rendering).
+  await expect.poll(async () => {
+    const d = (await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__ as any)) as { camera: { x: number; z: number }; civ: { villages: Array<{ id: string; center: { x: number; z: number } }> } };
+    const c = d.civ.villages.find((v) => v.id === villageId)!.center;
+    return Math.hypot(d.camera.x - c.x, d.camera.z - c.z);
+  }, { timeout: 30_000 }).toBeLessThan(8);
+  await page.waitForTimeout(800);
 }
 
 /** Find a target the power accepts that is visible on screen (clear of the HUD), then click it for real. */
@@ -219,14 +225,28 @@ test('v0.4 powers: creative mode via the menu, all eight new powers by hand, dis
 
   // --- Possession: click a villager, walk with WASD, interact with E, leave with Q.
   await pick(page, 'possession');
-  const host = (await state(page)).villagers.find((v: any) => v.alive && v.villageId === 'v1' && v.age > 16 && !v.travel);
-  await clickWorld(page, host.position.x, host.position.z);
-  let possessed = (await diag(page)).v4.possession;
-  for (let k = 0; k < 6 && !possessed; k++) {
-    const vs = (await state(page)).villagers.filter((v: any) => v.alive && v.villageId === 'v1' && v.age > 16);
-    await clickWorld(page, vs[k].position.x, vs[k].position.z);
-    await page.waitForTimeout(300);
-    possessed = (await diag(page)).v4.possession;
+  // v0.5: click villagers that are on screen and clear of the prayer cards/dock; diagnostics
+  // refresh every 5 frames, so poll for the result.
+  let possessed: Diag['v4']['possession'] = null;
+  for (let k = 0; k < 10 && !possessed; k++) {
+    const vs = (await state(page)).villagers.filter((v: any) => v.alive && v.villageId === 'v1' && v.age > 16 && !v.travel);
+    let target: any = null;
+    for (const v of vs.slice(k)) {
+      const sc = await screen(page, v.position.x, v.position.z);
+      if (sc.x > 380 && sc.x < 1060 && sc.y > 150 && sc.y < 680) {
+        target = v;
+        break;
+      }
+    }
+    if (!target) {
+      await page.waitForTimeout(1000);
+      continue;
+    }
+    await clickWorld(page, target.position.x, target.position.z);
+    for (let w = 0; w < 16 && !possessed; w++) {
+      await page.waitForTimeout(400);
+      possessed = (await diag(page)).v4.possession;
+    }
   }
   expect(possessed).not.toBeNull();
   await expect(page.locator('#possess-hud')).toBeVisible();
