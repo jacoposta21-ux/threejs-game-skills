@@ -675,6 +675,7 @@ describe('v0.3 divine challenges', () => {
     run(sim, 1);
     for (const v of sim.state.villages) sim.civ.favor(v.id, 12, 'test');
     run(sim, 40);
+    sim.state.civ.pinned = []; // v0.4 pins three starter goals after training; start clean here
     sim.challenges.pin('equal-opportunity');
     sim.challenges.pin('traveling-merchant');
     const held = sim.challenges.state('equal-opportunity').held;

@@ -7,9 +7,36 @@ import { has } from './Personality';
 /** Minimum gap between major surreal events so absurdity comes in bursts, not floods. */
 export const MAJOR_GAP = 40;
 
-const village = (sim: Simulation): VillageData => sim.state.villages[0];
-const well = (sim: Simulation) => sim.building(village(sim).wellId)!;
-const farm = (sim: Simulation) => sim.building(village(sim).farmIds[0]);
+/**
+ * v0.4: events happen in a specific village. The "stage" is chosen from where the
+ * trigger happened (or stored on the culture state for long-running events), so
+ * every village can have its own Forbidden Well, Sacred Potato, Picnic, office…
+ * Old saves have no stored ids and fall back to Puddleton, exactly as before.
+ */
+const village = (sim: Simulation, id?: string): VillageData => (id ? sim.village(id) : undefined) ?? sim.state.villages[0];
+const nearestTo = (sim: Simulation, x: number, z: number): VillageData => sim.nearestVillage(x, z).village ?? sim.state.villages[0];
+const well = (sim: Simulation, v: VillageData = village(sim, sim.state.culture.cursedWell?.villageId)) => sim.building(v.wellId)!;
+const farm = (sim: Simulation, v: VillageData = village(sim)) => sim.building(v.farmIds[0]);
+
+/** The same event, three cultures: names and props follow the village identity. */
+const FLAVOR = {
+  agricultural: { crop: 'The Unusually Successful Carrot', office: 'Department of Miracles', silence: 'OUT OF OFFICE' },
+  riverside: { crop: 'The Holy Turnip of the Tides', office: 'Rain Bureaucracy', silence: 'GONE FISHING' },
+  mountain: { crop: 'The Sacred Gravel Potato', office: 'Ministry of Stone Tablets', silence: 'CLOSED FOR ROCKS' },
+} as const;
+const flavor = (v: VillageData) => FLAVOR[v.identity?.culture ?? 'agricultural'];
+/** Village whose well is within `r` of a point (the one with a real well). */
+const wellNear = (sim: Simulation, x: number, z: number, r: number): VillageData | null =>
+  sim.state.villages.find((v) => {
+    const w = sim.building(v.wellId);
+    return !!w && !w.destroyed && Math.hypot(w.x - x, w.z - z) < r;
+  }) ?? null;
+/** Village with a healthy farm within `r` of a point. */
+const farmNear = (sim: Simulation, x: number, z: number, r: number): VillageData | null =>
+  sim.state.villages.find((v) => {
+    const f = sim.building(v.farmIds[0]);
+    return !!f && !f.destroyed && Math.hypot(f.x - x, f.z - z) < r;
+  }) ?? null;
 const ready = (sim: Simulation) => sim.state.time - sim.state.culture.lastMajorEvent >= MAJOR_GAP;
 
 function major(sim: Simulation, id: string, title: string, x: number, z: number): void {
@@ -20,8 +47,7 @@ function major(sim: Simulation, id: string, title: string, x: number, z: number)
 }
 
 function nearVillage(sim: Simulation, x: number, z: number, extra = 20): boolean {
-  const v = village(sim);
-  return Math.hypot(x - v.centerX, z - v.centerZ) < v.radius + extra;
+  return sim.state.villages.some((v) => Math.hypot(x - v.centerX, z - v.centerZ) < v.radius + extra);
 }
 
 /** Send villagers to stand in a ring around a point (trials, festivals, gatherings). */
@@ -53,19 +79,19 @@ function makeHolyTree(sim: Simulation, treeId: number, cause: string): void {
   major(sim, 'holy-tree', 'The Holy Tree', tree.x, tree.z);
 }
 
-function curseWell(sim: Simulation, cause: string): void {
+function curseWell(sim: Simulation, cause: string, target: VillageData): void {
   const c = sim.state.culture;
-  const w = well(sim);
+  const w = well(sim, target);
   const witnesses = sim.memory.witnesses(w.x, w.z, 16);
-  const believers = new Set<string>(witnesses.map((v) => v.id));
+  const believers = new Set<string>(witnesses.filter((v) => v.villageId === target.id).map((v) => v.id));
   for (const v of sim.state.villagers) {
-    if (v.alive && (has(v, 'superstitious') || (has(v, 'cowardly') && sim.rng.next() < 0.5))) believers.add(v.id);
+    if (v.alive && v.villageId === target.id && (has(v, 'superstitious') || (has(v, 'cowardly') && sim.rng.next() < 0.5))) believers.add(v.id);
   }
-  c.cursedWell = { until: sim.state.time + 480, believers: [...believers].slice(0, 10) };
+  c.cursedWell = { until: sim.state.time + 480, believers: [...believers].slice(0, 10), villageId: target.id };
   const speaker = witnesses.find((v) => has(v, 'superstitious')) ?? witnesses[0];
   sim.speech.say(speaker, 'A FROG LOOKED AT ME. IN THE WELL. IN THE EYES.', 3, 4);
-  sim.history.add('The Forbidden Well', `After ${cause}, ${c.cursedWell.believers.length} villagers declared the well cursed. They now walk to the river instead.`, { kind: 'curse', x: w.x, z: w.z });
-  sim.notify('THE WELL IS CURSED!', 'culture', 'Some villagers refuse to drink from it. Rain may purify it.', 3);
+  sim.history.add(`The Forbidden Well of ${target.name}`, `After ${cause}, ${c.cursedWell.believers.length} villagers of ${target.name} declared their well cursed. They now walk to the river instead.`, { kind: 'curse', x: w.x, z: w.z, villageId: target.id });
+  sim.notify(`${target.name.toUpperCase()}'S WELL IS CURSED!`, 'culture', 'Some villagers refuse to drink from it. Rain may purify it.', 3);
   major(sim, 'forbidden-well', 'The Forbidden Well', w.x, w.z);
 }
 
@@ -213,16 +239,16 @@ export const SURREAL_EVENTS: ConsequenceRule[] = [
     title: 'The Forbidden Well (lightning)',
     trigger: 'LIGHTNING_STRUCK',
     cooldown: 300,
-    condition: (sim, e) => ready(sim) && !sim.state.culture.cursedWell && Math.hypot(well(sim).x - e.x, well(sim).z - e.z) < 12,
-    effects: (sim) => curseWell(sim, 'lightning struck beside it'),
+    condition: (sim, e) => ready(sim) && !sim.state.culture.cursedWell && !!wellNear(sim, e.x, e.z, 12),
+    effects: (sim, e) => curseWell(sim, 'lightning struck beside it', wellNear(sim, e.x, e.z, 12)!),
   }),
   rule({
     id: 'forbidden-well-mutation',
     title: 'The Forbidden Well (mutation)',
     trigger: 'MUTATION_APPLIED',
     cooldown: 300,
-    condition: (sim, e) => ready(sim) && !sim.state.culture.cursedWell && Math.hypot(well(sim).x - e.x, well(sim).z - e.z) < 14,
-    effects: (sim) => curseWell(sim, 'something deeply unnatural happened beside it'),
+    condition: (sim, e) => ready(sim) && !sim.state.culture.cursedWell && !!wellNear(sim, e.x, e.z, 14),
+    effects: (sim, e) => curseWell(sim, 'something deeply unnatural happened beside it', wellNear(sim, e.x, e.z, 14)!),
   }),
   rule({
     id: 'well-purified',
@@ -231,10 +257,11 @@ export const SURREAL_EVENTS: ConsequenceRule[] = [
     cooldown: 0,
     condition: (sim, e) => !!sim.state.culture.cursedWell && Math.hypot(well(sim).x - e.x, well(sim).z - e.z) <= e.radius,
     effects: (sim) => {
+      const v = village(sim, sim.state.culture.cursedWell?.villageId);
       sim.state.culture.cursedWell = null;
-      const w = well(sim);
-      sim.history.add('The Purification of the Well', 'Holy drizzle washed away the curse. The frog was not available for comment.', { kind: 'curse', x: w.x, z: w.z });
-      sim.ai.celebrate(sim, village(sim), 'purified');
+      const w = well(sim, v);
+      sim.history.add(`The Purification of ${v.name}'s Well`, 'Holy drizzle washed away the curse. The frog was not available for comment.', { kind: 'curse', x: w.x, z: w.z, villageId: v.id });
+      sim.ai.celebrate(sim, v, 'purified');
     },
     notify: { text: 'THE WELL IS PURIFIED', kind: 'good', sub: 'Everyone may drink from it again. Even the superstitious.' },
   }),
@@ -257,13 +284,15 @@ export const SURREAL_EVENTS: ConsequenceRule[] = [
     condition: (sim) => ready(sim) && sim.state.culture.prosperityTime >= 100 && sim.state.culture.picnicUntil < sim.state.time,
     effects: (sim) => {
       const c = sim.state.culture;
-      const v = village(sim);
-      const spot = sim.pathfinding.nearestWalkable(v.centerX - 9, v.centerZ - 18) ?? { x: v.centerX, z: v.centerZ };
+      const v = [...sim.state.villages].sort((a, b) => b.prosperity - a.prosperity)[0];
+      c.picnicVillageId = v.id;
+      const offset = v.id === 'v1' ? { x: -9, z: -18 } : { x: -6, z: 12 };
+      const spot = sim.pathfinding.nearestWalkable(v.centerX + offset.x, v.centerZ + offset.z) ?? { x: v.centerX, z: v.centerZ };
       c.picnicSpot = spot;
       c.picnicUntil = sim.state.time + 150;
-      c.picnickers = sim.state.villagers.filter((p) => p.alive && p.age >= 12 && (has(p, 'lazy') || sim.rng.next() < 0.4)).map((p) => p.id);
+      c.picnickers = sim.state.villagers.filter((p) => p.alive && p.villageId === v.id && p.age >= 12 && (has(p, 'lazy') || sim.rng.next() < 0.4)).map((p) => p.id);
       c.prosperityTime = 0;
-      sim.history.add('The Eternal Picnic', `${c.picnickers.length} villagers decided that work is unnecessary while life is this good. Food keeps disappearing.`, { kind: 'event', x: spot.x, z: spot.z });
+      sim.history.add(`The Eternal Picnic of ${v.name}`, `${c.picnickers.length} villagers of ${v.name} decided that work is unnecessary while life is this good. Food keeps disappearing.`, { kind: 'event', x: spot.x, z: spot.z });
       major(sim, 'eternal-picnic', 'The Eternal Picnic', spot.x, spot.z);
     },
     notify: { text: 'THE ETERNAL PICNIC HAS BEGUN', kind: 'culture', sub: 'Several villagers stopped working. Snacks are being consumed at alarming rates.' },
@@ -355,22 +384,19 @@ export const SURREAL_EVENTS: ConsequenceRule[] = [
     title: 'The Sacred Potato (flood)',
     trigger: 'FLOOD_RECEDED',
     cooldown: 900,
-    condition: (sim) => {
-      const f = farm(sim);
+    condition: (sim, e) => {
+      const f = farm(sim, village(sim, e.villageId));
       return ready(sim) && !sim.state.culture.potatoCult && !!f && !f.destroyed && f.cropHealth > 0.3 && sim.recentCount('rain-damage', 400) >= 1;
     },
-    effects: (sim) => sacredPotato(sim, 'the flood'),
+    effects: (sim, e) => sacredPotato(sim, 'the flood', village(sim, e.villageId)),
   }),
   rule({
     id: 'sacred-potato-fire',
     title: 'The Sacred Potato (fire)',
     trigger: 'FIRE_EXTINGUISHED',
     cooldown: 900,
-    condition: (sim, e) => {
-      const f = farm(sim);
-      return ready(sim) && !sim.state.culture.potatoCult && !!f && !f.destroyed && Math.hypot(f.x - e.x, f.z - e.z) < 14;
-    },
-    effects: (sim) => sacredPotato(sim, 'the fire'),
+    condition: (sim, e) => ready(sim) && !sim.state.culture.potatoCult && !!farmNear(sim, e.x, e.z, 14),
+    effects: (sim, e) => sacredPotato(sim, 'the fire', farmNear(sim, e.x, e.z, 14)!),
   }),
 
   // ---------------------------------------------------------------- J
@@ -380,15 +406,17 @@ export const SURREAL_EVENTS: ConsequenceRule[] = [
     trigger: 'PRAYER_COMPLETED',
     cooldown: 99999,
     condition: (sim) => ready(sim) && sim.state.stats.prayersAnswered >= 4 && !sim.state.culture.officeBuilt,
-    effects: (sim) => {
+    effects: (sim, e) => {
       const c = sim.state.culture;
       c.officeBuilt = true;
       c.officeProgress = 0;
-      const v = village(sim);
-      sim.history.add('The Villagers Invented Paperwork', 'To manage the flood of answered prayers, the villagers founded the Department of Miracles. Prayers now require forms.', { kind: 'event', x: v.centerX + 14, z: v.centerZ - 1 });
-      major(sim, 'department-of-miracles', 'The Department of Miracles', v.centerX + 14, v.centerZ - 1);
+      const v = village(sim, e.prayer.villageId);
+      c.officeVillageId = v.id;
+      const name = flavor(v).office;
+      sim.history.add(`${v.name} Invented Paperwork`, `To manage the flood of answered prayers, ${v.name} founded the ${name}. Prayers now require forms.`, { kind: 'event', x: v.centerX + 14, z: v.centerZ - 1, villageId: v.id });
+      sim.notify(`THE ${name.toUpperCase()}`, 'culture', `${v.name}: prayers now arrive in triplicate. Rewards are slightly better documented.`, 2);
+      major(sim, 'department-of-miracles', `The ${name}`, v.centerX + 14, v.centerZ - 1);
     },
-    notify: { text: 'THE DEPARTMENT OF MIRACLES', kind: 'culture', sub: 'Prayers now arrive in triplicate. Rewards are slightly better documented.' },
     god: { text: 'THEY HAVE INVENTED PAPERWORK. I AM SO PROUD. I AM SO TIRED.', priority: 2 },
   }),
 
@@ -399,10 +427,10 @@ export const SURREAL_EVENTS: ConsequenceRule[] = [
     trigger: 'FIRE_EXTINGUISHED',
     cooldown: 99999,
     condition: (sim) => ready(sim) && !sim.state.culture.firePit && sim.recentCount('fire-out-witnessed', 900) >= 3,
-    effects: (sim) => {
+    effects: (sim, e) => {
       const c = sim.state.culture;
-      const v = village(sim);
-      c.firePit = { x: v.centerX - 5, z: v.centerZ + 4 }; // the gathering circle
+      const v = nearestTo(sim, e.x, e.z);
+      c.firePit = v.id === 'v1' ? { x: v.centerX - 5, z: v.centerZ + 4 } : sim.pathfinding.nearestWalkable(v.centerX - 4, v.centerZ + 5) ?? { x: v.centerX, z: v.centerZ }; // the gathering circle
       c.fireRisk = 0.15;
       const memory = sim.memory.latest('fire-extinguished');
       sim.religion.found('fire', { memory, x: c.firePit.x, z: c.firePit.z, sacredKind: 'ground', targetId: -5, label: 'The Ceremonial Fire Pit', sacredness: 2.6, recruitFromVillage: true });
@@ -419,14 +447,17 @@ export const SURREAL_EVENTS: ConsequenceRule[] = [
     trigger: 'PRAYER_FAILED',
     cooldown: 600,
     condition: (sim) => sim.state.culture.ignoredStreak >= 3 && !sim.state.culture.silence,
-    effects: (sim) => {
+    effects: (sim, e) => {
       const c = sim.state.culture;
       c.silence = true;
-      for (const v of sim.state.villagers) if (v.alive) v.faith = Math.max(0, v.faith - 0.15);
-      const shrine = sim.building(village(sim).shrineId)!;
-      sim.sacredSys.create({ kind: 'ground', targetId: -6, x: shrine.x + 5, z: shrine.z + 2.5, label: 'The Out of Office Sign', sacredness: 9, monument: 'out-of-office' }) &&
+      const sv = village(sim, e.prayer.villageId);
+      c.silenceVillageId = sv.id;
+      for (const v of sim.state.villagers) if (v.alive) v.faith = Math.max(0, v.faith - (v.villageId === sv.id ? 0.15 : 0.05));
+      const shrine = sim.building(sv.shrineId)!;
+      const sign = flavor(sv).silence;
+      sim.sacredSys.create({ kind: 'ground', targetId: -6, x: shrine.x + 5, z: shrine.z + 2.5, label: `The ${sign.charAt(0)}${sign.slice(1).toLowerCase()} Sign`, sacredness: 9, monument: 'out-of-office' }) &&
         (sim.state.sacred[sim.state.sacred.length - 1].shrineProgress = 1);
-      sim.history.add('The Great Silence', 'After three unanswered prayers, the villagers concluded God had left. They began building a monument that reads OUT OF OFFICE.', { kind: 'loss', x: shrine.x, z: shrine.z });
+      sim.history.add(`The Great Silence of ${sv.name}`, `After three unanswered prayers, ${sv.name} concluded God had left. They began building a monument that reads ${sign}.`, { kind: 'loss', x: shrine.x, z: shrine.z, villageId: sv.id });
       major(sim, 'great-silence', 'The Great Silence', shrine.x, shrine.z);
     },
     notify: { text: 'THE GREAT SILENCE', kind: 'bad', sub: 'The villagers think God has abandoned them. Shrine visits have stopped.' },
@@ -455,7 +486,7 @@ export const SURREAL_EVENTS: ConsequenceRule[] = [
     effects: (sim) => {
       const m = sim.state.mutations.find((x) => x.kind === 'walking-rock')!;
       const rock = sim.state.rocks[Number(m.targetId)];
-      sim.history.add('The Rock Became a Local Celebrity', 'The walking rock is now the most popular resident of Puddleton. It has never said a word. That is its charm.', { kind: 'event', x: rock?.x, z: rock?.z });
+      sim.history.add('The Rock Became a Local Celebrity', `The walking rock is now the most popular resident of ${rock ? nearestTo(sim, rock.x, rock.z).name : 'the island'}. It has never said a word. That is its charm.`, { kind: 'event', x: rock?.x, z: rock?.z });
     },
     notify: { text: 'A ROCK IS THE MOST POPULAR RESIDENT', kind: 'culture', sub: 'Villagers follow it around. It does not notice.' },
   }),
@@ -465,7 +496,7 @@ export const SURREAL_EVENTS: ConsequenceRule[] = [
     trigger: 'FIRE_SPREAD',
     cooldown: 99999,
     condition: (sim) => sim.state.fires.length >= 8,
-    effects: (sim, e) => sim.history.add(`The Great Fire of ${village(sim).name}`, 'The forest burned. Everyone has opinions about who started it.', { kind: 'disaster', x: e.x, z: e.z }),
+    effects: (sim, e) => sim.history.add(`The Great Fire of ${nearestTo(sim, e.x, e.z).name}`, 'The forest burned. Everyone has opinions about who started it.', { kind: 'disaster', x: e.x, z: e.z }),
   }),
   rule({
     id: 'golden-prophet',
@@ -493,18 +524,20 @@ export const SURREAL_EVENTS: ConsequenceRule[] = [
   }),
 ];
 
-function sacredPotato(sim: Simulation, cause: string): void {
-  const f = farm(sim);
+function sacredPotato(sim: Simulation, cause: string, v: VillageData): void {
+  const f = farm(sim, v);
   if (!f) return;
   const c = sim.state.culture;
   c.potatoCult = true;
+  c.potatoVillageId = v.id;
+  const label = flavor(v).crop;
   const x = f.x - 6.6;
   const z = f.z - 5.4;
   const memory = sim.memory.record('crop-survived', f.x, f.z, { impact: 0.75, radius: CONFIG.culture.perception.notable });
-  sim.religion.found('potato', { memory: memory ?? undefined, x, z, sacredKind: 'crop', targetId: f.id, label: 'The Sacred Potato', sacredness: 5.5, recruitFromVillage: true });
+  sim.religion.found('potato', { memory: memory ?? undefined, x, z, sacredKind: 'crop', targetId: f.id, label, sacredness: 5.5, recruitFromVillage: true });
   const s = sim.sacredSys.find('crop', f.id);
   if (s) s.monument = 'giant-potato';
-  sim.history.add('The Sacred Potato', `One potato survived ${cause}. It was elevated to divine status. Food output has dipped: nobody wants to harvest its relatives.`, { kind: 'sacred', x, z });
-  sim.notify('THE SACRED POTATO', 'culture', 'A crop survived. It is now a deity. Harvests are smaller out of respect.', 2);
-  major(sim, 'sacred-potato', 'The Sacred Potato', x, z);
+  sim.history.add(label, `In ${v.name}, one vegetable survived ${cause}. It was elevated to divine status. Food output has dipped: nobody wants to harvest its relatives.`, { kind: 'sacred', x, z, villageId: v.id });
+  sim.notify(label.toUpperCase(), 'culture', `${v.name}: a crop survived. It is now a deity. Harvests are smaller out of respect.`, 2);
+  major(sim, 'sacred-potato', label, x, z);
 }

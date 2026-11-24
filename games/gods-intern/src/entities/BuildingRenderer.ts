@@ -4,13 +4,13 @@ import { build, flatMaterial, Part } from '../render/ModelKit';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { TerrainData } from '../world/TerrainGen';
 
-const ROOF_COLORS = [0xd2553f, 0x3f78b5, 0xe0a13a, 0x6a9e4a];
 const STONE = 0x9e968c;
 const TIMBER = 0x6b4a2e;
 const PLASTER = 0xf3e3c3;
 
 const STYLE_ROOFS: Record<VillageCulture, number[]> = {
-  agricultural: ROOF_COLORS,
+  // v0.4: Puddleton is warm — reds, terracotta and harvest gold (no more blue roofs shared with Drizzleville).
+  agricultural: [0xd2553f, 0xc0452f, 0xe0a13a, 0xb8643a],
   mountain: [0x5d6670, 0x6b4a2e, 0x4a5560, 0x7a5a3a],
   riverside: [0x2a9d8f, 0x3f78b5, 0x48b5d4, 0x1d6f8c],
 };

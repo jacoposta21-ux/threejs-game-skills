@@ -146,6 +146,15 @@ export class VillageDecor {
         Part.box(0.36, 0.46, 0.05).rot(0, 0, -0.2).at(0.7, 2.25, 0.08).color(0xfaf5ea),
         Part.box(0.16, 0.9, 0.16).at(-0.33, 1.5, 0).color(0xf2c14e),
       ]), std],
+      // ---- v0.4 identity: faith banners and prosperity bunting ----
+      bannerPole: [build([Part.cyl(0.06, 0.08, 3.4, 6).at(0, 1.7, 0).color(0x5a3c24), Part.ico(0.12, 0).at(0, 3.45, 0).color(0xf2c14e)]), std],
+      bannerCloth: [build([Part.box(0.05, 1.3, 0.75).at(0, 2.55, 0.4).color(0xffffff), Part.prism(0.05, 0.35, 0.75).rot(0, 0, Math.PI).at(0, 1.72, 0.4).color(0xffffff)]), std],
+      bunting: [build([
+        Part.box(0.03, 0.03, 9).at(0, 3.2, 0).color(0xe8e0d0),
+        ...Array.from({ length: 12 }, (_, i) => Part.cone(0.22, 0.45, 3).rot(Math.PI, 0, 0).at(0, 2.95, -4.1 + i * 0.75).color([0xe63946, 0xf2c14e, 0x2bb3b1, 0xffffff][i % 4])),
+        Part.box(0.1, 3.3, 0.1).at(0, 1.65, -4.5).color(0x6b4a2e),
+        Part.box(0.1, 3.3, 0.1).at(0, 1.65, 4.5).color(0x6b4a2e),
+      ]), std],
       fence: [build([...[-1.5, -0.5, 0.5, 1.5].map((x) => Part.box(0.09, 0.7, 0.09).at(x, 0.35, 0).color(0xd8c7a3)), Part.box(3.2, 0.07, 0.05).at(0, 0.5, 0).color(0xd8c7a3), Part.box(3.2, 0.07, 0.05).at(0, 0.25, 0).color(0xd8c7a3)]), std],
     };
     for (const [kind, [geo, mat]] of Object.entries(geos)) {
@@ -256,6 +265,7 @@ export class VillageDecor {
     p.push({ kind: 'fence', x: 14.2, z: 0.5, rot: Math.PI / 2 });
     p.push({ kind: 'signpost', x: -12.5, z: 17.5, rot: 0.75 });
     if (improvements.includes('intern-statue')) p.push({ kind: 'statue', x: 6.2, z: -3.4, rot: -0.6, improvement: 'intern-statue' });
+    if (improvements.includes('god-monument')) p.push({ kind: 'statue', x: -6.8, z: -4.6, rot: 0.8, improvement: 'god-monument' });
     if (improvements.includes('market')) p.push({ kind: 'market', x: -1.5, z: 6.8, rot: Math.PI + 0.2, improvement: 'market' });
     if (improvements.includes('lanterns')) this.lanterns(p);
     if (improvements.includes('gardens')) {
@@ -280,9 +290,13 @@ export class VillageDecor {
     return p;
   }
 
-  update(improvements: string[], night: number): void {
+  /**
+   * @param faithColor dominant religion color (banners appear only when one exists)
+   * @param prosperous festive bunting over the plaza while the village thrives
+   */
+  update(improvements: string[], night: number, faithColor: number | null = null, prosperous = false): void {
     this.lanternGlass.emissiveIntensity = 0.15 + night * 2.2;
-    const key = improvements.join(',');
+    const key = `${improvements.join(',')}|${faithColor}|${prosperous}`;
     if (key === this.key) return;
     this.key = key;
     const dummy = new THREE.Object3D();
@@ -291,8 +305,13 @@ export class VillageDecor {
       m.count = 0;
       m.visible = false;
     }
-    for (const pl of this.layout(improvements)) {
-      const kinds = pl.kind === 'lanternPost' ? ['lanternPost', 'lanternGlass'] : [pl.kind];
+    const placements = this.layout(improvements);
+    if (faithColor !== null) {
+      for (const a of [0.9, 2.95, 5.0]) placements.push({ kind: 'banner', x: Math.cos(a) * 6.6, z: Math.sin(a) * 6.6, rot: -a + Math.PI / 2 });
+    }
+    if (prosperous) placements.push({ kind: 'bunting', x: 0.5, z: -2.2, rot: 0.3 });
+    for (const pl of placements) {
+      const kinds = pl.kind === 'lanternPost' ? ['lanternPost', 'lanternGlass'] : pl.kind === 'banner' ? ['bannerPole', 'bannerCloth'] : [pl.kind];
       const x = this.village.centerX + pl.x;
       const z = this.village.centerZ + pl.z;
       for (const kind of kinds) {
@@ -303,6 +322,8 @@ export class VillageDecor {
         dummy.scale.setScalar(1);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
+        if (kind === 'bannerCloth' && faithColor !== null) mesh.setColorAt(i, new THREE.Color(faithColor));
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         counts.set(kind, i + 1);
         mesh.count = i + 1;
         mesh.visible = true;

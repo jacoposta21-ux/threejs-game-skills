@@ -52,11 +52,9 @@ export class CultureSystem {
     this.slowTimer = 1;
     const s = sim.state;
     const c = s.culture;
-    const v = s.villages[0];
-    if (v) {
-      const prosperous = v.prosperity > 0.58 && v.happiness > 0.6 && v.food > 80;
-      c.prosperityTime = prosperous ? c.prosperityTime + 1 : Math.max(0, c.prosperityTime - 2);
-    }
+    // v0.4: any thriving village can drift into an Eternal Picnic, not just Puddleton.
+    const prosperous = s.villages.some((v) => v.prosperity > 0.58 && v.happiness > 0.6 && v.food > 80);
+    c.prosperityTime = prosperous ? c.prosperityTime + 1 : Math.max(0, c.prosperityTime - 2);
     for (const imp of IMPROVEMENTS) {
       if (c.improvements.includes(imp.id) || !imp.ready(sim)) continue;
       c.improvements.push(imp.id);
@@ -125,8 +123,9 @@ export class CultureSystem {
     const busy = sim.state.villagers.filter((v) => v.alive && v.currentTask.activity === 'construct-office').length;
     if (busy >= 2) return;
     const site = officeSite(sim);
+    const home = sim.state.culture.officeVillageId ?? sim.state.villages[0].id;
     const worker = sim.state.villagers.find(
-      (v) => v.alive && v.age >= 12 && (v.job === 'builder' || v.traits.includes('ambitious')) && (v.currentTask.state === 'IDLE' || v.currentTask.state === 'WANDERING') && v.hunger < 0.6 && v.thirst < 0.6,
+      (v) => v.alive && v.villageId === home && !v.travel && v.age >= 12 && (v.job === 'builder' || v.traits.includes('ambitious')) && (v.currentTask.state === 'IDLE' || v.currentTask.state === 'WANDERING') && v.hunger < 0.6 && v.thirst < 0.6,
     );
     if (worker) sim.ai.assign(sim, worker, 'WORKING', 'construct-office', site.x + sim.rng.range(-2, 2), site.z + 2.5, null, 6);
   }
@@ -137,7 +136,8 @@ export class CultureSystem {
     if (sim.isNight || !sim.state.prayers.some((p) => p.status === 'active')) return;
     const inLine = sim.state.villagers.filter((v) => v.alive && v.currentTask.activity === 'queue').length;
     if (inLine >= 3) return;
-    const v = sim.state.villagers.find((p) => p.alive && p.age >= 12 && p.currentTask.state === 'IDLE' && p.currentTask.activity === '' && p.hunger < 0.6 && p.thirst < 0.6);
+    const home = sim.state.culture.officeVillageId ?? sim.state.villages[0].id;
+    const v = sim.state.villagers.find((p) => p.alive && p.villageId === home && !p.travel && p.age >= 12 && p.currentTask.state === 'IDLE' && p.currentTask.activity === '' && p.hunger < 0.6 && p.thirst < 0.6);
     if (!v) return;
     const site = officeSite(sim);
     sim.ai.assign(sim, v, 'IDLE', 'queue', site.x - 1.2 - inLine * 1.1, site.z + 2.6, null, 14, site.x, site.z);
@@ -160,6 +160,6 @@ export class CultureSystem {
 }
 
 export function officeSite(sim: Simulation): { x: number; z: number } {
-  const v = sim.state.villages[0];
+  const v = sim.village(sim.state.culture.officeVillageId ?? '') ?? sim.state.villages[0];
   return { x: v.centerX + 17, z: v.centerZ + 4 };
 }

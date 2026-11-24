@@ -169,7 +169,8 @@ export class AudioManager {
   }
 
   private tone(freq: number, dur: number, type: OscillatorType, gain: number, delay = 0, slideTo?: number, dest?: AudioNode): void {
-    const ctx = this.ctx!;
+    if (!this.ctx) return;
+    const ctx = this.ctx;
     const t = ctx.currentTime + delay;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
@@ -417,35 +418,42 @@ export class AudioManager {
   }
 
   possession(start: boolean): void {
+    if (!this.ctx) return;
     this.tone(start ? 220 : 660, 0.8, 'sine', 0.1, 0, start ? 660 : 220);
     this.tone(start ? 330 : 990, 0.8, 'sine', 0.05, 0.05, start ? 990 : 330);
   }
 
   meteorIncoming(): void {
+    if (!this.ctx) return;
     this.tone(1800, 2.8, 'sine', 0.06, 0, 120);
     this.noiseBurst(2.9, 0.18, 'bandpass', 3000, 0, 1.5, 200);
   }
 
   meteorImpact(): void {
+    if (!this.ctx) return;
     this.tone(55, 1.6, 'sine', 0.5, 0, 28);
     this.noiseBurst(2.2, 0.7, 'lowpass', 800, 0, 0.8, 60);
     this.noiseBurst(0.3, 0.4, 'highpass', 2000, 0, 1);
   }
 
   resurrection(): void {
+    if (!this.ctx) return;
     [261.63, 329.63, 392, 523.25, 659.25].forEach((f, i) => this.tone(f, 2.2, 'sine', 0.06, i * 0.09));
   }
 
   promotion(): void {
+    if (!this.ctx) return;
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(f, 0.35, 'triangle', 0.11, i * 0.11, undefined, this.ui));
     [523.25, 659.25, 783.99].forEach((f) => this.tone(f, 1.6, 'sine', 0.05, 0.5, undefined, this.ui));
   }
 
   discovery(): void {
+    if (!this.ctx) return;
     [783.99, 987.77, 1174.66, 1567.98].forEach((f, i) => this.tone(f, 0.3, 'sine', 0.07, i * 0.07, undefined, this.ui));
   }
 
   memo(): void {
+    if (!this.ctx) return;
     this.tone(660, 0.12, 'square', 0.03, 0, undefined, this.ui);
     this.tone(990, 0.18, 'square', 0.03, 0.12, undefined, this.ui);
   }

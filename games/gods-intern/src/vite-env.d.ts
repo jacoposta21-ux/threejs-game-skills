@@ -16,6 +16,9 @@ interface ThreeGameTestHooks {
   planMigration(): string | null;
   focusVillage(id: string): void;
   worldPoint(x: number, z: number): { x: number; y: number; visible: boolean };
+  grantXp(amount: number): number;
+  setMode(mode: 'career' | 'creative'): void;
+  possess(id: string): void;
 }
 
 interface Window {

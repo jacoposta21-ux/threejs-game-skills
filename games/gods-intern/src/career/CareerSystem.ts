@@ -113,9 +113,12 @@ export class CareerSystem {
   /** Per-step bookkeeping: the training bonus and rank unlocks once the tutorial ends. */
   update(): void {
     const s = this.sim.state;
-    if (s.tutorial.done && !s.career.awarded.tutorial) {
+    if (s.tutorial.done && !s.career.awarded.tutorial && s.mode === 'career') {
       this.award('tutorial', 25, 'Finished training', { once: true });
       this.applyUnlocks();
+      // First performance goals: three easy challenges pinned to the HUD (only if the player pinned nothing).
+      if (!s.civ.pinned.length) for (const id of ['amateur-botanist', 'divine-tourist', 'let-there-be-rain']) this.sim.challenges.pin(id);
+      this.sim.heaven.send('welcome', 'HEAVENLY HUMAN RESOURCES', 'WELCOME TO THE TEAM. YOUR DESK IS A CLOUD. PERFORMANCE GOALS HAVE BEEN PINNED TO YOUR SCREEN.', { force: true });
     }
   }
 

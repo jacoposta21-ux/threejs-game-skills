@@ -335,6 +335,11 @@ export interface CultureState {
   picnicSpot: { x: number; z: number } | null;
   upsideDownUntil: number;
   cursedWell: { until: number; believers: string[]; villageId?: string } | null;
+  /** v0.4: which village hosts each long-running cultural event (absent in old saves → Puddleton). */
+  picnicVillageId?: string;
+  officeVillageId?: string;
+  silenceVillageId?: string;
+  potatoVillageId?: string;
   festivals: Festival[];
   festivalUntil: number;
   officeBuilt: boolean;

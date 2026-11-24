@@ -98,10 +98,10 @@ export class PowerEffectsRenderer {
     this.group.name = 'power-effects';
     // Tornado: stacked, offset rings of dusty cloud that widen with height.
     const parts: Part[] = [];
-    for (let i = 0; i < 9; i++) {
-      const y = i * 1.25;
-      const r = 0.6 + i * 0.55;
-      parts.push(Part.torus(r, 0.35 + i * 0.08, 5, 14).rot(Math.PI / 2, 0, 0).at(Math.sin(i * 0.9) * 0.35, y + 0.4, Math.cos(i * 0.9) * 0.35).color(i % 2 ? 0xb9b0a3 : 0x9c9488));
+    for (let i = 0; i < 12; i++) {
+      const y = i * 1.05;
+      const r = 0.35 + i * i * 0.04 + i * 0.18;
+      parts.push(Part.torus(r, 0.18 + i * 0.05, 4, 12).rot(Math.PI / 2, 0, i * 0.4).at(Math.sin(i * 1.3) * 0.5, y + 0.3, Math.cos(i * 1.1) * 0.5).color([0xcfc6b8, 0xb5ab9c, 0xe2dbcf][i % 3]));
     }
     this.funnelGeo = build(parts);
     this.crystalGeo = build([Part.cone(0.22, 1.1, 4).at(0, 0.5, 0).color(0xd8f3ff), Part.cone(0.14, 0.7, 4).rot(0.4, 0, 0.3).at(0.2, 0.3, 0.1).color(0xbfe8ff)]);
@@ -128,7 +128,7 @@ export class PowerEffectsRenderer {
     const root = new THREE.Group();
     const v: Visual = { root, kind: e.kind };
     if (e.kind === 'tornado') {
-      const funnel = new THREE.Mesh(this.funnelGeo, flatMaterial({ transparent: true, opacity: 0.82 }));
+      const funnel = new THREE.Mesh(this.funnelGeo, flatMaterial({ transparent: true, opacity: 0.62, depthWrite: false }));
       funnel.castShadow = true;
       root.add(funnel);
       v.spin = [funnel];
@@ -143,7 +143,7 @@ export class PowerEffectsRenderer {
         const z = e.z + Math.sin(a) * r;
         this.dummy.position.set(x, this.terrain.heightAt(x, z), z);
         this.dummy.rotation.set(0, a, 0);
-        this.dummy.scale.setScalar(0.6 + ((i * 7) % 5) * 0.18);
+        this.dummy.scale.setScalar(1.0 + ((i * 7) % 5) * 0.3);
         this.dummy.updateMatrix();
         crystals.setMatrixAt(i, this.dummy.matrix);
       }
@@ -189,6 +189,9 @@ export class PowerEffectsRenderer {
         f.position.set(e.x, gy, e.z);
         if (!reducedMotion) f.rotation.y = elapsed * 5;
         f.scale.setScalar(0.4 + fade * 0.6);
+        // Wobble: the funnel leans and sways as it travels.
+        f.rotation.x = reducedMotion ? 0 : Math.sin(elapsed * 1.7) * 0.08;
+        f.rotation.z = reducedMotion ? 0 : Math.cos(elapsed * 1.3) * 0.08;
         if (emit) {
           this.vfx.smoke.emit({ x: e.x, y: gy + 0.4, z: e.z, spread: 2.2, vy: 2.5, vx: (Math.random() - 0.5) * 3, vz: (Math.random() - 0.5) * 3, life: 1.4, size: 1.4, sizeEnd: 3.2, color: 0xa89c8a, colorEnd: 0xd8d0c4, alpha: 0.4 });
           const a = Math.random() * Math.PI * 2;

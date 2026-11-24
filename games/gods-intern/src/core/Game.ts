@@ -165,7 +165,7 @@ export class Game {
     this.buildings = new BuildingRenderer(this.sim.state.buildings, this.sim.terrain);
     this.villagers = new VillagerRenderer();
     this.weather = new Weather();
-    this.ambient = new Ambient(this.sim.terrain, { x: village.centerX, z: village.centerZ });
+    this.ambient = new Ambient(this.sim.terrain, this.sim.state.villages.map((v) => ({ x: v.centerX, z: v.centerZ })));
     this.vfx = new VisualEffects(this.sim.bus, this.sim.terrain, () => this.sim.state);
     this.culture = new CultureRenderer(this.sim.terrain);
     this.decors = this.sim.state.villages.map((v) => new VillageDecor(this.sim.terrain, v, this.sim.state.buildings));
@@ -380,7 +380,6 @@ export class Game {
       bus.on('PRAYER_CREATED', () => this.audio.prayer()),
       bus.on('PRAYER_COMPLETED', (e) => {
         this.audio.missionComplete();
-        this.platform.celebrate();
         this.labels.float(`+${e.prayer.reward} ⚡`, v3(e.prayer.targetX, e.prayer.targetZ, 5), 'gold');
       }),
       bus.on('PRAYER_FAILED', () => this.audio.fail()),
@@ -619,10 +618,11 @@ export class Game {
     });
     window.addEventListener('resize', () => this.resize());
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        this.autosave();
-        this.platform.gameplayStop();
-      } else this.platform.gameplayStart();
+      if (document.hidden) this.autosave();
+      // CrazyGames handles focus/visibility itself; only other hosts need the lifecycle here.
+      if (this.platform.handlesVisibility) return;
+      if (document.hidden) this.platform.gameplayStop();
+      else this.platform.gameplayStart();
     });
     window.addEventListener('beforeunload', () => this.autosave());
     // Keep the page itself from scrolling or zooming.
@@ -905,7 +905,11 @@ export class Game {
     this.powerFx.resurrectionSelected = this.selected === 'resurrection';
     this.powerFx.update(s, animDt, this.elapsed, this.reducedMotion, possessedPos);
     const unlocks = [...s.culture.improvements, ...s.civ.cosmetics];
-    for (const d of this.decors) d.update(unlocks, night);
+    this.decors.forEach((d, i) => {
+      const v = s.villages[i];
+      const faith = v?.identity.dominantReligionId ? s.religions.find((r) => r.id === v.identity.dominantReligionId && r.active) : undefined;
+      d.update(unlocks, night, faith ? faith.color : null, !!v && v.prosperity > 0.74);
+    });
     this.weather.rainbow = s.civ.cosmetics.includes('rainbow-rain');
     this.vfx.setGoldenLightning(s.civ.cosmetics.includes('golden-lightning'));
     if (!frozen) sim.civ.cameraAt(this.cam.target.x, this.cam.target.z, wallDt);
@@ -1395,6 +1399,71 @@ export class Game {
             this.cam.snap(v().centerX + 4, v().centerZ - 2, 58, 0.55, 0.86);
             break;
           }
+          // ---- v0.4 states (development builds only) ----
+          case 'sunrise-island':
+            fresh(0.27);
+            warm(6);
+            this.cam.snap(-2, 6, 140, 0.9, 0.95);
+            break;
+          case 'puddleton-day':
+            fresh(0.45);
+            warm(20);
+            this.cam.snap(v().centerX + 2, v().centerZ - 4, 54, 0.4, 0.78);
+            break;
+          case 'drizzleville-rain': {
+            fresh(0.5);
+            warm(10);
+            const d = this.sim.village('v2')!;
+            const well = this.sim.building(d.wellId)!;
+            this.sim.powers.activate('rain', well.x, well.z);
+            warm(3);
+            this.cam.snap(d.centerX, d.centerZ - 2, 52, -0.4, 0.72);
+            break;
+          }
+          case 'rockbottom-sunset': {
+            fresh(0.79);
+            warm(10);
+            const r = this.sim.village('v3')!;
+            this.cam.snap(r.centerX + 2, r.centerZ, 56, 2.4, 0.62);
+            break;
+          }
+          case 'tornado':
+          case 'freeze':
+          case 'gravity':
+          case 'terraform':
+          case 'timewarp':
+          case 'possession':
+          case 'meteor':
+          case 'resurrection': {
+            fresh(0.45);
+            this.sim.state.mode = 'creative';
+            this.sim.applyMode();
+            this.sim.unlimitedEnergy = true;
+            warm(8);
+            this.stagePower(name as PowerId);
+            this.applyModeOptions();
+            break;
+          }
+          case 'promotion': {
+            fresh(0.45);
+            warm(4);
+            this.sim.career.award('test:promotion', 105, 'Test promotion');
+            warm(1);
+            this.cam.snap(v().centerX + 4, v().centerZ - 2, 58, 0.55, 0.86);
+            break;
+          }
+          case 'power-menu':
+            fresh(0.45);
+            warm(4);
+            this.toolbar.toggleMenu();
+            this.cam.snap(v().centerX + 4, v().centerZ - 2, 58, 0.55, 0.86);
+            break;
+          case 'career-panel':
+            fresh(0.45);
+            warm(4);
+            this.careerUi.show();
+            this.cam.snap(v().centerX + 4, v().centerZ - 2, 58, 0.55, 0.86);
+            break;
           default:
             throw new Error(`Unknown test state: ${name}`);
         }
@@ -1420,6 +1489,14 @@ export class Game {
       /** Test-only: grant Chaos so Mutation can be exercised deterministically. */
       grantChaos: (amount: number) => this.sim.addChaos(amount, 'Test grant'),
       openBook: () => this.book.show('history'),
+      // ---- v0.4 (development builds only; the production bundle has none of this) ----
+      /** Advanced technical tests only: grant career XP through the real award path. */
+      grantXp: (amount: number) => this.sim.career.award(`test:${this.sim.state.time.toFixed(2)}`, amount, 'Development test grant'),
+      setMode: (mode: 'career' | 'creative') => this.switchMode(mode),
+      possess: (id: string) => {
+        const pv = this.sim.villager(id);
+        if (pv) this.sim.possession.start(pv);
+      },
       // ---- v0.3 ----
       /** Ask the real trade planner for its best deal now (still subject to all trade rules). */
       planTrade: () => this.sim.civ.planTrade()?.id ?? null,
@@ -1437,6 +1514,86 @@ export class Game {
     };
     // Read-only state accessor for the browser playtest (positions of buildings/trees).
     (window as unknown as { __GI_STATE__?: () => unknown }).__GI_STATE__ = () => this.sim.state;
+  }
+
+  /** v0.4 screenshot scenes: each new power in action near a village (creative mode, dev only). */
+  private stagePower(id: PowerId): void {
+    const sim = this.sim;
+    const warm = (sec: number) => {
+      for (let i = 0; i < sec * CONFIG.sim.hz; i++) sim.step(1 / CONFIG.sim.hz);
+    };
+    const p = sim.village('v1')!;
+    const d = sim.village('v2')!;
+    const r = sim.village('v3')!;
+    const act = (pid: PowerId, x: number, z: number) => {
+      sim.state.cooldowns[pid] = 0;
+      return sim.powers.activate(pid, x, z);
+    };
+    // Find a valid spot by spiralling out from a preferred point.
+    const near = (pid: PowerId, x: number, z: number) => {
+      for (let k = 0; k < 60; k++) {
+        const a = k * 2.4;
+        const rr = k * 0.8;
+        const px = x + Math.cos(a) * rr;
+        const pz = z + Math.sin(a) * rr;
+        if (sim.powers.check(pid, px, pz).ok) return { x: px, z: pz };
+      }
+      return { x, z };
+    };
+    if (id === 'tornado') {
+      const at = near('tornado', p.centerX + 14, p.centerZ - 6);
+      act('tornado', at.x, at.z);
+      warm(3);
+      const e = sim.state.effects.find((x) => x.kind === 'tornado');
+      this.cam.snap(e?.x ?? at.x, e?.z ?? at.z, 40, 0.5, 0.62);
+    } else if (id === 'freeze') {
+      const farm = sim.building(p.farmIds[0])!;
+      for (const t of sim.treesNear(farm.x + 8, farm.z, 8, []).slice(0, 2)) sim.fire.ignite(sim, 'tree', t.id, true);
+      warm(2);
+      act('freeze', farm.x + 4, farm.z);
+      warm(3);
+      this.cam.snap(farm.x + 4, farm.z, 40, 0.6, 0.78);
+    } else if (id === 'gravity') {
+      act('gravity', d.centerX, d.centerZ);
+      warm(4);
+      this.cam.snap(d.centerX, d.centerZ, 34, -0.5, 0.5);
+    } else if (id === 'terraform') {
+      const at = near('terraform', r.centerX + 20, r.centerZ + 12);
+      for (let k = 0; k < 3; k++) act('terraform', at.x, at.z);
+      sim.powers.terraform.mode = 'lower';
+      const at2 = near('terraform', at.x - 10, at.z + 6);
+      for (let k = 0; k < 2; k++) act('terraform', at2.x, at2.z);
+      sim.powers.terraform.mode = 'raise';
+      warm(1);
+      this.select('terraform');
+      this.cam.snap(at.x - 4, at.z + 2, 38, 2.2, 0.6);
+    } else if (id === 'timewarp') {
+      act('timewarp', d.centerX, d.centerZ + 2);
+      warm(3);
+      this.cam.snap(d.centerX, d.centerZ, 44, -0.4, 0.7);
+    } else if (id === 'possession') {
+      const pv = sim.state.villagers.find((x) => x.alive && x.villageId === 'v1' && x.age > 16)!;
+      act('possession', pv.position.x, pv.position.z);
+      sim.possession.steer(0.6, 0.8);
+      warm(3);
+      sim.possession.steer(0, 0);
+      this.cam.snap(pv.position.x, pv.position.z, 13, pv.heading + Math.PI, 0.42);
+    } else if (id === 'meteor') {
+      const at = near('meteor', r.centerX + 16, r.centerZ - 12);
+      act('meteor', at.x, at.z);
+      warm(1.6);
+      this.pausedForScreenshot = true; // freeze mid-fall
+      this.cam.snap(at.x, at.z, 70, 2.3, 0.7);
+    } else if (id === 'resurrection') {
+      const victim = sim.state.villagers.find((x) => x.alive && x.villageId === 'v1' && x.age > 16)!;
+      sim.ai.kill(sim, victim, 'a falling turnip', false);
+      warm(2);
+      const g = sim.state.graveyard[0];
+      act('resurrection', g.x, g.z);
+      warm(0.3);
+      this.pausedForScreenshot = true;
+      this.cam.snap(g.x, g.z, 26, 0.6, 0.6);
+    }
   }
 
   /** Deterministic Rock King scene: villagers on the plaza, lightning on the plaza rock, a ritual. */
@@ -1588,6 +1745,21 @@ export class Game {
         cursor: this.groundValid ? { x: this.ground.x, z: this.ground.z } : null,
       },
       civ: this.civDiagnostics(),
+      v4: {
+        mode: s.mode,
+        career: { xp: s.career.xp, rank: s.career.rank, title: this.sim.career.title, promotions: s.career.promotions.map((x) => x.rank), overtime: this.sim.career.overtimeActive() },
+        effects: s.effects.map((e) => ({ kind: e.kind, x: +e.x.toFixed(1), z: +e.z.toFixed(1), left: +(e.until - s.time).toFixed(1) })),
+        possession: s.possession ? { id: s.possession.villagerId, visited: [...s.possession.visited] } : null,
+        discoveries: s.discoveries.map((x) => x.id),
+        graves: s.graveyard.length,
+        terrainEdits: s.terrainEdits.length,
+        unlocked: [...s.unlockedPowers],
+        heaven: s.heaven.archive.length,
+        slots: [...this.toolbar.slots],
+        menu: this.toolbar.menuOpen,
+        cinematic: this.cinematic,
+        challengesCompleted: this.sim.challenges.completedCount(),
+      },
       camera: { distance: this.cam.distance, yaw: this.cam.yaw, pitch: this.cam.pitch, x: this.cam.target.x, z: this.cam.target.z },
       menu: this.menus.current,
       events: [...this.eventLog],

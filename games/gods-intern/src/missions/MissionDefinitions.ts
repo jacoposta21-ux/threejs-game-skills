@@ -156,7 +156,11 @@ export const MISSIONS: MissionDefinition[] = [
     priority: 1,
     reward: { energy: 15, approval: 4 },
     expiry: 200,
-    trigger: (sim, v) => v.id === sim.state.villages[0]?.id && sim.state.culture.rockKingId >= 0 && sim.state.time - sim.state.culture.lastRockSign > 220,
+    trigger: (sim, v) => {
+      const rock = sim.state.rocks[sim.state.culture.rockKingId];
+      // v0.4: the Rock King's own village asks (whichever village crowned it).
+      return !!rock && sim.nearestVillage(rock.x, rock.z).village?.id === v.id && sim.state.time - sim.state.culture.lastRockSign > 220;
+    },
     progress: (sim, _v, p) => (sim.state.culture.lastRockSign > p.createdAt ? 1 : 0),
     complete: (sim, _v, p) => sim.state.culture.lastRockSign > p.createdAt,
   },
@@ -182,7 +186,7 @@ export const MISSIONS: MissionDefinition[] = [
     priority: 3,
     reward: { energy: 25, approval: 10 },
     expiry: 400,
-    trigger: (sim, v) => sim.state.culture.silence && v.id === sim.state.villages[0]?.id,
+    trigger: (sim, v) => sim.state.culture.silence && v.id === (sim.state.culture.silenceVillageId ?? sim.state.villages[0]?.id),
     progress: (sim) => (sim.state.culture.silence ? 0 : 1),
     complete: (sim) => !sim.state.culture.silence,
   },
