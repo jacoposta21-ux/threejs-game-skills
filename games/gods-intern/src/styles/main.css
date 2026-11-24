@@ -3572,3 +3572,75 @@ body.aura .chip.career .career-rank {
     display: none;
   }
 }
+/* v0.4 layout fixes from the visual review */
+@media (max-width: 1400px) {
+  .meter {
+    min-width: 116px;
+  }
+  .meter.energy {
+    min-width: 160px;
+  }
+  .meter-label span {
+    white-space: nowrap;
+    font-size: 10px;
+  }
+  .chip.career {
+    min-width: 0;
+  }
+  .career-body .bar {
+    width: 120px;
+  }
+  .career-body b,
+  .career-body small {
+    max-width: 130px;
+  }
+  .hud-right {
+    gap: 6px;
+  }
+  .hud-right .icon-btn {
+    min-width: 40px;
+    height: 40px;
+    padding: 0 9px;
+  }
+}
+@media (max-height: 520px) {
+  #challenge-pins {
+    top: calc(64px + var(--safe-top));
+    bottom: auto;
+    width: 190px;
+    max-height: calc(100% - 175px);
+    overflow: hidden;
+    padding: 6px 8px;
+  }
+  .pin-row small {
+    display: none;
+  }
+  #prayer-panel {
+    top: calc(64px + var(--safe-top));
+    max-height: calc(100% - 175px);
+  }
+}
+/* Portrait phones: the island needs landscape. */
+#rotate-hint {
+  display: none;
+}
+@media (orientation: portrait) and (max-width: 600px) {
+  #rotate-hint {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+    background: radial-gradient(circle at 50% 30%, #2c3a66, var(--navy));
+    color: var(--ivory);
+    font-family: var(--display);
+  }
+  #rotate-hint b {
+    display: block;
+    font-size: 24px;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+}

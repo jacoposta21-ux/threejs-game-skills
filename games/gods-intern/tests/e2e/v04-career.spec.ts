@@ -5,8 +5,9 @@ import fs from 'node:fs';
  * v0.4 NORMAL-PLAY playthrough. A new Career Mode game played in real time like a
  * player would: real mouse and keyboard, normal energy, no fast-forward, and no
  * hook that grants XP, Chaos or energy. The only page helpers used are read-only:
- * the state/diagnostics readers and `worldToScreen` (to find where the well or a
- * rock is on screen before clicking it with the real mouse).
+ * the state/diagnostics readers, `worldToScreen` (to find where the well or a
+ * rock is on screen before clicking it with the real mouse) and `canCast` (a
+ * read-only target check, the same answer the targeting preview gives).
  *
  * Milestone timings (real seconds since the page became interactive) are written
  * to artifacts/playtest-v04/normal-play.json.
@@ -136,8 +137,22 @@ test('v0.4 normal play: a new career, real time, normal energy, no shortcuts', a
   // Tornado sits on quick slot 6 by default. Aim at open meadow away from the plaza.
   await waitEnergy(page, 30);
   await page.keyboard.press('Digit6');
-  const meadow = { x: p.centerX + 24, z: p.centerZ - 18 };
-  await clickWorld(page, meadow.x, meadow.z);
+  // Find open ground on screen that the power accepts (read-only check, like the targeting preview).
+  const meadow = await page.evaluate(([cx, cz]) => {
+    const h = window.__THREE_GAME_TEST_HOOKS__!;
+    for (let k = 20; k < 400; k++) {
+      const a = k * 2.4;
+      const r = Math.sqrt(k) * 2.2;
+      const x = (cx as number) + Math.cos(a) * r;
+      const z = (cz as number) + Math.sin(a) * r;
+      const sc = h.worldToScreen(x, z);
+      if (sc.x < 380 || sc.x > innerWidth - 380 || sc.y < 160 || sc.y > innerHeight - 220) continue;
+      if (h.canCast('tornado', x, z)) return { x, z };
+    }
+    return null;
+  }, [p.centerX, p.centerZ] as const);
+  expect(meadow).toBeTruthy();
+  await clickWorld(page, meadow!.x, meadow!.z);
   await expect.poll(async () => (await diag(page)).events.join('|'), { timeout: 20_000 }).toContain('power:tornado');
   mark('newPowerUsed');
   await page.waitForTimeout(2500);
