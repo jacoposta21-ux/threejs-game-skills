@@ -17,6 +17,7 @@ interface ThreeGameTestHooks {
   focusVillage(id: string): void;
   worldPoint(x: number, z: number): { x: number; y: number; visible: boolean };
   grantXp(amount: number): number;
+  canCast(id: string, x: number, z: number): boolean;
   setMode(mode: 'career' | 'creative'): void;
   possess(id: string): void;
 }

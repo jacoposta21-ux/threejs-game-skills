@@ -320,6 +320,8 @@ export function installTestHooks(g: G): void {
     openBook: () => g.book.show('history'),
     // ---- v0.4 (development builds only; the production bundle has none of this) ----
     /** Advanced technical tests only: grant career XP through the real award path. */
+    /** Read-only: would this power be accepted at this point right now? (finds valid targets for tests) */
+    canCast: (id: PowerId, x: number, z: number) => g.sim.powers.check(id, x, z).ok,
     grantXp: (amount: number) => g.sim.career.award(`test:${g.sim.state.time.toFixed(2)}`, amount, 'Development test grant'),
     setMode: (mode: 'career' | 'creative') => g.switchMode(mode),
     possess: (id: string) => {

@@ -2,11 +2,21 @@
 
 > God is on vacation. You're in charge.
 
-**Version 0.3 — The Divine Civilization Update.** Three villages now share the island:
-Puddleton (farmers), Drizzleville (river traders) and Rockbottom (miners). They trade,
-migrate, spread their faiths, form friendships and rivalries, and notice exactly how
-evenly you hand out miracles. Twenty optional Divine Challenges reward experimentation.
-See [What's new in 0.3](#whats-new-in-03).
+**Version 0.4 — The Heavenly Polish Update.** You now have a career:
+- **Promotions.** Earn Divine Experience and climb from *Unpaid Intern* to *God of
+  Questionable Decisions*.
+- **Eight new powers** unlock along the way: Tornado, Freeze, Gravity, Terraform, Time
+  Warp, Possession, Meteor and Resurrection.
+- **Combinations.** Fifteen secret power combinations are waiting to be discovered.
+- **Heavenly mail.** Heaven's departments send increasingly worried memos.
+- **Creative Mode** keeps the sandbox separate from your career.
+
+See [What's new in 0.4](#whats-new-in-04).
+
+**Version 0.3 — The Divine Civilization Update** added three villages: Puddleton
+(farmers), Drizzleville (river traders) and Rockbottom (miners). They trade, migrate,
+spread their faiths, form friendships and rivalries, and notice how evenly you hand out
+miracles. Twenty optional Divine Challenges reward experimentation.
 
 Version 0.2 (The Divine Absurdity Update) made villagers *remember* what you do,
 misunderstand it, found religions around it, decorate it, build monuments to it and hold
@@ -40,8 +50,15 @@ Chromium with `PW_CHROMIUM_PATH=/path/to/chrome npm run test:e2e`.
 | Input | Action |
 | --- | --- |
 | Left click | Use the selected power / inspect in Look mode |
-| `1` `2` `3` `4` | Rain, Lightning, Nature, Fire |
-| `5` | Mutation (unlocks at 25 Chaos) |
+| `1`–`6` | Quick power slots (assign any power in the power menu) |
+| `G` / `Tab` | All 13 powers, by category (Creation, Weather, Destruction, Reality, Life) |
+| `T` | Terraform raise/lower · Time Warp fast/slow |
+| `J` | Heavenly Career (rank path, Heaven's inbox, Divine Overtime) |
+| `O` | Divine Overtime (rank 10) |
+| `K` / `H` | Cinematic mode / screenshot mode (any key exits) |
+| `P` | Pause menu (also `Esc`) · Career ↔ Creative Mode |
+| Possession | `WASD` or tap to walk · `E` interact · `Q` leave |
+| Touch | Tap to cast or inspect · one-finger drag pans · pinch zooms · twist rotates |
 | `B` | The Book of Questionable Miracles (history, civilization, beliefs, sacred places) |
 | `C` | Divine Challenges (filter by category, pin up to 3, choose your title) |
 | `V` | Villages: selector (click to fly there) and side-by-side comparison |
@@ -412,3 +429,157 @@ How progress and rewards work:
 ### Test hooks
 `window.__THREE_GAME_TEST_HOOKS__` is installed only in development builds or with
 `?test`. Production players cannot use it to fast-forward or complete challenges.
+
+## What's new in 0.4
+
+### Heavenly Career (`src/career/`)
+- **Ten ranks:**
+
+  | Rank | Title | XP |
+  | ---: | --- | ---: |
+  | 1 | Unpaid Intern | 0 |
+  | 2 | Junior Miracle Assistant | 100 |
+  | 3 | Cloud Department Employee | 250 |
+  | 4 | Certified Demigod | 450 |
+  | 5 | Regional Deity | 750 |
+  | 6 | Senior God | 1150 |
+  | 7 | Director of Creation | 1700 |
+  | 8 | Supreme Cosmic Manager | 2400 |
+  | 9 | God's Replacement | 3300 |
+  | 10 | God of Questionable Decisions | 4500 |
+
+- **XP comes from meaningful events, each deduplicated:**
+  - training: 25;
+  - answered prayers: 25 per prayer, plus 10 when it ends a shortage;
+  - challenges: 30, 60 or 120 by difficulty;
+  - first discovery of each surreal event: 40;
+  - new religions: 30; sacred sites growing (stage 3+): 15; monuments: 40;
+  - rescues: 4, at most 5 per minute;
+  - improved relationships: 20 per pair and category;
+  - consequence chains, floods, meteors and witnessed miracles: rate-limited;
+  - first use of each power: 10;
+  - combinations: 30–45 each.
+- **No click farming.** Repeating the same action at the same spot earns nothing.
+  Chaotic play earns XP as well as kind play.
+- **Promotions.**
+  - Each one shows a short, non-modal ceremony (rays, fanfare, the new title, what
+    unlocked) and adds a History Book entry.
+  - Each unlocks a power: Tornado (2), Freeze (3), Gravity and Mutation (4), Terraform
+    (5), Time Warp (6), Possession (7), Meteor (8), Resurrection (9).
+  - Rank 10 unlocks **Divine Overtime**: 30 s of cooldowns ×0.25 and energy ×4,
+    recharging over 3 min. It also brings a cosmic aura, a golden badge, a Monument of
+    the Intern in Puddleton, and God's final review. The sandbox keeps going.
+- **HUD.** A career chip shows rank, title, XP bar and the next unlock. `J` opens the
+  full path and Heaven's inbox.
+- **Heaven's departments** (`career/HeavenSystem.ts`): contextual memos built from real
+  state. Examples:
+  - "WE HAVE RECEIVED 56 COMPLAINTS ABOUT THE WEATHER."
+  - "WHY IS A ROCK NOW THE MAYOR OF PUDDLETON?"
+  - "ROCKBOTTOM HAS REQUESTED AN EXPLANATION FOR ITS NEW MOUNTAIN."
+  - Periodic performance reviews.
+
+  Each memo is sent once (or after its cooldown) and at least 45 s after the previous
+  one. The archive keeps the last 30.
+
+### Thirteen powers
+New powers live in `src/powers/V4Powers.ts`, with timed area effects in `src/powers/EffectsSystem.ts`.
+
+| Power | What it does | Safety rules |
+| --- | --- | --- |
+| Tornado | Wandering funnel (14 s): villagers flee, trees can be uprooted (wood for the village), weak buildings damaged, loose rocks flung to valid ground, caravans in its path fail (goods go home), weak fires snuffed, strong fires thrown downwind. | One at a time; bounded radius; rocks only land on land; navigation untouched. |
+| Freeze | 30 s frost: fires go out (`byFreeze`), crops and plants stop growing, villagers slow down, visible thaw at the end. | No ice crossings (would need water-aware navigation; documented limitation). |
+| Gravity | 12 s low-gravity bubble: villagers and rocks float, then settle. | Controlled animation, no physics engine; `lift` always returns to 0. |
+| Terraform | Raise/lower a 4 m brush (`T` toggles), ±4 m max per spot. | Refuses near buildings, the bridge and water. Navigation is refreshed locally; edits persist and replay deterministically. |
+| Time Warp | 25 s bubble at ×2.5 or ×0.35 for walking, work, growth, building and fire. | Per-entity multipliers only, never the global step; production only happens when work completes, so nothing is duplicated. |
+| Possession | 45 s third-person control of one villager: `WASD`/tap to walk, `E` to pray, drink or chat, `Q` to leave. | AI suspended and resumed; walkability rules apply; others comment on wall-walking. |
+| Meteor | 3 s warning, then a bounded impact: damage within 8 m, fire, a crater (unless protected), a warm sacred fragment. | One at a time; never wipes out a village; saving during the warning still lands it. |
+| Resurrection | Revive a villager from the graveyard: same id, name, traits, memories, faith and village. | Max 12 graves for 15 min; no duplicates; population cap; safe walkable spawn. Believers come back as prophets. |
+
+New memories and religions: *The Order of the Extremely Large Rock*, *The Church of the
+Eternal Ice Cube*, the Sacred Spin and the Returned.
+
+### Power combinations (`src/powers/ComboSystem.ts`)
+- **Fifteen interactions,** all detected from real simulation events:
+  - Rain + Fire, Rain + Nature, Fire + Nature, Lightning + Rock;
+  - Mutation + Sacred Tree, Freeze + Fire, Freeze + Rain, Gravity + Mutation;
+  - Tornado + Fire, Meteor + Rain, Terraform + Rain, Resurrection + Religion;
+  - Freeze + Nature, Gravity + Lightning, Time Warp + Nature.
+- **Real effects.** Each one changes the game, e.g. faster growth, a wider frost, a
+  floating rock, a pond, a prophet.
+- **One-time rewards.** Each gives its XP once and adds a History Book entry.
+
+### Ten new challenges (30 in total)
+Wind Management, Cold Reception, Unqualified Astronaut, Department of Geography, Time Is
+a Suggestion, Employee of the Month, Undercover Management, The Big Rock Problem, Death
+Was a Clerical Error, God's Worst Nightmare.
+
+### Cultural events in every village
+- **Where they happen.** These events now take place in the village where they start:
+  - the Forbidden Well, the Sacred Potato, the Eternal Picnic;
+  - the Department of Miracles, the Great Silence, the Fire Appreciation Society;
+  - the Rock King's prayer.
+- **Local variations:**
+
+  | Event | Puddleton | Drizzleville | Rockbottom |
+  | --- | --- | --- | --- |
+  | Sacred crop | *The Unusually Successful Carrot* | *The Holy Turnip of the Tides* | *The Sacred Gravel Potato* |
+  | Prayer office | Department of Miracles | *Rain Bureaucracy* | *Ministry of Stone Tablets* |
+
+- **Old saves** keep these events in Puddleton.
+
+### World polish
+- **Village identity.** Puddleton is warm (red/terracotta/gold roofs). Drizzleville is
+  teal on stilts with nets and boats; Rockbottom has stone, mine carts and cairns.
+  Plazas fly banners in their dominant faith's color and string up bunting when
+  prosperous.
+- **Atmosphere.** Pollen drifts by day, mist lies over water at dawn and night, and
+  fireflies glow around every village.
+- **Villagers.** They float, carry crates of what they produced, and lazy ones sit down.
+- **Effect visuals:** a tornado funnel with debris, a frost field with crystals, a
+  gravity dome, a time-warp clock ring, a meteor fall/impact with shockwave and dust,
+  graves, a possession aura and resurrection light.
+- **Audio:** ocean waves and a small generative music box, plus a distinct sound for
+  every new power, promotions and discoveries. Five volume buses: master, music,
+  ambience, effects, interface.
+
+### Interface, camera and touch
+- **Toolbar.** Look plus six assignable quick slots, and an "All powers" menu with
+  categories, lock reasons and slot assignment.
+- **Camera modes.** Cinematic mode (`K`) slowly orbits the island with the UI hidden;
+  screenshot mode (`H`) hides the UI.
+- **Possession camera** follows close behind the villager.
+- **Touch.** Tap to cast or inspect, one-finger pan, pinch-zoom, twist-rotate, and
+  touch-sized controls in landscape phone layouts. Tested in browser emulation only.
+
+### Career Mode and Creative Mode
+- **Career** (default) uses normal energy and cooldowns, with progression and
+  challenges.
+- **Creative** (pause menu) has every power, optional unlimited energy and ×0.25
+  cooldowns, **no career XP**, no challenges, and its own save slots.
+- **Separate slots.** `gods-intern.creative.save` and `.autosave`; Career keeps the
+  original keys.
+
+### Saves (version 4)
+- **Additive migration.** v1, v2 and v3 saves upgrade; nothing is reset.
+- **Persisted:** career XP and rank, unlocks, discoveries, active effects, terrain
+  edits (replayed deterministically), the graveyard, possession, Heaven's mail,
+  craters, mode and the new challenges.
+- **Active effects** continue for their remaining time after loading.
+
+### Production builds and test hooks
+- **Dev builds only.** `window.__THREE_GAME_TEST_HOOKS__` (and the scene staging
+  code) lives in `src/dev/TestHooks.ts`. It is imported only inside an
+  `import.meta.env.DEV` branch, so production bundles do not contain it.
+- **No URL switch.** No URL parameter can enable the hooks.
+- **Checked.** `npm run check:prod` scans `dist/` and `dist-single/` for hook markers.
+
+### CrazyGames
+`src/platform/Platform.ts` implements the HTML5 SDK v3 lifecycle, checked against
+docs.crazygames.com:
+- `SDK.init()`, `game.loadingStart/Stop`, `gameplayStart/Stop` on menus and pauses, and
+  a rate-limited `happytime()` on promotions and challenges.
+- The SDK script loads only when the game is hosted on CrazyGames (or with
+  `?platform=crazygames`). Calls are made only when `SDK.environment` is `crazygames`
+  or `local`, so standalone play makes no external requests.
+- No ads are implemented.
+- `P` opens the menu because CrazyGames discourages relying on `Esc`.

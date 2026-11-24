@@ -135,7 +135,12 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
   await expect(page.locator('#challenges')).toBeVisible();
   await expect(page.locator('#challenges .ch-title')).toHaveText('Divine Tourist');
   await page.locator('#challenges [data-filter=Miracle]').click();
-  await expect(page.locator('#challenges .ch-card')).toHaveCount(4);
+  // v0.4: 6 Miracle challenges (Wind Management and Cold Reception were added).
+  await expect(page.locator('#challenges .ch-card')).toHaveCount(6);
+  // v0.4 pins starter goals after training; make room so the pin limit (3) leaves a slot.
+  await page.locator('#challenges [data-filter=All]').click();
+  for (const id of (await diag(page)).civ.challenges.pinned) await page.locator(`#challenges [data-pin=${id}]`).click();
+  await page.locator('#challenges [data-filter=Miracle]').click();
   await page.locator('#challenges [data-pin=amateur-botanist]').click();
   await page.locator('#challenges [data-filter=Civilization]').click();
   await page.locator('#challenges [data-pin=traveling-merchant]').click();
@@ -258,7 +263,7 @@ test('v0.3: three villages, travel, trade, migration, faith, diplomacy, favoriti
   await page.locator('[data-a=ok]').click();
   await expect.poll(async () => (await diag(page)).events.join('|')).toContain('notify:GAME LOADED');
   const loaded = await state(page);
-  expect(loaded.version).toBe(3);
+  expect(loaded.version).toBe(4); // v0.4 schema
   expect(loaded.villages.length).toBe(3);
   expect(loaded.villagers.length).toBe(saved.villagers.length);
   expect(new Set(loaded.villagers.map((v: any) => v.id)).size).toBe(loaded.villagers.length);
