@@ -8,7 +8,7 @@
    ===================================================================== */
 
 :root {
-  --hud-h: 66px;
+  --hud-h: 74px;
   --dock-h: 112px;
   --rail-w: 92px;
   --gap: 12px;
@@ -2674,5 +2674,25 @@ body.reduced-motion *::after {
 @media (pointer: coarse) {
   #tool-tip {
     display: none !important;
+  }
+}
+@media (max-height: 420px) {
+  /* Very short phones: Help and Speed stay reachable from the Menu. */
+  #nav-help,
+  #btn-speed {
+    display: none;
+  }
+}
+@media (max-width: 1300px) {
+  .power.more {
+    width: 92px;
+  }
+  .power.more .p-name {
+    font-size: 11.5px;
+  }
+}
+@media (max-height: 520px) {
+  #prayer-more {
+    display: none;
   }
 }
