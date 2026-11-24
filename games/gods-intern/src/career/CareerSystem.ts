@@ -73,51 +73,62 @@ export class CareerSystem {
       const { village, distance } = sim.nearestVillage(x, z);
       return village && distance < village.radius + extra ? village : null;
     };
+    const X = CONFIG.career.xp;
     bus.on('PRAYER_COMPLETED', ({ prayer }) => {
-      this.award(`prayer:${prayer.id}`, 25, 'Prayer answered', { once: true });
-      if (prayer.type === 'THIRST' || prayer.type === 'HUNGER') this.award(`shortage:${prayer.id}`, 10, 'Shortage resolved', { once: true });
+      this.award(`prayer:${prayer.id}`, X.prayer, 'Prayer answered', { once: true });
+      if (prayer.type === 'THIRST' || prayer.type === 'HUNGER') this.award(`shortage:${prayer.id}`, X.shortage, 'Shortage resolved', { once: true });
     });
     bus.on('CHALLENGE_COMPLETED', (e) => {
       const diff = sim.challenges.definitions.find((d) => d.id === e.id)?.difficulty ?? 'easy';
-      this.award(`challenge:${e.id}`, diff === 'hard' ? 120 : diff === 'medium' ? 60 : 30, `Challenge: ${e.title}`, { once: true });
+      this.award(`challenge:${e.id}`, X.challenge[diff], `Challenge: ${e.title}`, { once: true });
     });
-    bus.on('SURREAL_EVENT', (e) => this.award(`surreal:${e.id}`, 40, `Discovered: ${e.title}`, { once: true }));
-    bus.on('RELIGION_FOUNDED', (e) => this.award(`religion:${e.religion.id}`, 30, 'A religion was born', { once: true }));
+    bus.on('SURREAL_EVENT', (e) => this.award(`surreal:${e.id}`, X.surreal, `Discovered: ${e.title}`, { once: true }));
+    bus.on('RELIGION_FOUNDED', (e) => this.award(`religion:${e.religion.archetype}`, X.religion, 'A religion was born', { once: true }));
     bus.on('SACRED_STAGE', (e) => {
-      if (e.stage >= 3) this.award(`sacred:${e.sacred.id}:${e.stage}`, 15, 'Sacred site grew', { once: true });
+      if (e.stage >= 3) this.award(`sacred:${e.sacred.id}:${e.stage}`, X.sacredStage, 'Sacred site grew', { once: true });
     });
-    bus.on('MONUMENT_COMPLETED', (e) => this.award(`monument:${e.sacredId}`, 40, 'Monument completed', { once: true }));
+    bus.on('MONUMENT_COMPLETED', (e) => this.award(`monument:${e.sacredId}`, X.monument, 'Monument completed', { once: true }));
     bus.on('FIRE_EXTINGUISHED', (e) => {
-      if (e.byRain && near(e.x, e.z, 12)) this.award('rescue', 4, 'Saved a village from fire', { window: 60, max: 5 });
+      if (e.byRain && near(e.x, e.z, 12)) this.award('rescue', X.rescue, 'Saved a village from fire', { window: 60, max: 4 });
     });
     bus.on('RELATIONSHIP_CHANGED', (e) => {
       const order = ['hostile', 'rival', 'neutral', 'friendly', 'allied'];
-      if (order.indexOf(e.to) > order.indexOf(e.from)) this.award(`relation:${e.a}|${e.b}:${e.to}`, 20, 'Relations improved', { once: true });
+      if (order.indexOf(e.to) > order.indexOf(e.from)) this.award(`relation:${e.a}|${e.b}:${e.to}`, X.relation, 'Relations improved', { once: true });
     });
     bus.on('MIRACLE_WITNESSED', (e) => {
-      if (e.witnesses >= 5) this.award('witnessed', 3, 'Miracle witnessed', { window: 120, max: 6 });
+      if (e.witnesses >= 5) this.award('witnessed', X.witnessed, 'Miracle witnessed', { window: 120, max: 3 });
     });
     bus.on('POWER_USED', (e) => {
       const c = sim.state.career;
       if (!c.usedPowers.includes(e.power)) {
         c.usedPowers.push(e.power);
-        this.award(`first-use:${e.power}`, 10, `First ${e.power}`, { once: true });
+        // v0.5: first use is celebrated with energy, not career XP (so trying all powers can't skip ranks).
+        if (sim.state.mode === 'career' && sim.state.tutorial.done) sim.state.energy = Math.min(CONFIG.energy.max, sim.state.energy + 5);
+        if (X.firstUse) this.award(`first-use:${e.power}`, X.firstUse, `First ${e.power}`, { once: true });
       }
     });
-    bus.on('VILLAGER_RESURRECTED', (e) => this.award(`resurrect:${e.villagerId}`, 25, 'Saved a villager (late)', { once: true }));
-    bus.on('FLOOD_STARTED', (e) => this.award(`flood:${e.villageId}`, 10, 'Caused a memorable flood', { once: true }));
-    bus.on('CONSEQUENCE_TRIGGERED', (e) => this.award(`consequence:${e.id}`, 15, `Consequence: ${e.title}`, { window: 240, max: 1 }));
-    bus.on('METEOR_IMPACT', () => this.award('meteor', 20, 'Spectacular impact', { window: 120, max: 1 }));
+    bus.on('BUILDING_REPAIRED', () => this.award('rebuilt', X.rebuilt, 'A village rebuilt', { window: 120, max: 2 }));
+    bus.on('VILLAGER_RESURRECTED', (e) => this.award(`resurrect:${e.villagerId}`, X.resurrect, 'Saved a villager (late)', { once: true }));
+    bus.on('FLOOD_STARTED', (e) => this.award(`flood:${e.villageId}`, X.flood, 'Caused a memorable flood', { once: true }));
+    bus.on('CONSEQUENCE_TRIGGERED', (e) => this.award(`consequence:${e.id}`, X.consequence, `Consequence: ${e.title}`, { once: true }));
+    bus.on('METEOR_IMPACT', () => this.award('meteor', X.meteor, 'Spectacular impact', { window: 300, max: 1 }));
   }
 
   /** Per-step bookkeeping: the training bonus and rank unlocks once the tutorial ends. */
+  /** Mutation: the probation review (career XP), or reached sooner through high Chaos. */
+  mutationEarned(): boolean {
+    const s = this.sim.state;
+    const m = CONFIG.career;
+    return s.career.xp >= m.mutationXp || (s.chaos >= CONFIG.powers.mutation.unlockChaos && s.career.xp >= m.mutationXp * 0.85);
+  }
+
   update(): void {
     const s = this.sim.state;
     if (s.tutorial.done && !s.career.awarded.tutorial && s.mode === 'career') {
-      this.award('tutorial', 25, 'Finished training', { once: true });
+      this.award('tutorial', CONFIG.career.xp.training, 'Finished training', { once: true });
       this.applyUnlocks();
-      // First performance goals: three easy challenges pinned to the HUD (only if the player pinned nothing).
-      if (!s.civ.pinned.length) for (const id of ['amateur-botanist', 'divine-tourist', 'let-there-be-rain']) this.sim.challenges.pin(id);
+      // v0.5: one recommended goal at a time early on (not three competing ones).
+      if (!s.civ.pinned.length) this.sim.challenges.pin('amateur-botanist');
       this.sim.heaven.send('welcome', 'HEAVENLY HUMAN RESOURCES', 'WELCOME TO THE TEAM. YOUR DESK IS A CLOUD. PERFORMANCE GOALS HAVE BEEN PINNED TO YOUR SCREEN.', { force: true });
     }
   }
@@ -195,7 +206,7 @@ export class CareerSystem {
     if (s.mode === 'creative') return;
     if (!s.tutorial.done) return;
     const ids = (Object.entries(POWER_UNLOCK_RANK) as Array<[PowerId, number]>).filter(([, r]) => s.career.rank >= r).map(([id]) => id);
-    if (s.career.rank >= 4) ids.push('mutation');
+    if (this.mutationEarned()) ids.push('mutation');
     if (ids.length) sim.powers.unlock(ids);
   }
 

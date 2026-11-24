@@ -412,6 +412,8 @@ export interface TutorialState {
   done: boolean;
   timer: number;
   rainsCast: number;
+  /** v0.5: contextual tips already shown (listed in Help). */
+  tipsSeen?: string[];
 }
 
 export interface StatsData {

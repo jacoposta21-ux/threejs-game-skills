@@ -1,3 +1,4 @@
+import { CONFIG } from '../core/Config';
 import type { Simulation } from '../simulation/SimulationManager';
 
 export interface ComboDefinition {
@@ -111,7 +112,7 @@ export class ComboSystem {
     sim.state.discoveries.push({ id, t: sim.state.time });
     sim.notify(`DISCOVERY: ${def.name.toUpperCase()}`, 'chaos', `${def.powers}. ${def.text}`, 2);
     sim.history.add(`Discovery: ${def.name}`, `${def.powers}. ${def.text}`, { kind: 'discovery', x, z });
-    sim.career.award(`combo:${id}`, def.xp, `Discovered ${def.name}`, { once: true });
+    sim.career.award(`combo:${id}`, Math.round(def.xp * CONFIG.career.xp.comboScale), `Discovered ${def.name}`, { once: true });
     sim.bus.emit('COMBO_DISCOVERED', { id, name: def.name, x, z });
     return true;
   }

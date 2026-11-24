@@ -69,7 +69,7 @@ describe('v0.4 Heavenly Career', () => {
     const sim = career();
     run(sim, 0.2); // training bonus
     const base = sim.state.career.xp;
-    expect(base).toBe(25);
+    expect(base).toBe(CONFIG.career.xp.training);
     // Same key twice: once only.
     expect(sim.career.award('prayer:test', 25, 'x', { once: true })).toBe(25);
     expect(sim.career.award('prayer:test', 25, 'x', { once: true })).toBe(0);
@@ -79,42 +79,42 @@ describe('v0.4 Heavenly Career', () => {
     expect(got).toBe(20);
     sim.state.time += 61;
     expect(sim.career.award('rescue', 4, 'x', { window: 60, max: 5 })).toBe(4);
-    // First use of a power is worth XP once, repeated clicks are not.
-    const before = sim.state.career.xp;
+    // v0.5: first use of a power gives +5 energy (once), not XP, so trying every power cannot skip ranks.
     const p = v1(sim);
+    sim.state.energy = 50;
     act(sim, 'nature', p.centerX + 20, p.centerZ);
-    const afterFirst = sim.state.career.xp;
+    expect(sim.state.energy).toBe(50 - CONFIG.powers.nature.cost + 5);
     for (let i = 0; i < 5; i++) {
+      sim.state.energy = 100;
       const at = spot(sim, 'nature', p.centerX + 22 + i * 2, p.centerZ + 6);
       act(sim, 'nature', at.x, at.z);
     }
-    // (Other real XP can arrive at the same time, e.g. a consequence chain; the first-use award itself is once.)
-    expect(afterFirst - before).toBeGreaterThanOrEqual(10);
-    expect(sim.state.career.awarded['first-use:nature'].n).toBe(1);
+    expect(sim.state.career.usedPowers.filter((u) => u === 'nature').length).toBe(1);
+    expect(sim.state.career.awarded['first-use:nature']).toBeUndefined();
     // Real events: an answered prayer awards once per prayer id.
     sim.bus.emit('PRAYER_COMPLETED', { prayer: { id: 'pr-1', type: 'THIRST', villageId: 'v1', data: {}, reward: 0 } as never });
     sim.bus.emit('PRAYER_COMPLETED', { prayer: { id: 'pr-1', type: 'THIRST', villageId: 'v1', data: {}, reward: 0 } as never });
     const x0 = sim.state.career.xp;
     sim.bus.emit('PRAYER_COMPLETED', { prayer: { id: 'pr-2', type: 'THIRST', villageId: 'v1', data: {}, reward: 0 } as never });
     sim.bus.emit('PRAYER_COMPLETED', { prayer: { id: 'pr-2', type: 'THIRST', villageId: 'v1', data: {}, reward: 0 } as never });
-    expect(sim.state.career.xp - x0).toBe(25 + 10);
+    expect(sim.state.career.xp - x0).toBe(CONFIG.career.xp.prayer + CONFIG.career.xp.shortage);
   });
 
   it('maps XP to the ten rank thresholds and promotes through each rank once', () => {
     const t = CONFIG.career.thresholds;
-    expect(t).toEqual([0, 100, 250, 450, 750, 1150, 1700, 2400, 3300, 4500]);
+    expect(t.length).toBe(10);
     expect(rankForXp(0)).toBe(1);
-    expect(rankForXp(99)).toBe(1);
-    expect(rankForXp(100)).toBe(2);
-    expect(rankForXp(4499)).toBe(9);
-    expect(rankForXp(4500)).toBe(10);
+    expect(rankForXp(t[1] - 1)).toBe(1);
+    expect(rankForXp(t[1])).toBe(2);
+    expect(rankForXp(t[9] - 1)).toBe(9);
+    expect(rankForXp(t[9])).toBe(10);
     expect(rankForXp(99999)).toBe(10);
     expect(RANK_TITLES[9]).toBe('God of Questionable Decisions');
     const sim = career();
     run(sim, 0.2);
     const promoted: number[] = [];
     sim.bus.on('PROMOTED', (e) => promoted.push(e.rank));
-    sim.career.award('big', 800, 'test'); // 825 XP → rank 5, ranks 2..5 each announced once
+    sim.career.award('big', t[4] - sim.state.career.xp, 'test'); // → rank 5, ranks 2..5 each announced once
     expect(sim.state.career.rank).toBe(5);
     expect(promoted).toEqual([2, 3, 4, 5]);
     expect(sim.state.history.filter((h) => h.kind === 'career').length).toBe(4);
@@ -126,10 +126,15 @@ describe('v0.4 Heavenly Career', () => {
     expect(sim.state.unlockedPowers).not.toContain('tornado');
     expect(sim.powers.lockReason('tornado')).toMatch(/rank 2/);
     expect(act(sim, 'tornado', 0, 0).ok).toBe(false);
-    sim.career.award('t1', 80, 'test'); // 105 XP → rank 2
+    const t = CONFIG.career.thresholds;
+    sim.career.award('t0', CONFIG.career.mutationXp - sim.state.career.xp, 'test'); // probation review → Mutation
+    run(sim, 2);
+    expect(sim.state.unlockedPowers).toContain('mutation');
+    expect(sim.state.unlockedPowers).not.toContain('tornado');
+    sim.career.award('t1', t[1] - sim.state.career.xp, 'test'); // rank 2
     expect(sim.state.unlockedPowers).toContain('tornado');
     expect(sim.state.unlockedPowers).not.toContain('freeze');
-    sim.career.award('t2', 400, 'test'); // rank 4: freeze, gravity and mutation
+    sim.career.award('t2', t[3] - sim.state.career.xp, 'test'); // rank 4: freeze, gravity
     for (const id of ['freeze', 'gravity', 'mutation'] as PowerId[]) expect(sim.state.unlockedPowers).toContain(id);
     expect(sim.state.unlockedPowers).not.toContain('terraform');
     // Creative Mode has everything.
@@ -443,7 +448,7 @@ describe('v0.4 combinations, challenges and messages', () => {
     const xp0 = sim.state.career.xp;
     expect(sim.combos.trigger('rain-fire', 0, 0)).toBe(true);
     expect(sim.combos.trigger('rain-fire', 0, 0)).toBe(false);
-    expect(sim.state.career.xp - xp0).toBe(COMBOS.find((c) => c.id === 'rain-fire')!.xp);
+    expect(sim.state.career.xp - xp0).toBe(Math.round(COMBOS.find((c) => c.id === 'rain-fire')!.xp * CONFIG.career.xp.comboScale));
     expect(sim.state.history.some((h) => h.kind === 'discovery')).toBe(true);
   });
 

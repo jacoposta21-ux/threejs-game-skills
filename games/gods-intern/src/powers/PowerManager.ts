@@ -56,7 +56,7 @@ export class PowerManager {
   lockReason(id: PowerId): string | null {
     const s = this.sim.state;
     if (s.unlockedPowers.includes(id)) return null;
-    if (id === 'mutation') return `Unlocks at ${CONFIG.powers.mutation.unlockChaos} Chaos (or rank 4)`;
+    if (id === 'mutation') return `Unlocks at ${CONFIG.career.mutationXp} career XP (sooner with ${CONFIG.powers.mutation.unlockChaos}+ Chaos)`;
     const rank = POWER_UNLOCK_RANK[id];
     if (rank && s.tutorial.done) return `Unlocks at rank ${rank}: ${RANK_TITLES[rank - 1]}`;
     return 'Finish the tutorial to unlock';

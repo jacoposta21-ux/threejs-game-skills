@@ -32,7 +32,7 @@ export const CONFIG = {
     lightning: { cost: 20, cooldown: 1.5, radius: 3.2 },
     nature: { cost: 10, cooldown: 0.3, radius: 1.4 },
     fire: { cost: 15, cooldown: 1.0, radius: 2.6 },
-    mutation: { cost: 25, cooldown: 4, radius: 2.4, unlockChaos: 25 },
+    mutation: { cost: 25, cooldown: 4, radius: 2.4, unlockChaos: 60 },
     // ---- v0.4 ----
     tornado: { cost: 30, cooldown: 12, radius: 5, duration: 14, speed: 3.2 },
     freeze: { cost: 25, cooldown: 8, radius: 8, duration: 30 },
@@ -45,7 +45,33 @@ export const CONFIG = {
   },
   /** v0.4 Heavenly Career. */
   career: {
-    thresholds: [0, 100, 250, 450, 750, 1150, 1700, 2400, 3300, 4500],
+    // v0.5 rebalance (v0.4 was [0, 100, 250, 450, 750, 1150, 1700, 2400, 3300, 4500] with
+    // large one-time rewards that unlocked several ranks in the first few minutes).
+    thresholds: [0, 880, 1150, 1420, 1650, 2000, 2500, 3200, 4000, 5000],
+    /** Mutation unlocks at this XP (a "probation review") or at its Chaos threshold, whichever comes first. */
+    mutationXp: 620,
+    /** Every XP source in one place (audit table in docs/VERIFICATION.md). v0.4 values in comments. */
+    xp: {
+      training: 10, // 25
+      firstUse: 0, // 10 per power — now rewarded with +5 energy instead
+      prayer: 12, // 25
+      shortage: 4, // 10
+      challenge: { easy: 10, medium: 20, hard: 45 }, // 30 / 60 / 120
+      surreal: 8, // 40
+      religion: 15, // 30 per religion → once per kind of religion
+      sacredStage: 6, // 15
+      monument: 20, // 40
+      rescue: 2, // 4 (max 5/min) → max 4/min
+      relation: 10, // 20
+      witnessed: 2, // 3 (max 6 per 2 min) → max 3 per 2 min
+      rebuilt: 3, // new: a village rebuilt after a disaster (max 2 per 2 min)
+      resurrect: 10, // 25
+      flood: 4, // 10
+      consequence: 3, // 15 every 4 min per chain → once per chain (a discovery)
+      meteor: 8, // 20
+      comboScale: 0.35, // combos were 30–45, now 11–16
+      mastery: 6, // new in v0.5
+    },
     overtime: { duration: 30, cooldown: 180, cooldownMult: 0.25, regenMult: 4 },
     maxEffects: 8,
   },

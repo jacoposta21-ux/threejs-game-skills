@@ -1,3 +1,4 @@
+import { CONFIG } from '../core/Config';
 import type { CivState, CultureState, GameStateData, VillagerData } from '../core/types';
 import { POWER_ORDER } from '../core/Config';
 import { defaultCareer } from '../career/CareerSystem';
@@ -112,6 +113,16 @@ export function migrateState(state: GameStateData): GameStateData {
   s.heaven = { ...defaultHeaven(), ...((anyS.heaven as object) ?? {}) };
   for (const id of POWER_ORDER) if (typeof s.cooldowns[id] !== 'number') s.cooldowns[id] = 0;
   if (s.version < 4) s.version = 4;
+  // v4 → v5: new career economy. Never demote: keep the rank (XP is raised to at least
+  // the new threshold of the rank already earned), keep every unlocked power, and keep
+  // the award ledger so nothing pays out twice. No promotion events fire on migration.
+  if (s.version < 5) {
+    const c = s.career;
+    c.rank = Math.max(1, Math.min(CONFIG.career.thresholds.length, Math.round(c.rank) || 1));
+    c.xp = Math.max(c.xp, CONFIG.career.thresholds[c.rank - 1]);
+    s.version = 5;
+  }
+  if (!Array.isArray(s.tutorial.tipsSeen)) s.tutorial.tipsSeen = [];
   return s;
 }
 

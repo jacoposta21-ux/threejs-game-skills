@@ -15,6 +15,7 @@ import { CultureSystem } from '../culture/CultureSystem';
 import { CivilizationSystem } from '../civ/CivilizationSystem';
 import { ChallengeSystem } from '../civ/ChallengeSystem';
 import { ensureRelations } from '../civ/Relations';
+import { MasteryTracker } from '../career/Mastery';
 import { CareerSystem } from '../career/CareerSystem';
 import { HeavenSystem } from '../career/HeavenSystem';
 import { EffectsSystem } from '../powers/EffectsSystem';
@@ -76,6 +77,7 @@ export class Simulation {
   readonly possession: PossessionSystem;
   readonly resurrect: ResurrectionSystem;
   readonly career: CareerSystem;
+  readonly mastery: MasteryTracker;
   readonly heaven: HeavenSystem;
   /** Creative Mode option (not saved in world state). */
   reducedCooldowns = false;
@@ -113,6 +115,7 @@ export class Simulation {
     this.heaven = new HeavenSystem(this);
     this.powers = new PowerManager(this);
     this.career = new CareerSystem(this);
+    this.mastery = new MasteryTracker(this);
     this.applyMode();
     this.faith.attach(this);
     this.rebuildIndexes();

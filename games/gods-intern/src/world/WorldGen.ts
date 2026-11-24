@@ -17,7 +17,7 @@ import type {
 } from '../core/types';
 import { fbm, TerrainData, WATER_NONE } from './TerrainGen';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 const FIRST_NAMES = [
   'Gary', 'Brenda', 'Kevin', 'Doris', 'Nigel', 'Mildred', 'Barnaby', 'Agatha', 'Dave', 'Gertrude',
@@ -271,7 +271,7 @@ export function createInitialState(seed: number, terrain: TerrainData): GameStat
     prayerCooldowns: {},
     consequenceCooldowns: {},
     recent: {},
-    tutorial: { step: 0, done: false, timer: 0, rainsCast: 0 },
+    tutorial: { step: 0, done: false, timer: 0, rainsCast: 0, tipsSeen: [] },
     stats: {
       treesPlanted: 0,
       firesStarted: 0,

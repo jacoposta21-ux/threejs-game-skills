@@ -63,11 +63,11 @@ export class CultureSystem {
     }
     if (c.officeBuilt && c.officeProgress < 1) this.assignOfficeWork();
     if (c.officeBuilt && c.officeProgress >= 1) this.queueAtOffice();
-    if (s.tutorial.done && s.chaos >= CONFIG.powers.mutation.unlockChaos && !s.unlockedPowers.includes('mutation')) {
+    if (s.tutorial.done && sim.career.mutationEarned() && !s.unlockedPowers.includes('mutation')) {
       sim.powers.unlock(['mutation']);
       if (!c.mutationUnlockedNotified) {
         c.mutationUnlockedNotified = true;
-        sim.notify('MUTATION UNLOCKED', 'chaos', 'Your Chaos Reputation earned a new power. Press 5. Please be weird responsibly.', 3);
+        sim.notify('MUTATION UNLOCKED', 'chaos', 'Your probation review went… fine. A new power is in your dock. Please be weird responsibly.', 3);
         sim.history.add('The Intern Discovered Mutation', 'Chaos reached a level where reality started taking suggestions.', { kind: 'mutation' });
         sim.godMessage('WHO GAVE THE INTERN MUTATION PRIVILEGES?', 3);
       }
