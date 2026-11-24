@@ -1,3 +1,4 @@
+import './styles/legacy.css';
 import './styles/main.css';
 import { Game } from './core/Game';
 

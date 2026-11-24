@@ -1,29 +1,57 @@
 import { CATEGORY_LABEL } from '../civ/Relations';
+import { CONFIG } from '../core/Config';
 import type { Simulation } from '../simulation/SimulationManager';
 import type { VillageData } from '../core/types';
 import { relationKey } from '../world/Settlements';
-import { $, escapeHtml, icon } from './dom';
+import { $, escapeHtml, formatClock, icon } from './dom';
 
-const CULTURE_LABEL = { agricultural: 'Farmers', mountain: 'Miners', riverside: 'River traders' } as const;
+const CULTURE_LABEL = { agricultural: 'Agricultural village', mountain: 'Mountain mining village', riverside: 'Riverside fishing village' } as const;
+
+/** The single most useful thing to know about a village, as a sentence. */
+export function villageHeadline(sim: Simulation, v: VillageData): { text: string; level: 'bad' | 'warn' | 'ok' } {
+  const fires = sim.state.fires.filter((f) => f.intensity > 0 && Math.hypot(f.x - v.centerX, f.z - v.centerZ) < v.radius + 8).length;
+  if (fires) return { text: `${v.name} is on fire (${fires} ${fires > 1 ? 'fires' : 'fire'}). Rain would help.`, level: 'bad' };
+  if (v.floodActive) return { text: `${v.name}'s streets are flooded. Stop the rain and it will drain.`, level: 'bad' };
+  if (v.water < 20) return { text: `${v.name}'s well is running dry. Rain over the well fills it.`, level: 'bad' };
+  if (v.food < 20) return { text: `${v.name} is running out of food. Rain on the fields helps them grow.`, level: 'bad' };
+  if (v.fear > 0.4) return { text: `${v.name} is terrified. Something gentle would calm them down.`, level: 'warn' };
+  if (v.water < 40) return { text: `${v.name} will need water soon.`, level: 'warn' };
+  if (v.food < 40) return { text: `${v.name}'s food stores are getting low.`, level: 'warn' };
+  if (v.happiness < 0.4) return { text: `${v.name} is unhappy. Answering their prayers helps.`, level: 'warn' };
+  if (v.problems.length) return { text: `${v.name}: ${v.problems[0]}.`, level: 'warn' };
+  return { text: `${v.name} is doing fine. Suspiciously fine.`, level: 'ok' };
+}
+
+const pctWord = (x: number) => (x >= 0.75 ? 'High' : x >= 0.5 ? 'Good' : x >= 0.3 ? 'Low' : 'Very low');
+const favorWord = (f: number) => (f >= 30 ? 'Favored' : f >= 8 ? 'Liked' : f > -8 ? 'Neutral' : f > -30 ? 'Resentful' : 'Feels picked on');
 
 /**
- * Village selector + compact comparison: population, food, water, prosperity,
- * dominant religion, divine favor and emergencies for every village side by side,
- * plus the relationship between each pair and caravans on the road.
+ * WORLD panel: one card per village (population, happiness, prosperity, the
+ * current major problem in a sentence, divine favor, dominant religion), with
+ * expandable resources; clicking a card flies the camera there. Diplomacy is
+ * shown in words, plus religion distribution and caravans on the road.
  */
 export class VillagePanel {
   private readonly root = $('#villages');
   private key = '';
+  private expanded = new Set<string>();
   onFocus: (village: VillageData) => void = () => {};
   onToggle: (open: boolean) => void = () => {};
   private sim: Simulation | null = null;
 
   constructor() {
-    $('#btn-villages').addEventListener('click', () => this.toggle());
     this.root.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       if (t.closest('.vp-close')) {
         this.close();
+        return;
+      }
+      const more = t.closest<HTMLElement>('[data-expand]');
+      if (more) {
+        const id = more.dataset.expand!;
+        if (this.expanded.has(id)) this.expanded.delete(id);
+        else this.expanded.add(id);
+        this.key = '';
         return;
       }
       const go = t.closest<HTMLElement>('[data-village]');
@@ -60,21 +88,34 @@ export class VillagePanel {
     if (!this.open) return;
     const s = sim.state;
     const r = (n: number) => Math.round(n);
-    const key = s.villages.map((v) => `${v.population}${r(v.food)}${r(v.water)}${r(v.wood)}${r(v.stone)}${r(v.prosperity * 100)}${v.identity.dominantReligionId}${r(sim.civ.favorSum(v.id, 1))}${r(sim.civ.favorSum(v.id, -1))}${v.problems.length}`).join('|') + `|${Object.values(s.civ.relations).map((x) => r(x.score)).join()}|${s.civ.caravans.map((c) => c.id + c.phase).join()}`;
+    const key = `${[...this.expanded].join()}|${Math.floor(sim.timeOfDay * 48)}|` + s.villages.map((v) => `${v.population}${r(v.food / 4)}${r(v.water / 4)}${r(v.wood / 4)}${r(v.stone / 4)}${r(v.prosperity * 20)}${r(v.happiness * 20)}${v.identity.dominantReligionId}${r(v.identity.divineFavor / 4)}${villageHeadline(sim, v).text}`).join('|') + `|${Object.values(s.civ.relations).map((x) => x.category).join()}|${s.civ.caravans.map((c) => c.id + c.phase).join()}|${s.religions.filter((x) => x.active).map((x) => x.followers.length).join()}`;
     if (key === this.key) return;
     this.key = key;
-    const cell = (label: string, html: (v: VillageData) => string) => `<tr><th>${label}</th>${s.villages.map((v) => `<td>${html(v)}</td>`).join('')}</tr>`;
-    const bar = (value: number, max: number, warn: boolean, text: string) => `<div class="vp-bar ${warn ? 'warn' : ''}"><i style="width:${Math.max(0, Math.min(100, (value / max) * 100))}%"></i><span>${text}</span></div>`;
-    const religion = (v: VillageData) => {
-      const rel = v.identity.dominantReligionId ? s.religions.find((x) => x.id === v.identity.dominantReligionId) : undefined;
-      return rel ? `<span class="vp-faith" style="--faith:#${rel.color.toString(16).padStart(6, '0')}">${escapeHtml(rel.name.replace(/^The /, ''))}</span>` : '<span class="muted">None</span>';
-    };
-    const favor = (v: VillageData) => {
-      const pos = sim.civ.favorSum(v.id, 1);
-      const neg = sim.civ.favorSum(v.id, -1);
-      return `<span class="vp-favor"><b class="up">+${r(pos)}</b> <b class="down">${r(neg)}</b></span>`;
-    };
-    const emergencies = (v: VillageData) => (v.problems.length ? `<span class="vp-alert">${escapeHtml(v.problems[0])}${v.problems.length > 1 ? ` +${v.problems.length - 1}` : ''}</span>` : '<span class="vp-ok">All calm</span>');
+    const meter = (label: string, value: number, text: string, warn: boolean) => `<div class="vp-meter ${warn ? 'warn' : ''}"><span>${label}</span><div class="bar"><i style="width:${Math.max(0, Math.min(100, value * 100))}%"></i></div><b>${text}</b></div>`;
+    const religionOf = (v: VillageData) => (v.identity.dominantReligionId ? s.religions.find((x) => x.id === v.identity.dominantReligionId && x.active) : undefined);
+    const cards = s.villages.map((v) => {
+      const head = villageHeadline(sim, v);
+      const rel = religionOf(v);
+      const open = this.expanded.has(v.id);
+      return `<article class="vp-card c-${v.identity.culture}">
+        <button type="button" class="vp-card-main" data-village="${v.id}" aria-label="Fly to ${escapeHtml(v.name)}">
+          <header><b>${escapeHtml(v.name)}</b><small>${CULTURE_LABEL[v.identity.culture]}</small><span class="vp-pop">${icon('people')} ${v.population}</span></header>
+          <p class="vp-headline ${head.level}">${head.level === 'ok' ? '✓' : '!'} ${escapeHtml(head.text)}</p>
+          ${meter('Happiness', v.happiness, pctWord(v.happiness), v.happiness < 0.35)}
+          ${meter('Prosperity', v.prosperity, pctWord(v.prosperity), v.prosperity < 0.3)}
+          <div class="vp-facts"><span>${icon('halo')} ${favorWord(v.identity.divineFavor)}</span><span>${icon('faith')} ${rel ? escapeHtml(rel.name) : 'No dominant religion'}</span></div>
+        </button>
+        <button type="button" class="vp-more" data-expand="${v.id}" aria-expanded="${open}">${open ? 'Hide resources' : 'Resources'} <span class="chev">${icon('chevron')}</span></button>
+        ${open ? `<div class="vp-res">
+          ${meter('Food', v.food / CONFIG.village.maxFood, String(r(v.food)), v.food < 20)}
+          ${meter('Water', v.water / CONFIG.village.maxWater, String(r(v.water)), v.water < 20)}
+          ${meter('Wood', v.wood / CONFIG.village.maxWood, String(r(v.wood)), v.wood < 10)}
+          ${meter('Stone', Math.min(1, v.stone / 80), String(r(v.stone)), false)}
+          ${meter('Faith', v.faith, pctWord(v.faith), v.faith < 0.25)}
+          ${meter('Fear', v.fear, pctWord(v.fear), v.fear > 0.4)}
+        </div>` : ''}
+      </article>`;
+    });
     const ids = s.villages.map((v) => v.id);
     const pairs: string[] = [];
     for (let i = 0; i < ids.length; i++) {
@@ -83,39 +124,33 @@ export class VillagePanel {
         if (!rec) continue;
         const a = sim.village(ids[i])!;
         const b = sim.village(ids[j])!;
-        pairs.push(`<li class="rel-${rec.category}"><span>${escapeHtml(a.name)} ↔ ${escapeHtml(b.name)}</span><b>${CATEGORY_LABEL[rec.category]}</b><em>${r(rec.score)}</em><div class="rel-meter"><i style="left:${(rec.score + 100) / 2}%"></i></div></li>`);
+        const note = rec.category === 'hostile' ? 'No trade until they cool off.' : rec.category === 'rival' ? 'Trade is slow and grudging.' : rec.category === 'allied' ? 'Trading eagerly.' : rec.category === 'friendly' ? 'Trading happily.' : 'Polite. Mostly.';
+        pairs.push(`<li class="rel-${rec.category}"><span>${escapeHtml(a.name)} & ${escapeHtml(b.name)}</span><b>${CATEGORY_LABEL[rec.category]}</b><small>${note}</small></li>`);
       }
     }
+    const pop = s.villagers.filter((p) => p.alive).length;
+    const faiths = s.religions.filter((x) => x.active && x.followers.length).sort((a, b) => b.followers.length - a.followers.length);
+    const unaffiliated = Math.max(0, pop - faiths.reduce((a, x) => a + x.followers.length, 0));
+    const dist = [...faiths.map((x) => ({ name: x.name, n: x.followers.length, color: `#${x.color.toString(16).padStart(6, '0')}` })), { name: 'No religion', n: unaffiliated, color: '#8a8fa3' }].filter((x) => x.n > 0);
     const caravans = s.civ.caravans.map((c) => {
       const o = sim.village(c.originId);
       const d = sim.village(c.destId);
-      return `<li>${icon('cart')} ${escapeHtml(o?.name ?? '?')} → ${escapeHtml(d?.name ?? '?')} · ${c.phase === 'outbound' ? `${r(c.cargo.amount)} ${c.cargo.resource}` : `returning with ${r(c.payment?.amount ?? 0)} ${c.payment?.resource ?? 'thanks'}`}</li>`;
+      return `<li>${icon('cart')} ${escapeHtml(o?.name ?? '?')} → ${escapeHtml(d?.name ?? '?')} · ${c.phase === 'outbound' ? `carrying ${r(c.cargo.amount)} ${c.cargo.resource}` : `returning with ${r(c.payment?.amount ?? 0)} ${c.payment?.resource ?? 'thanks'}`}</li>`;
     });
     this.root.innerHTML = `
-      <header class="vp-head">
-        <div><small>Census of the island</small><h2>${icon('map')} Villages</h2></div>
-        <button class="vp-close insp-close" type="button" aria-label="Close">${icon('close')}</button>
+      <header class="side-head">
+        <div><small>Day ${sim.day} · ${formatClock(sim.timeOfDay)} · ${pop} villagers</small><h2>${icon('map')} World</h2></div>
+        <button class="vp-close insp-close" type="button" aria-label="Close world panel">${icon('close')}</button>
       </header>
-      <div class="vp-select">${s.villages
-        .map((v) => `<button type="button" data-village="${v.id}" class="vp-chip c-${v.identity.culture}"><b>${escapeHtml(v.name)}</b><small>${CULTURE_LABEL[v.identity.culture]} · ${v.population} people</small></button>`)
-        .join('')}</div>
-      <table class="vp-table">
-        <thead><tr><th></th>${s.villages.map((v) => `<th>${escapeHtml(v.name)}</th>`).join('')}</tr></thead>
-        <tbody>
-          ${cell('Population', (v) => `<b>${v.population}</b>`)}
-          ${cell('Food', (v) => bar(v.food, 160, v.food < 20, String(r(v.food))))}
-          ${cell('Water', (v) => bar(v.water, 100, v.water < 20, String(r(v.water))))}
-          ${cell('Wood', (v) => bar(v.wood, 120, v.wood < 10, String(r(v.wood))))}
-          ${cell('Stone', (v) => bar(v.stone, 80, false, String(r(v.stone))))}
-          ${cell('Prosperity', (v) => bar(v.prosperity, 1, v.prosperity < 0.35, `${r(v.prosperity * 100)}%`))}
-          ${cell('Religion', religion)}
-          ${cell('Divine favor', favor)}
-          ${cell('Emergencies', emergencies)}
-        </tbody>
-      </table>
-      <h3>Relations</h3>
-      <ul class="vp-rel">${pairs.join('')}</ul>
-      <h3>On the road</h3>
-      <ul class="vp-road">${caravans.length ? caravans.join('') : '<li class="muted">No caravans right now.</li>'}</ul>`;
+      <div class="side-body">
+        <div class="vp-cards">${cards.join('')}</div>
+        <h3>Diplomacy</h3>
+        <ul class="vp-rel">${pairs.join('')}</ul>
+        <h3>Religion</h3>
+        <div class="vp-dist" role="img" aria-label="${escapeHtml(dist.map((d) => `${d.name}: ${d.n}`).join(', '))}">${dist.map((d) => `<i style="flex:${d.n};background:${d.color}"></i>`).join('')}</div>
+        <ul class="vp-dist-legend">${dist.map((d) => `<li><i style="background:${d.color}"></i>${escapeHtml(d.name)} <b>${d.n}</b></li>`).join('')}</ul>
+        <h3>On the road</h3>
+        <ul class="vp-road">${caravans.length ? caravans.join('') : '<li class="muted">No caravans right now.</li>'}</ul>
+      </div>`;
   }
 }

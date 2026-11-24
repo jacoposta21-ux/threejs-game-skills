@@ -490,6 +490,8 @@ export interface ChallengeState {
 }
 
 export interface CivState {
+  /** v0.5: the player chose their own pins (stop auto-pinning a recommended goal). */
+  pinsTouched?: boolean;
   relations: Record<string, RelationRecord>;
   caravans: Caravan[];
   favorEvents: FavorEvent[];

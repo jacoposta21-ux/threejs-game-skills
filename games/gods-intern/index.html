@@ -14,99 +14,93 @@
       <div id="screen-flash"></div>
       <div id="world-labels"></div>
 
-      <header id="hud" class="ui">
-        <div class="hud-left">
-          <div class="brand" title="God's Intern">
-            <span class="brand-halo"></span>
-            <div>
-              <strong>GOD'S INTERN</strong>
-              <small>Temporary Divine Management</small>
-            </div>
-          </div>
-          <div class="chip clock" id="hud-clock" title="Day and time">
-            <span class="clock-icon" id="hud-clock-icon"></span>
-            <span><b id="hud-day">Day 1</b><em id="hud-time">07:12</em></span>
-          </div>
-          <div class="chip" id="hud-pop" title="Population">
-            <span class="chip-icon" data-icon="people"></span><b id="hud-pop-value">20</b>
-          </div>
-          <button class="chip career" id="career-chip" type="button" title="Heavenly Career (J)">
-            <span class="career-rank" id="career-rank">1</span>
-            <span class="career-body"><b id="career-title">Unpaid Intern</b><span class="bar"><i id="career-bar"></i></span><small id="career-next"></small></span>
-            <span id="xp-float" class="hidden"></span>
-          </button>
-        </div>
-        <div class="hud-center">
-          <div class="meter energy" id="hud-energy" title="Divine Energy — regenerates over time">
-            <span class="meter-icon" data-icon="energy"></span>
-            <div class="meter-body">
-              <div class="meter-label"><span>Divine Energy</span><b id="hud-energy-value">100</b></div>
-              <div class="bar"><i id="hud-energy-bar"></i><s id="hud-energy-ghost"></s></div>
-            </div>
-          </div>
-          <div class="meter approval" id="hud-approval" title="God's Approval — helpfulness">
-            <span class="meter-icon" data-icon="halo"></span>
-            <div class="meter-body">
-              <div class="meter-label"><span>Approval</span><b id="hud-approval-value">50</b></div>
-              <div class="bar"><i id="hud-approval-bar"></i></div>
-            </div>
-          </div>
-          <div class="meter chaos" id="hud-chaos" title="Chaos Reputation — unpredictability">
-            <span class="meter-icon" data-icon="chaos"></span>
-            <div class="meter-body">
-              <div class="meter-label"><span>Chaos</span><b id="hud-chaos-value">0</b></div>
-              <div class="bar"><i id="hud-chaos-bar"></i></div>
-            </div>
-          </div>
-        </div>
-        <div class="hud-right">
-          <button class="icon-btn" id="btn-villages" type="button" title="Villages overview (V)"><span data-icon="map"></span></button>
-          <button class="icon-btn" id="btn-challenges" type="button" title="Divine Challenges (C)"><span data-icon="trophy"></span><span id="challenge-badge" class="badge hidden">0</span></button>
-          <button class="icon-btn" id="btn-book" type="button" title="The Book of Questionable Miracles (B)"><span data-icon="book"></span><span id="book-badge" class="badge hidden">0</span></button>
-          <button class="icon-btn" id="btn-speed" type="button" title="Simulation speed (F)"><span data-icon="speed"></span><b id="speed-label">1×</b></button>
-          <button class="icon-btn" id="btn-pause" type="button" title="Pause (Space)"><span data-icon="pause"></span></button>
-          <button class="icon-btn" id="btn-settings" type="button" title="Menu (Esc)"><span data-icon="gear"></span></button>
-        </div>
-      </header>
-
-      <div id="culture-ticker" class="ui hidden"></div>
-      <div id="notifications" class="ui" aria-live="polite"></div>
-      <div id="god-memo" class="ui" aria-live="assertive"></div>
-
-      <aside id="prayer-panel" class="ui panel">
-        <button class="panel-head" id="prayer-toggle" type="button" aria-expanded="true">
-          <span class="panel-title"><span data-icon="faith"></span>Prayer Inbox <b id="prayer-count">0</b></span>
-          <span class="chev" data-icon="chevron"></span>
+      <header id="hud" class="ui" aria-label="Status">
+        <button class="ind energy" id="hud-energy" type="button" aria-expanded="false" aria-label="Divine energy. Show details">
+          <span class="ind-icon" data-icon="energy"></span>
+          <span class="ind-body">
+            <span class="ind-top"><span class="ind-label">Energy</span><b><span id="hud-energy-value">100</span><small>/100</small></b></span>
+            <span class="bar"><i id="hud-energy-bar"></i><s id="hud-energy-ghost"></s></span>
+            <small class="ind-sub" id="hud-energy-sub">Full</small>
+          </span>
         </button>
-        <div class="panel-body" id="prayer-list"></div>
+        <button class="ind career" id="career-chip" type="button" aria-label="Heavenly career. Open the career panel">
+          <span class="career-rank" id="career-rank">1</span>
+          <span class="ind-body"><span class="ind-top"><b id="career-title">Unpaid Intern</b></span><span class="bar"><i id="career-bar"></i></span><small class="ind-sub" id="career-next"></small></span>
+          <span id="xp-float" class="hidden" aria-live="polite"></span>
+        </button>
+        <button class="ind approval" id="hud-approval" type="button" aria-expanded="false" aria-label="God's approval. Show details">
+          <span class="ind-icon" data-icon="halo"></span>
+          <span class="ind-body"><span class="ind-top"><span class="ind-label">Approval</span><b id="hud-approval-value">50</b></span><span class="bar"><i id="hud-approval-bar"></i></span><small class="ind-sub" id="hud-approval-word">Watching</small></span>
+        </button>
+        <button class="ind chaos" id="hud-chaos" type="button" aria-expanded="false" aria-label="Chaos reputation. Show details">
+          <span class="ind-icon" data-icon="chaos"></span>
+          <span class="ind-body"><span class="ind-top"><span class="ind-label">Chaos</span><b id="hud-chaos-value">0</b></span><span class="bar"><i id="hud-chaos-bar"></i></span><small class="ind-sub" id="hud-chaos-word">Boring</small></span>
+        </button>
+      </header>
+      <div id="hud-explain" class="ui hidden" role="dialog" aria-label="Explanation"></div>
+
+      <nav id="sidenav" class="ui" aria-label="Panels">
+        <button type="button" class="nav-btn" id="nav-world" data-nav="world" aria-label="World" aria-expanded="false"><span data-icon="map"></span><span class="nav-label">World</span></button>
+        <button type="button" class="nav-btn" id="nav-career" data-nav="career" aria-label="Career" aria-expanded="false"><span data-icon="star"></span><span class="nav-label">Career</span></button>
+        <button type="button" class="nav-btn" id="nav-challenges" data-nav="challenges" aria-label="Challenges" aria-expanded="false"><span data-icon="trophy"></span><span class="nav-label">Challenges</span><span id="challenge-badge" class="badge hidden">0</span></button>
+        <button type="button" class="nav-btn" id="nav-history" data-nav="history" aria-label="History" aria-expanded="false"><span data-icon="book"></span><span class="nav-label">History</span><span id="book-badge" class="badge hidden">0</span></button>
+        <span class="nav-sep" aria-hidden="true"></span>
+        <button type="button" class="nav-btn small" id="nav-help" data-nav="help" aria-label="Help" aria-expanded="false"><span data-icon="question"></span><span class="nav-label">Help</span></button>
+        <button type="button" class="nav-btn small" id="btn-settings" aria-label="Menu and settings"><span data-icon="gear"></span><span class="nav-label">Menu</span></button>
+        <button type="button" class="nav-btn small" id="btn-pause" aria-label="Pause"><span data-icon="pause"></span><span class="nav-label" id="pause-label">Pause</span></button>
+        <button type="button" class="nav-btn small" id="btn-speed" aria-label="Simulation speed"><span data-icon="speed"></span><span class="nav-label">Speed <b id="speed-label">1×</b></span></button>
+      </nav>
+
+      <aside id="villages" class="ui panel side-panel hidden" aria-label="World"></aside>
+      <aside id="career" class="ui panel side-panel hidden" aria-label="Career"></aside>
+      <aside id="challenges" class="ui panel side-panel hidden" aria-label="Challenges"></aside>
+      <aside id="book" class="ui panel side-panel hidden" aria-label="History"></aside>
+      <aside id="help" class="ui panel side-panel hidden" aria-label="Help"></aside>
+      <div id="challenge-pins" class="ui hidden" aria-label="Pinned goals"></div>
+
+      <div id="notifications" class="ui" aria-live="polite"></div>
+      <div id="ambient-line" class="ui hidden" aria-live="off"></div>
+      <div id="god-memo" class="ui" aria-live="polite"></div>
+      <div id="culture-ticker" class="ui hidden"></div>
+
+      <aside id="prayer-panel" class="ui" aria-label="Prayers">
+        <button class="prayer-head" id="prayer-toggle" type="button" aria-expanded="false">
+          <span data-icon="faith"></span><span>Prayers</span><b id="prayer-count">0</b><small id="prayer-more"></small>
+        </button>
+        <ul id="prayer-inbox" class="hidden" aria-label="Prayer inbox"></ul>
+        <div id="prayer-list"></div>
       </aside>
 
-      <aside id="inspector" class="ui panel hidden" aria-live="polite"></aside>
-      <aside id="book" class="ui panel hidden" aria-label="The Book of Questionable Miracles"></aside>
-      <aside id="challenges" class="ui panel hidden" aria-label="Divine Challenges"></aside>
-      <aside id="career" class="ui panel hidden" aria-label="Heavenly Career"></aside>
-      <div id="power-menu" class="ui panel hidden" aria-label="All divine powers"></div>
+      <aside id="inspector" class="ui panel hidden" aria-live="polite" aria-label="Inspector"></aside>
+      <div id="power-menu" class="ui panel hidden" aria-label="All powers"></div>
       <div id="promo-toast" class="ui hidden" aria-live="polite"></div>
+      <div id="challenge-toast" class="ui hidden" aria-live="polite"></div>
+      <div id="tip-card" class="ui hidden" role="status"></div>
       <div id="possess-hud" class="ui hidden" aria-live="polite"></div>
+      <div id="possess-pad" class="ui hidden" aria-label="Possession controls">
+        <div class="pad" role="group" aria-label="Walk">
+          <button type="button" data-dir="up" aria-label="Walk forward">▲</button>
+          <button type="button" data-dir="left" aria-label="Walk left">◀</button>
+          <button type="button" data-dir="right" aria-label="Walk right">▶</button>
+          <button type="button" data-dir="down" aria-label="Walk back">▼</button>
+        </div>
+        <div class="pad-actions"><button type="button" class="btn primary" data-pe>Interact</button><button type="button" class="btn" data-pq>Leave body</button></div>
+      </div>
       <div id="mode-badge" class="ui hidden"></div>
       <div id="rotate-hint"><div><b>Turn your device sideways</b>The island is wider than it is tall.<br>Heaven apologizes for the inconvenience.</div></div>
       <button id="cine-exit" class="ui hidden" type="button">Exit cinematic mode (any key)</button>
-      <aside id="villages" class="ui panel hidden" aria-label="Villages overview"></aside>
-      <div id="challenge-pins" class="ui hidden" aria-label="Pinned challenges"></div>
-      <div id="challenge-toast" class="ui hidden" aria-live="polite"></div>
       <div id="perf" class="hidden"></div>
 
-      <nav id="toolbar" class="ui" aria-label="Divine powers"></nav>
-      <div id="tool-tip" class="ui hidden"></div>
-      <div id="cursor-toast" class="hidden"></div>
+      <nav id="toolbar" class="ui" aria-label="Powers"></nav>
+      <div id="tool-tip" class="ui hidden" role="tooltip"></div>
+      <div id="cursor-toast" class="hidden" role="status"></div>
       <div id="villager-tip" class="hidden"></div>
 
-      <div id="tutorial-title" class="hidden"></div>
-      <div id="tutorial-hint" class="ui hidden"></div>
-      <button id="tutorial-skip" class="ui hidden" type="button">Skip tutorial</button>
+      <div id="tutorial-title" class="hidden" aria-live="polite"></div>
+      <div id="tutorial-hint" class="ui hidden" role="status"></div>
 
       <div id="paused-badge" class="hidden"><span data-icon="pause"></span> PAUSED</div>
-
+      <div id="main-menu" class="hidden"></div>
       <div id="modal-root" class="hidden"></div>
 
       <div id="loading">

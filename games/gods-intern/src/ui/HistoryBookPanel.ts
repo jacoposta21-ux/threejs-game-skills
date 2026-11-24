@@ -1,9 +1,10 @@
 import { ARCHETYPES } from '../culture/Archetypes';
 import { STAGE_NAMES } from '../culture/SacredSystem';
 import type { Simulation } from '../simulation/SimulationManager';
+import { COMBOS } from '../powers/ComboSystem';
 import { $, el, escapeHtml, icon } from './dom';
 
-type Tab = 'history' | 'civ' | 'beliefs' | 'sacred';
+type Tab = 'history' | 'civ' | 'beliefs' | 'sacred' | 'discoveries';
 
 /** History kinds shown in the Civilization chapter. */
 const CIV_KINDS = new Set(['trade', 'migration', 'religion-spread', 'diplomacy', 'challenge', 'village', 'founding', 'monument']);
@@ -46,7 +47,6 @@ export class HistoryBookPanel {
   onToggle: (open: boolean) => void = () => {};
 
   constructor() {
-    $('#btn-book').addEventListener('click', () => this.toggle());
     this.root.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const tab = target.closest<HTMLElement>('[data-tab]');
@@ -98,16 +98,16 @@ export class HistoryBookPanel {
     if (key === this.renderKey) return;
     this.renderKey = key;
     this.root.innerHTML = `
-      <header class="book-head">
-        <div><small>Property of the Intern · Do not show God</small><h2>${icon('book')} The Book of Questionable Miracles</h2></div>
-        <button class="book-close insp-close" type="button" aria-label="Close">${icon('close')}</button>
+      <header class="side-head">
+        <div><small>The Book of Questionable Miracles</small><h2>${icon('book')} History</h2></div>
+        <button class="book-close insp-close" type="button" aria-label="Close history">${icon('close')}</button>
       </header>
-      <nav class="book-tabs">
-        ${(['history', 'civ', 'beliefs', 'sacred'] as Tab[])
-          .map((t) => `<button type="button" data-tab="${t}" class="${this.tab === t ? 'on' : ''}">${t === 'history' ? 'History' : t === 'civ' ? 'Civilization' : t === 'beliefs' ? `Beliefs <b>${s.religions.filter((r) => r.active).length}</b>` : `Sacred <b>${s.sacred.length}</b>`}</button>`)
+      <nav class="ch-filters" role="tablist">
+        ${(['history', 'beliefs', 'sacred', 'discoveries', 'civ'] as Tab[])
+          .map((t) => `<button type="button" role="tab" aria-selected="${this.tab === t}" data-tab="${t}" class="${this.tab === t ? 'on' : ''}">${t === 'history' ? 'Events' : t === 'civ' ? 'Civilization' : t === 'beliefs' ? `Religions <b>${s.religions.filter((r) => r.active).length}</b>` : t === 'sacred' ? `Sacred <b>${s.sacred.length}</b>` : `Discoveries <b>${s.discoveries.length}</b>`}</button>`)
           .join('')}
       </nav>
-      <div class="book-body">${this.tab === 'history' ? this.history(sim) : this.tab === 'civ' ? this.civilization(sim) : this.tab === 'beliefs' ? this.beliefs(sim) : this.sacredList(sim)}</div>`;
+      <div class="side-body book-body">${this.tab === 'history' ? this.history(sim) : this.tab === 'civ' ? this.civilization(sim) : this.tab === 'beliefs' ? this.beliefs(sim) : this.tab === 'discoveries' ? this.discoveries(sim) : this.sacredList(sim)}</div>`;
   }
 
   /** The Civilization chapter: foundings, trades, migrations, spreads, alliances, rivalries, monuments, challenges. */
@@ -162,6 +162,13 @@ export class HistoryBookPanel {
         </article>`;
       })
       .join('');
+  }
+
+  /** Discovered power combinations only (undiscovered ones stay secret). */
+  private discoveries(sim: Simulation): string {
+    const found = sim.state.discoveries.map((d) => COMBOS.find((c) => c.id === d.id)).filter((c): c is (typeof COMBOS)[number] => !!c);
+    if (!found.length) return `<p class="book-empty">No discoveries yet. Some powers behave differently together. Nobody will tell you which.</p>`;
+    return `<p class="book-empty">${found.length} of ${COMBOS.length} discovered.</p><ol class="chronicle">${found.map((c) => `<li><span class="c-icon">✦</span><div><b>${escapeHtml(c.name)}</b><p>${escapeHtml(c.powers)}. ${escapeHtml(c.text)}</p></div></li>`).join('')}</ol>`;
   }
 
   private sacredList(sim: Simulation): string {

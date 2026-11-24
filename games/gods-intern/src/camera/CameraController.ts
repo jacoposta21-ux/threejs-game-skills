@@ -188,6 +188,12 @@ export class CameraController {
     this.goalPitch = 0.42;
   }
 
+  /** v0.5 inspector "follow": keep a moving point centred without changing the view angle. */
+  follow(x: number, z: number, dt: number): void {
+    this.flight = null;
+    this.goalTarget.lerp(new THREE.Vector3(x, Math.max(0, this.terrain.heightAt(x, z)), z), Math.min(1, dt * 4));
+  }
+
   /** Copy of the current view, to restore after possession or cinematic mode. */
   snapshot(): { x: number; z: number; d: number; yaw: number; pitch: number } {
     return { x: this.goalTarget.x, z: this.goalTarget.z, d: this.goalDistance, yaw: this.goalYaw, pitch: this.goalPitch };

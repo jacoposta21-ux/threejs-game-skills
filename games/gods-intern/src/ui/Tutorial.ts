@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { PowerId } from '../core/Config';
+import { BASIC_POWERS, CONFIG, type PowerId } from '../core/Config';
 import type { Simulation } from '../simulation/SimulationManager';
 import { $, el } from './dom';
 
@@ -16,26 +16,22 @@ export interface TutorialHost {
 }
 
 /**
- * First-minute script. Teaches by doing: a real thirst prayer, a real rain
- * cloud, a real flood if the player overdoes it. Every step has a timeout
- * fallback and the whole thing can be skipped; nothing ever freezes the sim.
- *
- * Steps: 0 intro · 1 select rain · 2 cast near well · 3 watch well fill ·
- *        4 tempt a second rain · 5 wrap-up · 6 done
+ * v0.5 onboarding (about 30–45 seconds, mandatory but never blocking the sim):
+ *   0 intro lines · 1 a village asks for rain (Rain is highlighted) · 2 cast near the
+ *   farms and the well · 3 the villagers react · 4 reward · done.
+ * Every step has a gentle fallback hint; the four starter powers are in the dock
+ * from the first second. Everything else is taught later by contextual tips.
  */
 export class Tutorial {
   private readonly title = $('#tutorial-title');
   private readonly hint = $('#tutorial-hint');
-  private readonly skip = $('#tutorial-skip');
   private marker: HTMLElement | null = null;
   private unsub: Array<() => void> = [];
   private titleTimers: number[] = [];
-  private floodSeen = false;
-  private rainAfterAnswer = 0;
+  /** Real seconds since the onboarding began (diagnostics). */
+  elapsed = 0;
 
-  constructor(private readonly host: TutorialHost) {
-    this.skip.addEventListener('click', () => this.finish(true));
-  }
+  constructor(private readonly host: TutorialHost) {}
 
   get active(): boolean {
     return !this.host.sim().state.tutorial.done;
@@ -49,55 +45,42 @@ export class Tutorial {
       this.hideAll();
       return;
     }
+    this.elapsed = 0;
     sim.missions.autoGenerate = false;
-    this.skip.classList.remove('hidden');
-    const bus = sim.bus;
+    sim.powers.unlock(BASIC_POWERS);
     this.unsub.push(
-      bus.on('POWER_USED', (e) => {
+      sim.bus.on('POWER_USED', (e) => {
         if (e.power !== 'rain') return;
         t.rainsCast++;
         if (t.step <= 2) this.go(3);
-        else if (t.step === 4) this.rainAfterAnswer++;
-      }),
-      bus.on('PRAYER_COMPLETED', (e) => {
-        if (e.prayer.type === 'THIRST' && t.step <= 3) this.go(4);
-      }),
-      bus.on('FLOOD_STARTED', () => {
-        if (t.step >= 3 && !this.floodSeen) {
-          this.floodSeen = true;
-          window.setTimeout(() => sim.godMessage('WHAT DID YOU DO?!', 3), 2200);
-          this.go(5);
-        }
       }),
     );
     if (t.step === 0) {
       this.host.introCamera();
-      this.showTitle('GOD IS ON VACATION.', 400, 2300, false);
-      this.showTitle('YOU ARE IN CHARGE.', 2700, 4600, true);
+      this.showTitle('GOD IS ON VACATION.', 200, 1700, '');
+      this.showTitle('YOU’RE IN CHARGE.', 1800, 3300, 'gold');
+      this.showTitle('PLEASE DON’T MAKE IT WORSE.', 3400, 5000, 'small');
       this.titleTimers.push(window.setTimeout(() => this.host.focusVillage(46, 3.2), 300));
     } else {
-      this.go(t.step);
+      this.go(Math.min(t.step, 2));
     }
   }
 
-  private showTitle(text: string, at: number, until: number, gold: boolean): void {
+  private showTitle(text: string, at: number, until: number, cls: string): void {
     this.titleTimers.push(
       window.setTimeout(() => {
         this.title.classList.remove('hidden');
         this.title.innerHTML = '';
-        const h = el('h2', gold ? 'gold' : '', text);
-        this.title.append(h);
+        this.title.append(el('h2', cls, text));
       }, at),
-      window.setTimeout(() => {
-        const h = this.title.querySelector('h2');
-        h?.classList.add('out');
-      }, until),
+      window.setTimeout(() => this.title.querySelector('h2')?.classList.add('out'), until),
     );
   }
 
   private setHint(html: string, arrowAt: PowerId | null = null): void {
     this.hint.innerHTML = html;
     this.hint.classList.remove('hidden');
+    this.hint.classList.toggle('arrow', !!arrowAt);
     if (arrowAt) {
       const r = this.host.powerRect(arrowAt);
       const hr = this.hint.getBoundingClientRect();
@@ -105,7 +88,7 @@ export class Tutorial {
         const x = Math.max(16, Math.min(hr.width - 16, r.left + r.width / 2 - hr.left));
         this.hint.style.setProperty('--arrow-x', `${x}px`);
       }
-    } else this.hint.style.setProperty('--arrow-x', '50%');
+    }
   }
 
   private go(step: number): void {
@@ -116,35 +99,33 @@ export class Tutorial {
     sim.bus.emit('TUTORIAL_STEP', { step });
     const village = sim.state.villages[0];
     switch (step) {
-      case 1: {
+      case 1:
         this.title.classList.add('hidden');
         if (!sim.missions.hasActive('THIRST', village.id)) {
           village.water = Math.min(village.water, 24);
           sim.missions.create('THIRST', village, true);
         }
         this.host.highlight('rain');
-        this.setHint('The villagers are praying for <b>water</b>! Select <b>Rain</b> <kbd>1</kbd>', 'rain');
+        this.setHint(`<b>${village.name}</b> is praying for rain. Select <b>Rain</b> in the dock.`, 'rain');
         break;
-      }
       case 2:
         this.host.highlight(null);
-        this.setHint('Now <b>click near the well</b> in the village square to summon a rain cloud.');
+        this.setHint('Now <b>click near the well</b> (the <b>!</b> marker) to send a rain cloud over the farms.');
         this.showWellMarker();
         break;
       case 3:
         this.host.highlight(null);
         this.clearMarker();
-        this.setHint('It’s working! Watch the <b>well fill up</b> as the rain falls.');
+        this.setHint('They noticed. <b>Villagers react to every miracle</b> and remember it.');
+        sim.godMessage('ACCEPTABLE. DO NOT LET IT GO TO YOUR HEAD.', 2);
         break;
-      case 4:
-        this.setHint('The crops look thirsty too… maybe <b>a little more rain</b>? <kbd>1</kbd>', 'rain');
-        this.rainAfterAnswer = 0;
+      case 4: {
+        sim.state.energy = Math.min(CONFIG.energy.max, sim.state.energy + 15);
+        sim.addApproval(4, 'First miracle');
+        this.setHint('First miracle: <b>+10 career XP</b>, +15 energy. Answer prayers and finish goals to earn promotions and new powers.');
         break;
+      }
       case 5:
-        this.host.highlight(null);
-        this.setHint(this.floodSeen ? 'Oops. <b>Too much rain floods the village.</b> Floods drain on their own — just stop raining.' : 'Nice work, intern. You’re getting the hang of this.');
-        break;
-      case 6:
         this.finish(false);
         break;
     }
@@ -154,46 +135,25 @@ export class Tutorial {
     const sim = this.host.sim();
     const t = sim.state.tutorial;
     if (t.done) return;
+    this.elapsed += dt;
     t.timer += dt;
     switch (t.step) {
       case 0:
-        if (t.timer > 5.2) this.go(1);
+        if (t.timer > 5.1) this.go(1);
         break;
       case 1:
         if (this.host.selected() === 'rain') this.go(2);
-        else if (t.timer > 25 && t.timer - dt <= 25) this.setHint('Press <kbd>1</kbd> or click the glowing <b>Rain</b> card to choose it.', 'rain');
-        else if (t.timer > 60 && t.timer - dt <= 60) this.setHint('Not a rain person? You can <b>skip the tutorial</b> any time (bottom-right).', 'rain');
+        else if (t.timer > 15 && t.timer - dt <= 15) this.setHint('Click the glowing <b>Rain</b> button at the bottom (or press <kbd>1</kbd>).', 'rain');
         break;
       case 2:
         if (this.host.selected() !== 'rain' && t.timer > 1) this.go(1);
-        else if (t.timer > 30 && t.timer - dt <= 30) this.setHint('Tip: the <b>well</b> is marked with a <b>!</b> in the middle of the village. Click there.');
+        else if (t.timer > 15 && t.timer - dt <= 15) this.setHint('The <b>!</b> marks the well in the middle of the village. Click anywhere near it.');
         break;
       case 3:
-        // Fallback if the player rained somewhere unhelpful.
-        if (t.timer > 14) {
-          const village = sim.state.villages[0];
-          if (village.water < 60 && t.rainsCast < 3) {
-            this.setHint('Try raining <b>right over the well</b> so it fills up. <kbd>1</kbd>', 'rain');
-            this.host.highlight('rain');
-            t.step = 2;
-            t.timer = 0;
-            this.showWellMarker();
-          } else this.go(4);
-        }
+        if (t.timer > 6) this.go(4);
         break;
       case 4:
-        if (t.timer > 3 && sim.state.clouds.length === 0 && this.rainAfterAnswer === 0) this.host.highlight('rain');
-        else this.host.highlight(null);
-        if (this.rainAfterAnswer > 0 && t.timer > 20 && sim.state.clouds.length === 0 && sim.state.villages[0].flood < 0.1) {
-          sim.godMessage('…FINE. CARRY ON.', 3);
-          this.go(5);
-        } else if (this.rainAfterAnswer === 0 && t.timer > 18) {
-          sim.godMessage('NOT BAD FOR A FIRST DAY. DON’T TOUCH ANYTHING ELSE.', 3);
-          this.go(5);
-        }
-        break;
-      case 5:
-        if (t.timer > 7) this.go(6);
+        if (t.timer > 6) this.go(5);
         break;
     }
   }
@@ -212,6 +172,7 @@ export class Tutorial {
     this.marker = null;
   }
 
+  /** `skipped` is only used by test hooks and returning players; there is no skip button. */
   finish(skipped: boolean): void {
     const sim = this.host.sim();
     const t = sim.state.tutorial;
@@ -221,12 +182,9 @@ export class Tutorial {
     this.hideAll();
     this.unbind();
     sim.missions.autoGenerate = true;
-    sim.powers.unlock(['rain', 'lightning', 'nature', 'fire']);
-    sim.notify('ALL POWERS UNLOCKED', 'good', 'Lightning, Nature and Fire are yours. Please be responsible.');
-    if (skipped) sim.godMessage('SKIPPING TRAINING. BOLD. I LIKE IT. (I DO NOT.)', 3);
+    sim.powers.unlock(BASIC_POWERS);
+    if (skipped) sim.notify('BACK FOR ANOTHER SHIFT?', 'info', 'Training already done. The dock is yours.', 2);
     this.host.onComplete();
-    this.setHint('Sandbox unlocked! Keys <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> for more powers. Answer prayers to keep God happy.');
-    window.setTimeout(() => this.hint.classList.add('hidden'), 7000);
   }
 
   private hideAll(): void {
@@ -234,7 +192,6 @@ export class Tutorial {
     this.titleTimers = [];
     this.title.classList.add('hidden');
     this.hint.classList.add('hidden');
-    this.skip.classList.add('hidden');
     this.clearMarker();
     this.host.highlight(null);
   }

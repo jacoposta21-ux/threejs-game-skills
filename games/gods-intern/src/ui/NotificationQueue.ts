@@ -27,7 +27,7 @@ export class NotificationQueue {
   ) {}
 
   /** Returns 'shown' | 'queued' | 'grouped' | 'dropped'. */
-  push(text: string, kind: string, priority: number, now: number, sub?: string): 'shown' | 'queued' | 'grouped' | 'dropped' {
+  push(text: string, kind: string, priority: number, now: number, sub?: string, duration?: number): 'shown' | 'queued' | 'grouped' | 'dropped' {
     const key = `${kind}:${text}:${sub ?? ''}`;
     const dup = this.visible.find((n) => n.key === key) ?? this.waiting.find((n) => n.key === key);
     if (dup) {
@@ -36,7 +36,7 @@ export class NotificationQueue {
       if (this.visible.includes(dup)) dup.shownAt = Math.max(dup.shownAt, now - dup.duration * 0.5); // extend a little
       return 'grouped';
     }
-    const notice: QueuedNotice = { key, text, sub, kind, priority, count: 1, createdAt: now, shownAt: 0, duration: sub ? 4.4 : 3.4 };
+    const notice: QueuedNotice = { key, text, sub, kind, priority, count: 1, createdAt: now, shownAt: 0, duration: duration ?? (sub ? 4.4 : 3.4) };
     if (this.visible.length < this.maxVisible) {
       notice.shownAt = now;
       this.visible.push(notice);

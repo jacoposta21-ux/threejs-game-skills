@@ -32,8 +32,18 @@ export class Notifications {
     return performance.now() / 1000;
   }
 
+  /** v0.5 tiers: critical (disasters, shortages; stays longer), important (short and
+   *  celebratory), ambient (one quiet line at the bottom-left; also kept in History). */
+  static tier(text: string, kind: NotifyKind, priority: number): 'critical' | 'important' | 'ambient' {
+    if (priority >= 3 || (kind === 'bad' && priority >= 2)) return 'critical';
+    if (priority >= 2 || kind === 'culture' || /PROMOT|CHALLENGE|RELIGION|UNLOCKED|DISCOVERY|LOADED|SAVED/.test(text)) return 'important';
+    return 'ambient';
+  }
+
   push(text: string, kind: NotifyKind, sub?: string, priority = 1): void {
-    const result = this.queue.push(text, kind, priority, this.now(), sub);
+    const tier = Notifications.tier(text, kind, priority);
+    if (tier === 'ambient') return this.ambient(text, sub);
+    const result = this.queue.push(text, kind, tier === 'critical' ? Math.max(3, priority) : priority, this.now(), sub, tier === 'critical' ? 7 : sub ? 4 : 3.2);
     if (result === 'grouped') this.refreshCounts();
     this.sync();
   }
@@ -72,7 +82,7 @@ export class Notifications {
       const kind = n.kind as NotifyKind;
       const node = el(
         'div',
-        `toast ${kind} p${n.priority}`,
+        `toast ${kind} p${n.priority} ${n.priority >= 3 ? 'tier-critical' : 'tier-important'}`,
         `<span class="t-badge">${BADGE[kind] ?? 'i'}</span><div><strong>${escapeHtml(n.text)}<em class="t-count">${n.count > 1 ? `×${n.count}` : ''}</em></strong>${n.sub ? `<small>${escapeHtml(n.sub)}</small>` : ''}</div>`,
       );
       this.root.append(node);
@@ -81,6 +91,25 @@ export class Notifications {
     }
     // Nodes whose notice was bumped back to waiting are removed (they will return).
     for (const [n] of this.nodes) if (!this.queue.visible.includes(n)) this.remove(n);
+  }
+
+  private readonly ambientRoot = $('#ambient-line');
+  private ambientTimer = 0;
+  private ambientLast = '';
+  private ambientCount = 1;
+
+  /** One unobtrusive line; repeats are grouped (×N). */
+  private ambient(text: string, sub?: string): void {
+    const line = `${text.charAt(0)}${text.slice(1).toLowerCase()}${sub ? ` — ${sub}` : ''}`;
+    this.ambientCount = line === this.ambientLast ? this.ambientCount + 1 : 1;
+    this.ambientLast = line;
+    this.ambientRoot.textContent = this.ambientCount > 1 ? `${line} ×${this.ambientCount}` : line;
+    this.ambientRoot.classList.remove('hidden');
+    window.clearTimeout(this.ambientTimer);
+    this.ambientTimer = window.setTimeout(() => {
+      this.ambientRoot.classList.add('hidden');
+      this.ambientLast = '';
+    }, 3200);
   }
 
   memo(text: string, from = 'GOD'): void {

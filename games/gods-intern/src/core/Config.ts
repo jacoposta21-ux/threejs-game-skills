@@ -206,15 +206,14 @@ export type PowerId =
   | 'rain' | 'lightning' | 'nature' | 'fire' | 'mutation'
   | 'tornado' | 'freeze' | 'gravity' | 'terraform' | 'timewarp' | 'possession' | 'meteor' | 'resurrection';
 export const POWER_ORDER: PowerId[] = ['rain', 'lightning', 'nature', 'fire', 'mutation', 'tornado', 'freeze', 'gravity', 'terraform', 'timewarp', 'possession', 'meteor', 'resurrection'];
-export type PowerCategory = 'Creation' | 'Weather' | 'Destruction' | 'Reality' | 'Life';
+export type PowerCategory = 'Creation' | 'Weather' | 'Destruction' | 'Reality';
+/** v0.5 categories (All Powers panel). */
 export const POWER_CATEGORY: Record<PowerId, PowerCategory> = {
-  nature: 'Creation', terraform: 'Creation',
+  nature: 'Creation', terraform: 'Creation', resurrection: 'Creation',
   rain: 'Weather', tornado: 'Weather', freeze: 'Weather',
   lightning: 'Destruction', fire: 'Destruction', meteor: 'Destruction',
-  mutation: 'Reality', gravity: 'Reality', timewarp: 'Reality',
-  possession: 'Life', resurrection: 'Life',
+  gravity: 'Reality', timewarp: 'Reality', mutation: 'Reality', possession: 'Reality',
 };
-/** Career rank that unlocks each v0.4 power (Career Mode). */
 export const POWER_UNLOCK_RANK: Partial<Record<PowerId, number>> = {
   tornado: 2, freeze: 3, gravity: 4, terraform: 5, timewarp: 6, possession: 7, meteor: 8, resurrection: 9,
 };

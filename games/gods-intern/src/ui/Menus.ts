@@ -18,6 +18,8 @@ export interface MenuActions {
   switchMode(mode: 'career' | 'creative'): void;
   cinematic(): void;
   screenshot(): void;
+  // v0.5
+  mainMenu(): void;
 }
 
 /** Pause menu, settings, how-to-play and confirmation dialogs (one modal at a time). */
@@ -86,6 +88,7 @@ export class Menus {
         <button class="btn" data-a="mode" type="button">${icon('star')} ${this.actions.mode() === 'creative' ? 'Back to Career Mode' : 'Creative Mode (sandbox)'}</button>
         <div class="btn-pair"><button class="btn" data-a="cine" type="button">${icon('film')} Cinematic</button><button class="btn" data-a="shot" type="button">${icon('camera')} Screenshot</button></div>
         <button class="btn" data-a="fullscreen" type="button">${icon('fullscreen')} Fullscreen</button>
+        <button class="btn" data-a="main" type="button">Main menu</button>
         <button class="btn danger" data-a="restart" type="button">Restart World</button>
       </div>
       <p class="menu-foot" id="menu-status">Autosaves every 60 seconds.</p>`;
@@ -129,6 +132,7 @@ export class Menus {
         },
       );
     });
+    node.querySelector('[data-a=main]')!.addEventListener('click', () => this.actions.mainMenu());
     node.querySelector('[data-a=restart]')!.addEventListener('click', () => {
       this.confirm('Restart the world?', 'The island returns to day one. Villagers will not remember you. (They will.)', 'Restart', () => {
         this.actions.restart();
@@ -148,7 +152,7 @@ export class Menus {
     const qualities: QualityLevel[] = ['auto', 'low', 'medium', 'high'];
     node.innerHTML = `
       <h2>${icon('gear')} Settings</h2>
-      <p class="sub">Saved automatically on this device.</p>
+      <p class="sub">Saved automatically on this device. Each volume is independent; the game is fully playable with sound off.</p>
       ${range('masterVolume', 'Master volume', 'Everything you hear', 0, 1, 0.05)}
       ${range('sfxVolume', 'Effects', 'Powers, thunder, crackles', 0, 1, 0.05)}
       ${range('musicVolume', 'Music', 'A small, worried music box', 0, 1, 0.05)}
@@ -158,9 +162,10 @@ export class Menus {
         .map((q) => `<button type="button" data-q="${q}" class="${s.quality === q ? 'on' : ''}">${q[0].toUpperCase() + q.slice(1)}</button>`)
         .join('')}</div></div>
       ${range('cameraSensitivity', 'Camera sensitivity', 'Rotate, pan and zoom speed', 0.3, 2, 0.1)}
-      ${toggle('unlimitedEnergy', 'Unlimited divine energy', 'Creative Mode only. Career Mode always uses normal energy.')}
-      ${toggle('reducedCooldowns', 'Reduced cooldowns', 'Creative Mode only. Cooldowns ×0.25.')}
-      ${toggle('reducedShake', 'Reduced camera shake', 'Calmer lightning strikes')}
+      ${this.actions.mode() === 'creative' ? `${toggle('unlimitedEnergy', 'Unlimited divine energy', 'Creative Mode only.')}
+      ${toggle('reducedCooldowns', 'Reduced cooldowns', 'Creative Mode only. Cooldowns ×0.25.')}` : ''}
+      ${toggle('cameraShake', 'Camera shake', 'Impacts shake the view a little')}
+      ${toggle('reducedMotion', 'Reduced motion', 'Calmer interface and world animation, no screen flashes')}
       <div class="btn-row"><button class="btn primary" data-a="done" type="button">Done</button></div>`;
     node.querySelectorAll<HTMLInputElement>('input[type=range]').forEach((input) => {
       input.addEventListener('input', () => {
@@ -170,7 +175,7 @@ export class Menus {
     });
     node.querySelectorAll<HTMLButtonElement>('[data-t]').forEach((b) => {
       b.addEventListener('click', () => {
-        const key = b.dataset.t as 'unlimitedEnergy' | 'reducedShake' | 'reducedCooldowns';
+        const key = b.dataset.t as 'unlimitedEnergy' | 'reducedShake' | 'reducedCooldowns' | 'cameraShake' | 'reducedMotion';
         s[key] = !s[key];
         b.classList.toggle('on', s[key]);
         b.setAttribute('aria-pressed', String(s[key]));
@@ -194,25 +199,20 @@ export class Menus {
       <h2>${icon('question')} How to Play</h2>
       <p class="sub">God is on vacation. Keep the villagers alive, answer their prayers, and try not to set everything on fire.</p>
       <div class="how">
-        <section><h4>Camera</h4><ul>
-          <li><kbd>Right drag</kbd> rotate</li><li><kbd>Wheel</kbd> zoom</li>
-          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>Middle drag</kbd> pan</li><li><kbd>Q</kbd>/<kbd>E</kbd> spin</li></ul></section>
         <section><h4>Powers</h4><ul>
-          <li><kbd>1</kbd>–<kbd>6</kbd> quick slots · <kbd>G</kbd> all 13 powers</li><li>Assign any power to a slot in the power menu</li>
-          <li><kbd>T</kbd> Terraform raise/lower · Time Warp fast/slow</li><li>New powers unlock with promotions (<kbd>J</kbd> career)</li></ul></section>
-        <section><h4>Career</h4><ul>
-          <li>Earn Divine Experience from prayers, challenges, discoveries and drama</li><li>Combine powers to discover secret interactions</li>
-          <li>Rank 10 unlocks <kbd>O</kbd> Divine Overtime</li></ul></section>
-        <section><h4>Possession</h4><ul>
-          <li><kbd>WASD</kbd> or tap to walk</li><li><kbd>E</kbd> interact · <kbd>Q</kbd> leave</li></ul></section>
-        <section><h4>Touch</h4><ul>
-          <li>Tap to use a power or inspect</li><li>Drag to pan · pinch to zoom · twist to rotate</li></ul></section>
+          <li>Pick a power in the dock at the bottom, then click the island</li><li><b>Cancel</b> puts it away (or Esc)</li>
+          <li><b>ALL POWERS</b> shows every power, what unlocks it, and lets you change the dock</li></ul></section>
+        <section><h4>Camera</h4><ul>
+          <li>Drag to pan · right-drag to rotate · scroll to zoom</li><li>Touch: drag, pinch, twist</li><li>Optional keys: WASD pan, Q/E spin</li></ul></section>
+        <section><h4>Panels</h4><ul>
+          <li><b>World</b>: villages, needs, diplomacy</li><li><b>Career</b>: rank, next promotion, upcoming powers</li>
+          <li><b>Challenges</b> and <b>History</b></li><li>Click outside a panel to close it</li></ul></section>
         <section><h4>Prayers</h4><ul>
-          <li>Villagers pray at the shrine when something is wrong.</li><li>Fix the underlying problem — any way you like.</li>
-          <li>Answered prayers refill energy and raise Approval.</li></ul></section>
-        <section><h4>Controls</h4><ul>
-          <li><kbd>Left click</kbd> use power</li><li><kbd>0</kbd>/<kbd>Esc</kbd> Look mode · click buildings to inspect</li>
-          <li><kbd>Space</kbd> pause · <kbd>F</kbd> speed · <kbd>P</kbd> menu</li><li><kbd>K</kbd> cinematic · <kbd>H</kbd> screenshot mode</li><li>Every miracle has consequences.</li></ul></section>
+          <li>Prayers appear on the right with a suggested power</li><li>Focus flies there; you still cast the miracle</li></ul></section>
+        <section><h4>Inspect</h4><ul>
+          <li>With no power selected, click villagers, buildings and sacred objects</li><li>Follow a villager with the camera</li></ul></section>
+        <section><h4>Optional keys</h4><ul>
+          <li>1–7 dock · G all powers · T power mode</li><li>Space pause · F speed · P menu</li><li>V world · J career · C challenges · B history</li></ul></section>
       </div>
       <div class="btn-row"><button class="btn primary" data-a="done" type="button">Got it</button></div>`;
     node.querySelector('[data-a=done]')!.addEventListener('click', () => this.close(true));

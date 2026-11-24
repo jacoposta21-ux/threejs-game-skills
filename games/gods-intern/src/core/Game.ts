@@ -19,13 +19,16 @@ import { CareerPanel } from '../ui/CareerPanel';
 import { PROMOTION_LINES, RANK_TITLES } from '../career/CareerSystem';
 import { createPlatform, type GamePlatform } from '../platform/Platform';
 import { Simulation } from '../simulation/SimulationManager';
-import { $, hydrateIcons } from '../ui/dom';
+import { $, hydrateIcons, setText } from '../ui/dom';
+import { ICON } from '../ui/Icons';
 import { HUD } from '../ui/HUD';
 import { Menus } from '../ui/Menus';
 import { Notifications } from '../ui/Notifications';
 import { POWER_ACCENT, PowerToolbar } from '../ui/PowerToolbar';
 import { PrayerPanel } from '../ui/PrayerPanel';
 import { Tutorial } from '../ui/Tutorial';
+import { Tips } from '../ui/Tips';
+import { MainMenu } from '../ui/MainMenu';
 import { VillageInspector } from '../ui/VillageInspector';
 import { WorldLabels } from '../ui/WorldLabels';
 import { Ambient } from '../world/Ambient';
@@ -44,6 +47,7 @@ const PROMO_LINES: Record<number, string> = Object.fromEntries(RANK_TITLES.map((
 /** Merchant pack colors by cargo. */
 const RESOURCE_COLOR: Record<string, number> = { food: 0xe8a13a, water: 0x4fa3e0, wood: 0x9b6a3e, stone: 0x9aa0a6 };
 type Quality = Exclude<QualityLevel, 'auto'>;
+type Panel = 'world' | 'career' | 'challenges' | 'history' | 'help';
 
 /**
  * Composition root. Owns the renderer and wires the pure simulation to the
@@ -92,6 +96,16 @@ export class Game {
   private readonly labels = new WorldLabels();
   private readonly menus: Menus;
   private readonly tutorial: Tutorial;
+  private readonly tips = new Tips();
+  private readonly mainMenu: MainMenu;
+  /** v0.5: one side panel at a time (World, Career, Challenges, History, Help). */
+  private panel: Panel | null = null;
+  /** A pointer press that closed a panel must not also cast or inspect. */
+  private swallowClick = false;
+  /** Possession on-screen pad directions currently held. */
+  private readonly padDirs = new Set<string>();
+  /** Real seconds since the player entered gameplay from the main menu (diagnostics). */
+  private playSeconds = 0;
   private readonly audio = new AudioManager();
   private readonly store = browserStore();
   private readonly saves = new SaveManager(this.store);
@@ -104,6 +118,7 @@ export class Game {
   private speed = 1;
   private pausedForScreenshot = false;
   private reducedMotion = false;
+  private pauseShown: boolean | null = null;
   private elapsed = 0;
   private frame = 0;
   private autosaveTimer = CONFIG.autosaveInterval;
@@ -186,20 +201,26 @@ export class Game {
       saveSettings(this.store, this.settings);
     };
     this.toolbar.onToggleMode = () => this.toggleSubMode();
+    this.toolbar.onSetMode = (mode) => this.setSubMode(mode);
     this.toolbar.onMenu = (open) => {
       this.audio.click();
-      if (open) this.closeDrawers('powers');
+      if (open) this.openPanel(null);
     };
-    this.careerUi.onToggle = (open) => {
-      this.audio.click();
-      if (open) this.closeDrawers('career');
-    };
+    this.careerUi.onToggle = (open) => this.panelToggled('career', open);
+    this.tips.onToggle = (open) => this.panelToggled('help', open);
     this.careerUi.onOvertime = () => this.startOvertime();
     this.toolbar.onHover = () => this.audio.hover();
     this.prayers.onFocus = (p) => {
       this.audio.click();
       this.cam.focus(p.targetX, p.targetZ, 46, 1.2);
     };
+    // Suggested power: select it and fly there. The player still casts the miracle.
+    this.prayers.onSuggest = (_p, power, x, z) => {
+      this.cam.focus(x, z, 44, 1.1);
+      if (this.selected !== power) this.select(power);
+      else this.audio.click();
+    };
+    this.inspector.onFollow = () => this.audio.click();
     this.prayers.onToggle = () => this.audio.click();
     this.inspector.onClose = () => this.audio.click();
     this.notes.onShow = (kind) => this.audio.notify(kind);
@@ -221,6 +242,16 @@ export class Game {
       applySettings: (s) => this.applySettings(s),
       fullscreen: () => this.toggleFullscreen(),
       click: () => this.audio.click(),
+      mainMenu: () => this.toMainMenu(),
+    });
+    this.mainMenu = new MainMenu({
+      career: () => this.slotInfo('career'),
+      creative: () => this.slotInfo('creative'),
+      continueCareer: () => this.leaveMenu('continue'),
+      newCareer: () => this.leaveMenu('new'),
+      creativeMode: () => this.leaveMenu('creative'),
+      settings: () => this.menus.settings(null),
+      click: () => this.audio.click(),
     });
 
     this.tutorial = new Tutorial({
@@ -235,8 +266,10 @@ export class Game {
       onComplete: () => {
         this.settings.tutorialSeen = true;
         saveSettings(this.store, this.settings);
+        this.tips.bind(this.sim);
       },
     });
+    this.tips.bind(this.sim);
 
     this.bindSimEvents();
     this.bindInput();
@@ -264,18 +297,79 @@ export class Game {
     this.loop.start();
     window.setTimeout(() => $('#loading').classList.add('done'), 150);
     this.platform.loadingStop();
+    // v0.5: the main menu over the living island, unless a test/dev URL asks to play directly.
+    const direct = ['fresh', 'skipTutorial', 'tutorial', 'play'].some((k) => this.params.has(k));
+    if (direct) this.enterGameplay();
+    else this.showMainMenu();
+  }
+
+  /** Begin (or resume) gameplay with the current world. */
+  private enterGameplay(): void {
+    this.mainMenu.hide();
+    this.cam.cinematic = false;
+    this.inMenu = false;
+    this.playSeconds = 0;
     this.platform.gameplayStart();
     if (this.params.has('skipTutorial')) this.sim.state.tutorial.done = true;
-    if (!this.sim.state.tutorial.done && this.settings.tutorialSeen && this.sim.state.time < 200 && !this.params.has('tutorial')) {
-      // Returning player on a fresh world: skip straight to the sandbox.
-      this.sim.state.tutorial.done = true;
-      this.sim.powers.unlock(BASIC_POWERS);
-      this.sim.notify('BACK FOR ANOTHER SHIFT?', 'info', 'All powers unlocked. Press ? in the menu for help.');
-    } else if (this.sim.state.tutorial.done && this.sim.state.time > 120) {
-      this.sim.notify('WELCOME BACK, INTERN', 'info', 'Your island was autosaved.');
-    }
+    if (this.sim.state.tutorial.done && this.sim.state.time > 120) this.sim.notify('WELCOME BACK, INTERN', 'info', 'Your island was autosaved.', 2);
     this.tutorial.start();
-    if (this.sim.state.tutorial.done) this.sim.powers.unlock(BASIC_POWERS);
+    if (this.sim.state.tutorial.done) {
+      this.sim.powers.unlock(BASIC_POWERS);
+      this.sim.missions.autoGenerate = true;
+    }
+    this.sim.career.applyUnlocks();
+    this.tips.bind(this.sim);
+  }
+
+  private inMenu = false;
+
+  private showMainMenu(): void {
+    this.inMenu = true;
+    this.select(null);
+    this.openPanel(null);
+    this.toolbar.closeMenu();
+    this.inspector.hide();
+    this.tutorial.dispose();
+    this.sim.missions.autoGenerate = false;
+    this.cam.cinematic = !this.reducedMotion;
+    this.mainMenu.show();
+  }
+
+  /** Pause menu → Main menu: save, then show the menu over the island. */
+  private toMainMenu(): void {
+    this.autosave();
+    this.menus.closeAll();
+    this.setPaused(false, false);
+    this.platform.gameplayStop();
+    this.showMainMenu();
+  }
+
+  private slotInfo(mode: 'career' | 'creative'): { rank: number; title: string; day: number } | null {
+    const res = this.saves.load(slotKey(mode, true));
+    if (!res.ok || res.state.seed !== WORLD_SEED || res.state.mode !== mode) return null;
+    if (mode === 'career' && !res.state.tutorial.done && res.state.time < 60) return null;
+    const c = res.state.career;
+    return { rank: c.rank, title: RANK_TITLES[c.rank - 1] ?? '', day: Math.floor(res.state.time / CONFIG.time.dayLength) + 1 };
+  }
+
+  private leaveMenu(choice: 'continue' | 'new' | 'creative'): void {
+    if (choice === 'continue') {
+      const res = this.saves.load(slotKey('career', true));
+      if (res.ok && res.state.seed === WORLD_SEED) this.applyState(res.state, false);
+      this.settings.mode = 'career';
+    } else if (choice === 'new') {
+      this.settings.mode = 'career';
+      this.newWorld('career', true);
+    } else {
+      this.settings.mode = 'creative';
+      const res = this.saves.load(slotKey('creative', true));
+      if (res.ok && res.state.seed === WORLD_SEED && res.state.mode === 'creative') this.applyState(res.state, false);
+      else this.newWorld('creative', false);
+    }
+    saveSettings(this.store, this.settings);
+    this.applyModeOptions();
+    this.refreshTerrainVisuals(-80, -80, 80, 80);
+    this.enterGameplay();
   }
 
   // ---------------------------------------------------------------- events
@@ -300,22 +394,13 @@ export class Game {
       this.cam.focus(x, z, 42, 1.1);
     };
     this.book.onSacred = (id) => this.labels.onPinClick(id);
-    this.book.onToggle = (open) => {
-      this.audio.click();
-      if (open) this.closeDrawers('book');
-    };
-    this.challengesUi.onToggle = (open) => {
-      this.audio.click();
-      if (open) this.closeDrawers('challenges');
-    };
+    this.book.onToggle = (open) => this.panelToggled('history', open);
+    this.challengesUi.onToggle = (open) => this.panelToggled('challenges', open);
     this.challengesUi.onPinFail = () => {
       this.audio.reject();
       this.cursorToast('You can pin at most 3 challenges', false, true);
     };
-    this.villagesUi.onToggle = (open) => {
-      this.audio.click();
-      if (open) this.closeDrawers('villages');
-    };
+    this.villagesUi.onToggle = (open) => this.panelToggled('world', open);
     this.villagesUi.onFocus = (v) => {
       this.audio.click();
       this.cam.focus(v.centerX + 2, v.centerZ - 2, 52, 1.2, 0.55, 0.86);
@@ -522,6 +607,13 @@ export class Game {
     });
     canvas.addEventListener('pointerdown', (e) => {
       canvas.focus({ preventScroll: true });
+      // Clicking the island outside an open panel closes it; that press does nothing else.
+      if (e.button === 0 && (this.panel || this.toolbar.menuOpen || this.hud.explaining)) {
+        this.swallowClick = true;
+        this.openPanel(null);
+        this.toolbar.closeMenu();
+        this.hud.close();
+      }
       if (e.button === 0) {
         this.pointer.down = true;
         this.pointer.downX = e.clientX;
@@ -531,6 +623,10 @@ export class Game {
     canvas.addEventListener('pointerup', (e) => {
       if (e.button !== 0 || !this.pointer.down) return;
       this.pointer.down = false;
+      if (this.swallowClick) {
+        this.swallowClick = false;
+        return;
+      }
       if (Math.hypot(e.clientX - this.pointer.downX, e.clientY - this.pointer.downY) > 8) return;
       this.click(e.clientX, e.clientY);
     });
@@ -559,16 +655,19 @@ export class Game {
           return;
         }
       }
+      if (this.inMenu) {
+        if (e.code === 'Escape' && this.menus.open) this.menus.close(false);
+        return;
+      }
       if (e.code === 'Escape' || e.code === 'KeyP') {
         e.preventDefault();
+        // Escape cancels the selected power first (the on-screen Cancel button does the same).
         if (this.menus.open) this.menus.close(true);
+        else if (e.code === 'Escape' && this.selected) this.select(null);
         else if (this.toolbar.menuOpen) this.toolbar.closeMenu();
-        else if (this.careerUi.open) this.careerUi.close();
-        else if (this.book.open) this.book.close();
-        else if (this.challengesUi.open) this.challengesUi.close();
-        else if (this.villagesUi.open) this.villagesUi.close();
+        else if (this.hud.explaining) this.hud.close();
+        else if (this.panel) this.openPanel(null);
         else if (this.inspector.open) this.inspector.hide();
-        else if (this.selected) this.select(null);
         else this.openMenu();
         return;
       }
@@ -579,21 +678,22 @@ export class Game {
       } else if (e.code === 'KeyF') {
         this.toggleSpeed();
       } else if (e.code === 'KeyB') {
-        this.book.toggle();
+        this.togglePanel('history');
       } else if (e.code === 'KeyC') {
-        this.challengesUi.toggle();
+        this.togglePanel('challenges');
       } else if (e.code === 'KeyV') {
-        this.villagesUi.toggle();
-      } else if (/^Digit[0-6]$/.test(e.code) || /^Numpad[0-6]$/.test(e.code)) {
+        this.togglePanel('world');
+      } else if (/^Digit[0-7]$/.test(e.code) || /^Numpad[0-7]$/.test(e.code)) {
         const n = Number(e.code.slice(-1));
-        this.select(n === 0 ? null : (this.toolbar.slot(n - 1) ?? null));
+        const id = n === 0 ? null : (this.toolbar.slot(n - 1) ?? null);
+        this.select(id && id === this.selected ? null : id);
       } else if (e.code === 'KeyG' || e.code === 'Tab') {
         e.preventDefault();
         this.toolbar.toggleMenu();
       } else if (e.code === 'KeyT') {
         this.toggleSubMode();
       } else if (e.code === 'KeyJ') {
-        this.careerUi.toggle();
+        this.togglePanel('career');
       } else if (e.code === 'KeyO') {
         this.startOvertime();
       } else if (e.code === 'KeyK') {
@@ -602,6 +702,40 @@ export class Game {
         this.setScreenshotMode(true);
       }
     });
+
+    document.querySelectorAll<HTMLElement>('#sidenav [data-nav]').forEach((b) =>
+      b.addEventListener('click', () => this.togglePanel(b.dataset.nav as Panel)),
+    );
+    $('#career-chip').addEventListener('click', () => this.syncPanelState());
+    this.hud.onExplain = (open) => {
+      this.audio.click();
+      if (open) {
+        this.openPanel(null);
+        this.toolbar.closeMenu();
+      }
+    };
+    // Possession: on-screen pad (hold to walk), Interact and Leave buttons (touch and mouse).
+    const pad = $('#possess-pad');
+    pad.querySelectorAll<HTMLElement>('[data-dir]').forEach((b) => {
+      const on = (e: PointerEvent) => {
+        e.preventDefault();
+        this.padDirs.add(b.dataset.dir!);
+        b.classList.add('held');
+      };
+      const off = () => {
+        this.padDirs.delete(b.dataset.dir!);
+        b.classList.remove('held');
+      };
+      b.addEventListener('pointerdown', on);
+      b.addEventListener('pointerup', off);
+      b.addEventListener('pointerleave', off);
+      b.addEventListener('pointercancel', off);
+    });
+    pad.querySelector('[data-pe]')!.addEventListener('click', () => {
+      const what = this.sim.possession.interact();
+      this.cursorToast(what ?? 'Nothing to interact with here', true, true);
+    });
+    pad.querySelector('[data-pq]')!.addEventListener('click', () => this.sim.possession.end('the intern let go'));
 
     $('#btn-pause').addEventListener('click', () => {
       this.audio.click();
@@ -629,13 +763,44 @@ export class Game {
     document.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
-  /** Only one left-hand drawer at a time (book, challenges, villages). */
-  private closeDrawers(keep: 'book' | 'challenges' | 'villages' | 'career' | 'powers'): void {
-    if (keep !== 'career') this.careerUi.close();
-    if (keep !== 'powers') this.toolbar.closeMenu();
-    if (keep !== 'book' && this.book.open) this.book.close();
-    if (keep !== 'challenges') this.challengesUi.close();
-    if (keep !== 'villages') this.villagesUi.close();
+  /** v0.5: one side panel at a time. `null` closes whichever is open. */
+  openPanel(p: Panel | null): void {
+    const ui = { world: this.villagesUi, career: this.careerUi, challenges: this.challengesUi, history: this.book, help: this.tips };
+    for (const [k, v] of Object.entries(ui) as Array<[Panel, { open: boolean; close(): void }]>) if (k !== p && v.open) v.close();
+    if (p) {
+      this.toolbar.closeMenu();
+      this.hud.close();
+      const target = ui[p] as { open: boolean; show?: () => void; showHelp?: () => void };
+      if (!target.open) (p === 'help' ? this.tips.showHelp() : (target as { show(): void }).show());
+    }
+    this.syncPanelState();
+  }
+
+  private togglePanel(p: Panel): void {
+    this.openPanel(this.panel === p ? null : p);
+  }
+
+  /** Called by each panel when it opens or closes itself (close buttons). */
+  private panelToggled(p: Panel, open: boolean): void {
+    this.audio.click();
+    if (open) {
+      const ui = { world: this.villagesUi, career: this.careerUi, challenges: this.challengesUi, history: this.book, help: this.tips };
+      for (const [k, v] of Object.entries(ui) as Array<[Panel, { open: boolean; close(): void }]>) if (k !== p && v.open) v.close();
+      this.toolbar.closeMenu();
+    }
+    this.syncPanelState();
+  }
+
+  private syncPanelState(): void {
+    const open = this.villagesUi.open ? 'world' : this.careerUi.open ? 'career' : this.challengesUi.open ? 'challenges' : this.book.open ? 'history' : this.tips.open ? 'help' : null;
+    this.panel = open;
+    document.body.classList.toggle('panel-open', !!open);
+    document.querySelectorAll<HTMLElement>('#sidenav [data-nav]').forEach((b) => b.setAttribute('aria-expanded', String(b.dataset.nav === open)));
+  }
+
+  /** Compatibility for older call sites. */
+  private closeDrawers(_keep: string): void {
+    this.openPanel(null);
   }
 
   /** Dirt roads drawn along the real A* routes caravans use between plazas (decimated). */
@@ -683,7 +848,12 @@ export class Game {
       return;
     }
     this.selected = this.selected === id ? null : id;
-    if (this.selected) this.inspector.hide();
+    if (this.selected) {
+      this.inspector.hide();
+      this.toolbar.closeMenu();
+    }
+    this.tips.selected(this.selected);
+    document.body.classList.toggle('targeting', !!this.selected);
     this.labels.showVillagerTip(null, 0, 0);
     this.audio.click();
   }
@@ -704,8 +874,16 @@ export class Game {
       this.sim.powers.activate(this.selected, this.ground.x, this.ground.z);
       return;
     }
-    // Look mode: inspect sacred places, buildings or villagers.
-    if (this.pickGround(x, y, this.ground)) {
+    // Look mode: inspect villagers (and caravans through their merchants), sacred
+    // objects, buildings, disaster sites and villages.
+    const villager = this.pickVillager(x, y);
+    if (villager) {
+      this.audio.click();
+      this.inspector.showVillager(this.sim, villager.id);
+      return;
+    }
+    const onGround = this.pickGround(x, y, this.ground);
+    if (onGround) {
       const sacred = this.sim.sacredSys.nearest(this.ground.x, this.ground.z, 3);
       if (sacred) {
         this.audio.click();
@@ -725,11 +903,26 @@ export class Game {
         return;
       }
     }
-    const v = this.pickVillager(x, y);
-    if (v) {
-      this.audio.click();
-      this.inspector.show(this.sim, v.villageId, null);
-      return;
+    if (onGround) {
+      const gx = this.ground.x;
+      const gz = this.ground.z;
+      const s = this.sim.state;
+      const fires = s.fires.filter((f) => f.intensity > 0 && Math.hypot(f.x - gx, f.z - gz) < 5).length;
+      const crater = s.craters.find((c) => Math.hypot(c.x - gx, c.z - gz) < c.radius + 1);
+      const effect = s.effects.find((e) => Math.hypot(e.x - gx, e.z - gz) < 6);
+      if (fires || crater || effect) {
+        this.audio.click();
+        const label = fires ? 'Fire' : crater ? 'Meteor crater' : effect!.kind === 'tornado' ? 'Tornado' : effect!.kind === 'freeze' ? 'Frozen ground' : effect!.kind === 'gravity' ? 'Low gravity' : effect!.kind === 'timewarp' ? 'Time bubble' : 'Impact site';
+        const text = fires ? `${fires} fire${fires > 1 ? 's' : ''} burning here. Rain or Freeze puts them out; left alone they spread.` : crater ? 'A fresh crater. Rain cools it and lets the grass return.' : `An active ${label.toLowerCase()}. It ends on its own in ${Math.max(1, Math.round(effect!.until - s.time))} s.`;
+        this.inspector.showSite(this.sim, gx, gz, label, text);
+        return;
+      }
+      const near = this.sim.nearestVillage(gx, gz);
+      if (near.village && near.distance < near.village.radius * 0.6) {
+        this.audio.click();
+        this.inspector.show(this.sim, near.village.id, null);
+        return;
+      }
     }
     this.inspector.hide();
   }
@@ -814,6 +1007,7 @@ export class Game {
   }
 
   private autosave(): void {
+    if (this.inMenu) return;
     this.saves.save(this.sim.state, slotKey(this.sim.state.mode, true));
   }
 
@@ -832,10 +1026,10 @@ export class Game {
     if (pv && !frozen) {
       let dx = 0;
       let dz = 0;
-      if (this.heldKeys.has('KeyW') || this.heldKeys.has('ArrowUp')) dz -= 1;
-      if (this.heldKeys.has('KeyS') || this.heldKeys.has('ArrowDown')) dz += 1;
-      if (this.heldKeys.has('KeyA') || this.heldKeys.has('ArrowLeft')) dx -= 1;
-      if (this.heldKeys.has('KeyD') || this.heldKeys.has('ArrowRight')) dx += 1;
+      if (this.heldKeys.has('KeyW') || this.heldKeys.has('ArrowUp') || this.padDirs.has('up')) dz -= 1;
+      if (this.heldKeys.has('KeyS') || this.heldKeys.has('ArrowDown') || this.padDirs.has('down')) dz += 1;
+      if (this.heldKeys.has('KeyA') || this.heldKeys.has('ArrowLeft') || this.padDirs.has('left')) dx -= 1;
+      if (this.heldKeys.has('KeyD') || this.heldKeys.has('ArrowRight') || this.padDirs.has('right')) dx += 1;
       let wx = 0;
       let wz = 0;
       if (dx || dz) {
@@ -855,19 +1049,30 @@ export class Game {
       this.sim.possession.steer(wx, wz);
       this.cam.track(pv.position.x, pv.position.y, pv.position.z, pv.heading, dt);
     }
+    // Inspector "Follow with camera".
+    const followId = this.inspector.following;
+    if (followId && !pv && !frozen) {
+      const fv = this.sim.villager(followId);
+      if (fv?.alive) this.cam.follow(fv.position.x, fv.position.z, dt);
+    }
     if (!frozen) this.cam.update(dt);
-    this.tutorial.update(this.paused || this.menus.open || frozen ? 0 : wallDt);
+    const gameDt = this.paused || this.menus.open || frozen || this.inMenu ? 0 : wallDt;
+    this.tutorial.update(gameDt);
+    this.tips.update(this.sim, gameDt);
+    if (!this.inMenu) this.playSeconds += gameDt;
 
     // Targeting preview.
     const live = this.pointer.inside && !this.cam.dragging && !this.menus.open;
     this.groundValid = live && this.pickGround(this.pointer.x, this.pointer.y, this.ground);
     if (this.selected && this.groundValid) {
       const check = sim.powers.check(this.selected, this.ground.x, this.ground.z);
-      const valid = check.ok || /Recharging/.test(check.reason ?? '');
+      const valid = check.ok || /Recharging|energy/.test(check.reason ?? '');
+      this.toolbar.target = { valid: check.ok || valid, reason: check.reason ?? '' };
       const radius = sim.powers.powers[this.selected].radius;
       this.terrainMesh.setCursor(this.ground.x, this.ground.z, Math.max(1.2, radius), valid ? POWER_ACCENT[this.selected] : '#e5484d', true);
       this.canvas.className = valid ? 'targeting' : 'invalid';
     } else {
+      this.toolbar.target = null;
       this.terrainMesh.setCursor(0, 0, 0, '#fff', false);
       this.canvas.className = this.cam.dragging ? 'grabbing' : '';
     }
@@ -920,13 +1125,25 @@ export class Game {
     const cost = this.selected ? sim.powers.powers[this.selected].energyCost : 0;
     this.hud.update(sim, this.paused || this.menus.open, this.speed, cost);
     this.toolbar.update(sim, this.selected);
+    this.prayers.setCollapsed(this.inspector.open);
+    document.body.classList.toggle('inspecting', this.inspector.open);
+    document.body.classList.toggle('possessing', !!s.possession);
     this.prayers.update(sim);
     this.inspector.update(sim, dt);
+    if (this.paused !== this.pauseShown) {
+      this.pauseShown = this.paused;
+      const btn = $('#btn-pause');
+      btn.querySelector('[data-icon]')!.innerHTML = ICON[this.paused ? 'play' : 'pause'];
+      $('#pause-label').textContent = this.paused ? 'Resume' : 'Pause';
+      btn.classList.toggle('active', this.paused);
+      btn.setAttribute('aria-label', this.paused ? 'Resume' : 'Pause');
+    }
+    setText($('#speed-label'), `${this.speed}×`);
     this.book.update(sim);
     this.villagesUi.update(sim);
     this.careerUi.update(sim, wallDt);
     this.updateOverlays(sim);
-    this.challengesUi.update(sim, wallDt, this.book.open || this.villagesUi.open || this.careerUi.open || this.toolbar.menuOpen);
+    this.challengesUi.update(sim, wallDt, !!this.panel || this.toolbar.menuOpen || this.inMenu);
     this.notes.update();
     this.pinTimer -= dt;
     if (this.pinTimer <= 0) {
@@ -981,7 +1198,7 @@ export class Game {
 
   private screenFlash(amount: number): void {
     const node = $('#screen-flash');
-    const strength = this.settings.reducedShake ? 0.25 : 0.7;
+    const strength = this.settings.reducedMotion ? 0 : this.settings.reducedShake ? 0.25 : 0.7;
     node.animate([{ opacity: amount * strength }, { opacity: 0 }], { duration: 380, easing: 'ease-out' });
   }
 
@@ -1007,7 +1224,9 @@ export class Game {
     this.settings = s;
     this.audio.setVolumes(s.masterVolume, s.sfxVolume, s.musicVolume, s.ambientVolume, s.uiVolume);
     this.cam.sensitivity = s.cameraSensitivity;
-    this.cam.reducedShake = s.reducedShake;
+    this.cam.reducedShake = s.reducedShake || !s.cameraShake;
+    this.reducedMotion = s.reducedMotion;
+    document.body.classList.toggle('reduced-motion', s.reducedMotion);
     this.applyModeOptions();
     if (qualityChanged) this.applyQuality(s.quality === 'auto' ? 'high' : s.quality);
     if (persist) saveSettings(this.store, s);
@@ -1080,6 +1299,14 @@ export class Game {
     this.vegetation.reground(this.sim.terrain, x0, z0, x1, z1);
   }
 
+  /** Explicit mode buttons in the targeting bar (Raise/Lower, Accelerate/Slow). */
+  private setSubMode(mode: string): void {
+    if (mode === 'raise' || mode === 'lower') this.sim.powers.terraform.mode = mode;
+    else if (mode === 'fast' || mode === 'slow') this.sim.powers.timewarp.mode = mode;
+    else return;
+    this.audio.uiClick();
+  }
+
   private toggleSubMode(): void {
     if (this.selected === 'terraform') {
       const t = this.sim.powers.terraform;
@@ -1137,16 +1364,15 @@ export class Game {
         this.possessLabelKey = key;
         const village = sim.village(v.villageId);
         hud.innerHTML = `<div><small>Possessing · ${left}s</small><b>${v.name}</b><span>${v.traits.join(' · ')} · ${village?.name ?? ''}</span></div>
-          <p><kbd>WASD</kbd>/tap to walk · <kbd>E</kbd> interact · <kbd>Q</kbd> leave</p>
-          <div class="ph-btns"><button type="button" data-pe>Interact</button><button type="button" data-pq>Leave</button></div>`;
-        hud.querySelector('[data-pe]')?.addEventListener('click', () => {
-          const what = sim.possession.interact();
-          if (what) this.cursorToast(what, true, true);
-        });
-        hud.querySelector('[data-pq]')?.addEventListener('click', () => sim.possession.end('the intern let go'));
+          <p>Walk with the pad, tap the ground, or WASD · Interact (E) · Leave (Q)</p>`;
       }
       hud.classList.remove('hidden');
-    } else hud.classList.add('hidden');
+      $('#possess-pad').classList.remove('hidden');
+    } else {
+      hud.classList.add('hidden');
+      $('#possess-pad').classList.add('hidden');
+      this.padDirs.clear();
+    }
     const badge = $('#mode-badge');
     const creative = sim.state.mode === 'creative';
     badge.classList.toggle('hidden', !creative);
@@ -1166,7 +1392,7 @@ export class Game {
     return true;
   }
 
-  private applyState(state: ReturnType<typeof createInitialState>): void {
+  private applyState(state: ReturnType<typeof createInitialState>, startTutorial = true): void {
     this.sim.replaceState(state);
     this.buildings.rebind(state.buildings);
     this.villagers.reset();
@@ -1179,9 +1405,28 @@ export class Game {
     this.inspector.hide();
     this.notes.clear();
     this.tutorial.dispose();
+    this.select(null);
+    this.openPanel(null);
+    this.toolbar.closeMenu();
     this.sim.missions.autoGenerate = state.tutorial.done;
     if (state.tutorial.done) this.sim.powers.unlock(BASIC_POWERS);
-    this.tutorial.start();
+    this.tips.bind(this.sim);
+    if (startTutorial) this.tutorial.start();
+  }
+
+  /** A brand-new island for a mode. A new Career begins with the short onboarding. */
+  private newWorld(mode: 'career' | 'creative', onboarding: boolean): void {
+    const fresh = createInitialState(WORLD_SEED, this.sim.terrain);
+    fresh.mode = mode;
+    if (!onboarding) fresh.tutorial.done = true;
+    this.applyState(fresh, false);
+    this.sim.applyMode();
+    if (!onboarding) {
+      this.sim.powers.unlock(BASIC_POWERS);
+      this.sim.career.applyUnlocks();
+    }
+    this.saves.clear(slotKey(mode, true));
+    this.saves.clear(slotKey(mode, false));
   }
 
   // ---------------------------------------------------------------- test hooks
@@ -1319,6 +1564,21 @@ export class Game {
         menu: this.toolbar.menuOpen,
         cinematic: this.cinematic,
         challengesCompleted: this.sim.challenges.completedCount(),
+      },
+      v5: {
+        panel: this.panel,
+        mainMenu: this.mainMenu.open,
+        inMenu: this.inMenu,
+        tipsSeen: [...(s.tutorial.tipsSeen ?? [])],
+        tutorialSeconds: +this.tutorial.elapsed.toFixed(1),
+        playSeconds: +this.playSeconds.toFixed(1),
+        inspector: this.inspector.kind,
+        following: this.inspector.following,
+        target: this.toolbar.target,
+        explain: this.hud.explaining,
+        allPowers: this.toolbar.menuOpen,
+        prayerCards: document.querySelectorAll('#prayer-list .prayer:not(.done):not(.failed)').length,
+        reducedMotion: this.reducedMotion,
       },
       camera: { distance: this.cam.distance, yaw: this.cam.yaw, pitch: this.cam.pitch, x: this.cam.target.x, z: this.cam.target.z },
       menu: this.menus.current,

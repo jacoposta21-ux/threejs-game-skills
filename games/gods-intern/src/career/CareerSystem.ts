@@ -127,8 +127,7 @@ export class CareerSystem {
     if (s.tutorial.done && !s.career.awarded.tutorial && s.mode === 'career') {
       this.award('tutorial', CONFIG.career.xp.training, 'Finished training', { once: true });
       this.applyUnlocks();
-      // v0.5: one recommended goal at a time early on (not three competing ones).
-      if (!s.civ.pinned.length) this.sim.challenges.pin('amateur-botanist');
+      // v0.5: the challenge panel pins one recommended goal (see ChallengePanel).
       this.sim.heaven.send('welcome', 'HEAVENLY HUMAN RESOURCES', 'WELCOME TO THE TEAM. YOUR DESK IS A CLOUD. PERFORMANCE GOALS HAVE BEEN PINNED TO YOUR SCREEN.', { force: true });
     }
   }
@@ -184,6 +183,10 @@ export class CareerSystem {
     c.rank = rank;
     c.promotions.push({ rank, t: sim.state.time });
     this.applyUnlocks();
+    // v0.5: small non-XP rewards (only on a real promotion, never on load or migration).
+    sim.state.energy = CONFIG.energy.max;
+    sim.addApproval(4, 'Promotion');
+    if (!sim.state.civ.titles.includes(RANK_TITLES[rank - 1])) sim.state.civ.titles.push(RANK_TITLES[rank - 1]);
     const title = RANK_TITLES[rank - 1];
     const unlocks = RANK_UNLOCKS[rank - 1];
     sim.history.add(`Promoted: ${title}`, `${PROMOTION_LINES[rank - 1]} Unlocked: ${unlocks.join(', ')}.`, { kind: 'career' });
